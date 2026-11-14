@@ -19,3 +19,6 @@ export_presets.cfg.local
 # OS
 .DS_Store
 Thumbs.db
+
+# Android gradle build template, installed at export time
+game/android/
