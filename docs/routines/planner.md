@@ -11,6 +11,7 @@ One run keeps the backlog small, ordered and ready, and tells the owner where th
 | `in-progress` | A Builder run is working on it right now |
 | `needs-human` | Blocked on the owner: a decision, a headset session, a secret, or a protected path |
 | `playtest` | Feedback from a headset session; outranks new features (DEV-7) |
+| `approved` | The Reviewer's verdict on a pull request; set and cleared only by the Reviewer |
 | `gate` | A milestone gate checklist; only the owner closes it |
 
 ## Steps

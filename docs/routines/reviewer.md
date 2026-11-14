@@ -19,10 +19,15 @@ and the requirements only.
       - No new dependency or asset without an entry in `docs/licences.md`.
       - Nothing from the original Descent games (NAM-3); no secrets.
       - The tests would fail if the feature were broken.
-   4. Post one review: approve, or request changes with a numbered list of specific,
-      checkable items. Do not rewrite the code yourself.
-3. For an approved pull request that changes only unprotected paths, enable squash merge
-   (auto-merge if available). Pull requests touching protected paths wait for the owner.
+   4. Post one verdict as a pull request comment starting with `Reviewer: approved` or
+      `Reviewer: changes requested`, the latter with a numbered list of specific,
+      checkable items. Add the label `approved` or remove it to match. Scheduled runs
+      share one GitHub identity, and GitHub does not let an account approve its own pull
+      request, so the comment and label are the review of record. Do not rewrite the
+      code yourself.
+3. Squash-merge a pull request labelled `approved` that has green CI and changes only
+   unprotected paths. Pull requests touching protected paths (see `.github/CODEOWNERS`)
+   are labelled `needs-human` and wait for the owner.
 4. Write `docs/devlog/<YYYY-MM-DD>-<HHMM>-reviewer.md` on a branch and open a pull request
    for it only if you reviewed at least one pull request; list each verdict in one line.
 

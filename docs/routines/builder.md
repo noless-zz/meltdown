@@ -5,8 +5,8 @@ One run implements exactly one issue and ends with an open pull request and a de
 ## Steps
 
 1. Read `CLAUDE.md`, `docs/requirements.md` and the three newest files in `docs/devlog/`.
-2. List open pull requests. If one from an earlier Builder run has failing CI or requested
-   changes, fix that pull request first and stop after pushing the fix. Do not start a new
+2. List open pull requests. If one from an earlier Builder run has failing CI or a
+   `Reviewer: changes requested` comment newer than its last commit, fix that pull request first and stop after pushing the fix. Do not start a new
    issue in the same run.
 3. Otherwise pick the issue to work on: open, labelled `ready`, not labelled `needs-human`
    or `in-progress`, in the earliest open milestone, lowest issue number first. If there is
