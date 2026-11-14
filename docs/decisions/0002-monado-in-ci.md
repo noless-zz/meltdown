@@ -78,8 +78,9 @@ The cause inside Mesa was not investigated further.
 - Without Monado the same game command prints `"session":false,"views":0`, which the
   script turns into a failure. A crash leaves no result line, which also fails. So the
   job can fail, and did.
-- CI: see the `XR smoke test (Monado)` job and its `xr-smoke-logs` artifact on the pull
-  request for #26. The run numbers are in the devlog entry of that pull request.
+- CI run 43653672259 on pull request #34: the job passed in 88 seconds and reported
+  `"session":true,"views":2,"refresh_rate":20.0` on Monado `25.0.0+dfsg-2build1`. The
+  logs are in its `xr-smoke-logs` artifact. Run 43652355148 is the crash described above.
 
 ## Limits
 
