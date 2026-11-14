@@ -28,6 +28,8 @@ and the requirements only.
 3. Squash-merge a pull request labelled `approved` that has green CI and changes only
    unprotected paths. Pull requests touching protected paths (see `.github/CODEOWNERS`)
    are labelled `needs-human` and wait for the owner.
+   A pull request with green CI that only adds files under `docs/devlog/` is squash-merged
+   without a verdict, whichever role opened it: the owner does not need to see those (#20).
 4. Write `docs/devlog/<YYYY-MM-DD>-<HHMM>-reviewer.md` on a branch and open a pull request
    for it only if you reviewed at least one pull request; list each verdict in one line.
 
