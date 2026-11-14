@@ -182,3 +182,51 @@ jobs:
           name: meltdown-quest-debug
           path: build/meltdown-quest-debug.apk
           if-no-files-found: error
+
+  xr-smoke:
+    # Experiment from issue #26, see docs/decisions/0002-monado-in-ci.md.
+    # Self-contained: no other job needs it and it needs none, so it cannot
+    # slow them down. Do not add it to the required checks.
+    name: XR smoke test (Monado)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Monado, software Vulkan and a virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            monado-service libopenxr1-monado mesa-vulkan-drivers xvfb
+          dpkg-query -W monado-service libopenxr1-monado mesa-vulkan-drivers xvfb
+
+      - name: Download Godot
+        run: |
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        run: godot --headless --path game --import
+
+      - name: Run 120 frames in OpenXR mode on a simulated headset
+        run: tools/xr_smoke.sh 120
+
+      - name: Show the result
+        if: always()
+        run: |
+          {
+            echo '### XR smoke test (Monado)'
+            echo '```'
+            cat build/xr-smoke/result.txt 2>/dev/null || echo 'no result line'
+            grep -a 'Meltdown:' build/xr-smoke/godot.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xr-smoke-logs
+          path: build/xr-smoke/
+          if-no-files-found: warn
