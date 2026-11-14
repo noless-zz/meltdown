@@ -23,6 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check shell scripts
+        run: |
+          for script in tools/*.sh; do bash -n "$script"; done
+          shellcheck tools/*.sh
+
       - name: Download Godot
         run: |
           curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
@@ -78,6 +83,47 @@ jobs:
           name: meltdown-desktop-linux
           path: build/meltdown-desktop.x86_64
           if-no-files-found: error
+
+  publish-server:
+    # The dedicated server host pulls from a public release because workflow
+    # artifacts cannot be downloaded without a login (see tools/install_server.sh).
+    name: Publish server build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: main-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: meltdown-server-linux
+
+      - name: Write checksum
+        run: |
+          sha256sum meltdown-server.x86_64 > meltdown-server.x86_64.sha256
+          cat meltdown-server.x86_64.sha256
+
+      - name: Update the rolling pre-release
+        run: |
+          notes="Latest dedicated server build from main, commit ${GITHUB_SHA}. Replaced on every push; not a versioned release."
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            # Move the tag so the release points at the commit it was built from.
+            gh api -X PATCH "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" \
+              -f sha="$GITHUB_SHA" -F force=true > /dev/null
+            gh release edit "$RELEASE_TAG" --notes "$notes"
+          else
+            gh release create "$RELEASE_TAG" --prerelease --target "$GITHUB_SHA" \
+              --title "Server build (main)" --notes "$notes"
+          fi
+          # Checksum last: a host that polls mid-upload sees a mismatch, keeps
+          # its current binary and retries an hour later.
+          gh release upload "$RELEASE_TAG" meltdown-server.x86_64 --clobber
+          gh release upload "$RELEASE_TAG" meltdown-server.x86_64.sha256 --clobber
 
   quest-apk:
     name: Quest APK (debug)
