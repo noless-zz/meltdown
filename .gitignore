@@ -1,0 +1,21 @@
+# Godot
+game/.godot/
+*.translation
+export_presets.cfg.local
+
+# Builds
+/build/
+*.apk
+*.aab
+*.pck
+*.x86_64
+*.exe
+
+# Secrets
+*.keystore
+*.jks
+.env
+
+# OS
+.DS_Store
+Thumbs.db

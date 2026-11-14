@@ -1,0 +1,5 @@
+# Protected paths: changes need the owner's review (DEV-4).
+/CLAUDE.md                @noless-zz
+/docs/requirements.md     @noless-zz
+/docs/routines/           @noless-zz
+/.github/                 @noless-zz
