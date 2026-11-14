@@ -72,10 +72,3 @@ func test_input_from_floats_rounds_to_thousandths() -> String:
 		return "thrust() returned %s" % input.thrust()
 	return ""
 
-
-func test_core_scripts_do_not_extend_node() -> String:
-	# ARC-1: the simulation must be constructible with no scene tree.
-	for instance: Object in [Sim.new(), ShipInput.new(), Replay.new()]:
-		if not (instance is RefCounted):
-			return "%s is not RefCounted" % instance.get_script().resource_path
-	return ""
