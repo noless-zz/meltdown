@@ -3,7 +3,8 @@
 # OpenXR session with two views came up (issue #26, PLT-2).
 #
 # Usage: tools/xr_smoke.sh [frames]
-# Needs: godot, monado-service, xvfb-run and a software Vulkan driver (lavapipe).
+# Needs: godot, monado-service, xvfb-run, python3 and a software Vulkan driver
+# (lavapipe).
 # Logs are left in build/xr-smoke/ for CI to upload.
 set -euo pipefail
 
@@ -39,10 +40,17 @@ if [ ! -S "$XDG_RUNTIME_DIR/monado_comp_ipc" ]; then
 	exit 1
 fi
 
+# One rasteriser thread. Mesa 26.0 lavapipe crashed (signal 11 in a worker
+# thread) on the first CI run, which used four threads and the Forward+
+# renderer in stereo; see docs/decisions/0002-monado-in-ci.md.
+export LP_NUM_THREADS="${LP_NUM_THREADS:-1}"
+
 # A real window is needed for the Vulkan renderer; --headless would select the
-# dummy renderer and OpenXR could not create its swapchains.
+# dummy renderer and OpenXR could not create its swapchains. The renderer is
+# named because --rendering-driver alone makes Godot pick Forward+ instead of
+# the project's Mobile renderer, which is the one the Quest runs.
 set +e
-timeout 120 xvfb-run -a godot --path "$root/game" --rendering-driver vulkan \
+timeout 120 xvfb-run -a godot --path "$root/game" --rendering-driver vulkan --rendering-method mobile \
 	-- "--xr-smoke-frames=$frames" > "$log_dir/godot.log" 2>&1
 status=$?
 set -e

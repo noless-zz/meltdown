@@ -12,12 +12,12 @@ a simulated headset, runs the game for 120 frames and checks one result line.
 | Question | Answer |
 | --- | --- |
 | Does an OpenXR session start? | Yes: `session_begun` fires and `"session":true` is reported |
-| Runtime | `Monado(XRT) by Collabora et al`, version 21.0.0 (Ubuntu 24.04 package `21.0.0+git2905.e26a272c1`) |
+| Runtime | `Monado(XRT) by Collabora et al`, package `25.0.0+dfsg-2build1` on the hosted runner |
 | Headset | Monado's built-in "Simulated HMD", chosen by itself when no hardware is attached |
 | Views | 2 (primary stereo), 128 x 128 recommended render size per eye |
 | Refresh rate | 20 Hz, the only rate the simulated display offers |
-| Renderer | Godot Mobile renderer on Vulkan, software rendered by Mesa lavapipe 25.2 under Xvfb |
-| Time for 120 frames | 12 to 30 seconds on 2 cores, plus about a minute of setup |
+| Renderer | Godot Mobile renderer on Vulkan, software rendered by Mesa lavapipe 26.0.8 under Xvfb |
+| Time for 120 frames | about 20 to 40 seconds, plus about 30 seconds of setup |
 
 ## How it is set up
 
@@ -27,26 +27,57 @@ a simulated headset, runs the game for 120 frames and checks one result line.
   accepts frames and shows nothing, so the service needs no display.
 - `XR_RUNTIME_JSON` points at the packaged Monado manifest, which makes it the active
   runtime for that process only.
-- The game runs under `xvfb-run` with `--rendering-driver vulkan`. `--headless` cannot be
-  used: it selects the dummy renderer, which cannot create OpenXR swapchains.
+- The game runs under `xvfb-run` with `--rendering-driver vulkan --rendering-method
+  mobile`. `--headless` cannot be used: it selects the dummy renderer, which cannot
+  create OpenXR swapchains. The method is named because `--rendering-driver` alone makes
+  Godot choose Forward+ and ignore the project's Mobile setting.
+- `LP_NUM_THREADS=1` keeps lavapipe on one rasteriser thread (see "What failed first").
 - `monado-service` polls stdin for a quit key and refuses to start when stdin is
   `/dev/null` (`epoll_ctl(stdin) failed`). `tools/xr_smoke.sh` gives it an open pipe.
 - The game is started with `-- --xr-smoke-frames=120`. `main.gd` then quits after 120
   frames and prints, for example:
 
   ```
-  MELTDOWN_XR_SMOKE {"frames":120,"refresh_rate":20.0,"runtime":"Monado(XRT) by Collabora et al 'GIT-NOTFOUND'","session":true,"views":2}
+  MELTDOWN_XR_SMOKE {"frames":120,"refresh_rate":20.0,"runtime":"Monado(XRT) by Collabora et al '25.0.0+dfsg-2build1'","session":true,"views":2}
   ```
 
 - The script fails when there is no such line, when `session` is not true, when `views`
   is below 2, or when Godot exits with an error.
 
+## What failed first
+
+The first CI run (job 132623406794) started a session and then crashed: Godot printed
+`OpenXR session active` and `refresh rate 20.0 Hz`, then `Program crashed with signal 11`
+in a thread other than the main one, with the fault inside generated code.
+
+The crash was reproduced in an `ubuntu:26.04` container, which has the same Monado and
+Mesa packages as the runner:
+
+| Mesa | Renderer | lavapipe threads | XR session | Result |
+| --- | --- | --- | --- | --- |
+| 26.0.8 | Forward+ | 4 | yes | crash, 6 of 6 runs |
+| 26.0.8 | Forward+ | 3 | yes | crash in 1 of 2 runs |
+| 26.0.8 | Forward+ | 0, 1 or 2 | yes | pass |
+| 26.0.8 | Forward+ | 4 | no (flat) | pass |
+| 26.0.8 | Mobile | 4 | yes | pass, 3 of 3 runs |
+| 26.0.8 | Mobile | 1 | yes | pass, 8 of 8 runs |
+| 25.2.8 (Ubuntu 24.04) | Forward+ | 4 | yes | pass, 2 of 2 runs |
+
+So it is a fault in Mesa 26.0 lavapipe's threaded rasteriser that shows with stereo
+rendering in Forward+, not a fault in the game or in Monado. The hosted runner has four
+cores, the Builder's sandbox two, which is why the first local runs passed. Two changes
+followed: the script now asks for the Mobile renderer, which is the one the Quest uses
+and which the first run was not using by mistake, and it pins lavapipe to one thread.
+The cause inside Mesa was not investigated further.
+
 ## Evidence
 
-- Local run in the Builder's sandbox (Ubuntu 24.04, 2 cores, no GPU), same packages and
-  the same script: session started, 2 views, 20 Hz, exit code 0, in both runs made.
-- Without Monado the same command prints `"session":false,"views":0`, which the script
-  turns into a failure. So the job can fail.
+- Local runs in the Builder's sandbox (2 cores, no GPU) with the final script: session
+  started, 2 views, 20 Hz, exit code 0, both on Ubuntu 24.04 (Monado 21.0.0 snapshot,
+  Mesa 25.2.8) and in an `ubuntu:26.04` container (Monado 25.0.0, Mesa 26.0.8).
+- Without Monado the same game command prints `"session":false,"views":0`, which the
+  script turns into a failure. A crash leaves no result line, which also fails. So the
+  job can fail, and did.
 - CI: see the `XR smoke test (Monado)` job and its `xr-smoke-logs` artifact on the pull
   request for #26. The run numbers are in the devlog entry of that pull request.
 
@@ -61,12 +92,12 @@ a simulated headset, runs the game for 120 frames and checks one result line.
 4. Software rendering says nothing about performance (PRF requirements) and is desktop
    Vulkan, not the Quest's Android driver. Foveation and every Meta-specific extension
    are absent. The headset session at each gate stays necessary (DEV-6).
-5. Monado in Ubuntu 24.04 is an old snapshot from the 21.0.0 line. Godot 4.7 logs three
-   errors against it that do not stop the session: two rejected controller binding
-   suggestions and `XR_ERROR_SESSION_NOT_STOPPING` when the game quits without first
-   asking the session to end.
+5. Godot 4.7 logs errors against Monado that do not stop the session, among them
+   `XR_ERROR_SESSION_NOT_STOPPING` when the game quits without first asking the session
+   to end. The script does not treat logged errors as failures.
 6. The package versions follow `ubuntu-latest`. A new runner image can change Monado or
-   Mesa and break the job without any change in this repository.
+   Mesa and break the job without any change in this repository; the crash above is an
+   example of what a Mesa update can bring.
 
 ## Consequences
 
