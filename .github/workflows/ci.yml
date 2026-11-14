@@ -35,3 +35,61 @@ jobs:
 
       - name: Run unit tests
         run: godot --headless --path game -s res://tests/run_tests.gd
+
+  quest-apk:
+    name: Quest APK (debug)
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot and export templates
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          curl -fsSL -o godot.zip "${base}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          curl -fsSL -o templates.tpz "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q templates.tpz
+          template_dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION/-/.}"
+          mkdir -p "$template_dir"
+          mv templates/* "$template_dir/"
+          rm -f godot.zip templates.tpz
+          ls "$template_dir" | head -40
+
+      - name: Configure Android toolchain
+        run: |
+          # A throwaway debug key, generated per build and never committed (DEV-10).
+          keytool -genkeypair -keystore "$RUNNER_TEMP/debug.keystore" \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p "$HOME/.config/godot"
+          for name in editor_settings-4.tres editor_settings-4.7.tres; do
+            {
+              echo '[gd_resource type="EditorSettings" format=3]'
+              echo
+              echo '[resource]'
+              echo "export/android/android_sdk_path = \"$ANDROID_HOME\""
+              echo "export/android/java_sdk_path = \"$JAVA_HOME_17_X64\""
+              echo "export/android/debug_keystore = \"$RUNNER_TEMP/debug.keystore\""
+              echo 'export/android/debug_keystore_user = "androiddebugkey"'
+              echo 'export/android/debug_keystore_pass = "android"'
+            } > "$HOME/.config/godot/$name"
+          done
+          {
+            echo "JAVA_HOME=$JAVA_HOME_17_X64"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$RUNNER_TEMP/debug.keystore"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android"
+          } >> "$GITHUB_ENV"
+
+      - name: Export APK
+        run: tools/build.sh quest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meltdown-quest-debug
+          path: build/meltdown-quest-debug.apk
+          if-no-files-found: error
