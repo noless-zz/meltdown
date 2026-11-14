@@ -3,6 +3,11 @@ game/.godot/
 *.translation
 export_presets.cfg.local
 
+# Downloaded by CI into the clone before the import check runs
+/godot.zip
+/templates.tpz
+/templates/
+
 # Builds
 /build/
 *.apk
