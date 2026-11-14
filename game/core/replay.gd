@@ -29,6 +29,8 @@ var expected_hash: int = NO_HASH
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
 var error: String = ""
+## Set by `run` when a frame was rejected; empty after a complete run.
+var run_error: String = ""
 
 
 func _init(p_run_seed: int = 0, p_ship_count: int = 1) -> void:
@@ -45,12 +47,19 @@ func add_tick(inputs: Array[ShipInput]) -> bool:
 
 
 ## Simulates the whole replay from a fresh `Sim` and returns it.
+## Returns null, with `run_error` set, if any frame does not hold exactly one
+## input per ship: a `Sim` that skipped a tick would still give a hash, for a
+## simulation that never ran, and nothing downstream could tell.
 func run() -> Sim:
+	run_error = ""
 	var sim: Sim = Sim.new(run_seed, ship_count)
-	for frame: Array in frames:
+	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
-		inputs.assign(frame)
-		sim.step(inputs)
+		inputs.assign(frames[index])
+		if not sim.step(inputs):
+			run_error = "tick %d: expected inputs for %d ships, found %d" % [
+				index, ship_count, inputs.size()]
+			return null
 	return sim
 
 
@@ -142,6 +151,10 @@ func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 				return "ships must be at least 1"
 			ship_count = value
 		"hash":
+			# State hashes are never negative, and NO_HASH is. Reading
+			# "hash -1" as "no hash" would switch the check off silently.
+			if value < 0:
+				return "hash must not be negative"
 			expected_hash = value
 		_:
 			return "unknown header line '%s'" % key

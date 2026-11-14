@@ -116,6 +116,63 @@ func test_changed_input_changes_the_hash() -> String:
 	return ""
 
 
+func test_frame_of_the_wrong_size_fails_the_run() -> String:
+	# Frames can be edited in memory after add_tick has checked them.
+	var replay: Replay = _record(42, 2)
+	var short_frame: Array[ShipInput] = [ShipInput.new()]
+	replay.frames[10] = short_frame
+	if replay.run() != null:
+		return "run() returned a Sim although tick 10 has one input for two ships"
+	if not replay.run_error.begins_with("tick 10:"):
+		return "run_error does not name the tick: '%s'" % replay.run_error
+	var long_frame: Array[ShipInput] = [ShipInput.new(), ShipInput.new(), ShipInput.new()]
+	replay.frames[10] = long_frame
+	if replay.run() != null:
+		return "run() returned a Sim although tick 10 has three inputs for two ships"
+	return ""
+
+
+func test_run_error_is_cleared_by_a_complete_run() -> String:
+	var replay: Replay = _record(42, 1)
+	var good_frame: Array = replay.frames[5]
+	var empty_frame: Array[ShipInput] = []
+	replay.frames[5] = empty_frame
+	if replay.run() != null or replay.run_error == "":
+		return "an empty frame did not fail the run"
+	replay.frames[5] = good_frame
+	var sim: Sim = replay.run()
+	if sim == null or replay.run_error != "":
+		return "a repaired replay still fails: '%s'" % replay.run_error
+	if sim.state_hash() != replay.expected_hash:
+		return "a repaired replay gives another hash"
+	return ""
+
+
+func test_negative_hash_is_rejected_with_its_line_number() -> String:
+	for value: String in ["-1", "-4190313060"]:
+		var replay: Replay = Replay.from_text(
+			"meltdown-replay 1\nseed 1\nships 1\nhash %s\ninputs\n0 0 0 0 0 0\n" % value)
+		if replay.error == "":
+			return "accepted 'hash %s'" % value
+		if not replay.error.begins_with("line 4:"):
+			return "error for 'hash %s' does not name line 4: '%s'" % [value, replay.error]
+	return ""
+
+
+func test_missing_hash_line_means_no_expected_hash() -> String:
+	var replay: Replay = Replay.from_text(
+		"meltdown-replay 1\nseed 1\nships 1\ninputs\n0 0 0 0 0 0\n")
+	if replay.error != "":
+		return replay.error
+	if replay.expected_hash != Replay.NO_HASH:
+		return "expected NO_HASH without a hash line, got %d" % replay.expected_hash
+	var zero: Replay = Replay.from_text(
+		"meltdown-replay 1\nseed 1\nships 1\nhash 0\ninputs\n0 0 0 0 0 0\n")
+	if zero.error != "" or zero.expected_hash != 0:
+		return "'hash 0' is a valid hash and must be kept"
+	return ""
+
+
 func test_bad_text_is_rejected_with_a_message() -> String:
 	var cases: Dictionary[String, String] = {
 		"empty": "",
