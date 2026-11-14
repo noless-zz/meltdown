@@ -36,6 +36,49 @@ jobs:
       - name: Run unit tests
         run: godot --headless --path game -s res://tests/run_tests.gd
 
+  build:
+    name: Linux server and desktop
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot and export templates
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          curl -fsSL -o godot.zip "${base}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          curl -fsSL -o templates.tpz "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          # Only the Linux templates are needed here; the archive holds every platform.
+          template_dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION/-/.}"
+          mkdir -p "$template_dir"
+          unzip -q -j templates.tpz 'templates/version.txt' 'templates/linux_*.x86_64' -d "$template_dir"
+          rm -f godot.zip templates.tpz
+          ls -lh "$template_dir"
+
+      - name: Export Linux server
+        run: tools/build.sh server
+
+      - name: Export Linux desktop client
+        run: tools/build.sh desktop
+
+      - name: Run the server headless for five seconds
+        run: tools/smoke_server.sh 5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meltdown-server-linux
+          path: build/meltdown-server.x86_64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meltdown-desktop-linux
+          path: build/meltdown-desktop.x86_64
+          if-no-files-found: error
+
   quest-apk:
     name: Quest APK (debug)
     runs-on: ubuntu-latest
