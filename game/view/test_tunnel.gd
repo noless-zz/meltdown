@@ -14,7 +14,10 @@ const WALL: float = 0.2
 const START_Z: float = 2.0
 const STRIPE_SPACING: float = 5.0
 const MARKER_DISTANCES: Array[float] = [1.0, 5.0, 20.0]
-const MARKER_OFFSETS_X: Array[float] = [-0.5, 0.0, 0.5]
+# Sideways offsets chosen so that no marker hides another at any eye height:
+# the 5 m and 20 m markers are about 11 degrees apart, and the wide 20 m label
+# stays clear of both walls on the centre line.
+const MARKER_OFFSETS_X: Array[float] = [-0.5, 1.0, 0.0]
 const LIGHT_POSITIONS_Z: Array[float] = [-3.0, -12.0, -22.0]
 const LIGHT_COLORS: Array[Color] = [
 	Color(1.0, 0.45, 0.3),
