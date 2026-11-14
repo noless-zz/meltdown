@@ -31,7 +31,12 @@ and the requirements only.
 4. Write `docs/devlog/<YYYY-MM-DD>-<HHMM>-reviewer.md` on a branch and open a pull request
    for it only if you reviewed at least one pull request; list each verdict in one line.
 
+## Devlog-only pull requests
+
+A pull request that only adds files under `docs/devlog/` and has green CI is squash-merged
+without a verdict, by any Reviewer run, including one from the run that wrote it. The owner
+decided this in issue #20 so that devlog entries reach `main` without waiting for him.
+
 ## Never
 
-Approve a pull request with failing CI, review your own devlog pull request, or close a
-milestone gate.
+Approve or merge a pull request with failing CI, or close a milestone gate.
