@@ -13,24 +13,8 @@ extends Node3D
 ## billboarded so they face the player from any hand angle. Nothing here reads
 ## or writes input or ship state; the rig hands it the words to show (ARC-3).
 
-## Hand-local positions, in metres, of each control's label on the right
-## hand. -z points ahead along the controller, +y up, +x to the right; the
-## left hand mirrors x. Labels sit a little away from their control so two
-## labels on one stick do not overlap.
-const LABEL_POSITIONS: Dictionary = {
-	"stick_x": Vector3(-0.055, 0.045, -0.02),
-	"stick_y": Vector3(0.0, 0.075, -0.035),
-	"stick_click": Vector3(0.0, 0.055, 0.0),
-	"button_upper": Vector3(0.05, 0.05, 0.0),
-	"button_lower": Vector3(0.05, 0.03, 0.02),
-	"trigger": Vector3(0.0, -0.03, -0.09),
-	"grip": Vector3(-0.05, -0.04, 0.03),
-}
-## About 16 mm tall text: readable at arm's length (0.5-0.7 m) in the headset.
-const LABEL_FONT_SIZE: int = 32
-const LABEL_PIXEL_SIZE: float = 0.0005
-const LABEL_OUTLINE_SIZE: int = 8
-const LABEL_COLOR: Color = Color(1.0, 1.0, 1.0)
+## Where each control's label sits; see `ControlLabelSet` (#147).
+const LABEL_POSITIONS: Dictionary = ControlLabelSet.LABEL_POSITIONS
 
 const HANDLE_RADIUS: float = 0.018
 const HANDLE_LENGTH: float = 0.10
@@ -48,6 +32,18 @@ const BUTTON_LOWER_OFFSET: Vector3 = Vector3(0.012, 0.029, 0.002)
 const TRIGGER_SIZE: Vector3 = Vector3(0.012, 0.025, 0.012)
 const TRIGGER_OFFSET: Vector3 = Vector3(0.0, -0.01, -0.05)
 const DETAIL_COLOR: Color = Color(0.15, 0.15, 0.15)
+## Hand-local point of each control on the right hand, where its label's
+## leader line ends: the top of the stick, the face of each button, the
+## trigger, and the outer side of the handle for the grip.
+const CONTROL_POINTS: Dictionary = {
+	"stick_x": STICK_OFFSET + Vector3(0.0, STICK_HEIGHT * 0.5, 0.0),
+	"stick_y": STICK_OFFSET + Vector3(0.0, STICK_HEIGHT * 0.5, 0.0),
+	"stick_click": STICK_OFFSET + Vector3(0.0, STICK_HEIGHT * 0.5, 0.0),
+	"button_upper": BUTTON_UPPER_OFFSET + Vector3(0.0, BUTTON_HEIGHT * 0.5, 0.0),
+	"button_lower": BUTTON_LOWER_OFFSET + Vector3(0.0, BUTTON_HEIGHT * 0.5, 0.0),
+	"trigger": TRIGGER_OFFSET,
+	"grip": Vector3(HANDLE_RADIUS, -HANDLE_LENGTH * 0.4, 0.01),
+}
 ## Child names of the generic shape, hidden while a runtime model is shown.
 const GENERIC_PARTS: PackedStringArray = ["Handle", "Head", "Stick", "ButtonUpper", "ButtonLower", "Trigger"]
 ## The node that asks the runtime for this hand's controller model.
@@ -65,7 +61,7 @@ var show_labels: bool = true:
 		if _labels_root != null:
 			_labels_root.visible = value
 
-var _labels_root: Node3D = null
+var _labels_root: ControlLabelSet = null
 ## Runtime models shown now; the generic shape is visible only at zero.
 var _runtime_model_count: int = 0
 
@@ -97,8 +93,7 @@ func build() -> void:
 	var trigger: BoxMesh = BoxMesh.new()
 	trigger.size = TRIGGER_SIZE
 	_part("Trigger", trigger, detail, TRIGGER_OFFSET)
-	_labels_root = Node3D.new()
-	_labels_root.name = "Labels"
+	_labels_root = ControlLabelSet.new(hand)
 	_labels_root.visible = show_labels
 	add_child(_labels_root)
 	_runtime_model_count = 0
@@ -130,38 +125,29 @@ func runtime_models() -> OpenXRRenderModelManager:
 func set_labels(labels: Dictionary) -> void:
 	if _labels_root == null:
 		build()
-	for child: Node in _labels_root.get_children():
-		_labels_root.remove_child(child)
-		child.free()
-	var controls: Array = labels.keys()
-	controls.sort()
-	for control: Variant in controls:
-		if not LABEL_POSITIONS.has(control):
-			continue
-		var label: Label3D = Label3D.new()
-		label.name = str(control)
-		label.text = str(labels[control])
-		label.position = _mirror(LABEL_POSITIONS[control])
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.font_size = LABEL_FONT_SIZE
-		label.pixel_size = LABEL_PIXEL_SIZE
-		label.outline_size = LABEL_OUTLINE_SIZE
-		label.modulate = LABEL_COLOR
-		# Labels must stay readable when a hand or the cockpit is in front.
-		label.no_depth_test = true
-		_labels_root.add_child(label)
+	_labels_root.set_labels(labels, CONTROL_POINTS)
 
 
 ## Control (without hand prefix) -> the text of its label, as shown now.
 func label_texts() -> Dictionary:
-	var texts: Dictionary = {}
 	if _labels_root == null:
-		return texts
-	for child: Node in _labels_root.get_children():
-		var label: Label3D = child as Label3D
-		if label != null:
-			texts[str(label.name)] = label.text
-	return texts
+		return {}
+	return _labels_root.texts()
+
+
+## The labels of this hand, or null before `build`.
+func label_set() -> ControlLabelSet:
+	return _labels_root
+
+
+## Fades the labels and their leader lines; 0 is invisible, 1 fully shown.
+func set_label_alpha(value: float) -> void:
+	if _labels_root != null:
+		_labels_root.set_alpha(value)
+
+
+func label_alpha() -> float:
+	return _labels_root.alpha() if _labels_root != null else 1.0
 
 
 ## True when the labels would be drawn (the model itself may still be hidden).
