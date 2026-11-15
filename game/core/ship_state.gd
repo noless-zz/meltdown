@@ -66,6 +66,16 @@ var shield_recharge: float = 5.0
 ## Energy units spent per shield point regained.
 var shield_energy_cost: float = 1.0
 
+## Weapon slots (CMB-1). Every slot starts empty; in a run they are filled
+## only by salvage, so a ship cannot simply choose its loadout. Two primary
+## and two secondary slots.
+var primary_slots: Array[WeaponDef] = [null, null]
+var secondary_slots: Array[WeaponDef] = [null, null]
+## Index into `primary_slots` of the weapon `fire_primary` uses.
+var selected_primary: int = 0
+## Ticks until the selected primary may fire again; 0 means ready.
+var fire_cooldown: int = 0
+
 const MIN_WALL_RESTITUTION: float = 0.05
 
 
@@ -139,6 +149,23 @@ func apply_damage(amount: float) -> void:
 	hull = maxf(hull - (amount - absorbed), 0.0)
 
 
+## Counts the fire interval down and, if `held`, fires the selected primary
+## weapon when it is ready and the pool holds its energy cost. Returns the
+## weapon that fired, or null. Call once per tick, after `step`, so a shot
+## spends what is left after the afterburner and the shield.
+func fire_primary(held: bool) -> WeaponDef:
+	if fire_cooldown > 0:
+		fire_cooldown -= 1
+	if not held or fire_cooldown > 0:
+		return null
+	var weapon: WeaponDef = primary_slots[selected_primary]
+	if weapon == null or energy < weapon.energy_cost:
+		return null
+	energy -= weapon.energy_cost
+	fire_cooldown = weapon.fire_interval_ticks
+	return weapon
+
+
 ## Restitution actually used by a bounce: `wall_restitution` kept in
 ## MIN_WALL_RESTITUTION..1.
 func bounce_factor() -> float:
@@ -164,4 +191,13 @@ func state_hash() -> int:
 		parts.append(hull)
 	if shield != max_shield:
 		parts.append(shield)
+	# Weapons join only once a slot is filled or a cooldown runs, so ships
+	# that never carried a weapon keep their hashes.
+	var weapons: Array = ["weapons", selected_primary, fire_cooldown]
+	var armed: bool = fire_cooldown != 0
+	for slot: WeaponDef in primary_slots + secondary_slots:
+		weapons.append(slot.values_hash() if slot != null else 0)
+		armed = armed or slot != null
+	if armed:
+		parts.append(weapons)
 	return hash(parts)
