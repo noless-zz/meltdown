@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Stub curl for tools/test_update_quest.sh: serves files from
+# $STUB_RELEASE_DIR by the URL's last path segment, and release.json for the
+# GitHub API URL. Supports only the `curl -fsSL -o <file> <url>` form.
+set -euo pipefail
+out=""
+url=""
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		-o) out="$2"; shift 2 ;;
+		-*) shift ;;
+		*) url="$1"; shift ;;
+	esac
+done
+case "$url" in
+	*api.github.com*) name="release.json" ;;
+	*) name="${url##*/}" ;;
+esac
+if [ ! -f "$STUB_RELEASE_DIR/$name" ]; then
+	echo "curl: (22) The requested URL returned error: 404" >&2
+	exit 22
+fi
+cp "$STUB_RELEASE_DIR/$name" "$out"
