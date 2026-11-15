@@ -1,132 +1,7 @@
-extends RefCounted
+extends "res://tests/layer_scanner.gd"
 
-## Guards the layer rules for `core/` and `gen/` by reading their source
-## (ARC-1, ARC-3, MP-2). An instance check cannot do this: a script that
-## extends RefCounted can still call the scene tree, a device or the clock.
-##
-## The scan is textual. It ignores comments but not strings, and it does not
-## follow a string that continues over several lines.
-
-const SCANNED_DIRS: Array[String] = ["res://core", "res://gen"]
-const ALLOWED_BASE: String = "RefCounted"
-
-## Node, rendering, input, audio and wall-clock APIs. An entry matches where
-## it starts a name, so `Node` also catches `Node3D` and `NodePath`, while
-## `ShipInput.` and `PathNode` are left alone.
-const FORBIDDEN_APIS: Array[String] = [
-	"Node", "get_tree", "Engine.get_main_loop",
-	"Input.", "InputEvent", "XRServer",
-	"DisplayServer", "RenderingServer",
-	"AudioServer", "AudioStream",
-	"Time.", "OS.get_ticks", "OS.get_unix_time",
-]
-## Unseeded only as a global call: `rng.randf()` on a seeded generator is fine.
-const GLOBAL_RANDOM: Array[String] = ["randf", "randi", "randf_range", "randi_range", "randfn"]
-## Unseeded on any receiver: arrays draw from the global generator, and
-## `randomize()` seeds from the clock even on a RandomNumberGenerator.
-const ANY_RANDOM: Array[String] = ["randomize", "pick_random", "shuffle"]
-
-const NAME_CHARS: String = "A-Za-z0-9_"
-const SCRATCH_DIR: String = "user://test_layer_rules"
-
-var _extends: RegEx = RegEx.create_from_string(
-	"(?:^|\\s)extends\\s+(\"[^\"]*\"|'[^']*'|[A-Za-z_][%s.]*)" % NAME_CHARS)
-var _declares: RegEx = RegEx.create_from_string(
-	"(?:^|\\s)class(?:_name)?\\s+([A-Za-z_][%s]*)" % NAME_CHARS)
-var _apis: Dictionary[String, RegEx] = {}
-var _random: Dictionary[String, RegEx] = {}
-
-
-func _init() -> void:
-	for api: String in FORBIDDEN_APIS:
-		_apis[api] = RegEx.create_from_string(
-			"(?<![%s])%s" % [NAME_CHARS, api.replace(".", "\\.")])
-	for call: String in GLOBAL_RANDOM:
-		_random[call] = RegEx.create_from_string("(?<![%s.])%s\\s*\\(" % [NAME_CHARS, call])
-	for call: String in ANY_RANDOM:
-		_random[call] = RegEx.create_from_string("(?<![%s])%s\\s*\\(" % [NAME_CHARS, call])
-
-
-## Returns the part of `line` before its comment. A `#` inside a string is not
-## a comment, so `begins_with("#")` keeps the code that follows it.
-func strip_comment(line: String) -> String:
-	var quote: String = ""
-	var i: int = 0
-	while i < line.length():
-		var c: String = line[i]
-		if quote != "":
-			if c == "\\":
-				i += 1
-			elif c == quote:
-				quote = ""
-		elif c == "\"" or c == "'":
-			quote = c
-		elif c == "#":
-			return line.substr(0, i)
-		i += 1
-	return line
-
-
-## Names declared by `class_name` or an inner `class` in `source`.
-func declared_classes(source: String) -> Array[String]:
-	var names: Array[String] = []
-	for raw_line: String in source.split("\n"):
-		var found: RegExMatch = _declares.search(strip_comment(raw_line))
-		if found != null:
-			names.append(found.get_string(1))
-	return names
-
-
-## Scans one script. Returns one finding per broken rule, each starting with
-## `<path>:<line>:`. `layer_classes` are the classes declared in core/ and gen/.
-func scan_source(source: String, path: String, layer_classes: Array[String]) -> Array[String]:
-	var findings: Array[String] = []
-	var allowed: Array[String] = layer_classes + declared_classes(source)
-	var line_number: int = 0
-	for raw_line: String in source.split("\n"):
-		line_number += 1
-		var code: String = strip_comment(raw_line)
-		if code.strip_edges() == "":
-			continue
-		var where: String = "%s:%d: " % [path, line_number]
-		var base: RegExMatch = _extends.search(code)
-		if base != null and not _base_is_allowed(base.get_string(1), allowed):
-			findings.append(where + "extends %s, which is not %s or a class from core/ or gen/"
-				% [base.get_string(1), ALLOWED_BASE])
-		for api: String in _apis:
-			if _apis[api].search(code) != null:
-				findings.append(where + "forbidden API '%s'" % api)
-		for call: String in _random:
-			if _random[call].search(code) != null:
-				findings.append(where + "unseeded randomness '%s'" % call)
-	return findings
-
-
-## Every `.gd` file under `root`, in all subfolders, sorted.
-func collect_scripts(root: String) -> Array[String]:
-	var scripts: Array[String] = []
-	var dir: DirAccess = DirAccess.open(root)
-	if dir == null:
-		return scripts
-	for file: String in dir.get_files():
-		if file.ends_with(".gd"):
-			scripts.append(root + "/" + file)
-	for folder: String in dir.get_directories():
-		scripts.append_array(collect_scripts(root + "/" + folder))
-	scripts.sort()
-	return scripts
-
-
-func _base_is_allowed(base: String, allowed: Array[String]) -> bool:
-	if base.begins_with("\"") or base.begins_with("'"):
-		var script_path: String = base.substr(1, base.length() - 2)
-		for root: String in SCANNED_DIRS:
-			if script_path.begins_with(root + "/"):
-				return true
-		return false
-	# `Outer.Inner` is as allowed as `Outer` is.
-	var outer: String = base.get_slice(".", 0)
-	return outer == ALLOWED_BASE or allowed.has(outer)
+## Runs the layer scan over `core/`, `gen/` and `net/`, and feeds it snippets
+## that break each rule so the scan cannot pass silently.
 
 
 func _scan(source: String) -> Array[String]:
@@ -145,19 +20,28 @@ func _expect_one(source: String, line: int, text: String) -> String:
 	return ""
 
 
-func test_core_and_gen_follow_the_layer_rules() -> String:
+func test_core_gen_and_net_follow_the_layer_rules() -> String:
 	var scripts: Array[String] = []
 	for root: String in SCANNED_DIRS:
 		scripts.append_array(collect_scripts(root))
-	# A scan that finds no file would pass forever, whatever core/ contains.
-	if not scripts.has("res://core/sim.gd"):
-		return "the scan did not find res://core/sim.gd; found %s" % [scripts]
+	# A scan that finds no file would pass forever, whatever the layers contain.
+	for expected: String in ["res://core/sim.gd", "res://net/local_session.gd"]:
+		if not scripts.has(expected):
+			return "the scan did not find %s; found %s" % [expected, scripts]
 	var layer_classes: Array[String] = []
 	for path: String in scripts:
 		layer_classes.append_array(declared_classes(FileAccess.get_file_as_string(path)))
+	var outside_classes: Array[String] = []
+	for root: String in OUTSIDE_DIRS:
+		for path: String in collect_scripts(root):
+			outside_classes.append_array(global_classes(FileAccess.get_file_as_string(path)))
+	# Without a known outside class the dependency check could not fire.
+	if not outside_classes.has("ThumbstickMapping"):
+		return "no global class found in xr/; found %s" % [outside_classes]
 	var findings: Array[String] = []
 	for path: String in scripts:
-		findings.append_array(scan_source(FileAccess.get_file_as_string(path), path, layer_classes))
+		findings.append_array(scan_source(
+			FileAccess.get_file_as_string(path), path, layer_classes, outside_classes))
 	return "\n".join(findings)
 
 
@@ -266,3 +150,56 @@ func test_scan_ignores_comments_but_not_code_after_a_hash_in_a_string() -> Strin
 	if not findings.is_empty():
 		return "comments were reported: %s" % [findings]
 	return _expect_one("\tif line.begins_with(\"#\") or 'it\\'s #' == line: get_tree()\n", 1, "'get_tree'")
+
+
+func test_scan_applies_the_same_rules_to_net() -> String:
+	var source: String = "extends RefCounted\n\tvar now: int = Time.get_ticks_msec()\n\tvar x = randf()\n"
+	var findings: Array[String] = scan_source(source, "res://net/snippet.gd", [])
+	var expected: Array[String] = [
+		"res://net/snippet.gd:2: forbidden API 'Time.'",
+		"res://net/snippet.gd:3: unseeded randomness 'randf'",
+	]
+	if findings != expected:
+		return "reported %s" % [findings]
+	if not SCANNED_DIRS.has("res://net"):
+		return "res://net is not scanned"
+	return ""
+
+
+func test_scan_reports_a_path_into_view_xr_or_meta() -> String:
+	for dir: String in ["view", "xr", "meta"]:
+		var line: String = "\tvar Tunnel = preload(\"res://%s/tunnel.gd\")\n" % dir
+		var problem: String = _expect_one(line, 1, "depends on res://" + dir)
+		if problem != "":
+			return problem
+	var allowed: String = "\tconst A = preload(\"res://core/a.gd\")\n\tload(\"res://viewer/b.gd\")\n"
+	if not _scan(allowed).is_empty():
+		return "reported %s" % [_scan(allowed)]
+	return ""
+
+
+func test_scan_reports_a_class_from_view_xr_or_meta() -> String:
+	var outside: Array[String] = ["ThumbstickMapping", "Cockpit"]
+	var cases: Dictionary[String, String] = {
+		"\tvar m: ThumbstickMapping = null\n": "'ThumbstickMapping'",
+		"\tCockpit.shake(ship)\n": "'Cockpit'",
+	}
+	for line: String in cases:
+		var findings: Array[String] = scan_source(line, "res://net/snippet.gd", [], outside)
+		if findings.size() != 1 or not findings[0].contains("uses class " + cases[line]):
+			return "for %s reported %s" % [line.c_escape(), findings]
+	var lookalikes: String = "\tvar cockpit_mapping: MyThumbstickMapping = ship.Cockpit\n"
+	var quiet: Array[String] = scan_source(lookalikes, "res://net/snippet.gd", [], outside)
+	if not quiet.is_empty():
+		return "lookalikes reported %s" % [quiet]
+	var base: Array[String] = scan_source("extends Cockpit\n", "res://core/s.gd", [], outside)
+	if base.size() != 1 or not base[0].contains("extends Cockpit"):
+		return "a bad base should be reported once, got %s" % [base]
+	return ""
+
+
+func test_global_classes_skip_inner_classes() -> String:
+	var source: String = "class_name Cockpit\nextends Node3D\nclass Gauge:\n\tpass\n# class_name Old\n"
+	if global_classes(source) != ["Cockpit"]:
+		return "found %s" % [global_classes(source)]
+	return ""
