@@ -13,7 +13,7 @@ const Yaw = ComfortPreset.YawMode
 const Pitch = ComfortPreset.PitchMode
 const Roll = ComfortPreset.RollMode
 const Trigger = ComfortPreset.VignetteTrigger
-const Frame = ComfortPreset.CockpitFrame
+const Frame = ComfortPreset.CockpitKind
 const NONE: float = ComfortPreset.NO_LIMIT
 
 ## One entry per preset, one key per table row. Numbers the table leaves open
@@ -27,6 +27,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"auto_level_rate_deg_per_s": 30.0, "auto_level_snap_threshold_deg": 10.0,
 		"vignette_strength": 0.8, "vignette_trigger": Trigger.ALL_MOTION,
 		"cockpit_frame": Frame.SOLID_SMALL_WINDOWS,
+		"cockpit_file": "res://xr/cockpits/anchored.json",
 		"acceleration_softening": true, "inertia_drift": false,
 		"hit_shake": 0.0, "hit_spin": false,
 		"refresh_rate_hz": 90, "allow_120_hz": false,
@@ -39,6 +40,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"auto_level_rate_deg_per_s": 30.0, "auto_level_snap_threshold_deg": NONE,
 		"vignette_strength": 0.5, "vignette_trigger": Trigger.ROTATION,
 		"cockpit_frame": Frame.SOLID_WIDE_CANOPY,
+		"cockpit_file": "res://xr/cockpits/guided.json",
 		"acceleration_softening": true, "inertia_drift": false,
 		"hit_shake": 0.3, "hit_spin": false,
 		"refresh_rate_hz": 90, "allow_120_hz": false,
@@ -51,6 +53,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"auto_level_rate_deg_per_s": 30.0, "auto_level_snap_threshold_deg": NONE,
 		"vignette_strength": 0.25, "vignette_trigger": Trigger.FAST_ROTATION,
 		"cockpit_frame": Frame.OPEN_CANOPY,
+		"cockpit_file": "res://xr/cockpits/open.json",
 		"acceleration_softening": false, "inertia_drift": false,
 		"hit_shake": 1.0, "hit_spin": false,
 		"refresh_rate_hz": 90, "allow_120_hz": false,
@@ -63,6 +66,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"auto_level_rate_deg_per_s": 30.0, "auto_level_snap_threshold_deg": NONE,
 		"vignette_strength": 0.0, "vignette_trigger": Trigger.NEVER,
 		"cockpit_frame": Frame.MINIMAL_GLASS,
+		"cockpit_file": "res://xr/cockpits/glass.json",
 		"acceleration_softening": false, "inertia_drift": true,
 		"hit_shake": 1.0, "hit_spin": true,
 		"refresh_rate_hz": 90, "allow_120_hz": true,
@@ -212,6 +216,7 @@ func test_custom_preset_from_any_preset_changes_any_field() -> String:
 		"roll_mode": Roll.MANUAL, "auto_level": false, "auto_level_rate_deg_per_s": 45.0,
 		"auto_level_snap_threshold_deg": 15.0, "vignette_strength": 0.6,
 		"vignette_trigger": Trigger.FAST_ROTATION, "cockpit_frame": Frame.OPEN_CANOPY,
+		"cockpit_file": "res://xr/cockpits/custom.json",
 		"acceleration_softening": false, "inertia_drift": true, "hit_shake": 0.5,
 		"hit_spin": true, "refresh_rate_hz": 72, "allow_120_hz": true,
 	}

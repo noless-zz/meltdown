@@ -18,6 +18,7 @@ auto_level_snap_threshold_deg = 0.0
 vignette_strength = 0.25
 vignette_trigger = 1
 cockpit_frame = 2
+cockpit_file = "res://xr/cockpits/open.json"
 acceleration_softening = false
 inertia_drift = false
 hit_shake = 1.0
