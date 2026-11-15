@@ -5,7 +5,8 @@ extends XROrigin3D
 ## Without an XR session the camera keeps its authored height and works as an
 ## ordinary flat camera. Each hand shows a simple controller shape with a
 ## label beside every bound control (PLT-5, CMF-4); left is blue and right is
-## orange so tracking mix-ups are obvious in the headset.
+## orange so tracking mix-ups are obvious in the headset. Where the runtime
+## supplies its own controller model, that replaces the shape (#93).
 ##
 ## The labels are read from `mapping`, the thumbstick mapping that flies the
 ## ship, and are rebuilt whenever its layout, hand or pitch setting changes.
@@ -77,6 +78,9 @@ func _add_model(hand_node: Node3D, hand: String, color: Color) -> void:
 		model.name = MODEL_NAME
 		hand_node.add_child(model)
 	model.show_labels = show_labels
+	var controller: XRController3D = hand_node as XRController3D
+	if controller != null:
+		model.pose_name = controller.pose
 	model.build()
 
 
