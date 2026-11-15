@@ -1,0 +1,49 @@
+{
+	"html_url": "https://github.com/noless-zz/meltdown/releases/tag/main-latest",
+	"tag_name": "main-latest",
+	"target_commitish": "be8ad52da332b94f876b7e22f21c0d5829908779",
+	"name": "Builds (main)",
+	"draft": false,
+	"prerelease": true,
+	"created_at": "2026-11-15T19:04:52Z",
+	"published_at": "2026-11-14T19:39:02Z",
+	"body": "Latest Quest APK (debug), desktop client and dedicated server from main, commit e1b0a77b6477cc25b84e96bf7e7aefdcc6c27ee5. Replaced on every push; not a versioned release.\n\nBuilt: 2026-11-15 19:07 UTC (2026-11-15 21:07 Asia/Jerusalem)",
+	"assets": [
+		{
+			"name": "meltdown-desktop.x86_64",
+			"content_type": "application/octet-stream",
+			"size": 73821400,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-desktop.x86_64"
+		},
+		{
+			"name": "meltdown-desktop.x86_64.sha256",
+			"content_type": "application/octet-stream",
+			"size": 90,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-desktop.x86_64.sha256"
+		},
+		{
+			"name": "meltdown-quest-debug.apk",
+			"content_type": "application/vnd.android.package-archive",
+			"size": 85544898,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-quest-debug.apk"
+		},
+		{
+			"name": "meltdown-quest-debug.apk.sha256",
+			"content_type": "application/octet-stream",
+			"size": 91,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-quest-debug.apk.sha256"
+		},
+		{
+			"name": "meltdown-server.x86_64",
+			"content_type": "application/octet-stream",
+			"size": 73821448,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-server.x86_64"
+		},
+		{
+			"name": "meltdown-server.x86_64.sha256",
+			"content_type": "application/octet-stream",
+			"size": 89,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-server.x86_64.sha256"
+		}
+	]
+}
