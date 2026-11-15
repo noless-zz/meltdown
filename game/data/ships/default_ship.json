@@ -12,5 +12,8 @@
 	"radius": 1.0,
 	"wall_restitution": 0.5,
 	"wall_damage_per_speed": 0.5,
-	"wall_damage_min_speed": 4.0
+	"wall_damage_min_speed": 4.0,
+	"max_shield": 50.0,
+	"shield_recharge": 5.0,
+	"shield_energy_cost": 1.0
 }

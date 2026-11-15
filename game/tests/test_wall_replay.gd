@@ -48,7 +48,8 @@ func test_wall_hit_replay_keeps_its_hash() -> String:
 		return ("simulation behaviour changed: %s now ends with hash %d, the file expects %d. "
 			+ "If the change is intended, update the hash line and say why in the pull request."
 			) % [WALL_HIT, sim.state_hash(), replay.expected_hash]
-	if sim.ships[0].hull >= sim.ships[0].max_hull:
+	var ship: ShipState = sim.ships[0]
+	if ship.hull >= ship.max_hull and ship.shield >= ship.max_shield:
 		return "%s no longer hits a wall hard enough to take damage" % WALL_HIT
 	return ""
 

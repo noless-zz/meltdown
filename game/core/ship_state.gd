@@ -55,6 +55,17 @@ var wall_damage_per_speed: float = 0.5
 ## deals no damage: scraping along a wall is not punished.
 var wall_damage_min_speed: float = 4.0
 
+## Shields (CMB-2). Shield is in the same abstract points as hull and takes
+## every hit first; unlike hull it recharges from the energy pool. With these
+## values an empty shield refills in ten seconds and costs half the pool.
+var max_shield: float = 50.0
+var shield: float = 50.0
+## Shield points regained per second while below `max_shield` and energy is
+## available.
+var shield_recharge: float = 5.0
+## Energy units spent per shield point regained.
+var shield_energy_cost: float = 1.0
+
 const MIN_WALL_RESTITUTION: float = 0.05
 
 
@@ -69,8 +80,12 @@ func step(thrust: Vector3, turn: Vector3, afterburner: bool = false) -> void:
 		orientation = orientation.rotated(orientation.y.normalized(), turn.y * TICK_DT)
 		orientation = orientation.rotated(orientation.z.normalized(), turn.z * TICK_DT)
 		orientation = orientation.orthonormalized()
+	# Energy order within a tick: the afterburner drains (or the pool
+	# recharges) first, then the shield buys what it can from what is left.
+	# Boosting therefore never fails because the shield took the energy.
 	var boosting: bool = _update_energy(afterburner)
 	afterburner_active = boosting
+	_recharge_shield()
 	var speed_before: float = velocity.length()
 	var wish: Vector3 = orientation * thrust.limit_length(1.0)
 	velocity += wish * (afterburner_acceleration if boosting else acceleration) * TICK_DT
@@ -98,6 +113,32 @@ func _update_energy(held: bool) -> bool:
 	return boosting
 
 
+## Refills the shield for this tick from the energy pool, as far as the
+## pool allows. Hull is never refilled here: its damage is permanent (CMB-2).
+func _recharge_shield() -> void:
+	if shield >= max_shield or energy <= 0.0:
+		return
+	var points: float = minf(shield_recharge * TICK_DT, max_shield - shield)
+	var cost: float = points * shield_energy_cost
+	if cost > energy:
+		points = energy / shield_energy_cost
+		cost = energy
+	shield = minf(shield + points, max_shield)
+	energy = maxf(energy - cost, 0.0)
+
+
+## The one way any damage reaches a ship: the shield absorbs what it can and
+## the rest comes off the hull. Neither drops below zero; what happens at zero
+## hull is not decided yet. Negative amounts are ignored, so damage can never
+## repair.
+func apply_damage(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	var absorbed: float = minf(amount, shield)
+	shield -= absorbed
+	hull = maxf(hull - (amount - absorbed), 0.0)
+
+
 ## Restitution actually used by a bounce: `wall_restitution` kept in
 ## MIN_WALL_RESTITUTION..1.
 func bounce_factor() -> float:
@@ -105,19 +146,22 @@ func bounce_factor() -> float:
 
 
 ## Applies the damage of one wall hit at `impact_speed` metres per second
-## into the wall. Hull never drops below zero; what happens at zero is not
-## decided yet.
+## into the wall, through `apply_damage`.
 func take_wall_hit(impact_speed: float) -> void:
 	if impact_speed < wall_damage_min_speed:
 		return
-	hull = maxf(hull - impact_speed * wall_damage_per_speed, 0.0)
+	apply_damage(impact_speed * wall_damage_per_speed)
 
 
 ## Hash of the full state, used by replay tests and network desync checks.
-## Hull joins the hash only once it differs from `max_hull`, so replays
-## recorded before hull existed, which never touch a wall, keep their hashes.
+## Hull and shield each join the hash only once they differ from their
+## maximum, so replays recorded before they existed, which never touch a
+## wall, keep their hashes. The shield goes last so that a full shield
+## leaves the hash of a damaged hull as it was.
 func state_hash() -> int:
 	var parts: Array = [position, velocity, orientation, energy, afterburner_locked]
 	if hull != max_hull:
 		parts.append(hull)
+	if shield != max_shield:
+		parts.append(shield)
 	return hash(parts)
