@@ -1,8 +1,8 @@
 extends RefCounted
 
-## The thumbsticks-only scheme (issue #42, PLT-5, FLT-1): every axis, the
-## dead zone, left-handed mode, remapping and invert pitch, all without a
-## headset.
+## The thumbsticks-only scheme (issues #42 and #64, PLT-5, FLT-1, FLT-2):
+## every axis, the afterburner button, the dead zone, left-handed mode,
+## remapping and invert pitch, all without a headset.
 
 const DZ: float = ThumbstickMapping.STICK_DEAD_ZONE
 
@@ -14,9 +14,11 @@ func _expect(thrust: Vector3, turn: Vector3) -> ShipInput:
 
 
 func _diff(got: ShipInput, want: ShipInput, label: String) -> String:
-	if got.thrust_q != want.thrust_q or got.turn_q != want.turn_q:
-		return "%s: got thrust %s turn %s, want thrust %s turn %s" % [
-			label, got.thrust_q, got.turn_q, want.thrust_q, want.turn_q]
+	if got.thrust_q != want.thrust_q or got.turn_q != want.turn_q \
+			or got.afterburner != want.afterburner:
+		return "%s: got thrust %s turn %s afterburner %s, want thrust %s turn %s afterburner %s" % [
+			label, got.thrust_q, got.turn_q, got.afterburner,
+			want.thrust_q, want.turn_q, want.afterburner]
 	return ""
 
 
@@ -174,3 +176,81 @@ func test_invert_pitch() -> String:
 	var rs: Vector2 = Vector2(0.8, 0.0)
 	return _diff(m.map_controls(ls, rs, 0.3, 0.0, 0.7, 0.0),
 		plain.map_controls(ls, rs, 0.3, 0.0, 0.7, 0.0), "other axes")
+
+
+func test_left_stick_click_holds_the_afterburner() -> String:
+	var m: ThumbstickMapping = ThumbstickMapping.new()
+	var held: ShipInput = _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+		{"left_stick_click": true})
+	var problem: String = _diff(held, ShipInput.new(Vector3i.ZERO, Vector3i.ZERO, true), "pressed")
+	if problem != "":
+		return problem
+	problem = _diff(_map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+		{"left_stick_click": false}), ShipInput.new(), "released")
+	if problem != "":
+		return problem
+	# The other stick click and the face buttons do nothing by default.
+	problem = _diff(_map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+		{"right_stick_click": true, "left_button_lower": true, "right_button_upper": true}),
+		ShipInput.new(), "other buttons")
+	if problem != "":
+		return problem
+	# Boosting while flying keeps every axis as it was.
+	var ls: Vector2 = Vector2(0.3, 0.9)
+	var rs: Vector2 = Vector2(-0.5, 0.4)
+	var flying: ShipInput = m.map_controls(ls, rs, 0.2, 0.7, 0.0, 0.4)
+	var boosting: ShipInput = m.map_controls(ls, rs, 0.2, 0.7, 0.0, 0.4, {"left_stick_click": true})
+	if boosting.thrust_q != flying.thrust_q or boosting.turn_q != flying.turn_q:
+		return "the afterburner changed the axes"
+	if flying.afterburner or not boosting.afterburner:
+		return "afterburner should follow the click while flying"
+	return ""
+
+
+func test_afterburner_defaults_to_released() -> String:
+	# Callers written before the afterburner existed pass no buttons at all.
+	var m: ThumbstickMapping = ThumbstickMapping.new()
+	if m.map_controls(Vector2(0, 1), Vector2.ZERO, 0.0, 0.0, 0.0, 0.0).afterburner:
+		return "no buttons argument should mean no afterburner"
+	if _map(m, Vector2.ZERO, Vector2.ZERO).afterburner:
+		return "an empty buttons dictionary should mean no afterburner"
+	if ThumbstickMapping.default_layout()["afterburner"] != {"left_stick_click": 1.0}:
+		return "the default afterburner control should be the left stick click"
+	return ""
+
+
+func test_left_handed_moves_the_afterburner_to_the_right_click() -> String:
+	var m: ThumbstickMapping = ThumbstickMapping.new()
+	m.left_handed = true
+	if not _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+			{"right_stick_click": true}).afterburner:
+		return "right stick click should boost in left-handed mode"
+	if _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+			{"left_stick_click": true}).afterburner:
+		return "left stick click should not boost in left-handed mode"
+	return ""
+
+
+func test_custom_afterburner_control() -> String:
+	var layout: Dictionary = ThumbstickMapping.default_layout()
+	layout["afterburner"] = {"right_button_lower": 1.0}
+	var m: ThumbstickMapping = ThumbstickMapping.new(layout)
+	if not _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+			{"right_button_lower": true}).afterburner:
+		return "the remapped button should boost"
+	if _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
+			{"left_stick_click": true}).afterburner:
+		return "the old control should no longer boost"
+	# An analogue control works too, from half pull.
+	layout["afterburner"] = {"left_grip": 1.0}
+	if _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.4).afterburner:
+		return "a grip below half pull should not boost"
+	if not _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.5).afterburner:
+		return "a grip at half pull should boost"
+	# A layout without the action never boosts.
+	layout.erase("afterburner")
+	if _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 1.0, 0.0, {"left_stick_click": true}).afterburner:
+		return "a layout without an afterburner entry should never boost"
+	if ThumbstickMapping.default_layout()["afterburner"] != {"left_stick_click": 1.0}:
+		return "editing a layout changed the default"
+	return ""
