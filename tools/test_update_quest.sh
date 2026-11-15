@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Checks tools/update_quest.sh against stub `curl` and `adb` commands and a
-# trimmed copy of the real main-latest release, so no network or headset is
+# Checks tools/update_quest.sh against stub `curl` and `adb` commands, a
+# made-up APK and a trimmed copy of the real main-latest release, so no network or headset is
 # needed (playtest #104, DEV-8).
 # Usage: tools/test_update_quest.sh
 set -euo pipefail
@@ -24,6 +24,12 @@ fail() {
 	failures=$((failures + 1))
 }
 
+# The APK is made here, not committed: `*.apk` is git-ignored.
+make_release() {
+	echo "Not a real APK: a fixture for tools/test_update_quest.sh." > "$1/meltdown-quest-debug.apk"
+	(cd "$1" && sha256sum meltdown-quest-debug.apk > meltdown-quest-debug.apk.sha256)
+}
+
 # Runs the script in a fresh scenario. Sets $output, $status and $log (the adb
 # calls, one per line).
 run_scenario() {
@@ -31,8 +37,8 @@ run_scenario() {
 	shift
 	local dir="$work/scenario$RANDOM$RANDOM"
 	mkdir -p "$dir/release" "$dir/state"
-	cp "$fixtures/meltdown-quest-debug.apk" "$fixtures/meltdown-quest-debug.apk.sha256" \
-		"$fixtures/release.json" "$dir/release/"
+	make_release "$dir/release"
+	cp "$fixtures/release.json" "$dir/release/"
 	if [ "${BAD_CHECKSUM:-0}" = "1" ]; then
 		echo "0000000000000000000000000000000000000000000000000000000000000000  meltdown-quest-debug.apk" \
 			> "$dir/release/meltdown-quest-debug.apk.sha256"
@@ -137,7 +143,7 @@ fi
 # The release API is down: the update still goes ahead.
 dir="$work/noapi"
 mkdir -p "$dir/release" "$dir/state"
-cp "$fixtures/meltdown-quest-debug.apk" "$fixtures/meltdown-quest-debug.apk.sha256" "$dir/release/"
+make_release "$dir/release"
 : > "$dir/adb.log"
 status=0
 output="$(PATH="$fixtures/bin:$PATH" STUB_RELEASE_DIR="$dir/release" STUB_ADB_LOG="$dir/adb.log" \
