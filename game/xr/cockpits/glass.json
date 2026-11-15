@@ -1,0 +1,7 @@
+{
+	"window_half_angle_h_deg": 90,
+	"window_half_angle_v_deg": 75,
+	"strut_width_m": 0.01,
+	"frame_distance_m": 0.65,
+	"glass_tint_alpha": 0.05
+}

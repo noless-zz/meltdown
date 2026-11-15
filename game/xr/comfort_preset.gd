@@ -25,7 +25,8 @@ enum RollMode {
 	FULLY_MANUAL,
 }
 enum VignetteTrigger { NEVER, FAST_ROTATION, ROTATION, ALL_MOTION }
-enum CockpitFrame { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL_GLASS }
+## Named `CockpitKind` because `CockpitFrame` is the node that draws it.
+enum CockpitKind { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL_GLASS }
 
 @export var display_name: String = ""
 
@@ -61,7 +62,10 @@ enum CockpitFrame { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL
 @export var vignette_trigger: VignetteTrigger = VignetteTrigger.NEVER
 
 @export_group("Cockpit")
-@export var cockpit_frame: CockpitFrame = CockpitFrame.MINIMAL_GLASS
+@export var cockpit_frame: CockpitKind = CockpitKind.MINIMAL_GLASS
+## The cockpit data file (`CockpitSpec`) that gives `cockpit_frame` its
+## shape: window sizes, struts, distance and glass.
+@export_file("*.json") var cockpit_file: String = "res://xr/cockpits/glass.json"
 
 @export_group("Acceleration feel")
 ## Eases the shown acceleration in and out; the simulated speed is unchanged.
