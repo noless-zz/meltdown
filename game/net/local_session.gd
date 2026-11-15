@@ -29,9 +29,18 @@ var interpolation_fraction: float = 0.0
 var dropped_seconds: float = 0.0
 ## Ticks run by the most recent `advance` call.
 var ticks_last_advance: int = 0
+## Solo pause (PLT-7). While true, `advance` runs nothing and throws the frame
+## time away, so the view holds the last pose. Clearing it arms a one-frame
+## limit, so the frame that spans the pause cannot run catch-up ticks.
+var paused: bool = false:
+	set(value):
+		if paused and not value:
+			_resuming = true
+		paused = value
 
 var _input_source: ShipInputSource
 var _accumulator: float = 0.0
+var _resuming: bool = false
 var _previous_ship: ShipState
 var _current_ship: ShipState
 
@@ -48,10 +57,21 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null) -> void:
 ## `MAX_TICKS_PER_ADVANCE`. Returns the number of ticks run.
 func advance(delta_seconds: float) -> int:
 	ticks_last_advance = 0
+	# Paused time is not owed to the simulation; keeping it would replay the
+	# pause as a burst of ticks on resume. The fraction stays put so the rig
+	# shows the same pose every paused frame (CMF-8).
+	if paused:
+		return 0
 	# A negative or non-finite frame time can only come from a broken clock;
 	# feeding it in would run time backwards or poison the accumulator.
 	if is_finite(delta_seconds) and delta_seconds > 0.0:
-		_accumulator += delta_seconds
+		var frame_time: float = delta_seconds
+		# The first frame after a pause can report the whole time the headset
+		# was off; only one tick of it may count.
+		if _resuming:
+			frame_time = minf(frame_time, ShipState.TICK_DT)
+		_accumulator += frame_time
+	_resuming = false
 	while _accumulator >= ShipState.TICK_DT - TICK_EPSILON:
 		if ticks_last_advance >= MAX_TICKS_PER_ADVANCE:
 			_drop_whole_ticks()
