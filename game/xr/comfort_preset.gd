@@ -13,6 +13,10 @@ extends Resource
 ## Where a rate or angle has no limit, the field holds `NO_LIMIT`.
 
 const NO_LIMIT: float = 0.0
+## `break_reminder_minutes` before a file sets it. Below 0, so a file that
+## leaves the field out, or gives it a value that is not a number, fails
+## `validation_error()` instead of silently taking a default (CMF-10).
+const BREAK_REMINDER_UNSET: float = -1.0
 
 enum YawMode { SNAP, SMOOTH }
 enum PitchMode { SNAP, SMOOTH }
@@ -84,6 +88,19 @@ enum CockpitKind { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL_
 @export var refresh_rate_hz: int = 90
 ## Whether the player may switch the headset to 120 Hz.
 @export var allow_120_hz: bool = false
+
+@export_group("Breaks")
+## Minutes of flying before the "take a break" prompt (CMF-10); 0 is off.
+@export var break_reminder_minutes: float = BREAK_REMINDER_UNSET
+
+
+## Empty when the preset's values can be used; otherwise names the bad field.
+## Only fields with a rule of their own are checked; the rest are typed.
+func validation_error() -> String:
+	if not is_finite(break_reminder_minutes) or break_reminder_minutes < 0.0:
+		return "break_reminder_minutes is %s, must be a number of at least 0" \
+			% str(break_reminder_minutes)
+	return ""
 
 
 ## True when any setting lets the view turn smoothly rather than in snaps.

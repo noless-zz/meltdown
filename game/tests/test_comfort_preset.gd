@@ -31,6 +31,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"acceleration_softening": true, "inertia_drift": false,
 		"hit_shake": 0.0, "hit_spin": false,
 		"refresh_rate_hz": 90, "allow_120_hz": false,
+		"break_reminder_minutes": 30.0,
 	},
 	"guided": {
 		"display_name": "Guided",
@@ -44,6 +45,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"acceleration_softening": true, "inertia_drift": false,
 		"hit_shake": 0.3, "hit_spin": false,
 		"refresh_rate_hz": 90, "allow_120_hz": false,
+		"break_reminder_minutes": 30.0,
 	},
 	"pilot": {
 		"display_name": "Pilot",
@@ -57,6 +59,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"acceleration_softening": false, "inertia_drift": false,
 		"hit_shake": 1.0, "hit_spin": false,
 		"refresh_rate_hz": 90, "allow_120_hz": false,
+		"break_reminder_minutes": 30.0,
 	},
 	"unrestricted": {
 		"display_name": "Unrestricted",
@@ -70,6 +73,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"acceleration_softening": false, "inertia_drift": true,
 		"hit_shake": 1.0, "hit_spin": true,
 		"refresh_rate_hz": 90, "allow_120_hz": true,
+		"break_reminder_minutes": 0.0,
 	},
 }
 
@@ -219,6 +223,7 @@ func test_custom_preset_from_any_preset_changes_any_field() -> String:
 		"cockpit_file": "res://xr/cockpits/custom.json",
 		"acceleration_softening": false, "inertia_drift": true, "hit_shake": 0.5,
 		"hit_spin": true, "refresh_rate_hz": 72, "allow_120_hz": true,
+		"break_reminder_minutes": 45.0,
 	}
 	for preset_name: String in expected:
 		var original: ComfortPreset = load_preset(preset_name)

@@ -13,11 +13,34 @@ const PATHS: Array[String] = [
 	"res://xr/presets/comfort_pilot.tres", "res://xr/presets/comfort_unrestricted.tres",
 ]
 const ARG: String = "--comfort-preset="
+## Fields whose value in a preset file must be written as a number. Godot turns
+## any text assigned to a `float` field into 0, which would pass as "off", so
+## the file text is checked before the loaded value.
+const NUMBER_FIELDS: Array[String] = ["break_reminder_minutes"]
 
 
 ## Preset `number` (1..4).
 static func load_number(number: int) -> ComfortPreset:
-	return load(PATHS[number - 1]) as ComfortPreset
+	return load_path(PATHS[number - 1])
+
+
+## The preset file at `path`, or null when it is missing, is not a
+## `ComfortPreset`, or fails `ComfortPreset.validation_error()`.
+static func load_path(path: String) -> ComfortPreset:
+	if not ResourceLoader.exists(path):
+		push_warning("Meltdown: comfort preset %s rejected: file not found" % path)
+		return null
+	var preset: ComfortPreset = load(path) as ComfortPreset
+	if preset == null:
+		push_warning("Meltdown: comfort preset %s rejected: not a ComfortPreset" % path)
+		return null
+	var error: String = written_number_error(FileAccess.get_file_as_string(path), NUMBER_FIELDS)
+	if error.is_empty():
+		error = preset.validation_error()
+	if not error.is_empty():
+		push_warning("Meltdown: comfort preset %s rejected: %s" % [path, error])
+		return null
+	return preset
 
 
 ## 1 > 2 > 3 > 4 > 1.
@@ -35,3 +58,17 @@ static func number_from_args(args: PackedStringArray) -> int:
 		var valid: bool = value.is_valid_int() and int(value) >= 1 and int(value) <= PATHS.size()
 		number = int(value) if valid else START_NUMBER
 	return number
+
+
+## Empty when every field in `fields` appears in the `.tres` text exactly once,
+## written as a plain number; otherwise names the first that does not.
+static func written_number_error(text: String, fields: Array[String]) -> String:
+	for field: String in fields:
+		var line: RegEx = RegEx.create_from_string("(?m)^%s = (.*)$" % field)
+		var found: Array[RegExMatch] = line.search_all(text)
+		if found.size() != 1:
+			return "%s is written %d times, expected once" % [field, found.size()]
+		var value: String = found[0].get_string(1).strip_edges()
+		if not value.is_valid_float():
+			return "%s is %s, must be a number" % [field, value]
+	return ""
