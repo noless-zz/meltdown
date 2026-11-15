@@ -1,0 +1,7 @@
+{
+	"max_offset_m": 0.02,
+	"max_roll_deg": 6,
+	"decay_s": 0.4,
+	"full_impact_speed_m_per_s": 15,
+	"shake_frequency_hz": 18
+}
