@@ -13,7 +13,7 @@ const PATHS: Array[String] = [
 	"res://xr/presets/comfort_pilot.tres", "res://xr/presets/comfort_unrestricted.tres",
 ]
 const ARG: String = "--comfort-preset="
-## Fields whose value in a preset file must be written as a number. Godot turns
+## Fields whose value in a `.tres` preset file must be written as a number. Godot turns
 ## any text assigned to a `float` field into 0, which would pass as "off", so
 ## the file text is checked before the loaded value.
 const NUMBER_FIELDS: Array[String] = ["break_reminder_minutes"]
@@ -34,7 +34,12 @@ static func load_path(path: String) -> ComfortPreset:
 	if preset == null:
 		push_warning("Meltdown: comfort preset %s rejected: not a ComfortPreset" % path)
 		return null
-	var error: String = written_number_error(FileAccess.get_file_as_string(path), NUMBER_FIELDS)
+	var error: String = ""
+	# An exported build holds the presets as binary `.res` with typed values and
+	# no `.tres` text, so the written-number check applies only where the text
+	# exists; the shipped files pass it in the tests before any export.
+	if path.get_extension() == "tres" and FileAccess.file_exists(path):
+		error = written_number_error(FileAccess.get_file_as_string(path), NUMBER_FIELDS)
 	if error.is_empty():
 		error = preset.validation_error()
 	if not error.is_empty():

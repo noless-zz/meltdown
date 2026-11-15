@@ -156,6 +156,24 @@ func test_invalid_value_rejects_the_preset_file() -> String:
 	return ""
 
 
+func test_binary_preset_is_validated_by_value() -> String:
+	# Exported builds hold presets as binary `.res` with no `.tres` text.
+	DirAccess.make_dir_recursive_absolute(SCRATCH_DIR)
+	var preset: ComfortPreset = (load(ComfortPresetFiles.PATHS[0]) as ComfortPreset).duplicate() as ComfortPreset
+	var good: String = SCRATCH_DIR + "/comfort_binary_good.res"
+	if ResourceSaver.save(preset, good) != OK:
+		return "could not save %s" % good
+	if ComfortPresetFiles.load_path(good) == null:
+		return "a valid binary preset was rejected"
+	preset.break_reminder_minutes = -5.0
+	var bad: String = SCRATCH_DIR + "/comfort_binary_bad.res"
+	if ResourceSaver.save(preset, bad) != OK:
+		return "could not save %s" % bad
+	if ComfortPresetFiles.load_path(bad) != null:
+		return "a binary preset with break_reminder_minutes -5 was accepted"
+	return ""
+
+
 func test_reads_nothing_from_the_simulation() -> String:
 	var script: GDScript = load(SCRIPT_PATH) as GDScript
 	if script.get_instance_base_type() != &"RefCounted":
