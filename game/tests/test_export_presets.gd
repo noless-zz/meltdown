@@ -84,3 +84,26 @@ func test_every_preset_ships_the_tuning_file() -> String:
 		if not included:
 			return "preset %s does not include %s" % [str(config.get_value(section, "name", section)), data_file]
 	return ""
+
+
+## The in-app update spike (#130) needs the installer permission on the Quest
+## build only: a desktop or server build has no reason to ask for it.
+func test_only_the_quest_preset_requests_install_packages() -> String:
+	var config: ConfigFile = _load()
+	if config == null:
+		return "could not read %s" % PRESETS_PATH
+	var permission: String = "android.permission.REQUEST_INSTALL_PACKAGES"
+	for section: String in config.get_sections():
+		if section.ends_with(".options"):
+			continue
+		var preset_name: String = str(config.get_value(section, "name", section))
+		var options: String = section + ".options"
+		var custom: Variant = config.get_value(options, "permissions/custom_permissions", PackedStringArray())
+		var requests: bool = custom is PackedStringArray and (custom as PackedStringArray).has(permission)
+		if preset_name == "Android Quest" and not requests:
+			return "Android Quest preset does not request %s" % permission
+		if preset_name != "Android Quest" and requests:
+			return "preset %s requests %s" % [preset_name, permission]
+	if _find_preset(config, "Android Quest") == "":
+		return "no preset named Android Quest"
+	return ""

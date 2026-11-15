@@ -86,6 +86,7 @@ func _ready() -> void:
 	place_tunnel()
 	attach_fade_overlay()
 	place_rig()
+	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 
 
 func _process(delta: float) -> void:
