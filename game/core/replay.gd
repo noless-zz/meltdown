@@ -5,13 +5,16 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 4        format name and version
+##     meltdown-replay 5        format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
 ##     box -5000 -5000 -40000 5000 5000 5000
 ##                              optional (version 3): walls the ships fly
 ##                              inside, min then max corner in millimetres
+##     tuning {"max_speed":20.0,...}
+##                              optional (version 5): every ship's feel values,
+##                              as a one-line ship data file (`ShipTuning`)
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0    one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start (0 off, 1 on)
@@ -20,14 +23,14 @@ extends RefCounted
 ##
 ## Version 1 has no afterburner column: six numbers per ship, read with the
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
-## off. Versions 1 and 2 have no box line. Files are always written as the
+## off. Versions 1 and 2 have no box line, versions 1 to 4 no tuning line. Files are always written as the
 ## current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 4
+const FORMAT_VERSION: int = 5
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -43,6 +46,8 @@ var expected_hash: int = NO_HASH
 var has_box: bool = false
 var box_min_mm: Vector3i = Vector3i.ZERO
 var box_max_mm: Vector3i = Vector3i.ZERO
+## Feel values of every ship from the first tick, or null for the defaults.
+var tuning: ShipTuning = null
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -73,6 +78,7 @@ func add_tick(inputs: Array[ShipInput]) -> bool:
 func run() -> Sim:
 	run_error = ""
 	var sim: Sim = Sim.new(run_seed, ship_count, bounds())
+	apply_tuning(sim)
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -88,6 +94,15 @@ func set_box(min_mm: Vector3i, max_mm: Vector3i) -> void:
 	has_box = true
 	box_min_mm = min_mm
 	box_max_mm = max_mm
+
+
+## Gives every ship of `sim` this run's tuning, if it has one. Call it before
+## the first tick: it refills energy, hull and shield.
+func apply_tuning(sim: Sim) -> void:
+	if tuning == null:
+		return
+	for ship: ShipState in sim.ships:
+		tuning.apply_to(ship)
 
 
 ## The walls of this run as a `BoxBounds`, or null without a box line.
@@ -107,6 +122,8 @@ func to_text() -> String:
 	if has_box:
 		lines.append("box %d %d %d %d %d %d" % [
 			box_min_mm.x, box_min_mm.y, box_min_mm.z, box_max_mm.x, box_max_mm.y, box_max_mm.z])
+	if tuning != null:
+		lines.append("tuning " + _tuning_json(tuning))
 	lines.append("inputs")
 	for frame: Array in frames:
 		var parts: PackedStringArray = PackedStringArray()
@@ -167,6 +184,8 @@ static func load_file(path: String) -> Replay:
 
 
 func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
+	if line.begins_with("tuning "):
+		return _parse_tuning_line(line.substr(7), seen)
 	var words: PackedStringArray = line.split(" ", false)
 	if words.size() > 0 and words[0] == "box":
 		return _parse_box_line(words, seen)
@@ -223,6 +242,29 @@ func _parse_box_line(words: PackedStringArray, seen: Dictionary[String, bool]) -
 	if min_mm.x >= max_mm.x or min_mm.y >= max_mm.y or min_mm.z >= max_mm.z:
 		return "box min corner must be below its max corner on every axis"
 	set_box(min_mm, max_mm)
+	return ""
+
+
+## Full precision, so the values read back are exactly the values flown.
+static func _tuning_json(values: ShipTuning) -> String:
+	var data: Dictionary = {}
+	for key: String in ShipTuning.KEYS:
+		data[key] = values.get(key)
+	return JSON.stringify(data, "", false, true)
+
+
+func _parse_tuning_line(json_text: String, seen: Dictionary[String, bool]) -> String:
+	if seen.is_empty():
+		return "the first line must be '%s <version>'" % FORMAT_NAME
+	if _parse_version < 5:
+		return "a tuning line needs format version 5 or later"
+	if seen.has("tuning"):
+		return "'tuning' appears twice"
+	seen["tuning"] = true
+	var parsed: ShipTuning = ShipTuning.parse_json(json_text)
+	if parsed.error != "":
+		return "tuning: " + parsed.error
+	tuning = parsed
 	return ""
 
 

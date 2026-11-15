@@ -46,13 +46,20 @@ var _current_ship: ShipState
 
 
 ## `bounds` are the walls the ship flies inside, or null for open space.
-func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null) -> void:
+## `tuning` gives every ship its feel values before the first tick; null, or a
+## tuning whose `error` is set, flies the built-in defaults.
+func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null,
+		tuning: ShipTuning = null) -> void:
 	replay = Replay.new(run_seed, 1)
 	if bounds != null:
 		replay.set_box(_to_mm(bounds.min_corner), _to_mm(bounds.max_corner))
+	if tuning != null and tuning.error == "":
+		replay.tuning = tuning
 	# The walls are taken back from the replay, rounded to its whole
 	# millimetres, so that running the replay meets exactly the same walls.
+	# The tuning goes through the replay too, so a replay flies the same ship.
 	sim = Sim.new(run_seed, 1, replay.bounds())
+	replay.apply_tuning(sim)
 	_input_source = input_source if input_source != null else ShipInputSource.new()
 	_current_ship = _snapshot(sim.ships[0])
 	_previous_ship = _snapshot(sim.ships[0])
@@ -85,6 +92,22 @@ func advance(delta_seconds: float) -> int:
 		ticks_last_advance += 1
 	interpolation_fraction = clampf(_accumulator / ShipState.TICK_DT, 0.0, 1.0)
 	return ticks_last_advance
+
+
+## Reads a ship data file. Returns null, after printing why, when the file is
+## missing or rejected, so the caller flies the built-in defaults.
+static func load_tuning(path: String) -> ShipTuning:
+	var problem: String = ""
+	var tuning: ShipTuning = null
+	if not FileAccess.file_exists(path):
+		problem = "file not found"
+	else:
+		tuning = ShipTuning.parse_json(FileAccess.get_file_as_string(path))
+		problem = tuning.error
+	if problem != "":
+		print("Meltdown: ship tuning %s rejected (%s); flying with the built-in defaults" % [path, problem])
+		return null
+	return tuning
 
 
 ## Ship state after the tick before the latest one. A copy: writing to it
