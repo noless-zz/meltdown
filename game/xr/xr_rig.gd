@@ -11,12 +11,16 @@ extends XROrigin3D
 ## The labels are read from `mapping`, the thumbstick mapping that flies the
 ## ship, and are rebuilt whenever its layout, hand or pitch setting changes.
 ## The rig only reads the mapping; it never writes input or ship state (ARC-3).
+##
+## Each hand's labels fade out after the hand has stayed away from the centre
+## of view for a while and fade back in when it comes near (#147, `LabelFade`).
 
 const LEFT_COLOR: Color = Color(0.2, 0.6, 1.0)
 const RIGHT_COLOR: Color = Color(1.0, 0.5, 0.2)
 const MODEL_NAME: String = "Controller"
 ## Logs what the runtime offers for controller models (#145).
 const REPORT_NAME: String = "RenderModelReport"
+const CAMERA_NAME: String = "Camera"
 
 ## The mapping whose bindings the labels show. The scene that owns the real
 ## mapping assigns it here; until then the default layout is shown.
@@ -34,15 +38,36 @@ var show_labels: bool = true:
 ## What the labels were last built from, so a remap made in place on the
 ## layout dictionary is noticed too.
 var _shown_signature: int = 0
+## Hand -> its `LabelFade`; each hand fades on its own.
+var _fades: Dictionary = {}
 
 
 func _ready() -> void:
 	build()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _signature() != _shown_signature:
 		refresh_labels()
+	var camera: Node3D = get_node_or_null(CAMERA_NAME) as Node3D
+	if camera == null or not is_inside_tree():
+		return
+	var hands: Dictionary = {}
+	for model: ControllerModel in _models():
+		hands[model.hand] = model.global_position
+	fade_labels(delta, camera.global_transform, hands)
+
+
+## Advances each hand's label fade by `delta` seconds. `view` is the eye's
+## global transform and `hand_positions` maps `"left"`/`"right"` to the global
+## position of that hand. Public so the tests can fly without a headset.
+func fade_labels(delta: float, view: Transform3D, hand_positions: Dictionary) -> void:
+	for model: ControllerModel in _models():
+		if not hand_positions.has(model.hand):
+			continue
+		var fade: LabelFade = _fade_for(model.hand)
+		var angle: float = LabelFade.angle_off_view(view, hand_positions[model.hand])
+		model.set_label_alpha(fade.advance(delta, angle))
 
 
 ## Adds the controller shapes to both hands and labels them. Safe to call
@@ -93,6 +118,15 @@ func _add_model(hand_node: Node3D, hand: String, color: Color) -> void:
 	if controller != null:
 		model.pose_name = controller.pose
 	model.build()
+
+
+func _fade_for(hand: String) -> LabelFade:
+	if not _fades.has(hand):
+		var fade: LabelFade = LabelFade.load_file()
+		if fade.error != "":
+			push_warning("label fade uses defaults: %s" % fade.error)
+		_fades[hand] = fade
+	return _fades[hand]
 
 
 func _models() -> Array[ControllerModel]:
