@@ -2,14 +2,24 @@
 
 One run implements exactly one issue and ends with an open pull request and a devlog entry.
 
+## Lanes
+
+Up to three Builder runs work at the same time, each in its own lane: `lane-a`, `lane-b` or
+`lane-c`. The scheduled task that starts a run names its lane. A run only ever touches
+issues carrying its lane label, and pull requests that close such issues. The Planner
+assigns lanes so that different lanes do not edit the same files (decision record 0003).
+A run that was given no lane behaves as `lane-a`.
+
 ## Steps
 
 1. Read `CLAUDE.md`, `docs/requirements.md` and the three newest files in `docs/devlog/`.
-2. List open pull requests. If one from an earlier Builder run has failing CI or a
-   `Reviewer: changes requested` comment newer than its last commit, fix that pull request first and stop after pushing the fix. Do not start a new
-   issue in the same run.
-3. Otherwise pick the issue to work on: open, labelled `ready`, not labelled `needs-human`
-   or `in-progress`, in the earliest open milestone, lowest issue number first. If there is
+2. List open pull requests whose issue is in your lane. If one has failing CI, a merge
+   conflict with `main`, or a `Reviewer: changes requested` comment newer than its last
+   commit, fix that pull request first (rebase on `main` for a conflict) and stop after
+   pushing the fix. Do not start a new issue in the same run.
+3. Otherwise pick the issue to work on: open, labelled `ready` and your lane, not labelled
+   `needs-human` or `in-progress`, with no open pull request, in the earliest open
+   milestone that has one, lowest issue number first. If there is
    none, write a devlog entry saying so and stop.
 4. Add the `in-progress` label and comment "Builder run started".
 5. Create branch `issue-<number>-<short-slug>` from the latest `main`.
