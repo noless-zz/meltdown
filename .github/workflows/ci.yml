@@ -28,6 +28,9 @@ jobs:
           for script in tools/*.sh; do bash -n "$script"; done
           shellcheck tools/*.sh
 
+      - name: Check the release notes script
+        run: tools/test_release_notes.sh
+
       - name: Download Godot
         run: |
           curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
@@ -102,6 +105,9 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: main-latest
     steps:
+      # Only for tools/release_notes.sh.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: meltdown-server-linux
@@ -113,7 +119,7 @@ jobs:
 
       - name: Update the rolling pre-release
         run: |
-          notes="Latest dedicated server build from main, commit ${GITHUB_SHA}. Replaced on every push; not a versioned release."
+          notes="$(tools/release_notes.sh "$GITHUB_SHA" "$(date +%s)" server)"
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             # Move the tag so the release points at the commit it was built from.
             gh api -X PATCH "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" \
@@ -144,6 +150,9 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: main-latest
     steps:
+      # Only for tools/release_notes.sh.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: meltdown-quest-debug
@@ -161,8 +170,8 @@ jobs:
             gh release upload "$RELEASE_TAG" "$file" --clobber
             gh release upload "$RELEASE_TAG" "$file.sha256" --clobber
           done
-          gh release edit "$RELEASE_TAG" --title "Builds (main)" \
-            --notes "Latest Quest APK (debug), desktop client and dedicated server from main, commit ${GITHUB_SHA}. Replaced on every push; not a versioned release."
+          notes="$(tools/release_notes.sh "$GITHUB_SHA" "$(date +%s)" all)"
+          gh release edit "$RELEASE_TAG" --title "Builds (main)" --notes "$notes"
 
   quest-apk:
     name: Quest APK (debug)
