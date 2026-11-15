@@ -15,18 +15,25 @@ const SCALE: int = 1000
 var thrust_q: Vector3i = Vector3i.ZERO
 ## Pitch, yaw and roll rate in milliradians per second.
 var turn_q: Vector3i = Vector3i.ZERO
+## Afterburner held. A bool is already exact, so it needs no scaling.
+var afterburner: bool = false
 
 
-func _init(p_thrust_q: Vector3i = Vector3i.ZERO, p_turn_q: Vector3i = Vector3i.ZERO) -> void:
+func _init(
+		p_thrust_q: Vector3i = Vector3i.ZERO,
+		p_turn_q: Vector3i = Vector3i.ZERO,
+		p_afterburner: bool = false) -> void:
 	thrust_q = p_thrust_q
 	turn_q = p_turn_q
+	afterburner = p_afterburner
 
 
 ## Rounds analogue values (thrust -1..1 per axis, turn in radians per second)
 ## to the stored precision. Callers must simulate with the returned input, not
 ## with the original floats, or a recording will not match what was flown.
-static func from_floats(thrust: Vector3, turn: Vector3) -> ShipInput:
-	return ShipInput.new(Vector3i((thrust * SCALE).round()), Vector3i((turn * SCALE).round()))
+static func from_floats(thrust: Vector3, turn: Vector3, p_afterburner: bool = false) -> ShipInput:
+	return ShipInput.new(
+		Vector3i((thrust * SCALE).round()), Vector3i((turn * SCALE).round()), p_afterburner)
 
 
 func thrust() -> Vector3:

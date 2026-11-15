@@ -68,7 +68,7 @@ func test_text_round_trip_is_exact() -> String:
 
 func test_header_has_version_and_seed_then_one_line_per_tick() -> String:
 	var lines: PackedStringArray = _record(42, 1).to_text().strip_edges().split("\n")
-	if lines[0] != "meltdown-replay 1":
+	if lines[0] != "meltdown-replay %d" % Replay.FORMAT_VERSION:
 		return "first line is '%s'" % lines[0]
 	if lines[1] != "seed 42":
 		return "second line is '%s'" % lines[1]
@@ -176,7 +176,8 @@ func test_missing_hash_line_means_no_expected_hash() -> String:
 func test_bad_text_is_rejected_with_a_message() -> String:
 	var cases: Dictionary[String, String] = {
 		"empty": "",
-		"wrong version": "meltdown-replay 2\nseed 1\nships 1\ninputs\n",
+		"newer version": "meltdown-replay 3\nseed 1\nships 1\ninputs\n",
+		"version zero": "meltdown-replay 0\nseed 1\nships 1\ninputs\n",
 		"no format line": "seed 1\nships 1\ninputs\n",
 		"no seed": "meltdown-replay 1\nships 1\ninputs\n",
 		"no inputs section": "meltdown-replay 1\nseed 1\nships 1\n",
@@ -184,6 +185,9 @@ func test_bad_text_is_rejected_with_a_message() -> String:
 		"not a number": "meltdown-replay 1\nseed 1\nships 1\ninputs\n0 0 0 0 0 x\n",
 		"fractional number": "meltdown-replay 1\nseed 1\nships 1\ninputs\n0 0 0.5 0 0 0\n",
 		"wrong ship count": "meltdown-replay 1\nseed 1\nships 2\ninputs\n0 0 0 0 0 0\n",
+		"v1 with afterburner": "meltdown-replay 1\nseed 1\nships 1\ninputs\n0 0 0 0 0 0 1\n",
+		"v2 without afterburner": "meltdown-replay 2\nseed 1\nships 1\ninputs\n0 0 0 0 0 0\n",
+		"afterburner not 0 or 1": "meltdown-replay 2\nseed 1\nships 1\ninputs\n0 0 0 0 0 0 2\n",
 		"unknown header": "meltdown-replay 1\nseed 1\nships 1\nwind 3\ninputs\n",
 	}
 	for name: String in cases:

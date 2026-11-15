@@ -5,19 +5,25 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 1        format name and version
+##     meltdown-replay 2        format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
 ##     inputs                   end of header
-##     0 0 -1000 0 250 0        one line per tick: thrust x y z, turn x y z
-##     0 0 -1000 0 0 0 | ...    further ships follow after " | "
+##     0 0 -1000 0 250 0 1      one line per tick: thrust x y z, turn x y z,
+##                              afterburner (0 off, 1 on)
+##     0 0 -1000 0 0 0 0 | ...  further ships follow after " | "
+##
+## Version 1 has no afterburner column: six numbers per ship, read with the
+## afterburner off. Files are always written as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 1
+const FORMAT_VERSION: int = 2
+## Oldest version `from_text` still reads.
+const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
 const SHIP_SEPARATOR: String = " | "
 
@@ -31,6 +37,8 @@ var frames: Array[Array] = []
 var error: String = ""
 ## Set by `run` when a frame was rejected; empty after a complete run.
 var run_error: String = ""
+## Version of the text being parsed; decides how many numbers a ship has.
+var _parse_version: int = FORMAT_VERSION
 
 
 func _init(p_run_seed: int = 0, p_ship_count: int = 1) -> void:
@@ -76,7 +84,8 @@ func to_text() -> String:
 		for input: ShipInput in frame:
 			var t: Vector3i = input.thrust_q
 			var r: Vector3i = input.turn_q
-			parts.append("%d %d %d %d %d %d" % [t.x, t.y, t.z, r.x, r.y, r.z])
+			parts.append("%d %d %d %d %d %d %d" % [
+				t.x, t.y, t.z, r.x, r.y, r.z, 1 if input.afterburner else 0])
 		lines.append(SHIP_SEPARATOR.join(parts))
 	return "\n".join(lines) + "\n"
 
@@ -142,8 +151,9 @@ func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 	seen[key] = true
 	match key:
 		FORMAT_NAME:
-			if value != FORMAT_VERSION:
+			if value < OLDEST_VERSION or value > FORMAT_VERSION:
 				return "unsupported format version %d" % value
+			_parse_version = value
 		"seed":
 			run_seed = value
 		"ships":
@@ -165,18 +175,24 @@ func _parse_tick_line(line: String) -> String:
 	var groups: PackedStringArray = line.split("|")
 	if groups.size() != ship_count:
 		return "expected inputs for %d ships, found %d" % [ship_count, groups.size()]
+	var expected: int = 6 if _parse_version == 1 else 7
 	var inputs: Array[ShipInput] = []
 	for group: String in groups:
 		var words: PackedStringArray = group.split(" ", false)
-		if words.size() != 6:
-			return "each ship needs 6 numbers, found %d" % words.size()
+		if words.size() != expected:
+			return "each ship needs %d numbers, found %d" % [expected, words.size()]
 		var values: Array[int] = []
 		for word: String in words:
 			if not word.is_valid_int():
 				return "'%s' is not a whole number" % word
 			values.append(word.to_int())
+		# Only 0 and 1 are accepted, so a typo cannot be read as "on".
+		var afterburner: int = values[6] if expected == 7 else 0
+		if afterburner != 0 and afterburner != 1:
+			return "afterburner must be 0 or 1, found %d" % afterburner
 		inputs.append(ShipInput.new(
 			Vector3i(values[0], values[1], values[2]),
-			Vector3i(values[3], values[4], values[5])))
+			Vector3i(values[3], values[4], values[5]),
+			afterburner == 1))
 	frames.append(inputs)
 	return ""
