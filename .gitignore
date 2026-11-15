@@ -3,6 +3,9 @@ game/.godot/
 *.translation
 export_presets.cfg.local
 
+# Written by tools/build.sh for each build (game/meta/build_info.gd)
+game/meta/build_info.tres
+
 # Downloaded by CI into the clone before the import check runs
 /godot.zip
 /templates.tpz

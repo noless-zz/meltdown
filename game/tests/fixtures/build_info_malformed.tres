@@ -1,0 +1,5 @@
+[gd_resource type="Resource" format=3]
+
+[resource]
+metadata/commit = "not-a-commit"
+metadata/built_unix = "yesterday"
