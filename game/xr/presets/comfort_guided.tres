@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ComfortPreset" format=3]
+
+[ext_resource type="Script" path="res://xr/comfort_preset.gd" id="1_preset"]
+
+[resource]
+script = ExtResource("1_preset")
+display_name = "Guided"
+yaw_mode = 1
+snap_angle_deg = 30.0
+yaw_rate_cap_deg_per_s = 60.0
+pitch_mode = 1
+pitch_rate_cap_deg_per_s = 45.0
+pitch_limit_deg = 0.0
+roll_mode = 0
+auto_level = true
+vignette_strength = 0.5
+vignette_trigger = 2
+cockpit_frame = 1
+acceleration_softening = true
+inertia_drift = false
+hit_shake = 0.3
+hit_spin = false
+refresh_rate_hz = 90
+allow_120_hz = false
