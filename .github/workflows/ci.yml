@@ -128,6 +128,42 @@ jobs:
           gh release upload "$RELEASE_TAG" meltdown-server.x86_64 --clobber
           gh release upload "$RELEASE_TAG" meltdown-server.x86_64.sha256 --clobber
 
+  publish-clients:
+    # A separate job so a failed APK export never holds back the server
+    # publish above. It runs after publish-server, which creates the release
+    # and moves its tag, so the two jobs never race to create it.
+    name: Publish Quest APK and desktop client
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [build, quest-apk, publish-server]
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: main-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: meltdown-quest-debug
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: meltdown-desktop-linux
+
+      - name: Upload builds and checksums
+        run: |
+          for file in meltdown-quest-debug.apk meltdown-desktop.x86_64; do
+            sha256sum "$file" > "$file.sha256"
+            cat "$file.sha256"
+            # Binary first, checksum last, as for the server.
+            gh release upload "$RELEASE_TAG" "$file" --clobber
+            gh release upload "$RELEASE_TAG" "$file.sha256" --clobber
+          done
+          gh release edit "$RELEASE_TAG" --title "Builds (main)" \
+            --notes "Latest Quest APK (debug), desktop client and dedicated server from main, commit ${GITHUB_SHA}. Replaced on every push; not a versioned release."
+
   quest-apk:
     name: Quest APK (debug)
     runs-on: ubuntu-latest
