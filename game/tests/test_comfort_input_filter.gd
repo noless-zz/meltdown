@@ -26,7 +26,13 @@ static func _only_snaps(filter: ComfortInputFilter, input: ShipInput, label: Str
 		if value != 0 and absi(value) != snap:
 			return "%s: turn %s is not 0 or one snap (%d)" % [label, out.turn_q, snap]
 	if out.turn_q.z != 0:
-		return "%s: roll %d is not zero" % [label, out.turn_q.z]
+		# Pitch and yaw snapped in one tick bank the ship; auto-level may then
+		# only roll it all the way back to level in that same tick (#91).
+		var probe: ShipState = ShipState.new()
+		probe.step(Vector3.ZERO, out.turn())
+		var bank: float = rad_to_deg(ComfortAutoLevel.bank(probe.orientation))
+		if absf(bank) > 0.01:
+			return "%s: roll %d is not zero and leaves bank %f" % [label, out.turn_q.z, bank]
 	if out.thrust_q != input.thrust_q or out.afterburner != input.afterburner:
 		return "%s: thrust or afterburner changed" % label
 	return ""

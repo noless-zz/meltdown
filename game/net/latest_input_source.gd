@@ -29,5 +29,12 @@ func next_input(_tick: int) -> ShipInput:
 	return _copy(_latest)
 
 
+## Copies every script property of `ShipInput`, so a field added to it later
+## reaches the simulation without a change here (#99).
 static func _copy(input: ShipInput) -> ShipInput:
-	return ShipInput.new(input.thrust_q, input.turn_q, input.afterburner)
+	var copy: ShipInput = ShipInput.new()
+	for property: Dictionary in input.get_script().get_script_property_list():
+		if int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			var property_name: StringName = StringName(property["name"])
+			copy.set(property_name, input.get(property_name))
+	return copy
