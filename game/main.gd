@@ -35,7 +35,10 @@ func _ready() -> void:
 		var openxr: OpenXRInterface = xr as OpenXRInterface
 		if openxr != null:
 			openxr.session_begun.connect(_on_session_begun.bind(openxr))
-			openxr.session_stopping.connect(_on_session_stopping)
+			openxr.session_visible.connect(on_session_visible)
+			openxr.session_focussed.connect(on_session_focussed)
+			openxr.session_loss_pending.connect(on_session_loss_pending)
+			openxr.session_stopping.connect(on_session_stopping)
 		print("Meltdown: OpenXR session active")
 	else:
 		print("Meltdown: running flat (no OpenXR session)")
@@ -110,9 +113,30 @@ func _on_session_begun(openxr: OpenXRInterface) -> void:
 	print("Meltdown: refresh rate ", openxr.display_refresh_rate, " Hz, available ", rates)
 
 
-# Hands back to the keyboard so a desktop session left running stays flyable.
-func _on_session_stopping() -> void:
+## The app is shown but has lost input focus: the headset was taken off or
+## the system menu is up. Solo play holds still until focus returns (PLT-7).
+## The runtime also passes through this state on the way to focus at start,
+## which is harmless: nothing has been flown yet.
+func on_session_visible() -> void:
+	session.paused = true
+
+
+## Focus is back; the session limits the next frame to one tick, so the ship
+## does not jump (CMF-8).
+func on_session_focussed() -> void:
+	session.paused = false
+
+
+## The runtime is about to lose the session; nothing should move meanwhile.
+func on_session_loss_pending() -> void:
+	session.paused = true
+
+
+## Pauses, and hands back to the keyboard so the input device matches what is
+## left. A stopped XR session only resumes through `on_session_focussed`.
+func on_session_stopping() -> void:
 	_xr_running = false
+	session.paused = true
 
 
 ## Reads what the runtime reports at the moment of quitting, so the line shows
