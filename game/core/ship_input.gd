@@ -21,17 +21,22 @@ var afterburner: bool = false
 ## A development and solo-play aid for a pilot who has left the mine (#81);
 ## whether co-op allows it is decided in M5.
 var reset_to_start: bool = false
+## Primary fire held: the ship fires its selected primary weapon whenever its
+## fire interval and energy allow (CMB-1).
+var fire_primary: bool = false
 
 
 func _init(
 		p_thrust_q: Vector3i = Vector3i.ZERO,
 		p_turn_q: Vector3i = Vector3i.ZERO,
 		p_afterburner: bool = false,
-		p_reset_to_start: bool = false) -> void:
+		p_reset_to_start: bool = false,
+		p_fire_primary: bool = false) -> void:
 	thrust_q = p_thrust_q
 	turn_q = p_turn_q
 	afterburner = p_afterburner
 	reset_to_start = p_reset_to_start
+	fire_primary = p_fire_primary
 
 
 ## Rounds analogue values (thrust -1..1 per axis, turn in radians per second)

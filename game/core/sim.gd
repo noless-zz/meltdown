@@ -27,6 +27,8 @@ var last_events: Array[SimEvent] = []
 ## for the run like `bounds`, so not part of the hash.
 var start_positions: Array[Vector3] = []
 var start_orientations: Array[Basis] = []
+## Every live projectile, oldest first (CMB-1). Part of the hash.
+var projectiles: Array[Projectile] = []
 
 
 func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
@@ -47,6 +49,9 @@ func step(inputs: Array[ShipInput]) -> bool:
 		return false
 	if tick == 0:
 		_record_start_poses()
+	# Projectiles already in flight move before any new shot, so a shot
+	# spawns where its ship is at the end of the tick it was fired on.
+	_advance_projectiles()
 	for i: int in ships.size():
 		var ship: ShipState = ships[i]
 		if inputs[i].reset_to_start:
@@ -65,6 +70,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 			if impact != Vector3.ZERO:
 				last_events.append(SimEvent.new(
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
+		_fire(i, inputs[i].fire_primary)
 	tick += 1
 	return true
 
@@ -96,9 +102,40 @@ func _reset_to_start(index: int) -> void:
 	ship.velocity = Vector3.ZERO
 
 
-## Hash of the whole simulation state.
+## Moves every projectile one tick and removes those whose lifetime is over
+## or that have left the walls.
+func _advance_projectiles() -> void:
+	var kept: Array[Projectile] = []
+	for projectile: Projectile in projectiles:
+		if not projectile.advance():
+			continue
+		if bounds != null and not bounds.holds(projectile.position, 0.0):
+			continue
+		kept.append(projectile)
+	projectiles = kept
+
+
+## Fires ship `index`'s primary weapon if it is held and ready. The shot
+## leaves the ship's nose at the weapon's speed, without the ship's own
+## velocity, so a weapon's range is exactly what its data file says.
+func _fire(index: int, held: bool) -> void:
+	var ship: ShipState = ships[index]
+	var weapon: WeaponDef = ship.fire_primary(held)
+	if weapon == null:
+		return
+	var forward: Vector3 = -ship.orientation.z.normalized()
+	projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
+		index, weapon.lifetime_ticks(), weapon.damage))
+
+
+## Hash of the whole simulation state. Projectiles join only while there are
+## any, so runs recorded before weapons existed keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
 		parts.append(ship.state_hash())
+	if not projectiles.is_empty():
+		parts.append(hash("projectiles"))
+		for projectile: Projectile in projectiles:
+			parts.append(projectile.state_hash())
 	return hash(parts)
