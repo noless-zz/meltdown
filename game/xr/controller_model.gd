@@ -5,10 +5,13 @@ extends Node3D
 ## meshes, with a floating label beside each bound control (PLT-5, CMF-4).
 ##
 ## The shape is original and deliberately plain: a handle, a head with a
-## stick, two face buttons and a trigger. It stands in until the runtime's own
-## controller model can be shown (#93). Labels are billboarded so they face
-## the player from any hand angle. Nothing here reads or writes input or ship
-## state; the rig hands it the words to show (ARC-3).
+## stick, two face buttons and a trigger. When the OpenXR runtime supplies its
+## own model of the controller (XR_EXT_render_model, #93), that model is shown
+## instead and the generic shape is hidden; it comes back if the runtime
+## removes its model. The runtime's model is fetched at run time and never
+## stored in the repository (NAM-3). Labels stay in both cases and are
+## billboarded so they face the player from any hand angle. Nothing here reads
+## or writes input or ship state; the rig hands it the words to show (ARC-3).
 
 ## Hand-local positions, in metres, of each control's label on the right
 ## hand. -z points ahead along the controller, +y up, +x to the right; the
@@ -45,10 +48,17 @@ const BUTTON_LOWER_OFFSET: Vector3 = Vector3(0.012, 0.029, 0.002)
 const TRIGGER_SIZE: Vector3 = Vector3(0.012, 0.025, 0.012)
 const TRIGGER_OFFSET: Vector3 = Vector3(0.0, -0.01, -0.05)
 const DETAIL_COLOR: Color = Color(0.15, 0.15, 0.15)
+## Child names of the generic shape, hidden while a runtime model is shown.
+const GENERIC_PARTS: PackedStringArray = ["Handle", "Head", "Stick", "ButtonUpper", "ButtonLower", "Trigger"]
+## The node that asks the runtime for this hand's controller model.
+const RUNTIME_MODELS_NAME: String = "RuntimeModels"
 
 ## `"left"` or `"right"`; picks which way the shape and labels mirror.
 var hand: String = "right"
 var body_color: Color = Color(0.5, 0.5, 0.5)
+## The pose the parent XRController3D follows. Runtime models arrive in
+## XROrigin3D space, so the manager must undo this pose to sit under the hand.
+var pose_name: StringName = &"default"
 var show_labels: bool = true:
 	set(value):
 		show_labels = value
@@ -56,6 +66,8 @@ var show_labels: bool = true:
 			_labels_root.visible = value
 
 var _labels_root: Node3D = null
+## Runtime models shown now; the generic shape is visible only at zero.
+var _runtime_model_count: int = 0
 
 
 func _init(p_hand: String = "right", p_body_color: Color = Color(0.5, 0.5, 0.5)) -> void:
@@ -89,6 +101,27 @@ func build() -> void:
 	_labels_root.name = "Labels"
 	_labels_root.visible = show_labels
 	add_child(_labels_root)
+	_runtime_model_count = 0
+	_add_runtime_models()
+
+
+## True while the runtime supplies this hand's model and the generic shape is hidden.
+func has_runtime_model() -> bool:
+	return _runtime_model_count > 0
+
+
+## True when the generic shape is drawn (every part visible).
+func generic_shape_visible() -> bool:
+	for part: String in GENERIC_PARTS:
+		var node: Node3D = get_node_or_null(part) as Node3D
+		if node == null or not node.visible:
+			return false
+	return true
+
+
+## The runtime model manager for this hand, or null before `build`.
+func runtime_models() -> OpenXRRenderModelManager:
+	return get_node_or_null(RUNTIME_MODELS_NAME) as OpenXRRenderModelManager
 
 
 ## Replaces the labels with `labels` (control without hand prefix -> text,
@@ -134,6 +167,42 @@ func label_texts() -> Dictionary:
 ## True when the labels would be drawn (the model itself may still be hidden).
 func labels_visible() -> bool:
 	return _labels_root != null and _labels_root.visible
+
+
+## Connected to the manager's `render_model_added`; public to the tests,
+## which have no runtime to send it.
+func on_runtime_model_added(_render_model: Node3D) -> void:
+	_runtime_model_count += 1
+	_show_generic(false)
+
+
+## Connected to the manager's `render_model_removed`.
+func on_runtime_model_removed(_render_model: Node3D) -> void:
+	_runtime_model_count = maxi(_runtime_model_count - 1, 0)
+	_show_generic(_runtime_model_count == 0)
+
+
+func _add_runtime_models() -> void:
+	# Without an OpenXR session (flat, headless, Monado) the manager stays
+	# empty and the generic shape remains.
+	var manager: OpenXRRenderModelManager = OpenXRRenderModelManager.new()
+	manager.name = RUNTIME_MODELS_NAME
+	manager.tracker = (
+		OpenXRRenderModelManager.RENDER_MODEL_TRACKER_LEFT_HAND
+		if hand == "left"
+		else OpenXRRenderModelManager.RENDER_MODEL_TRACKER_RIGHT_HAND
+	)
+	manager.make_local_to_pose = String(pose_name)
+	manager.render_model_added.connect(on_runtime_model_added)
+	manager.render_model_removed.connect(on_runtime_model_removed)
+	add_child(manager)
+
+
+func _show_generic(shown: bool) -> void:
+	for part: String in GENERIC_PARTS:
+		var node: Node3D = get_node_or_null(part) as Node3D
+		if node != null:
+			node.visible = shown
 
 
 func _mirror(offset: Vector3) -> Vector3:
