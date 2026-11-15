@@ -174,3 +174,27 @@ func test_flying_the_rig_leaves_ship_copies_untouched() -> String:
 	if hash_before != hash_after:
 		return "placing the rig changed the simulation"
 	return ""
+
+
+func test_rig_labels_follow_the_main_scene_mapping() -> String:
+	var main: Node = _instantiate("res://main.tscn")
+	if main == null:
+		return "main.tscn did not load"
+	var rig: Node = main.get_node("XRRig")
+	# Outside the tree no `_ready` runs by itself; call them in tree order.
+	rig.call("build")
+	main.call("_ready")
+	var mapping: ThumbstickMapping = main.get("mapping") as ThumbstickMapping
+	var message: String = ""
+	if not is_same(rig.get("mapping"), mapping):
+		message = "the rig does not read the main scene's mapping"
+	mapping.left_handed = true
+	rig.call("_process", 0.0)
+	var left: ControllerModel = rig.call("model_for", "left") as ControllerModel
+	var right: ControllerModel = rig.call("model_for", "right") as ControllerModel
+	if message == "" and right.label_texts().get("stick_click", "") != "boost":
+		message = "left-handed boost should label the right stick click: %s" % right.label_texts()
+	if message == "" and left.label_texts().has("stick_click"):
+		message = "the left stick click still has a label: %s" % left.label_texts()
+	main.free()
+	return message
