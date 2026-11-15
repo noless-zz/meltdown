@@ -13,6 +13,7 @@ extends RefCounted
 ## - right stick: x yaw, y pitch
 ## - left grip rolls left, right grip rolls right
 ## - left trigger moves down, right trigger moves up
+## - left stick click holds the afterburner (FLT-2)
 ## - face buttons are accepted but unbound
 ##
 ## Ship axes use the pilot's view, each -1..1 before scaling:
@@ -25,6 +26,11 @@ extends RefCounted
 ## as the right one and the other way round, so the right stick flies and the
 ## left stick turns. Stick x keeps its direction, so pushing right still means
 ## right.
+##
+## Besides the six axes the layout holds one button action, `afterburner`. It
+## is bound like an axis, so the settings menu remaps it the same way, and it
+## counts as held when its bound controls add up to at least
+## `BUTTON_THRESHOLD`. Left-handed mode moves it to the right stick click.
 
 ## Radial dead zone of each stick as a fraction of full deflection. Drift
 ## inside it gives exactly zero, so a resting stick never moves the ship.
@@ -34,15 +40,25 @@ const MAX_YAW_RATE: float = PI / 2.0
 const MAX_ROLL_RATE: float = PI * 0.75
 
 const AXES: Array[String] = ["strafe", "lift", "forward", "pitch", "yaw", "roll"]
+## On/off actions held while their controls are pressed.
+const BUTTON_ACTIONS: Array[String] = ["afterburner"]
+## Half way, so an action bound to a trigger or grip fires at half pull.
+const BUTTON_THRESHOLD: float = 0.5
 ## Physical controls a layout may bind. Buttons are named by position rather
 ## than by letter, so left-handed mode can swap them like everything else.
 const CONTROLS: Array[String] = [
 	"left_stick_x", "left_stick_y", "right_stick_x", "right_stick_y",
 	"left_trigger", "right_trigger", "left_grip", "right_grip",
 	"left_button_lower", "left_button_upper", "right_button_lower", "right_button_upper",
+	"left_stick_click", "right_stick_click",
+]
+## The controls passed in the `buttons` argument of `map_controls`.
+const BUTTONS: Array[String] = [
+	"left_button_lower", "left_button_upper", "right_button_lower", "right_button_upper",
+	"left_stick_click", "right_stick_click",
 ]
 
-## Ship axis -> {physical control: weight}. The settings menu can replace this
+## Ship axis or button action -> {physical control: weight}. The settings menu can replace this
 ## to remap controls without code changes.
 var layout: Dictionary = {}
 var left_handed: bool = false
@@ -62,6 +78,8 @@ static func default_layout() -> Dictionary:
 		"pitch": {"right_stick_y": 1.0},
 		"roll": {"left_grip": -1.0, "right_grip": 1.0},
 		"lift": {"left_trigger": -1.0, "right_trigger": 1.0},
+		# Clicking the stick that already sets speed keeps the turning hand free.
+		"afterburner": {"left_stick_click": 1.0},
 	}
 
 
@@ -78,8 +96,9 @@ static func apply_dead_zone(stick: Vector2) -> Vector2:
 
 
 ## Maps one frame of controller values to the input for one tick. Triggers
-## and grips are 0..1; `buttons` maps button names from `CONTROLS` to
-## pressed, and a missing button counts as released.
+## and grips are 0..1; `buttons` maps button names from `BUTTONS` (face
+## buttons and stick clicks) to pressed, and a missing button counts as
+## released, so callers that pass no stick clicks never fire the afterburner.
 func map_controls(left_stick: Vector2, right_stick: Vector2,
 		left_trigger: float, right_trigger: float,
 		left_grip: float, right_grip: float,
@@ -94,8 +113,7 @@ func map_controls(left_stick: Vector2, right_stick: Vector2,
 		"left_grip": clampf(left_grip, 0.0, 1.0),
 		"right_grip": clampf(right_grip, 0.0, 1.0),
 	}
-	for button: String in ["left_button_lower", "left_button_upper",
-			"right_button_lower", "right_button_upper"]:
+	for button: String in BUTTONS:
 		controls[button] = 1.0 if buttons.get(button, false) else 0.0
 	if left_handed:
 		controls = _swap_hands(controls)
@@ -110,7 +128,8 @@ func map_controls(left_stick: Vector2, right_stick: Vector2,
 		pitch * MAX_PITCH_RATE,
 		-axis["yaw"] * MAX_YAW_RATE,
 		-axis["roll"] * MAX_ROLL_RATE)
-	return ShipInput.from_floats(thrust, turn)
+	var afterburner: bool = _axis_value(controls, "afterburner") >= BUTTON_THRESHOLD
+	return ShipInput.from_floats(thrust, turn, afterburner)
 
 
 func _axis_value(controls: Dictionary, axis_name: String) -> float:
