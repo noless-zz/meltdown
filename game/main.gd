@@ -15,15 +15,6 @@ const TARGET_REFRESH_RATE: float = 90.0
 ## below the start; otherwise the first tick would push the ship up off the
 ## floor with a jolt.
 const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
-## The comfort preset a run starts with until the first-launch flight test
-## (CMF-4) picks one. `--comfort-preset=1..4` overrides it.
-const START_COMFORT_PRESET: int = 2
-## Preset files in the numbering of the comfort table (CMF-1): index 0 is preset 1.
-const COMFORT_PRESET_PATHS: Array[String] = [
-	"res://xr/presets/comfort_anchored.tres", "res://xr/presets/comfort_guided.tres",
-	"res://xr/presets/comfort_pilot.tres", "res://xr/presets/comfort_unrestricted.tres",
-]
-const COMFORT_PRESET_ARG: String = "--comfort-preset="
 ## The ship's feel values, tuned after headset sessions without code changes.
 const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
 
@@ -39,8 +30,8 @@ var keyboard: KeyboardSampler = KeyboardSampler.new()
 ## Built from the rig's hands in `_ready`; null until then.
 var controllers: ControllerSampler = null
 ## Number (1..4) of the active comfort preset; change it with `set_comfort_preset`.
-var comfort_number: int = START_COMFORT_PRESET
-var comfort_preset: ComfortPreset = load_comfort_preset(START_COMFORT_PRESET)
+var comfort_number: int = ComfortPresetFiles.START_NUMBER
+var comfort_preset: ComfortPreset = ComfortPresetFiles.load_number(comfort_number)
 ## Every frame's mapped input passes through this before the ship flies it.
 ## It only changes the input this player sends, never ship state (CMF-6, ARC-3).
 var comfort_filter: ComfortInputFilter = ComfortInputFilter.new(comfort_preset)
@@ -51,11 +42,15 @@ var _xr_running: bool = false
 var _smoke_probe: XrSmokeProbe = null
 ## The preset switch acts once per press, not once per frame it is held.
 var _preset_button_held: bool = false
-## True from the frame the filter fires a snap until a tick has flown it. A
-## frame at 90 Hz runs no tick about one time in three, and a hitch runs
-## several; the filter fires once per stick push, so the snap is held for
-## exactly one tick.
-var _snap_pending: bool = false
+## Times the hold-both-clicks way back to the start and its fade (#90).
+var reset_hold: ResetHold = ResetHold.new()
+## The black quad under the camera, added by `attach_fade_overlay`.
+var fade_overlay: FadeOverlay = null
+
+## True from the frame an input that must fly exactly once (a snap, or the
+## reset) is set until a tick has flown it. A frame at 90 Hz runs no tick
+## about one time in three, and a hitch runs several.
+var _one_tick_pending: bool = false
 ## Set when focus returns; the frame after a pause may run only one tick.
 var _resume_frame: bool = false
 
@@ -77,12 +72,13 @@ func _ready() -> void:
 	else:
 		print("Meltdown: running flat (no OpenXR session)")
 	var args: PackedStringArray = OS.get_cmdline_args() + OS.get_cmdline_user_args()
-	set_comfort_preset(preset_number_from_args(args))
+	set_comfort_preset(ComfortPresetFiles.number_from_args(args))
 	_smoke_probe = XrSmokeProbe.new(XrSmokeProbe.frames_from_args(OS.get_cmdline_user_args()))
 	controllers = ControllerSampler.for_controllers(
 		get_node_or_null("XRRig/LeftHand") as XRController3D,
 		get_node_or_null("XRRig/RightHand") as XRController3D)
 	place_tunnel()
+	attach_fade_overlay()
 	place_rig()
 
 
@@ -103,40 +99,53 @@ func sample_controls() -> Dictionary:
 	for key: int in keyboard.used_keys():
 		if Input.is_physical_key_pressed(key):
 			pressed.append(key)
-	return keyboard.sample(pressed)
+	var values: Dictionary = keyboard.sample(pressed)
+	if Input.is_physical_key_pressed(ResetHold.KEYBOARD_KEY):
+		values["buttons"][ResetHold.KEYBOARD_BUTTON] = true
+	return values
 
 
 ## Maps raw values through the comfort filter to the input every tick flies
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
 	_read_preset_button(values.get("buttons", {}))
+	reset_hold.press(ResetHold.is_held(values))
 	var input: ShipInput = ControllerSampler.map_values(mapping, values)
-	if _snap_pending:
-		# No tick has flown the snap yet; keep its turn, take the new thrust.
-		var held: ShipInput = input_source.latest_input()
-		input_source.set_input(ShipInput.new(input.thrust_q, held.turn_q, input.afterburner))
-		return
-	var filtered: ShipInput = comfort_filter.filter(input, session.current_ship().orientation)
-	_snap_pending = carries_snap(filtered)
-	input_source.set_input(filtered)
+	if _one_tick_pending:
+		# No tick has flown it yet: keep a snap's turn with the new thrust, a reset whole.
+		var held: ShipInput = ComfortInputFilter.copy_input(input_source.latest_input())
+		if not held.reset_to_start:
+			held.thrust_q = input.thrust_q
+			held.afterburner = input.afterburner
+		input_source.set_input(held)
+	else:
+		var filtered: ShipInput = comfort_filter.filter(input, session.current_ship().orientation)
+		if reset_hold.reset_due():
+			# Still, so the reset tick ends exactly at the start pose.
+			filtered = ShipInput.new(Vector3i.ZERO, Vector3i.ZERO, false, true)
+		_one_tick_pending = carries_snap(filtered) or filtered.reset_to_start
+		input_source.set_input(filtered)
 
 
 ## Runs the simulation for one frame of `delta_seconds` and moves the rig to
 ## the ship. Public so tests can drive frames without a running scene tree.
-## A pending snap gets a tick of its own: the frame is split where the next
-## tick falls, so a hitch frame cannot fly the same snap twice.
+## A pending snap or reset gets a tick of its own: the frame is split where
+## the next tick falls, so a hitch frame cannot fly it twice.
 func advance_frame(delta_seconds: float) -> void:
+	reset_hold.advance(delta_seconds)
 	var resuming: bool = _resume_frame
 	_resume_frame = false
 	var to_tick: float = (1.0 - session.interpolation_fraction) * ShipState.TICK_DT
-	if _snap_pending and not session.paused and delta_seconds > to_tick:
+	if _one_tick_pending and not session.paused and delta_seconds > to_tick:
 		session.advance(to_tick)
-		_end_snap_if_flown()
+		_end_one_tick_if_flown()
 		# The session limits a resumed frame to one tick; the split must too.
 		session.advance(0.0 if resuming else delta_seconds - to_tick)
 	else:
 		session.advance(delta_seconds)
-		_end_snap_if_flown()
+		_end_one_tick_if_flown()
+	if fade_overlay != null:
+		fade_overlay.set_alpha(reset_hold.alpha)
 	place_rig()
 
 
@@ -150,32 +159,10 @@ func carries_snap(input: ShipInput) -> bool:
 ## player's input handling changes; the ship is not touched (CMF-6).
 func set_comfort_preset(number: int) -> void:
 	comfort_number = number
-	comfort_preset = load_comfort_preset(number)
+	comfort_preset = ComfortPresetFiles.load_number(number)
 	comfort_filter = ComfortInputFilter.new(comfort_preset)
-	_snap_pending = false
+	_one_tick_pending = false
 	print("Meltdown: comfort preset %d %s" % [number, comfort_preset.display_name])
-
-
-static func load_comfort_preset(number: int) -> ComfortPreset:
-	return load(COMFORT_PRESET_PATHS[number - 1]) as ComfortPreset
-
-
-## 1 > 2 > 3 > 4 > 1.
-static func next_preset_number(number: int) -> int:
-	return number % COMFORT_PRESET_PATHS.size() + 1
-
-
-## The last `--comfort-preset=N` with N in 1..4, else `START_COMFORT_PRESET`.
-static func preset_number_from_args(args: PackedStringArray) -> int:
-	var number: int = START_COMFORT_PRESET
-	for arg: String in args:
-		if not arg.begins_with(COMFORT_PRESET_ARG):
-			continue
-		var value: String = arg.substr(COMFORT_PRESET_ARG.length())
-		var valid: bool = value.is_valid_int() and int(value) >= 1 \
-			and int(value) <= COMFORT_PRESET_PATHS.size()
-		number = int(value) if valid else START_COMFORT_PRESET
-	return number
 
 
 ## The development preset switch: the upper face button of the hand that does
@@ -188,23 +175,27 @@ func preset_button() -> String:
 func _read_preset_button(buttons: Dictionary) -> void:
 	var pressed: bool = bool(buttons.get(preset_button(), false))
 	if pressed and not _preset_button_held:
-		set_comfort_preset(next_preset_number(comfort_number))
+		set_comfort_preset(ComfortPresetFiles.next_number(comfort_number))
 	_preset_button_held = pressed
 
 
-## Once a tick has flown the snap, later ticks before the next sample must
-## not repeat it; the filter keeps the axis at zero until the stick returns.
-func _end_snap_if_flown() -> void:
-	if not _snap_pending or session.ticks_last_advance == 0:
+## Once a tick has flown a snap or the reset, later ticks before the next
+## sample must not repeat it; the filter keeps a snapped axis at zero until
+## the stick returns, and the reset is followed by the fade back in.
+func _end_one_tick_if_flown() -> void:
+	if not _one_tick_pending or session.ticks_last_advance == 0:
 		return
-	_snap_pending = false
-	var flown: ShipInput = input_source.latest_input()
-	var turn: Vector3i = flown.turn_q
+	_one_tick_pending = false
+	var flown: ShipInput = ComfortInputFilter.copy_input(input_source.latest_input())
+	if flown.reset_to_start:
+		reset_hold.reset_flown()
+		input_source.set_input(ShipInput.new())
+		return
 	if comfort_preset.pitch_mode == ComfortPreset.PitchMode.SNAP:
-		turn.x = 0
+		flown.turn_q.x = 0
 	if comfort_preset.yaw_mode == ComfortPreset.YawMode.SNAP:
-		turn.y = 0
-	input_source.set_input(ShipInput.new(flown.thrust_q, turn, flown.afterburner))
+		flown.turn_q.y = 0
+	input_source.set_input(flown)
 
 
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
@@ -212,6 +203,14 @@ func place_tunnel() -> void:
 	var tunnel: Node3D = get_node_or_null("TestTunnel") as Node3D
 	if tunnel != null:
 		tunnel.position = TUNNEL_OFFSET
+
+
+## Puts the fade quad under the rig's camera; the rig scene stays as it is.
+func attach_fade_overlay() -> void:
+	var camera: Node3D = get_node_or_null("XRRig/Camera") as Node3D
+	if camera != null and fade_overlay == null:
+		fade_overlay = FadeOverlay.new()
+		camera.add_child(fade_overlay)
 
 
 ## Puts the rig at the ship's pose for this frame. The headset camera and

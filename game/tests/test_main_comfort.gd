@@ -153,17 +153,16 @@ func test_left_handed_uses_the_right_upper_button() -> String:
 
 
 func test_the_command_line_picks_the_preset() -> String:
-	var main_script: GDScript = load("res://main.gd") as GDScript
 	var cases: Dictionary[String, int] = {
 		"--comfort-preset=1": 1, "--comfort-preset=3": 3, "--comfort-preset=4": 4,
 		"--comfort-preset=0": 2, "--comfort-preset=5": 2, "--comfort-preset=x": 2,
 		"--comfort-preset=": 2, "--other=1": 2,
 	}
 	for arg: String in cases:
-		var got: int = main_script.call("preset_number_from_args", PackedStringArray([arg]))
+		var got: int = ComfortPresetFiles.number_from_args(PackedStringArray([arg]))
 		if got != cases[arg]:
 			return "%s gave preset %d, expected %d" % [arg, got, cases[arg]]
-	if int(main_script.call("preset_number_from_args", PackedStringArray())) != 2:
+	if ComfortPresetFiles.number_from_args(PackedStringArray()) != 2:
 		return "no argument did not give preset 2"
 	return ""
 
