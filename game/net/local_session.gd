@@ -45,9 +45,14 @@ var _previous_ship: ShipState
 var _current_ship: ShipState
 
 
-func _init(run_seed: int = 0, input_source: ShipInputSource = null) -> void:
-	sim = Sim.new(run_seed, 1)
+## `bounds` are the walls the ship flies inside, or null for open space.
+func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null) -> void:
 	replay = Replay.new(run_seed, 1)
+	if bounds != null:
+		replay.set_box(_to_mm(bounds.min_corner), _to_mm(bounds.max_corner))
+	# The walls are taken back from the replay, rounded to its whole
+	# millimetres, so that running the replay meets exactly the same walls.
+	sim = Sim.new(run_seed, 1, replay.bounds())
 	_input_source = input_source if input_source != null else ShipInputSource.new()
 	_current_ship = _snapshot(sim.ships[0])
 	_previous_ship = _snapshot(sim.ships[0])
@@ -120,3 +125,7 @@ static func _snapshot(ship: ShipState) -> ShipState:
 			var prop_name: String = property["name"]
 			copy.set(prop_name, ship.get(prop_name))
 	return copy
+
+
+static func _to_mm(metres: Vector3) -> Vector3i:
+	return Vector3i((metres * float(Replay.BOX_SCALE)).round())
