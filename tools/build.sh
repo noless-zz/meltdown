@@ -10,11 +10,22 @@ target="${1:-}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$root/build"
 
+# Every build carries the commit and time it was made from (DEV-8). CI sets
+# GITHUB_SHA; a local build asks git.
+write_build_info() {
+	local commit="${GITHUB_SHA:-}"
+	if [ -z "$commit" ]; then
+		commit="$(git -C "$root" rev-parse HEAD)"
+	fi
+	"$root/tools/write_build_info.sh" "$commit" "$(date +%s)" "$root/game/meta/build_info.tres"
+}
+
 # export_preset <preset name> <output file> [extra godot arguments...]
 export_preset() {
 	local preset="$1" out="$2"
 	shift 2
 	rm -f "$out"
+	write_build_info
 	godot --headless --path "$root/game" --import
 	godot --headless --path "$root/game" "$@" --export-debug "$preset" "$out"
 	# Godot can exit 0 after a failed export, so check for the file.
