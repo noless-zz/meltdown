@@ -15,6 +15,8 @@ extends XROrigin3D
 const LEFT_COLOR: Color = Color(0.2, 0.6, 1.0)
 const RIGHT_COLOR: Color = Color(1.0, 0.5, 0.2)
 const MODEL_NAME: String = "Controller"
+## Logs what the runtime offers for controller models (#145).
+const REPORT_NAME: String = "RenderModelReport"
 
 ## The mapping whose bindings the labels show. The scene that owns the real
 ## mapping assigns it here; until then the default layout is shown.
@@ -48,7 +50,16 @@ func _process(_delta: float) -> void:
 func build() -> void:
 	_add_model(get_node_or_null("LeftHand") as Node3D, "left", LEFT_COLOR)
 	_add_model(get_node_or_null("RightHand") as Node3D, "right", RIGHT_COLOR)
+	if get_node_or_null(REPORT_NAME) == null:
+		var report: RenderModelReport = RenderModelReport.new()
+		report.name = REPORT_NAME
+		add_child(report)
 	refresh_labels()
+
+
+## The node that logs the runtime's render models, or null before `build`.
+func render_model_report() -> RenderModelReport:
+	return get_node_or_null(REPORT_NAME) as RenderModelReport
 
 
 ## Rebuilds both hands' labels from the mapping as it is now.
