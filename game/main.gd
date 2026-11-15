@@ -29,30 +29,20 @@ var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
 ## Built from the rig's hands in `_ready`; null until then.
 var controllers: ControllerSampler = null
-## Number (1..4) of the active comfort preset; change it with `set_comfort_preset`.
-var comfort_number: int = ComfortPresetFiles.START_NUMBER
-var comfort_preset: ComfortPreset = ComfortPresetFiles.load_number(comfort_number)
-## Every frame's mapped input passes through this before the ship flies it.
+## The comfort preset, its filter and switch, and the one-tick bookkeeping.
 ## It only changes the input this player sends, never ship state (CMF-6, ARC-3).
-var comfort_filter: ComfortInputFilter = ComfortInputFilter.new(comfort_preset)
+var comfort: ComfortWiring = ComfortWiring.new(input_source, mapping)
 
 var _session_begun: bool = false
 ## True between the XR session beginning and stopping; picks the input device.
 var _xr_running: bool = false
 var _smoke_probe: XrSmokeProbe = null
-## The preset switch acts once per press, not once per frame it is held.
-var _preset_button_held: bool = false
 ## Times the hold-both-clicks way back to the start and its fade (#90).
 var reset_hold: ResetHold = ResetHold.new()
 ## The black quad under the camera, added by `attach_fade_overlay`.
 var fade_overlay: FadeOverlay = null
 ## Keeps the eye point at the ship's centre, inside its collision sphere (#102).
 var head_recentre: HeadRecentre = HeadRecentre.new()
-
-## True from the frame an input that must fly exactly once (a snap, or the
-## reset) is set until a tick has flown it. A frame at 90 Hz runs no tick
-## about one time in three, and a hitch runs several.
-var _one_tick_pending: bool = false
 ## Set when focus returns; the frame after a pause may run only one tick.
 var _resume_frame: bool = false
 
@@ -115,23 +105,10 @@ func sample_controls() -> Dictionary:
 ## Maps raw values through the comfort filter to the input every tick flies
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
-	_read_preset_button(values.get("buttons", {}))
+	comfort.read_preset_button(values.get("buttons", {}))
 	reset_hold.press(ResetHold.is_held(values))
-	var input: ShipInput = ControllerSampler.map_values(mapping, values)
-	if _one_tick_pending:
-		# No tick has flown it yet: keep a snap's turn with the new thrust, a reset whole.
-		var held: ShipInput = ComfortInputFilter.copy_input(input_source.latest_input())
-		if not held.reset_to_start:
-			held.thrust_q = input.thrust_q
-			held.afterburner = input.afterburner
-		input_source.set_input(held)
-	else:
-		var filtered: ShipInput = comfort_filter.filter(input, session.current_ship().orientation)
-		if reset_hold.reset_due():
-			# Still, so the reset tick ends exactly at the start pose.
-			filtered = ShipInput.new(Vector3i.ZERO, Vector3i.ZERO, false, true)
-		_one_tick_pending = carries_snap(filtered) or filtered.reset_to_start
-		input_source.set_input(filtered)
+	comfort.hand_input(ControllerSampler.map_values(mapping, values),
+		session.current_ship().orientation, reset_hold.reset_due())
 
 
 ## Runs the simulation for one frame of `delta_seconds` and moves the rig to
@@ -143,7 +120,7 @@ func advance_frame(delta_seconds: float) -> void:
 	var resuming: bool = _resume_frame
 	_resume_frame = false
 	var to_tick: float = (1.0 - session.interpolation_fraction) * ShipState.TICK_DT
-	if _one_tick_pending and not session.paused and delta_seconds > to_tick:
+	if comfort.one_tick_pending and not session.paused and delta_seconds > to_tick:
 		session.advance(to_tick)
 		_end_one_tick_if_flown()
 		# The session limits a resumed frame to one tick; the split must too.
@@ -156,54 +133,16 @@ func advance_frame(delta_seconds: float) -> void:
 	place_rig()
 
 
-## True when `input` turns the ship by a snap on an axis the preset snaps.
-func carries_snap(input: ShipInput) -> bool:
-	return (comfort_preset.yaw_mode == ComfortPreset.YawMode.SNAP and input.turn_q.y != 0) \
-		or (comfort_preset.pitch_mode == ComfortPreset.PitchMode.SNAP and input.turn_q.x != 0)
-
-
-## Makes preset `number` (1..4) the active one with a fresh filter. Only this
-## player's input handling changes; the ship is not touched (CMF-6).
+## Makes preset `number` (1..4) the active one; see `ComfortWiring.set_preset`.
 func set_comfort_preset(number: int) -> void:
-	comfort_number = number
-	comfort_preset = ComfortPresetFiles.load_number(number)
-	comfort_filter = ComfortInputFilter.new(comfort_preset)
-	_one_tick_pending = false
-	print("Meltdown: comfort preset %d %s" % [number, comfort_preset.display_name])
+	comfort.set_preset(number)
 
 
-## The development preset switch: the upper face button of the hand that does
-## not turn (Y, or B when left-handed). Read here rather than bound in the
-## mapping, since it is not a flight control and a settings menu replaces it.
-func preset_button() -> String:
-	return "right_button_upper" if mapping.left_handed else "left_button_upper"
-
-
-func _read_preset_button(buttons: Dictionary) -> void:
-	var pressed: bool = bool(buttons.get(preset_button(), false))
-	if pressed and not _preset_button_held:
-		set_comfort_preset(ComfortPresetFiles.next_number(comfort_number))
-	_preset_button_held = pressed
-
-
-## Once a tick has flown a snap or the reset, later ticks before the next
-## sample must not repeat it; the filter keeps a snapped axis at zero until
-## the stick returns, and the reset is followed by the fade back in.
+## A flown reset is followed by the fade back in and a recentre.
 func _end_one_tick_if_flown() -> void:
-	if not _one_tick_pending or session.ticks_last_advance == 0:
-		return
-	_one_tick_pending = false
-	var flown: ShipInput = ComfortInputFilter.copy_input(input_source.latest_input())
-	if flown.reset_to_start:
+	if comfort.end_one_tick_if_flown(session.ticks_last_advance):
 		reset_hold.reset_flown()
 		head_recentre.request()
-		input_source.set_input(ShipInput.new())
-		return
-	if comfort_preset.pitch_mode == ComfortPreset.PitchMode.SNAP:
-		flown.turn_q.x = 0
-	if comfort_preset.yaw_mode == ComfortPreset.YawMode.SNAP:
-		flown.turn_q.y = 0
-	input_source.set_input(flown)
 
 
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
@@ -231,32 +170,8 @@ func place_rig() -> void:
 	var camera: Node3D = rig.get_node_or_null("Camera") as Node3D
 	if camera != null:
 		head_recentre.update(camera.transform, _xr_running)
-	rig.transform = head_recentre.rig_transform(interpolated_pose(session.previous_ship(),
-		session.current_ship(), session.interpolation_fraction, snap_show_angle()))
-
-
-## Radians a tick must turn to be shown as a snap: half a snap while the
-## preset snaps yaw or pitch, 0 (never) otherwise.
-func snap_show_angle() -> float:
-	var snaps: bool = comfort_preset.yaw_mode == ComfortPreset.YawMode.SNAP \
-		or comfort_preset.pitch_mode == ComfortPreset.PitchMode.SNAP
-	return deg_to_rad(comfort_preset.snap_angle_deg) * 0.5 if snaps else 0.0
-
-
-## The ship's pose `fraction` of the way from `previous` to `current`:
-## position lerped, rotation slerped. Frames fall between ticks, so showing
-## either tick's pose alone would judder at 72 or 90 Hz against a 60 Hz sim.
-## A turn of at least `snap_angle` (when above 0) is a snap and is shown at
-## once: slerping it would show a snap as smooth rotation (CMF-3).
-static func interpolated_pose(previous: ShipState, current: ShipState, fraction: float,
-		snap_angle: float = 0.0) -> Transform3D:
-	var weight: float = clampf(fraction, 0.0, 1.0)
-	var from_rotation: Quaternion = previous.orientation.orthonormalized().get_rotation_quaternion()
-	var to_rotation: Quaternion = current.orientation.orthonormalized().get_rotation_quaternion()
-	var rotation: Quaternion = from_rotation.slerp(to_rotation, weight)
-	if snap_angle > 0.0 and from_rotation.angle_to(to_rotation) >= snap_angle:
-		rotation = to_rotation
-	return Transform3D(Basis(rotation), previous.position.lerp(current.position, weight))
+	rig.transform = head_recentre.rig_transform(ComfortWiring.interpolated_pose(session.previous_ship(),
+		session.current_ship(), session.interpolation_fraction, comfort.snap_show_angle()))
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:

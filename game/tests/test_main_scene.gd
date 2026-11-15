@@ -87,7 +87,7 @@ func test_forward_thrust_moves_the_rig_along_minus_z() -> String:
 	_fly(main, 90)
 	var rig: Node3D = main.get_node("XRRig") as Node3D
 	var rig_position: Vector3 = rig.position
-	var expected: Transform3D = main.call("interpolated_pose",
+	var expected: Transform3D = ComfortWiring.interpolated_pose(
 			session.previous_ship(), session.current_ship(), session.interpolation_fraction)
 	var ship_position: Vector3 = session.current_ship().position
 	var tick_travel: float = session.current_ship().position.distance_to(session.previous_ship().position)
@@ -139,16 +139,15 @@ func test_main_scene_records_one_input_object_per_tick() -> String:
 
 
 func test_interpolation_ends_match_previous_and_current_pose() -> String:
-	var main_script: GDScript = load("res://main.gd") as GDScript
 	var previous: ShipState = ShipState.new()
 	previous.position = Vector3(1.0, 2.0, 3.0)
 	previous.orientation = Basis(Vector3.UP, 0.3)
 	var current: ShipState = ShipState.new()
 	current.position = Vector3(1.5, 2.0, 2.0)
 	current.orientation = Basis(Vector3.RIGHT, 0.2) * Basis(Vector3.UP, 0.5)
-	var at_start: Transform3D = main_script.call("interpolated_pose", previous, current, 0.0)
-	var at_end: Transform3D = main_script.call("interpolated_pose", previous, current, 1.0)
-	var halfway: Transform3D = main_script.call("interpolated_pose", previous, current, 0.5)
+	var at_start: Transform3D = ComfortWiring.interpolated_pose(previous, current, 0.0)
+	var at_end: Transform3D = ComfortWiring.interpolated_pose(previous, current, 1.0)
+	var halfway: Transform3D = ComfortWiring.interpolated_pose(previous, current, 0.5)
 	if not at_start.is_equal_approx(Transform3D(previous.orientation, previous.position)):
 		return "fraction 0 is %s, not the previous pose" % str(at_start)
 	if not at_end.is_equal_approx(Transform3D(current.orientation, current.position)):
