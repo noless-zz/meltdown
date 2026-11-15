@@ -1,3 +1,4 @@
+class_name TestTunnel
 extends Node3D
 
 ## A straight 30 m tunnel built from primitive meshes, used to judge stereo
@@ -26,6 +27,15 @@ const LIGHT_COLORS: Array[Color] = [
 ]
 
 var _built: bool = false
+
+
+## The open space inside the walls, floor and ceiling, as the box ships fly in
+## (FLT-3), for a tunnel node placed at `offset`. The session's walls come from
+## here, so they cannot drift away from the walls drawn by `_add_shell`.
+static func interior_box(offset: Vector3 = Vector3.ZERO) -> BoxBounds:
+	var low: Vector3 = Vector3(-WIDTH / 2.0, 0.0, START_Z - LENGTH)
+	var high: Vector3 = Vector3(WIDTH / 2.0, HEIGHT, START_Z)
+	return BoxBounds.new(low + offset, high + offset)
 
 
 func _ready() -> void:

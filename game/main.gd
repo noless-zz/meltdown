@@ -10,10 +10,17 @@ extends Node3D
 ## simulation state (MP-2, ARC-3).
 
 const TARGET_REFRESH_RATE: float = 90.0
+## Where the test tunnel sits relative to the simulation origin, where the ship
+## starts. The ship's collision sphere has a 1 m radius, so the floor goes 1 m
+## below the start; otherwise the first tick would push the ship up off the
+## floor with a jolt.
+const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
-var session: LocalSession = LocalSession.new(0, input_source)
+## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
+## around (FLT-3).
+var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET))
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
@@ -46,6 +53,7 @@ func _ready() -> void:
 	controllers = ControllerSampler.for_controllers(
 		get_node_or_null("XRRig/LeftHand") as XRController3D,
 		get_node_or_null("XRRig/RightHand") as XRController3D)
+	place_tunnel()
 	place_rig()
 
 
@@ -80,6 +88,13 @@ func apply_controls(values: Dictionary) -> void:
 func advance_frame(delta_seconds: float) -> void:
 	session.advance(delta_seconds)
 	place_rig()
+
+
+## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
+func place_tunnel() -> void:
+	var tunnel: Node3D = get_node_or_null("TestTunnel") as Node3D
+	if tunnel != null:
+		tunnel.position = TUNNEL_OFFSET
 
 
 ## Puts the rig at the ship's pose for this frame. The headset camera and
