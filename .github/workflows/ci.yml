@@ -38,6 +38,9 @@ jobs:
       - name: Import project
         run: godot --headless --path game --import
 
+      - name: Check that the import left the clone clean
+        run: tools/check_clean_import.sh
+
       - name: Run unit tests
         run: godot --headless --path game -s res://tests/run_tests.gd
 
