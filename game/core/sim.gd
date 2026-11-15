@@ -29,7 +29,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	if inputs.size() != ships.size():
 		return false
 	for i: int in ships.size():
-		ships[i].step(inputs[i].thrust(), inputs[i].turn())
+		ships[i].step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
 	tick += 1
 	return true
 
