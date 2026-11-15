@@ -17,6 +17,12 @@ func _ship_at(position: Vector3, velocity: Vector3) -> ShipState:
 	return ship
 
 
+## Shield and hull lost so far. Since #69 a hit drains the shield first, so
+## the size of a hit is read from both.
+func _damage_taken(ship: ShipState) -> float:
+	return (ship.max_shield - ship.shield) + (ship.max_hull - ship.hull)
+
+
 func _full_thrust() -> ShipInput:
 	return ShipInput.new(Vector3i(0, 0, -1000), Vector3i.ZERO)
 
@@ -77,17 +83,17 @@ func test_slow_touch_deals_no_damage() -> String:
 	_box().contain(ship)
 	if ship.velocity.y >= 0.0:
 		return "a slow touch did not bounce"
-	if ship.hull != ship.max_hull:
-		return "a %f m/s touch cost hull: %f left" % [3.0, ship.hull]
+	if _damage_taken(ship) != 0.0:
+		return "a %f m/s touch dealt %f damage" % [3.0, _damage_taken(ship)]
 	return ""
 
 
 func test_fast_hit_deals_damage() -> String:
 	var ship: ShipState = _ship_at(Vector3(0.0, 0.0, -39.5), Vector3(0.0, 0.0, -20.0))
 	_box().contain(ship)
-	var lost: float = ship.max_hull - ship.hull
+	var lost: float = _damage_taken(ship)
 	if not is_equal_approx(lost, 20.0 * ship.wall_damage_per_speed):
-		return "a 20 m/s hit cost %f hull, expected %f" % [lost, 20.0 * ship.wall_damage_per_speed]
+		return "a 20 m/s hit dealt %f damage, expected %f" % [lost, 20.0 * ship.wall_damage_per_speed]
 	if lost > 0.25 * ship.max_hull:
 		return "a hit at normal top speed is not minor: %f of %f hull" % [lost, ship.max_hull]
 	return ""
@@ -105,7 +111,7 @@ func test_zero_restitution_still_bounces() -> String:
 func test_moving_away_from_a_wall_is_not_a_hit() -> String:
 	var ship: ShipState = _ship_at(Vector3(0.0, 0.0, -39.5), Vector3(0.0, 0.0, 6.0))
 	var impact: float = _box().contain(ship)
-	if impact != 0.0 or ship.velocity.z != 6.0 or ship.hull != ship.max_hull:
+	if impact != 0.0 or ship.velocity.z != 6.0 or _damage_taken(ship) != 0.0:
 		return "a ship leaving the wall was treated as a hit"
 	if not _box().holds(ship.position, ship.radius):
 		return "ship was not moved back inside"
@@ -117,10 +123,12 @@ func test_full_thrust_at_a_wall_never_leaves_or_stops() -> String:
 	var sim: Sim = Sim.new(7, 1, box)
 	var bounces: int = 0
 	var last_z_speed: float = 0.0
+	var most_damage: float = 0.0
 	for tick: int in TICKS:
 		var inputs: Array[ShipInput] = [_full_thrust()]
 		sim.step(inputs)
 		var ship: ShipState = sim.ships[0]
+		most_damage = maxf(most_damage, _damage_taken(ship))
 		if not box.holds(ship.position, ship.radius):
 			return "tick %d: ship left the box at %s" % [tick, ship.position]
 		if ship.velocity.length() <= 0.0:
@@ -130,7 +138,9 @@ func test_full_thrust_at_a_wall_never_leaves_or_stops() -> String:
 		last_z_speed = ship.velocity.z
 	if bounces == 0:
 		return "the ship never reached the wall"
-	if sim.ships[0].hull >= sim.ships[0].max_hull:
+	# The shield recharges between hits, so damage is watched every tick
+	# rather than read once at the end.
+	if most_damage <= 0.0:
 		return "a full-speed run into the wall dealt no damage"
 	return ""
 
@@ -171,6 +181,6 @@ func test_no_box_leaves_behaviour_unchanged() -> String:
 		walled_far.step(inputs)
 	if open.state_hash() != walled_far.state_hash():
 		return "walls that are never touched changed the hash"
-	if open.ships[0].hull != open.ships[0].max_hull:
-		return "a ship in open space lost hull"
+	if _damage_taken(open.ships[0]) != 0.0:
+		return "a ship in open space took damage"
 	return ""

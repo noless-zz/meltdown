@@ -50,6 +50,15 @@ var wall_damage_per_speed: float = 0.5
 ## Impact speed below which a bounce deals no damage, metres per second,
 ## 0..300 (FLT-3).
 var wall_damage_min_speed: float = 4.0
+## Shield at the start of a run, shield points, 0..10000; 0 means no shield
+## (CMB-2).
+var max_shield: float = 50.0
+## Shield regained while below `max_shield`, shield points per second,
+## 0..1000; at 0 the shield never comes back (CMB-2).
+var shield_recharge: float = 5.0
+## Energy spent per shield point regained, energy units per shield point,
+## 0.1..100; at 0 the shield would recharge for free (CMB-2).
+var shield_energy_cost: float = 1.0
 
 ## Every key of the data file, in the order the file lists them. Each one is
 ## a field of this class and of `ShipState` with the same name.
@@ -58,7 +67,7 @@ const KEYS: Array[String] = [
 	"max_energy", "afterburner_max_speed", "afterburner_acceleration",
 	"afterburner_drain", "energy_recharge", "afterburner_restart_energy",
 	"max_hull", "radius", "wall_restitution", "wall_damage_per_speed",
-	"wall_damage_min_speed",
+	"wall_damage_min_speed", "max_shield", "shield_recharge", "shield_energy_cost",
 ]
 
 ## Allowed range of each key, inclusive: [minimum, maximum]. A bound that is
@@ -79,6 +88,9 @@ const RANGES: Dictionary = {
 	"wall_restitution": [0.0, 1.0],
 	"wall_damage_per_speed": [0.0, 100.0],
 	"wall_damage_min_speed": [0.0, 300.0],
+	"max_shield": [0.0, 10000.0],
+	"shield_recharge": [0.0, 1000.0],
+	"shield_energy_cost": [0.1, 100.0],
 }
 
 ## Set by `parse_json` when the text was rejected; empty otherwise.
@@ -154,11 +166,12 @@ static func _defaults_with_error(message: String) -> ShipTuning:
 
 
 ## Gives `ship` these values. Meant for a ship at the start of a run: the
-## energy pool and the hull are filled to their new maxima and the
+## energy pool, the hull and the shield are filled to their new maxima and the
 ## afterburner lock is cleared.
 func apply_to(ship: ShipState) -> void:
 	for key: String in KEYS:
 		ship.set(key, get(key))
 	ship.energy = ship.max_energy
 	ship.hull = ship.max_hull
+	ship.shield = ship.max_shield
 	ship.afterburner_locked = false

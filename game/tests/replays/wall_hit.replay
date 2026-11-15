@@ -1,7 +1,7 @@
 meltdown-replay 3
 seed 20261115
 ships 1
-hash 3748624898
+hash 765053642
 box -4000 -3000 -25000 4000 3000 5000
 inputs
 0 0 -1000 0 0 0 0
