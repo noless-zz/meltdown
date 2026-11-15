@@ -46,6 +46,8 @@ var _preset_button_held: bool = false
 var reset_hold: ResetHold = ResetHold.new()
 ## The black quad under the camera, added by `attach_fade_overlay`.
 var fade_overlay: FadeOverlay = null
+## Keeps the eye point at the ship's centre, inside its collision sphere (#102).
+var head_recentre: HeadRecentre = HeadRecentre.new()
 
 ## True from the frame an input that must fly exactly once (a snap, or the
 ## reset) is set until a tick has flown it. A frame at 90 Hz runs no tick
@@ -68,8 +70,10 @@ func _ready() -> void:
 			openxr.session_focussed.connect(on_session_focussed)
 			openxr.session_loss_pending.connect(on_session_loss_pending)
 			openxr.session_stopping.connect(on_session_stopping)
+			openxr.pose_recentered.connect(head_recentre.request)
 		print("Meltdown: OpenXR session active")
 	else:
+		head_recentre.request()
 		print("Meltdown: running flat (no OpenXR session)")
 	var args: PackedStringArray = OS.get_cmdline_args() + OS.get_cmdline_user_args()
 	set_comfort_preset(ComfortPresetFiles.number_from_args(args))
@@ -189,6 +193,7 @@ func _end_one_tick_if_flown() -> void:
 	var flown: ShipInput = ComfortInputFilter.copy_input(input_source.latest_input())
 	if flown.reset_to_start:
 		reset_hold.reset_flown()
+		head_recentre.request()
 		input_source.set_input(ShipInput.new())
 		return
 	if comfort_preset.pitch_mode == ComfortPreset.PitchMode.SNAP:
@@ -213,14 +218,18 @@ func attach_fade_overlay() -> void:
 		camera.add_child(fade_overlay)
 
 
-## Puts the rig at the ship's pose for this frame. The headset camera and
-## controllers are tracked relative to the rig, so they ride along.
+## Puts the rig at the ship's pose for this frame, offset so the head sits at
+## the ship's centre. The headset camera and controllers are tracked relative
+## to the rig, so they ride along. A requested recentre takes the head pose here.
 func place_rig() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig == null:
 		return
-	rig.transform = interpolated_pose(session.previous_ship(), session.current_ship(),
-		session.interpolation_fraction, snap_show_angle())
+	var camera: Node3D = rig.get_node_or_null("Camera") as Node3D
+	if camera != null:
+		head_recentre.update(camera.transform, _xr_running)
+	rig.transform = head_recentre.rig_transform(interpolated_pose(session.previous_ship(),
+		session.current_ship(), session.interpolation_fraction, snap_show_angle()))
 
 
 ## Radians a tick must turn to be shown as a snap: half a snap while the
@@ -250,6 +259,7 @@ static func interpolated_pose(previous: ShipState, current: ShipState, fraction:
 func _on_session_begun(openxr: OpenXRInterface) -> void:
 	_session_begun = true
 	_xr_running = true
+	head_recentre.request()
 	# PRF-1: 90 Hz by default when the headset offers it.
 	var rates: Array = openxr.get_available_display_refresh_rates()
 	if rates.has(TARGET_REFRESH_RATE):
