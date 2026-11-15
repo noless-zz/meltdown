@@ -1,0 +1,10 @@
+{
+	"segments": [
+		{"id": "snap_turns", "preset": 1, "duration_s": 15, "manoeuvre": "snap_yaw"},
+		{"id": "capped_yaw", "preset": 2, "duration_s": 20, "manoeuvre": "smooth_yaw"},
+		{"id": "capped_pitch", "preset": 2, "duration_s": 15, "manoeuvre": "smooth_pitch"},
+		{"id": "full_yaw", "preset": 3, "duration_s": 20, "manoeuvre": "smooth_yaw"},
+		{"id": "full_pitch", "preset": 3, "duration_s": 15, "manoeuvre": "smooth_pitch"},
+		{"id": "manual_roll", "preset": 4, "duration_s": 25, "manoeuvre": "manual_roll"}
+	]
+}
