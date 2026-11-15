@@ -75,10 +75,17 @@ func test_line_is_prefixed_json_on_one_line() -> String:
 	return ""
 
 
-func test_main_scene_does_not_process_without_the_flag() -> String:
-	# `_ready` needs the tree, so only the default is checkable here: the node
-	# must not be told to quit by a probe that nobody enabled.
+func test_main_scene_quits_only_through_an_enabled_probe() -> String:
+	# The main scene now processes every frame to fly the ship (#60), so the
+	# guard is no longer `set_process`: quitting must stay behind the probe,
+	# and a probe nobody enabled must never ask to quit.
 	var source: String = FileAccess.get_file_as_string("res://main.gd")
-	if not source.contains("set_process(_smoke_probe.is_enabled())"):
-		return "main.gd no longer ties per-frame processing to the switch"
+	if not source.contains("_smoke_probe.tick():"):
+		return "main.gd no longer ties quitting to the smoke probe"
+	if source.count("get_tree().quit()") != 1:
+		return "main.gd quits somewhere other than behind the probe"
+	var probe: XrSmokeProbe = XrSmokeProbe.new(0)
+	for i: int in 1000:
+		if probe.tick():
+			return "a disabled probe asked to quit on frame %d" % i
 	return ""

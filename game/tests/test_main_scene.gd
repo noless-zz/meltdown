@@ -69,3 +69,108 @@ func test_tunnel_build_is_idempotent() -> String:
 	if first != second:
 		return "second build() added nodes: %d then %d" % [first, second]
 	return ""
+
+
+## Runs `frames` frames at 90 Hz through the main scene's own frame step.
+func _fly(main: Node, frames: int) -> void:
+	for i: int in frames:
+		main.call("advance_frame", 1.0 / 90.0)
+
+
+func test_forward_thrust_moves_the_rig_along_minus_z() -> String:
+	var main: Node = _instantiate("res://main.tscn")
+	if main == null:
+		return "main.tscn did not load"
+	var source: LatestInputSource = main.get("input_source")
+	var session: LocalSession = main.get("session")
+	source.set_input(ShipInput.new(Vector3i(0, 0, -1000)))
+	_fly(main, 90)
+	var rig: Node3D = main.get_node("XRRig") as Node3D
+	var rig_position: Vector3 = rig.position
+	var expected: Transform3D = main.call("interpolated_pose",
+			session.previous_ship(), session.current_ship(), session.interpolation_fraction)
+	var ship_position: Vector3 = session.current_ship().position
+	var tick_travel: float = session.current_ship().position.distance_to(session.previous_ship().position)
+	var ticks: int = session.sim.tick
+	main.free()
+	if ticks != 60:
+		return "one second of frames ran %d ticks" % ticks
+	if rig_position.z > -1.0:
+		return "rig did not move forward along -z: %s" % str(rig_position)
+	if absf(rig_position.x) > 1.0e-4 or absf(rig_position.y) > 1.0e-4:
+		return "rig drifted sideways: %s" % str(rig_position)
+	if not rig_position.is_equal_approx(expected.origin):
+		return "rig %s is not at the interpolated ship pose %s" % [rig_position, expected.origin]
+	if rig_position.distance_to(ship_position) > tick_travel + 1.0e-4:
+		return "rig %s is more than one tick from the ship %s" % [rig_position, ship_position]
+	return ""
+
+
+func test_without_input_the_rig_stays_put() -> String:
+	var main: Node = _instantiate("res://main.tscn")
+	if main == null:
+		return "main.tscn did not load"
+	_fly(main, 90)
+	var rig: Node3D = main.get_node("XRRig") as Node3D
+	var rig_transform: Transform3D = rig.transform
+	var ticks: int = (main.get("session") as LocalSession).sim.tick
+	main.free()
+	if ticks != 60:
+		return "one second of frames ran %d ticks" % ticks
+	if not rig_transform.is_equal_approx(Transform3D.IDENTITY):
+		return "idle rig moved to %s" % str(rig_transform)
+	return ""
+
+
+func test_main_scene_records_one_input_object_per_tick() -> String:
+	var main: Node = _instantiate("res://main.tscn")
+	if main == null:
+		return "main.tscn did not load"
+	(main.get("input_source") as LatestInputSource).set_input(ShipInput.new(Vector3i(0, 0, -1000)))
+	_fly(main, 45)
+	var frames: Array[Array] = (main.get("session") as LocalSession).replay.frames
+	main.free()
+	if frames.size() != 30:
+		return "expected 30 recorded ticks, found %d" % frames.size()
+	for i: int in range(1, frames.size()):
+		if is_same(frames[i][0], frames[i - 1][0]):
+			return "ticks %d and %d share one input object" % [i - 1, i]
+	return ""
+
+
+func test_interpolation_ends_match_previous_and_current_pose() -> String:
+	var main_script: GDScript = load("res://main.gd") as GDScript
+	var previous: ShipState = ShipState.new()
+	previous.position = Vector3(1.0, 2.0, 3.0)
+	previous.orientation = Basis(Vector3.UP, 0.3)
+	var current: ShipState = ShipState.new()
+	current.position = Vector3(1.5, 2.0, 2.0)
+	current.orientation = Basis(Vector3.RIGHT, 0.2) * Basis(Vector3.UP, 0.5)
+	var at_start: Transform3D = main_script.call("interpolated_pose", previous, current, 0.0)
+	var at_end: Transform3D = main_script.call("interpolated_pose", previous, current, 1.0)
+	var halfway: Transform3D = main_script.call("interpolated_pose", previous, current, 0.5)
+	if not at_start.is_equal_approx(Transform3D(previous.orientation, previous.position)):
+		return "fraction 0 is %s, not the previous pose" % str(at_start)
+	if not at_end.is_equal_approx(Transform3D(current.orientation, current.position)):
+		return "fraction 1 is %s, not the current pose" % str(at_end)
+	if not halfway.origin.is_equal_approx(Vector3(1.25, 2.0, 2.5)):
+		return "fraction 0.5 position is %s" % str(halfway.origin)
+	if not is_equal_approx(halfway.basis.determinant(), 1.0):
+		return "the blended rotation is not a pure rotation"
+	return ""
+
+
+func test_flying_the_rig_leaves_ship_copies_untouched() -> String:
+	var main: Node = _instantiate("res://main.tscn")
+	if main == null:
+		return "main.tscn did not load"
+	var session: LocalSession = main.get("session")
+	(main.get("input_source") as LatestInputSource).set_input(ShipInput.new(Vector3i(0, 0, -1000)))
+	_fly(main, 30)
+	var hash_before: int = session.sim.state_hash()
+	main.call("place_rig")
+	var hash_after: int = session.sim.state_hash()
+	main.free()
+	if hash_before != hash_after:
+		return "placing the rig changed the simulation"
+	return ""
