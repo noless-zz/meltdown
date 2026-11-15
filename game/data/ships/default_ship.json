@@ -1,0 +1,16 @@
+{
+	"max_speed": 20.0,
+	"acceleration": 40.0,
+	"damping": 2.0,
+	"max_energy": 100.0,
+	"afterburner_max_speed": 35.0,
+	"afterburner_acceleration": 80.0,
+	"afterburner_drain": 25.0,
+	"energy_recharge": 12.5,
+	"afterburner_restart_energy": 25.0,
+	"max_hull": 100.0,
+	"radius": 1.0,
+	"wall_restitution": 0.5,
+	"wall_damage_per_speed": 0.5,
+	"wall_damage_min_speed": 4.0
+}
