@@ -26,8 +26,15 @@ and the requirements only.
       request, so the comment and label are the review of record. Do not rewrite the
       code yourself.
 3. Squash-merge a pull request labelled `approved` that has green CI and changes only
-   unprotected paths. Pull requests touching protected paths (see `.github/CODEOWNERS`)
-   are labelled `needs-human` and wait for the owner.
+   unprotected paths. If it has a merge conflict with `main`, do not merge; comment
+   `Reviewer: changes requested` asking for a rebase.
+   - A change under `.github/workflows/` may also be merged when all of these hold: the
+     linked issue explicitly permits editing workflows; no job runs on a self-hosted
+     runner (`self-hosted` or `quest-pc` appears nowhere in the diff); the diff adds no
+     use of secrets, no `pull_request_target` trigger and no wider `permissions`.
+   - Any other protected path (`CLAUDE.md`, `docs/requirements.md`, `docs/routines/`,
+     `.github/CODEOWNERS`), and any workflow change that fails a condition above, is
+     labelled `needs-human` and waits for the owner.
 4. Write `docs/devlog/<YYYY-MM-DD>-<HHMM>-reviewer.md` on a branch and open a pull request
    for it only if you reviewed at least one pull request; list each verdict in one line.
 
