@@ -5,32 +5,42 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 2        format name and version
+##     meltdown-replay 3        format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
+##     box -5000 -5000 -40000 5000 5000 5000
+##                              optional (version 3): walls the ships fly
+##                              inside, min then max corner in millimetres
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1      one line per tick: thrust x y z, turn x y z,
 ##                              afterburner (0 off, 1 on)
 ##     0 0 -1000 0 0 0 0 | ...  further ships follow after " | "
 ##
 ## Version 1 has no afterburner column: six numbers per ship, read with the
-## afterburner off. Files are always written as the current version.
+## afterburner off. Versions 1 and 2 have no box line. Files are always
+## written as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 2
+const FORMAT_VERSION: int = 3
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
 const SHIP_SEPARATOR: String = " | "
+## Millimetres per metre in the box line. Whole millimetres keep the text exact.
+const BOX_SCALE: int = 1000
 
 var run_seed: int = 0
 var ship_count: int = 1
 ## Final state hash this replay is expected to produce, or NO_HASH.
 var expected_hash: int = NO_HASH
+## Whether the run has walls; if so, their corners in millimetres.
+var has_box: bool = false
+var box_min_mm: Vector3i = Vector3i.ZERO
+var box_max_mm: Vector3i = Vector3i.ZERO
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -60,7 +70,7 @@ func add_tick(inputs: Array[ShipInput]) -> bool:
 ## simulation that never ran, and nothing downstream could tell.
 func run() -> Sim:
 	run_error = ""
-	var sim: Sim = Sim.new(run_seed, ship_count)
+	var sim: Sim = Sim.new(run_seed, ship_count, bounds())
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -71,6 +81,20 @@ func run() -> Sim:
 	return sim
 
 
+## Gives the run walls, from corners in millimetres.
+func set_box(min_mm: Vector3i, max_mm: Vector3i) -> void:
+	has_box = true
+	box_min_mm = min_mm
+	box_max_mm = max_mm
+
+
+## The walls of this run as a `BoxBounds`, or null without a box line.
+func bounds() -> BoxBounds:
+	if not has_box:
+		return null
+	return BoxBounds.new(Vector3(box_min_mm) / float(BOX_SCALE), Vector3(box_max_mm) / float(BOX_SCALE))
+
+
 func to_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	lines.append("%s %d" % [FORMAT_NAME, FORMAT_VERSION])
@@ -78,6 +102,9 @@ func to_text() -> String:
 	lines.append("ships %d" % ship_count)
 	if expected_hash != NO_HASH:
 		lines.append("hash %d" % expected_hash)
+	if has_box:
+		lines.append("box %d %d %d %d %d %d" % [
+			box_min_mm.x, box_min_mm.y, box_min_mm.z, box_max_mm.x, box_max_mm.y, box_max_mm.z])
 	lines.append("inputs")
 	for frame: Array in frames:
 		var parts: PackedStringArray = PackedStringArray()
@@ -138,6 +165,8 @@ static func load_file(path: String) -> Replay:
 
 func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 	var words: PackedStringArray = line.split(" ", false)
+	if words.size() > 0 and words[0] == "box":
+		return _parse_box_line(words, seen)
 	if words.size() != 2 or not words[1].is_valid_int():
 		return "expected a name and one whole number"
 	var key: String = words[0]
@@ -168,6 +197,29 @@ func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 			expected_hash = value
 		_:
 			return "unknown header line '%s'" % key
+	return ""
+
+
+func _parse_box_line(words: PackedStringArray, seen: Dictionary[String, bool]) -> String:
+	if seen.is_empty():
+		return "the first line must be '%s <version>'" % FORMAT_NAME
+	if _parse_version < 3:
+		return "a box line needs format version 3 or later"
+	if seen.has("box"):
+		return "'box' appears twice"
+	seen["box"] = true
+	if words.size() != 7:
+		return "box needs six whole numbers"
+	var values: Array[int] = []
+	for index: int in range(1, 7):
+		if not words[index].is_valid_int():
+			return "'%s' is not a whole number" % words[index]
+		values.append(words[index].to_int())
+	var min_mm: Vector3i = Vector3i(values[0], values[1], values[2])
+	var max_mm: Vector3i = Vector3i(values[3], values[4], values[5])
+	if min_mm.x >= max_mm.x or min_mm.y >= max_mm.y or min_mm.z >= max_mm.z:
+		return "box min corner must be below its max corner on every axis"
+	set_box(min_mm, max_mm)
 	return ""
 
 
