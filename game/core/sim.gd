@@ -21,6 +21,12 @@ var bounds: BoxBounds = null
 ## order of `SimEvent.Kind`. Derived output for haptics, shake and sound
 ## (PLT-6): not part of the hash, replaced by every call to `step`.
 var last_events: Array[SimEvent] = []
+## Where each ship returns on a `reset_to_start` input. Recorded when the ship
+## is created and again just before the first tick, so a caller that places a
+## ship before flying (for example inside the test tunnel) is honoured. Fixed
+## for the run like `bounds`, so not part of the hash.
+var start_positions: Array[Vector3] = []
+var start_orientations: Array[Basis] = []
 
 
 func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
@@ -28,6 +34,7 @@ func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null)
 	bounds = p_bounds
 	for i: int in ship_count:
 		ships.append(ShipState.new())
+	_record_start_poses()
 
 
 ## Advances every ship by one tick. `inputs[i]` drives `ships[i]`.
@@ -38,8 +45,12 @@ func step(inputs: Array[ShipInput]) -> bool:
 	last_events = []
 	if inputs.size() != ships.size():
 		return false
+	if tick == 0:
+		_record_start_poses()
 	for i: int in ships.size():
 		var ship: ShipState = ships[i]
+		if inputs[i].reset_to_start:
+			_reset_to_start(i)
 		var was_active: bool = ship.afterburner_active
 		var was_locked: bool = ship.afterburner_locked
 		ship.step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
@@ -56,6 +67,33 @@ func step(inputs: Array[ShipInput]) -> bool:
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 	tick += 1
 	return true
+
+
+## Sets where ship `index` returns on a reset. Before the first tick it also
+## moves the ship there, so the run starts where it would reset to.
+func set_start_pose(index: int, position: Vector3, orientation: Basis) -> void:
+	start_positions[index] = position
+	start_orientations[index] = orientation
+	if tick == 0:
+		ships[index].position = position
+		ships[index].orientation = orientation
+
+
+func _record_start_poses() -> void:
+	start_positions.clear()
+	start_orientations.clear()
+	for ship: ShipState in ships:
+		start_positions.append(ship.position)
+		start_orientations.append(ship.orientation)
+
+
+## Pose and velocity only: hull, shield and energy are kept, so a reset is a
+## way home and not a free repair.
+func _reset_to_start(index: int) -> void:
+	var ship: ShipState = ships[index]
+	ship.position = start_positions[index]
+	ship.orientation = start_orientations[index]
+	ship.velocity = Vector3.ZERO
 
 
 ## Hash of the whole simulation state.
