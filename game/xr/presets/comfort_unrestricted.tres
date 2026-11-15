@@ -25,3 +25,4 @@ hit_shake = 1.0
 hit_spin = true
 refresh_rate_hz = 90
 allow_120_hz = true
+break_reminder_minutes = 0.0
