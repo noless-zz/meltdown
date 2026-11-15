@@ -187,12 +187,25 @@ jobs:
           ls "$template_dir" | head -40
 
       - name: Configure Android toolchain
+        env:
+          # The owner's stable debug keystore, base64. With one key every
+          # build can update the installed app in place. Never committed
+          # (DEV-10). Fork pull requests do not receive secrets.
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
-          # A throwaway debug key, generated per build and never committed (DEV-10).
-          keytool -genkeypair -keystore "$RUNNER_TEMP/debug.keystore" \
-            -storepass android -keypass android -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+            echo "Signing with the stable debug key"
+          else
+            # No secret (a fork, or not set up yet): a throwaway key, so the
+            # build still works but cannot update an installed copy.
+            keytool -genkeypair -keystore "$RUNNER_TEMP/debug.keystore" \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "::warning::ANDROID_DEBUG_KEYSTORE_BASE64 is not set; signing with a throwaway key"
+          fi
+          keytool -list -keystore "$RUNNER_TEMP/debug.keystore" -storepass android -alias androiddebugkey | grep -i fingerprint
           mkdir -p "$HOME/.config/godot"
           for name in editor_settings-4.tres editor_settings-4.7.tres; do
             {
