@@ -138,6 +138,37 @@ func test_energy_is_in_the_hash() -> String:
 	return ""
 
 
+func test_afterburner_lock_is_in_the_hash() -> String:
+	var a: ShipState = _new_ship()
+	var b: ShipState = _new_ship()
+	b.afterburner_locked = true
+	if a.state_hash() == b.state_hash():
+		return "two ships differing only in the afterburner lock have the same hash"
+	return ""
+
+
+## `Sim` is the only path from inputs to ships (MP-2), so the flag must survive
+## it. The other `Sim` tests compare a run only with itself and would still pass
+## if `Sim.step` dropped the flag.
+func test_sim_passes_the_afterburner_flag_to_the_ship() -> String:
+	var boosted: Sim = Sim.new(3, 1)
+	var normal: Sim = Sim.new(3, 1)
+	for tick: int in 120:
+		var on: Array[ShipInput] = [ShipInput.new(Vector3i(0, 0, -1000), Vector3i.ZERO, true)]
+		var off: Array[ShipInput] = [ShipInput.new(Vector3i(0, 0, -1000), Vector3i.ZERO, false)]
+		boosted.step(on)
+		normal.step(off)
+	var ship: ShipState = boosted.ships[0]
+	if boosted.state_hash() == normal.state_hash():
+		return "Sim with the afterburner on ended with the same hash as with it off"
+	if ship.energy >= ship.max_energy:
+		return "Sim with the afterburner on did not drain energy"
+	if ship.velocity.length() <= ship.max_speed:
+		return "Sim with the afterburner on reached only %f, not above the normal cap %f" % [
+			ship.velocity.length(), ship.max_speed]
+	return ""
+
+
 func test_same_inputs_give_same_hash_with_afterburner() -> String:
 	var hashes: Array[int] = []
 	for run: int in 2:
