@@ -26,6 +26,14 @@ func _init(p_min_corner: Vector3 = Vector3.ZERO, p_max_corner: Vector3 = Vector3
 ## of the into-wall components together.
 ## Returns that impact speed in metres per second, or 0.0 when nothing was hit.
 func contain(ship: ShipState) -> float:
+	return contain_impact(ship).length()
+
+
+## Same as `contain`, but returns the velocity the ship carried into the walls
+## it hit this tick (only the into-wall components, before the bounce), or
+## Vector3.ZERO when nothing was hit. Its length is the impact speed and its
+## reverse is the wall normal, which `Sim` reports as a wall impact event.
+func contain_impact(ship: ShipState) -> Vector3:
 	var impact: Vector3 = Vector3.ZERO
 	var bounce: float = ship.bounce_factor()
 	for axis: int in 3:
@@ -40,7 +48,7 @@ func contain(ship: ShipState) -> float:
 		if place < low:
 			ship.position[axis] = minf(low + (low - place) * bounce, high)
 			if speed < 0.0:
-				impact[axis] = -speed
+				impact[axis] = speed
 				ship.velocity[axis] = -speed * bounce
 		elif place > high:
 			ship.position[axis] = maxf(high - (place - high) * bounce, low)
@@ -50,7 +58,7 @@ func contain(ship: ShipState) -> float:
 	var impact_speed: float = impact.length()
 	if impact_speed > 0.0:
 		ship.take_wall_hit(impact_speed)
-	return impact_speed
+	return impact
 
 
 ## True if a sphere of `radius` at `point` lies wholly inside the box.
