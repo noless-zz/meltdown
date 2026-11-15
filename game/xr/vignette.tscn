@@ -1,0 +1,23 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://xr/vignette.gd" id="1_script"]
+[ext_resource type="Shader" path="res://xr/vignette.gdshader" id="2_shader"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_vignette"]
+size = Vector2(2, 2)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vignette"]
+resource_local_to_scene = true
+render_priority = 127
+shader = ExtResource("2_shader")
+shader_parameter/strength = 0.0
+shader_parameter/softness = 0.35
+
+[node name="Vignette" type="MeshInstance3D"]
+visible = false
+cast_shadow = 0
+extra_cull_margin = 16384.0
+ignore_occlusion_culling = true
+mesh = SubResource("QuadMesh_vignette")
+material_override = SubResource("ShaderMaterial_vignette")
+script = ExtResource("1_script")
