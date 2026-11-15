@@ -137,6 +137,31 @@ func test_range_extremes_stay_between_near_plane_and_hull() -> String:
 	return ""
 
 
+## The closest geometry a valid file can build: the frame as near as allowed,
+## the widest struts, and the narrowest window so struts exist on every edge.
+## Neither all-minimum nor all-maximum covers this combination.
+func test_nearest_valid_frame_stays_beyond_near_plane() -> String:
+	var data: Dictionary = {
+		"window_half_angle_h_deg": CockpitSpec.RANGES["window_half_angle_h_deg"][0],
+		"window_half_angle_v_deg": CockpitSpec.RANGES["window_half_angle_v_deg"][0],
+		"strut_width_m": CockpitSpec.RANGES["strut_width_m"][1],
+		"frame_distance_m": CockpitSpec.RANGES["frame_distance_m"][0],
+		"glass_tint_alpha": 1.0,
+	}
+	var spec: CockpitSpec = CockpitSpec.parse_json(JSON.stringify(data))
+	if spec.error != "":
+		return "nearest combination rejected: %s" % spec.error
+	var frame: CockpitFrame = CockpitFrame.new(spec)
+	var struts: int = frame.instance_count("Struts")
+	var span: Vector2 = distance_range(frame)
+	frame.free()
+	if struts == 0:
+		return "a 10 degree window built no struts"
+	if span.x < MIN_DISTANCE_M or span.y > MAX_DISTANCE_M:
+		return "nearest combination spans %.3f..%.3f m" % [span.x, span.y]
+	return ""
+
+
 func test_frame_is_primitive_meshes_without_collision() -> String:
 	var frame: CockpitFrame = CockpitFrame.new(_spec_for(1))
 	var message: String = ""

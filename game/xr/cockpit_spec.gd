@@ -19,10 +19,12 @@ var window_half_angle_h_deg: float = 90.0
 var window_half_angle_v_deg: float = 90.0
 ## Width and depth of the struts around the window, metres, 0.005..0.05.
 var strut_width_m: float = 0.01
-## Distance of the frame's shell from the eye point, metres, 0.3..0.95. With
-## the widest strut the nearest surface stays beyond 0.25 m, so the camera's
-## near plane never cuts it (#102), and the shell stays inside the ship's 1 m
-## collision radius.
+## Distance of the frame's shell from the eye point, metres, 0.32..0.95. The
+## struts sit inside the shell, so the nearest surface is a strut's inner face:
+## at 0.32 m with the widest strut (0.05 m) and a 10 degree segment it is about
+## 0.267 m from the eye. Every file that validates therefore keeps its geometry
+## beyond 0.25 m, well clear of the camera's 0.05 m near plane (#102), and the
+## shell stays inside the ship's 1 m collision radius.
 var frame_distance_m: float = 0.6
 ## Opacity of the canopy glass inside the window, 0..1; 0 leaves no glass.
 var glass_tint_alpha: float = 0.05
@@ -39,7 +41,7 @@ const RANGES: Dictionary[String, Array] = {
 	"window_half_angle_h_deg": [10.0, 90.0],
 	"window_half_angle_v_deg": [10.0, 90.0],
 	"strut_width_m": [0.005, 0.05],
-	"frame_distance_m": [0.3, 0.95],
+	"frame_distance_m": [0.32, 0.95],
 	"glass_tint_alpha": [0.0, 1.0],
 }
 
