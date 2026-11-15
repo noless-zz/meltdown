@@ -31,6 +31,10 @@ extends RefCounted
 ## is bound like an axis, so the settings menu remaps it the same way, and it
 ## counts as held when its bound controls add up to at least
 ## `BUTTON_THRESHOLD`. Left-handed mode moves it to the right stick click.
+##
+## Layouts are data files (ARC-4) under `res://xr/layouts/`, one JSON object
+## of the same shape as `layout`. `from_file` and `from_json` validate them;
+## a rejected file leaves the built-in default in place and sets `error`.
 
 ## Radial dead zone of each stick as a fraction of full deflection. Drift
 ## inside it gives exactly zero, so a resting stick never moves the ship.
@@ -58,11 +62,20 @@ const BUTTONS: Array[String] = [
 	"left_stick_click", "right_stick_click",
 ]
 
+const LAYOUTS_DIR: String = "res://xr/layouts"
+## Today's built-in layout as a file; must equal `default_layout()`.
+const DEFAULT_LAYOUT_FILE: String = LAYOUTS_DIR + "/thumbsticks_default.json"
+## Both directions of lift on the right hand and of roll on the left, so
+## either hand alone can undo its own moves (issue #82).
+const PAIRED_LAYOUT_FILE: String = LAYOUTS_DIR + "/thumbsticks_paired.json"
+
 ## Ship axis or button action -> {physical control: weight}. The settings menu can replace this
 ## to remap controls without code changes.
 var layout: Dictionary = {}
 var left_handed: bool = false
 var invert_pitch: bool = false
+## Set by `from_json` or `from_file` when the layout was rejected; empty otherwise.
+var error: String = ""
 
 
 func _init(p_layout: Dictionary = default_layout()) -> void:
@@ -81,6 +94,58 @@ static func default_layout() -> Dictionary:
 		# Clicking the stick that already sets speed keeps the turning hand free.
 		"afterburner": {"left_stick_click": 1.0},
 	}
+
+
+## A mapping with the layout read from a data file. If the file is missing
+## or rejected, the mapping keeps the built-in default and `error` says why.
+static func from_file(path: String) -> ThumbstickMapping:
+	if not FileAccess.file_exists(path):
+		return _default_with_error("no layout file at %s" % path)
+	return from_json(FileAccess.get_file_as_string(path))
+
+
+## A mapping with the layout parsed from the text of a layout file: a JSON
+## object of axis or action name -> {control name: weight}. Every name must
+## be one of `AXES`, `BUTTON_ACTIONS` or `CONTROLS` and every weight a number
+## in -1..1. A name outside the lists is rejected rather than ignored, so a
+## typo cannot silently leave a control unbound. On failure the mapping has
+## the built-in default layout and `error` names what was wrong.
+static func from_json(text: String) -> ThumbstickMapping:
+	var json: JSON = JSON.new()
+	if json.parse(text) != OK:
+		return _default_with_error("invalid JSON at line %d: %s" % [
+			json.get_error_line(), json.get_error_message()])
+	if typeof(json.data) != TYPE_DICTIONARY:
+		return _default_with_error("top level must be a JSON object")
+	var data: Dictionary = json.data
+	var parsed: Dictionary = {}
+	for action: Variant in data:
+		if typeof(action) != TYPE_STRING \
+				or not (AXES.has(action) or BUTTON_ACTIONS.has(action)):
+			return _default_with_error("unknown axis or action \"%s\"" % str(action))
+		if typeof(data[action]) != TYPE_DICTIONARY:
+			return _default_with_error("\"%s\" must map controls to weights" % action)
+		var bindings: Dictionary = data[action]
+		var weights: Dictionary = {}
+		for control: Variant in bindings:
+			if typeof(control) != TYPE_STRING or not CONTROLS.has(control):
+				return _default_with_error("unknown control \"%s\" in \"%s\"" % [str(control), action])
+			var weight: Variant = bindings[control]
+			# A bool must not pass as 0 or 1.
+			if typeof(weight) != TYPE_FLOAT and typeof(weight) != TYPE_INT:
+				return _default_with_error("weight of \"%s\" in \"%s\" must be a number" % [control, action])
+			if float(weight) < -1.0 or float(weight) > 1.0:
+				return _default_with_error("weight of \"%s\" in \"%s\" is %s, must be in -1..1" % [
+					control, action, float(weight)])
+			weights[control] = float(weight)
+		parsed[action] = weights
+	return ThumbstickMapping.new(parsed)
+
+
+static func _default_with_error(message: String) -> ThumbstickMapping:
+	var mapping: ThumbstickMapping = ThumbstickMapping.new()
+	mapping.error = message
+	return mapping
 
 
 ## Scales a stick so that the dead zone gives exactly zero and the output
