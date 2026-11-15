@@ -32,9 +32,9 @@ static func _ship_turn(main: Node) -> float:
 
 func test_the_start_preset_is_guided() -> String:
 	var main: Node = _main()
-	var number: int = main.get("comfort_number")
-	var preset: ComfortPreset = main.get("comfort_preset")
-	var filter: ComfortInputFilter = main.get("comfort_filter")
+	var number: int = (main.get("comfort") as ComfortWiring).number
+	var preset: ComfortPreset = (main.get("comfort") as ComfortWiring).preset
+	var filter: ComfortInputFilter = (main.get("comfort") as ComfortWiring).filter
 	main.free()
 	if number != 2 or preset.display_name != "Guided":
 		return "started on preset %d %s" % [number, preset.display_name]
@@ -129,8 +129,8 @@ func test_the_preset_button_cycles_once_per_press_and_wraps() -> String:
 		for i: int in 5:
 			main.call("apply_controls", _values(Vector2.ZERO, {"left_button_upper": true}))
 		main.call("apply_controls", _values())
-		seen.append(int(main.get("comfort_number")))
-	var name_after: String = (main.get("comfort_preset") as ComfortPreset).display_name
+		seen.append(int((main.get("comfort") as ComfortWiring).number))
+	var name_after: String = ((main.get("comfort") as ComfortWiring).preset as ComfortPreset).display_name
 	main.free()
 	if seen != [3, 4, 1, 2]:
 		return "presses from preset 2 gave %s, expected [3, 4, 1, 2]" % str(seen)
@@ -143,9 +143,9 @@ func test_left_handed_uses_the_right_upper_button() -> String:
 	var main: Node = _main()
 	(main.get("mapping") as ThumbstickMapping).left_handed = true
 	main.call("apply_controls", _values(Vector2.ZERO, {"left_button_upper": true}))
-	var after_left: int = main.get("comfort_number")
+	var after_left: int = (main.get("comfort") as ComfortWiring).number
 	main.call("apply_controls", _values(Vector2.ZERO, {"right_button_upper": true}))
-	var after_right: int = main.get("comfort_number")
+	var after_right: int = (main.get("comfort") as ComfortWiring).number
 	main.free()
 	if after_left != 2 or after_right != 3:
 		return "left-handed: Y gave %d, B gave %d (expected 2 then 3)" % [after_left, after_right]
@@ -189,21 +189,20 @@ func test_switching_presets_leaves_the_ship_alone() -> String:
 
 
 func test_a_snap_tick_is_shown_without_slerp() -> String:
-	var main_script: GDScript = load("res://main.gd") as GDScript
 	var previous: ShipState = ShipState.new()
 	previous.position = Vector3(0.0, 0.0, 0.0)
 	var snapped: ShipState = ShipState.new()
 	snapped.position = Vector3(0.0, 0.0, -1.0)
 	snapped.orientation = Basis(Vector3.UP, deg_to_rad(30.0))
 	var half_snap: float = deg_to_rad(15.0)
-	var pose: Transform3D = main_script.call("interpolated_pose", previous, snapped, 0.5, half_snap)
+	var pose: Transform3D = ComfortWiring.interpolated_pose(previous, snapped, 0.5, half_snap)
 	if not pose.basis.is_equal_approx(snapped.orientation):
 		return "a 30 degree tick was blended: %s" % str(pose.basis)
 	if not pose.origin.is_equal_approx(Vector3(0.0, 0.0, -0.5)):
 		return "the snap tick's position was not interpolated: %s" % str(pose.origin)
 	var smooth: ShipState = ShipState.new()
 	smooth.orientation = Basis(Vector3.UP, deg_to_rad(1.5))
-	var blended: Transform3D = main_script.call("interpolated_pose", previous, smooth, 0.5, half_snap)
+	var blended: Transform3D = ComfortWiring.interpolated_pose(previous, smooth, 0.5, half_snap)
 	if not blended.basis.is_equal_approx(Basis(Vector3.UP, deg_to_rad(0.75))):
 		return "a smooth 1.5 degree tick was not slerped: %s" % str(blended.basis)
 	return ""
@@ -224,12 +223,65 @@ func test_the_rig_shows_a_snap_at_once() -> String:
 				main.free()
 				return "the rig blended the snap tick: %s" % str(rig.transform.basis)
 			shown_snap = true
-	var snap_angle: float = main.call("snap_show_angle")
+	var snap_angle: float = (main.get("comfort") as ComfortWiring).snap_show_angle()
 	main.call("set_comfort_preset", 4)
-	var smooth_angle: float = main.call("snap_show_angle")
+	var smooth_angle: float = (main.get("comfort") as ComfortWiring).snap_show_angle()
 	main.free()
 	if not shown_snap:
 		return "no snap tick was seen"
 	if not is_equal_approx(snap_angle, deg_to_rad(15.0)) or smooth_angle != 0.0:
 		return "snap show angles %f / %f" % [snap_angle, smooth_angle]
+	return ""
+
+
+func test_a_pending_snap_keeps_every_new_field() -> String:
+	var source: LatestInputSource = LatestInputSource.new()
+	var wiring: ComfortWiring = ComfortWiring.new(source, ThumbstickMapping.new())
+	wiring.set_preset(1)
+	var snap: ShipInput = ShipInput.new()
+	snap.turn_q = Vector3i(0, roundi(ThumbstickMapping.MAX_YAW_RATE * ShipInput.SCALE), 0)
+	wiring.hand_input(snap, Basis.IDENTITY, false)
+	var snapped_turn: Vector3i = source.latest_input().turn_q
+	if not wiring.one_tick_pending or snapped_turn.y == 0:
+		return "the yaw did not leave a snap pending: %s" % str(snapped_turn)
+	# A second sample before any tick has flown the snap.
+	var next: ShipInput = ShipInput.new()
+	next.thrust_q = Vector3i(0, 0, -1000)
+	next.reset_to_start = true
+	next.fire_primary = true
+	wiring.hand_input(next, Basis.IDENTITY, false)
+	var handed: ShipInput = source.latest_input()
+	if not handed.reset_to_start or not handed.fire_primary:
+		return "reset_to_start %s, fire_primary %s did not reach the input source" % [
+			handed.reset_to_start, handed.fire_primary]
+	if handed.turn_q != snapped_turn or handed.thrust_q != next.thrust_q:
+		return "the pending snap lost its turn or the new thrust: %s %s" % [handed.turn_q, handed.thrust_q]
+	return ""
+
+
+func test_the_reset_tick_is_still_and_flies_once() -> String:
+	var source: LatestInputSource = LatestInputSource.new()
+	var wiring: ComfortWiring = ComfortWiring.new(source, ThumbstickMapping.new())
+	var moving: ShipInput = ShipInput.new(Vector3i(0, 0, -1000), Vector3i(100, 200, 0), true)
+	moving.fire_primary = true
+	wiring.hand_input(moving, Basis.IDENTITY, true)
+	var reset: ShipInput = source.latest_input()
+	if not reset.reset_to_start or reset.thrust_q != Vector3i.ZERO or reset.turn_q != Vector3i.ZERO \
+			or reset.afterburner or reset.fire_primary:
+		return "the reset tick was not still: %s %s" % [reset.thrust_q, reset.turn_q]
+	if wiring.end_one_tick_if_flown(0):
+		return "a frame with no tick ended the reset"
+	if not wiring.end_one_tick_if_flown(1) or source.latest_input().reset_to_start:
+		return "the flown reset was not reported and cleared"
+	return ""
+
+
+func test_no_positional_ship_input_in_the_wiring() -> String:
+	for path: String in ["res://main.gd", "res://comfort_wiring.gd"]:
+		var text: String = FileAccess.get_file_as_string(path)
+		var at: int = text.find("ShipInput.new(")
+		while at >= 0:
+			if text.substr(at + "ShipInput.new(".length(), 1) != ")":
+				return "%s builds a ShipInput from positional fields" % path
+			at = text.find("ShipInput.new(", at + 1)
 	return ""

@@ -25,8 +25,8 @@ static func _camera_global(main: Node) -> Transform3D:
 
 static func _ship_pose(main: Node) -> Transform3D:
 	var session: LocalSession = main.get("session") as LocalSession
-	return main.call("interpolated_pose", session.previous_ship(), session.current_ship(),
-		session.interpolation_fraction) as Transform3D
+	return ComfortWiring.interpolated_pose(session.previous_ship(), session.current_ship(),
+		session.interpolation_fraction)
 
 
 ## Flies forward while turning, so the ship is away from the start and rotated.
