@@ -211,6 +211,8 @@ func test_the_overlay_shows_the_fade_under_the_camera() -> String:
 			mismatch = "frame %d: overlay %.3f, fade %.3f" % [i, overlay.get_alpha(), hold.alpha]
 	var hidden_at_end: bool = not overlay.visible
 	var material: StandardMaterial3D = overlay.material_override as StandardMaterial3D
+	# Read before main.free(): the overlay is freed with it.
+	var is_quad: bool = overlay.mesh is QuadMesh
 	main.free()
 	if count != 1:
 		return "%d overlays under the camera" % count
@@ -218,6 +220,6 @@ func test_the_overlay_shows_the_fade_under_the_camera() -> String:
 		return "the overlay is visible while clear"
 	if mismatch != "":
 		return mismatch
-	if material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED or not (overlay.mesh is QuadMesh):
+	if material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED or not is_quad:
 		return "the overlay is not one unshaded quad"
 	return ""
