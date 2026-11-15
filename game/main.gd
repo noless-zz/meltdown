@@ -24,12 +24,15 @@ const COMFORT_PRESET_PATHS: Array[String] = [
 	"res://xr/presets/comfort_pilot.tres", "res://xr/presets/comfort_unrestricted.tres",
 ]
 const COMFORT_PRESET_ARG: String = "--comfort-preset="
+## The ship's feel values, tuned after headset sessions without code changes.
+const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
 ## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
-## around (FLT-3).
-var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET))
+## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults.
+var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET),
+		LocalSession.load_tuning(SHIP_TUNING_PATH))
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()

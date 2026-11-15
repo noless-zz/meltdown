@@ -64,3 +64,23 @@ func test_no_preset_ships_the_tests() -> String:
 		if not str(config.get_value(section, "exclude_filter", "")).contains("tests/*"):
 			return "preset %s does not exclude tests/*" % str(config.get_value(section, "name", section))
 	return ""
+
+
+## The ship tuning file is plain JSON, not a resource, so `all_resources`
+## alone would leave it out of every build and the ship would fly the
+## built-in defaults on the headset (ARC-5).
+func test_every_preset_ships_the_tuning_file() -> String:
+	var config: ConfigFile = _load()
+	if config == null:
+		return "could not read %s" % PRESETS_PATH
+	var data_file: String = "data/ships/default_ship.json"
+	for section: String in config.get_sections():
+		if section.ends_with(".options"):
+			continue
+		var included: bool = false
+		for pattern: String in str(config.get_value(section, "include_filter", "")).split(",", false):
+			if data_file.match(pattern.strip_edges()):
+				included = true
+		if not included:
+			return "preset %s does not include %s" % [str(config.get_value(section, "name", section)), data_file]
+	return ""
