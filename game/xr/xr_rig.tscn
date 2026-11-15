@@ -1,12 +1,15 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://xr/xr_rig.gd" id="1"]
+[ext_resource type="PackedScene" path="res://xr/vignette.tscn" id="2_vignette"]
 
 [node name="XRRig" type="XROrigin3D"]
 script = ExtResource("1")
 
 [node name="Camera" type="XRCamera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="Vignette" parent="Camera" instance=ExtResource("2_vignette")]
 
 [node name="LeftHand" type="XRController3D" parent="."]
 tracker = &"left_hand"
