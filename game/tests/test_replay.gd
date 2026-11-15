@@ -176,7 +176,7 @@ func test_missing_hash_line_means_no_expected_hash() -> String:
 func test_bad_text_is_rejected_with_a_message() -> String:
 	var cases: Dictionary[String, String] = {
 		"empty": "",
-		"newer version": "meltdown-replay 3\nseed 1\nships 1\ninputs\n",
+		"newer version": "meltdown-replay 99\nseed 1\nships 1\ninputs\n",
 		"version zero": "meltdown-replay 0\nseed 1\nships 1\ninputs\n",
 		"no format line": "seed 1\nships 1\ninputs\n",
 		"no seed": "meltdown-replay 1\nships 1\ninputs\n",

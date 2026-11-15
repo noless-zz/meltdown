@@ -14,10 +14,14 @@ var run_seed: int = 0
 ## Number of ticks simulated so far.
 var tick: int = 0
 var ships: Array[ShipState] = []
+## Walls the ships fly inside, or null for open space. Not part of the hash:
+## it is fixed for the run, like the seed's mine will be.
+var bounds: BoxBounds = null
 
 
-func _init(p_run_seed: int = 0, ship_count: int = 1) -> void:
+func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
 	run_seed = p_run_seed
+	bounds = p_bounds
 	for i: int in ship_count:
 		ships.append(ShipState.new())
 
@@ -30,6 +34,8 @@ func step(inputs: Array[ShipInput]) -> bool:
 		return false
 	for i: int in ships.size():
 		ships[i].step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
+		if bounds != null:
+			bounds.contain(ships[i])
 	tick += 1
 	return true
 

@@ -34,6 +34,25 @@ var afterburner_restart_energy: float = 25.0
 ## True from the tick the pool ran dry until it reaches the restart level.
 var afterburner_locked: bool = false
 
+## Hull and wall bounces (FLT-3). Hull is in abstract points; collision
+## damage is permanent for the run (CMB-2). With these values a head-on hit at
+## full normal speed (20 m/s) costs 10 points: minor, as FLT-3 asks.
+var max_hull: float = 100.0
+var hull: float = 100.0
+## Radius of the ship's collision sphere, in metres.
+var radius: float = 1.0
+## Fraction of the speed into a wall that is kept, reversed, by the bounce.
+## Unitless, 0..1. Values below MIN_WALL_RESTITUTION are raised to it so that
+## a bounce never stops the ship dead (FLT-3).
+var wall_restitution: float = 0.5
+## Hull points lost per metre per second of impact speed into the wall.
+var wall_damage_per_speed: float = 0.5
+## Impact speed into the wall, in metres per second, below which a bounce
+## deals no damage: scraping along a wall is not punished.
+var wall_damage_min_speed: float = 4.0
+
+const MIN_WALL_RESTITUTION: float = 0.05
+
 
 ## Advances one tick.
 ## `thrust` is in ship space, each axis in -1..1 (x strafe, y lift, z forward
@@ -74,6 +93,26 @@ func _update_energy(held: bool) -> bool:
 	return boosting
 
 
+## Restitution actually used by a bounce: `wall_restitution` kept in
+## MIN_WALL_RESTITUTION..1.
+func bounce_factor() -> float:
+	return clampf(wall_restitution, MIN_WALL_RESTITUTION, 1.0)
+
+
+## Applies the damage of one wall hit at `impact_speed` metres per second
+## into the wall. Hull never drops below zero; what happens at zero is not
+## decided yet.
+func take_wall_hit(impact_speed: float) -> void:
+	if impact_speed < wall_damage_min_speed:
+		return
+	hull = maxf(hull - impact_speed * wall_damage_per_speed, 0.0)
+
+
 ## Hash of the full state, used by replay tests and network desync checks.
+## Hull joins the hash only once it differs from `max_hull`, so replays
+## recorded before hull existed, which never touch a wall, keep their hashes.
 func state_hash() -> int:
-	return hash([position, velocity, orientation, energy, afterburner_locked])
+	var parts: Array = [position, velocity, orientation, energy, afterburner_locked]
+	if hull != max_hull:
+		parts.append(hull)
+	return hash(parts)
