@@ -47,6 +47,13 @@ enum CockpitFrame { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL
 @export var roll_mode: RollMode = RollMode.FULLY_MANUAL
 ## Whether the view levels itself when the player stops rolling.
 @export var auto_level: bool = false
+## Fastest smooth roll back to level, in degrees per second; `NO_LIMIT` levels
+## in one tick. A guess until the headset session; adjust freely.
+@export var auto_level_rate_deg_per_s: float = 30.0
+## Bank in degrees beyond which the view snaps level in a single tick, and
+## below which it is left alone; `NO_LIMIT` levels smoothly instead. A snap
+## keeps auto-level free of smooth rotation (CMF-3).
+@export var auto_level_snap_threshold_deg: float = NO_LIMIT
 
 @export_group("Vignette")
 ## 0 is no vignette, 1 the narrowest field of view the vignette allows.
@@ -79,7 +86,14 @@ enum CockpitFrame { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL
 ## Preset 1 must answer false (CMF-3).
 func has_smooth_rotation() -> bool:
 	return yaw_mode == YawMode.SMOOTH or pitch_mode == PitchMode.SMOOTH \
-		or roll_mode != RollMode.OFF_AUTO_LEVEL or hit_spin
+		or roll_mode != RollMode.OFF_AUTO_LEVEL or hit_spin \
+		or (levels_roll() and auto_level_snap_threshold_deg == NO_LIMIT)
+
+
+## True when the view levels itself once the player stops rolling. A fully
+## manual roll never levels, whatever `auto_level` says (CMF-2).
+func levels_roll() -> bool:
+	return auto_level and roll_mode != RollMode.FULLY_MANUAL
 
 
 ## True when no comfort intervention of any kind is on (CMF-2).

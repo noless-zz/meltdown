@@ -15,6 +15,9 @@ extends RefCounted
 ## between the two thresholds keeps a stick held near the trigger point from
 ## firing a burst of snaps.
 ##
+## With auto-level on and no roll input, a roll towards level is added; see
+## `ComfortAutoLevel`.
+##
 ## Smooth yaw and pitch are capped to the preset's rates. A pitch limit is
 ## kept by predicting this tick's turn on a throwaway `ShipState` that only
 ## copies the ship's orientation: the prediction runs the same rotation code
@@ -59,8 +62,9 @@ static func cap_q(cap_deg_per_s: float) -> int:
 
 ## Returns the input to simulate for this tick. Call once per tick, in order:
 ## the filter remembers whether each snap axis has been released.
-## `orientation` is the ship's current orientation, read only; it matters only
-## when the preset has a pitch limit, and callers of such a preset must pass it.
+## `orientation` is the ship's current orientation, read only; it matters when
+## the preset has a pitch limit or levels roll, and callers of such a preset
+## must pass it. Every other field of `input` is passed through unchanged.
 func filter(input: ShipInput, orientation: Basis = Basis.IDENTITY) -> ShipInput:
 	var turn: Vector3i = input.turn_q
 	var pitch_snapped: bool = preset.pitch_mode == ComfortPreset.PitchMode.SNAP
@@ -80,7 +84,24 @@ func filter(input: ShipInput, orientation: Basis = Basis.IDENTITY) -> ShipInput:
 		turn.z = 0
 	if preset.pitch_limit_deg != ComfortPreset.NO_LIMIT and turn.x != 0:
 		turn.x = _limit_pitch(turn, orientation, pitch_snapped)
-	return ShipInput.new(input.thrust_q, turn, input.afterburner)
+	if preset.levels_roll() and turn.z == 0:
+		turn.z = ComfortAutoLevel.roll_q(preset,
+			_turned(orientation, Vector3i(turn.x, turn.y, 0)))
+	var out: ShipInput = copy_input(input)
+	out.turn_q = turn
+	return out
+
+
+## A copy of every script property of `input`, so a field added to
+## `ShipInput` later cannot be dropped here without anyone noticing (#99).
+## `LatestInputSource` copies the same way; `xr/` may not depend on `net/`.
+static func copy_input(input: ShipInput) -> ShipInput:
+	var copy: ShipInput = ShipInput.new()
+	for property: Dictionary in input.get_script().get_script_property_list():
+		if int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			var property_name: StringName = StringName(property["name"])
+			copy.set(property_name, input.get(property_name))
+	return copy
 
 
 func _cap(rate_q: int, cap_deg_per_s: float) -> int:
