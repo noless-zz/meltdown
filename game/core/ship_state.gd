@@ -33,6 +33,10 @@ var energy_recharge: float = 12.5
 var afterburner_restart_energy: float = 25.0
 ## True from the tick the pool ran dry until it reaches the restart level.
 var afterburner_locked: bool = false
+## Whether the afterburner boosted on the last tick. Derived from the tick's
+## input and the energy pool, so it is not hashed; `Sim` compares it across
+## ticks to report the afterburner starting and stopping.
+var afterburner_active: bool = false
 
 ## Hull and wall bounces (FLT-3). Hull is in abstract points; collision
 ## damage is permanent for the run (CMB-2). With these values a head-on hit at
@@ -66,6 +70,7 @@ func step(thrust: Vector3, turn: Vector3, afterburner: bool = false) -> void:
 		orientation = orientation.rotated(orientation.z.normalized(), turn.z * TICK_DT)
 		orientation = orientation.orthonormalized()
 	var boosting: bool = _update_energy(afterburner)
+	afterburner_active = boosting
 	var speed_before: float = velocity.length()
 	var wish: Vector3 = orientation * thrust.limit_length(1.0)
 	velocity += wish * (afterburner_acceleration if boosting else acceleration) * TICK_DT

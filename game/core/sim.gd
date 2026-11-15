@@ -17,6 +17,10 @@ var ships: Array[ShipState] = []
 ## Walls the ships fly inside, or null for open space. Not part of the hash:
 ## it is fixed for the run, like the seed's mine will be.
 var bounds: BoxBounds = null
+## What happened on the last tick only, in ship order and, per ship, in the
+## order of `SimEvent.Kind`. Derived output for haptics, shake and sound
+## (PLT-6): not part of the hash, replaced by every call to `step`.
+var last_events: Array[SimEvent] = []
 
 
 func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
@@ -27,15 +31,29 @@ func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null)
 
 
 ## Advances every ship by one tick. `inputs[i]` drives `ships[i]`.
-## Returns false and changes nothing if there is not exactly one input per
-## ship: guessing a missing input would silently fork the simulation.
+## Returns false and changes no state if there is not exactly one input per
+## ship: guessing a missing input would silently fork the simulation. A refused
+## step still empties `last_events`, because no tick happened.
 func step(inputs: Array[ShipInput]) -> bool:
+	last_events = []
 	if inputs.size() != ships.size():
 		return false
 	for i: int in ships.size():
-		ships[i].step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
+		var ship: ShipState = ships[i]
+		var was_active: bool = ship.afterburner_active
+		var was_locked: bool = ship.afterburner_locked
+		ship.step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
+		if ship.afterburner_active and not was_active:
+			last_events.append(SimEvent.new(SimEvent.Kind.AFTERBURNER_STARTED, i))
+		elif was_active and not ship.afterburner_active:
+			last_events.append(SimEvent.new(SimEvent.Kind.AFTERBURNER_STOPPED, i))
+		if ship.afterburner_locked and not was_locked:
+			last_events.append(SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, i))
 		if bounds != null:
-			bounds.contain(ships[i])
+			var impact: Vector3 = bounds.contain_impact(ship)
+			if impact != Vector3.ZERO:
+				last_events.append(SimEvent.new(
+					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 	tick += 1
 	return true
 
