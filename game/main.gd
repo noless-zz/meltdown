@@ -11,11 +11,18 @@ extends Node3D
 
 const TARGET_REFRESH_RATE: float = 90.0
 
-## Where the caller (later the controller reader) puts the latest input.
+## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
 var session: LocalSession = LocalSession.new(0, input_source)
+## Controller and keyboard values both fly through this one mapping (PLT-5).
+var mapping: ThumbstickMapping = ThumbstickMapping.new()
+var keyboard: KeyboardSampler = KeyboardSampler.new()
+## Built from the rig's hands in `_ready`; null until then.
+var controllers: ControllerSampler = null
 
 var _session_begun: bool = false
+## True between the XR session beginning and stopping; picks the input device.
+var _xr_running: bool = false
 var _smoke_probe: XrSmokeProbe = null
 
 
@@ -28,18 +35,41 @@ func _ready() -> void:
 		var openxr: OpenXRInterface = xr as OpenXRInterface
 		if openxr != null:
 			openxr.session_begun.connect(_on_session_begun.bind(openxr))
+			openxr.session_stopping.connect(_on_session_stopping)
 		print("Meltdown: OpenXR session active")
 	else:
 		print("Meltdown: running flat (no OpenXR session)")
 	_smoke_probe = XrSmokeProbe.new(XrSmokeProbe.frames_from_args(OS.get_cmdline_user_args()))
+	controllers = ControllerSampler.for_controllers(
+		get_node_or_null("XRRig/LeftHand") as XRController3D,
+		get_node_or_null("XRRig/RightHand") as XRController3D)
 	place_rig()
 
 
 func _process(delta: float) -> void:
+	apply_controls(sample_controls())
 	advance_frame(delta)
 	if _smoke_probe != null and _smoke_probe.tick():
 		print(_smoke_report())
 		get_tree().quit()
+
+
+## This frame's raw values: the controllers while an XR session runs, the
+## keyboard otherwise (PLT-4).
+func sample_controls() -> Dictionary:
+	if _xr_running and controllers != null:
+		return controllers.sample()
+	var pressed: Array[int] = []
+	for key: int in keyboard.used_keys():
+		if Input.is_physical_key_pressed(key):
+			pressed.append(key)
+	return keyboard.sample(pressed)
+
+
+## Maps raw values to the input every tick flies until the next frame. Public
+## so tests can feed values without a device.
+func apply_controls(values: Dictionary) -> void:
+	input_source.set_input(ControllerSampler.map_values(mapping, values))
 
 
 ## Runs the simulation for one frame of `delta_seconds` and moves the rig to
@@ -72,11 +102,17 @@ static func interpolated_pose(previous: ShipState, current: ShipState, fraction:
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:
 	_session_begun = true
+	_xr_running = true
 	# PRF-1: 90 Hz by default when the headset offers it.
 	var rates: Array = openxr.get_available_display_refresh_rates()
 	if rates.has(TARGET_REFRESH_RATE):
 		openxr.display_refresh_rate = TARGET_REFRESH_RATE
 	print("Meltdown: refresh rate ", openxr.display_refresh_rate, " Hz, available ", rates)
+
+
+# Hands back to the keyboard so a desktop session left running stays flyable.
+func _on_session_stopping() -> void:
+	_xr_running = false
 
 
 ## Reads what the runtime reports at the moment of quitting, so the line shows
