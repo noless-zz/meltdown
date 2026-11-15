@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Stub adb for tools/test_update_quest.sh. Every call is appended to
+# $STUB_ADB_LOG. `adb devices` prints $STUB_ADB_DEVICES. `install` succeeds,
+# unless $STUB_ADB_INCOMPATIBLE is 1 and the serial has not been uninstalled
+# yet, in which case it fails with a signature mismatch like a real headset.
+set -euo pipefail
+echo "$*" >> "$STUB_ADB_LOG"
+serial=""
+if [ "${1:-}" = "-s" ]; then
+	serial="$2"
+	shift 2
+fi
+case "${1:-}" in
+	devices)
+		echo "List of devices attached"
+		printf '%b' "${STUB_ADB_DEVICES:-}"
+		echo
+		;;
+	install)
+		if [ "${STUB_ADB_INCOMPATIBLE:-0}" = "1" ] && [ ! -f "$STUB_ADB_STATE/$serial.uninstalled" ]; then
+			echo "Performing Streamed Install"
+			echo "adb: failed to install meltdown-quest-debug.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package io.github.nolesszz.meltdown signatures do not match newer version; ignoring!]"
+			exit 1
+		fi
+		echo "Performing Streamed Install"
+		echo "Success"
+		;;
+	uninstall)
+		touch "$STUB_ADB_STATE/$serial.uninstalled"
+		echo "Success"
+		;;
+	shell)
+		;;
+	*)
+		echo "stub adb: unexpected command '$*'" >&2
+		exit 1
+		;;
+esac

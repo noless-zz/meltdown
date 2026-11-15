@@ -1,0 +1,17 @@
+{
+  "tag_name": "main-latest",
+  "target_commitish": "be8ad52da332b94f876b7e22f21c0d5829908779",
+  "name": "Builds (main)",
+  "prerelease": true,
+  "body": "Latest Quest APK (debug), desktop client and dedicated server from main, commit 388a31ab920b9254da445bf154c4e99350d5f3f6. Replaced on every push; not a versioned release.\n\nBuilt: 2026-11-15 17:06 UTC (2026-11-15 19:06 Asia/Jerusalem)",
+  "assets": [
+    {
+      "name": "meltdown-quest-debug.apk",
+      "browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-quest-debug.apk"
+    },
+    {
+      "name": "meltdown-quest-debug.apk.sha256",
+      "browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-quest-debug.apk.sha256"
+    }
+  ]
+}
