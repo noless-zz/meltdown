@@ -38,11 +38,6 @@ static func requested(user_args: PackedStringArray, intent_value: String) -> boo
 	return not OFF_VALUES.has(intent_value.strip_edges().to_lower())
 
 
-## The probe never runs in a release build, whatever was asked.
-static func should_run(is_debug_build: bool, user_args: PackedStringArray, intent_value: String) -> bool:
-	return is_debug_build and requested(user_args, intent_value)
-
-
 static func unsupported(reason: String) -> String:
 	return "%s: %s" % [STATUS_UNSUPPORTED, reason]
 
@@ -59,11 +54,17 @@ static func log_line(status: String) -> String:
 ## not asked for (or this is not a debug build) and does nothing then;
 ## otherwise runs it, prints the log line and returns the status.
 static func run_if_requested() -> String:
-	if not OS.is_debug_build():
+	return _run_if_requested(OS.is_debug_build(), OS.get_cmdline_user_args(), _android_runtime())
+
+
+## The start-up decision with its inputs passed in, so the tests exercise the
+## same release-build guard the game uses. The guard comes first: a release
+## build returns before reading the intent extra or touching `runtime`.
+static func _run_if_requested(is_debug_build: bool, user_args: PackedStringArray, runtime: Object) -> String:
+	if not is_debug_build:
 		return ""
-	var runtime: Object = _android_runtime()
 	var intent_value: String = _intent_extra(runtime) if runtime != null else ""
-	if not requested(OS.get_cmdline_user_args(), intent_value):
+	if not requested(user_args, intent_value):
 		return ""
 	var status: String = run(runtime)
 	print(log_line(status))

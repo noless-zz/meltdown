@@ -30,13 +30,25 @@ func test_intent_extra_values() -> String:
 	return ""
 
 
+## Goes through the same function `run_if_requested()` calls at start, so
+## removing its debug-build guard fails this test.
 func test_never_runs_in_a_release_build() -> String:
-	if InstallerProbe.should_run(false, PackedStringArray(["--installer-probe"]), "1"):
-		return "would run in a release build"
-	if not InstallerProbe.should_run(true, PackedStringArray(["--installer-probe"]), ""):
-		return "would not run in a debug build when asked"
-	if InstallerProbe.should_run(true, PackedStringArray(), ""):
-		return "would run in a debug build without being asked"
+	var asked: PackedStringArray = PackedStringArray(["--installer-probe"])
+	var status: String = InstallerProbe._run_if_requested(false, asked, null)
+	if status != "":
+		return "ran in a release build when asked: '%s'" % status
+	return ""
+
+
+## The counterpart: a debug build that was asked does run the probe, which off
+## Android ends in "unsupported" without touching Android classes.
+func test_runs_in_a_debug_build_when_asked() -> String:
+	var asked: PackedStringArray = PackedStringArray(["--installer-probe"])
+	var status: String = InstallerProbe._run_if_requested(true, asked, null)
+	if not status.begins_with(InstallerProbe.STATUS_UNSUPPORTED + ": "):
+		return "expected the probe to run and report unsupported, got '%s'" % status
+	if InstallerProbe._run_if_requested(true, PackedStringArray(), null) != "":
+		return "ran in a debug build without being asked"
 	return ""
 
 
