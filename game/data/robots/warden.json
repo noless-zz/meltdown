@@ -1,0 +1,11 @@
+{
+	"id": "warden",
+	"hull": 90.0,
+	"radius": 2.0,
+	"max_speed": 2.0,
+	"acceleration": 4.0,
+	"turn_rate": 45.0,
+	"movement": "hover",
+	"weapon": "slug_thrower",
+	"salvage": "slug_thrower"
+}

@@ -1,0 +1,11 @@
+{
+	"id": "hauler",
+	"hull": 60.0,
+	"radius": 1.6,
+	"max_speed": 6.0,
+	"acceleration": 8.0,
+	"turn_rate": 60.0,
+	"movement": "chase",
+	"weapon": "slug_thrower",
+	"salvage": "slug_thrower"
+}

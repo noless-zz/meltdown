@@ -1,0 +1,11 @@
+{
+	"id": "glider",
+	"hull": 40.0,
+	"radius": 1.2,
+	"max_speed": 18.0,
+	"acceleration": 30.0,
+	"turn_rate": 150.0,
+	"movement": "strafe",
+	"weapon": "arc_lance",
+	"salvage": "arc_lance"
+}
