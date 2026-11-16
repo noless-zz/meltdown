@@ -29,6 +29,10 @@ var start_positions: Array[Vector3] = []
 var start_orientations: Array[Basis] = []
 ## Every live projectile, oldest first (CMB-1). Part of the hash.
 var projectiles: Array[Projectile] = []
+## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
+var robots: Array[RobotState] = []
+## True only while `step` runs, so a spawn cannot land part-way through a tick.
+var _stepping: bool = false
 
 
 func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
@@ -47,6 +51,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	last_events = []
 	if inputs.size() != ships.size():
 		return false
+	_stepping = true
 	if tick == 0:
 		_record_start_poses()
 	# Projectiles already in flight move before any new shot, so a shot
@@ -71,8 +76,29 @@ func step(inputs: Array[ShipInput]) -> bool:
 				last_events.append(SimEvent.new(
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 		_fire(i, inputs[i].fire_primary)
+	_advance_robots()
+	_stepping = false
 	tick += 1
 	return true
+
+
+## Adds a robot of type `def` at rest and returns its index in `robots`.
+## Allowed before the first tick or between ticks; during `step` it changes
+## nothing and returns -1, because a robot appearing mid-tick would depend on
+## the order things happen to be advanced in.
+func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis) -> int:
+	if _stepping:
+		return -1
+	robots.append(RobotState.new(def, position, orientation))
+	return robots.size() - 1
+
+
+## Moves every robot one tick, after the ships, and keeps it inside the walls.
+func _advance_robots() -> void:
+	for robot: RobotState in robots:
+		robot.step()
+		if bounds != null:
+			robot.keep_inside(bounds)
 
 
 ## Sets where ship `index` returns on a reset. Before the first tick it also
@@ -128,8 +154,8 @@ func _fire(index: int, held: bool) -> void:
 		index, weapon.lifetime_ticks(), weapon.damage))
 
 
-## Hash of the whole simulation state. Projectiles join only while there are
-## any, so runs recorded before weapons existed keep their hashes.
+## Hash of the whole simulation state. Projectiles and robots join only while
+## there are any, so runs recorded before weapons and robots keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
@@ -138,4 +164,8 @@ func state_hash() -> int:
 		parts.append(hash("projectiles"))
 		for projectile: Projectile in projectiles:
 			parts.append(projectile.state_hash())
+	if not robots.is_empty():
+		parts.append(hash("robots"))
+		for robot: RobotState in robots:
+			parts.append(robot.state_hash())
 	return hash(parts)
