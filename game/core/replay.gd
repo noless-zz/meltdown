@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 10       format name and version
+##     meltdown-replay 11       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -32,15 +32,17 @@ extends RefCounted
 ##                              catalogue, sorted by id: part id and the
 ##                              weapon's data file on one line (`Sim.set_parts`)
 ##     inputs                   end of header
-##     0 0 -1000 0 250 0 1 0 1  one line per tick: thrust x y z, turn x y z,
-##                              afterburner, reset to start, fire primary
-##                              (0 off, 1 on)
-##     0 0 -1000 0 0 0 0 0 0 | ...
+##     0 0 -1000 0 250 0 1 0 1 0
+##                              one line per tick: thrust x y z, turn x y z,
+##                              afterburner, reset to start, fire primary,
+##                              slot held part (0 off, 1 on)
+##     0 0 -1000 0 0 0 0 0 0 0 | ...
 ##                              further ships follow after " | "
 ##
 ## Version 1 has no afterburner column: six numbers per ship, read with the
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
 ## off. Versions 1 to 5 have no fire column and are read with it off. Versions
+## 1 to 10 have no slot column and are read with it off. Versions
 ## 1 and 2 have no box line, versions 1 to 4 no tuning line, versions 1 to 6
 ## no weapon lines, versions 1 to 7 no robot lines, versions 1 to 9 no part
 ## lines. Version 8 robot lines hold
@@ -52,7 +54,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 10
+const FORMAT_VERSION: int = 11
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1

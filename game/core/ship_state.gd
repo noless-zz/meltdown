@@ -71,6 +71,11 @@ var shield_energy_cost: float = 1.0
 ## and two secondary slots.
 var primary_slots: Array[WeaponDef] = [null, null]
 var secondary_slots: Array[WeaponDef] = [null, null]
+## Part id of the weapon in each primary slot, "" when empty or unknown. A
+## weapon replaced by slotting is dropped under this id, so it can be picked up
+## again (`PartSlotting`). Not hashed: the id is fixed by the replay's weapon
+## lines and hold, and the weapon's values are already in the hash.
+var primary_ids: Array[String] = ["", ""]
 ## Index into `primary_slots` of the weapon `fire_primary` uses.
 var selected_primary: int = 0
 ## Ticks until the selected primary may fire again; 0 means ready.
