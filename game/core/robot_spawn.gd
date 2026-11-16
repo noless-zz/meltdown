@@ -18,6 +18,10 @@ const MAX_COORDINATE_M: float = 10000.0
 
 ## The robot's type, resolved from its data file; null until resolved.
 var def: RobotDef = null
+## The weapon it fires, resolved by the caller from `def.weapon` because core
+## opens no files; null for an unarmed robot. Carried here so a replay spawns
+## the robot with exactly the weapon it had (ARC-2, #266).
+var weapon: WeaponDef = null
 ## Id of the type, the data file's name without `.json`.
 var id: String = ""
 var position_mm: Vector3i = Vector3i.ZERO
@@ -26,8 +30,9 @@ var facing_mm: Vector3i = Vector3i(0, 0, -SCALE)
 
 
 func _init(p_def: RobotDef = null, p_position_mm: Vector3i = Vector3i.ZERO,
-		p_facing_mm: Vector3i = Vector3i(0, 0, -SCALE)) -> void:
+		p_facing_mm: Vector3i = Vector3i(0, 0, -SCALE), p_weapon: WeaponDef = null) -> void:
 	def = p_def
+	weapon = p_weapon
 	id = p_def.id if p_def != null else ""
 	position_mm = p_position_mm
 	facing_mm = p_facing_mm
@@ -49,7 +54,8 @@ func orientation() -> Basis:
 	return Basis.looking_at(direction, up)
 
 
-## Adds every spawn with a resolved type to `sim`, in list order: the order
+## Adds every spawn with a resolved type to `sim`, armed with its weapon if it
+## has one, in list order: the order
 ## decides each robot's index and so its strafe direction. Returns false,
 ## after spawning nothing, if any spawn is unresolved or the sim refuses one.
 static func spawn_all(sim: Sim, spawns: Array[RobotSpawn]) -> bool:
@@ -57,7 +63,7 @@ static func spawn_all(sim: Sim, spawns: Array[RobotSpawn]) -> bool:
 		if spawn.def == null:
 			return false
 	for spawn: RobotSpawn in spawns:
-		if sim.spawn_robot(spawn.def, spawn.position(), spawn.orientation()) < 0:
+		if sim.spawn_robot(spawn.def, spawn.position(), spawn.orientation(), spawn.weapon) < 0:
 			return false
 	return true
 
