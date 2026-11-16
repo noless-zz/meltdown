@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 6        format name and version
+##     meltdown-replay 7        format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -15,6 +15,11 @@ extends RefCounted
 ##     tuning {"max_speed":20.0,...}
 ##                              optional (version 5): every ship's feel values,
 ##                              as a one-line ship data file (`ShipTuning`)
+##     weapon primary 1 pulse_cannon {"fire_interval_ticks":10,...}
+##                              optional (version 7), one per filled slot:
+##                              kind, slot 1 or 2, weapon id and the weapon's
+##                              data file on one line; every ship starts with
+##                              these weapons (`ShipLoadout`)
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1  one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start, fire primary
@@ -25,14 +30,14 @@ extends RefCounted
 ## Version 1 has no afterburner column: six numbers per ship, read with the
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
 ## off. Versions 1 to 5 have no fire column and are read with it off. Versions
-## 1 and 2 have no box line, versions 1 to 4 no tuning line. Files are always
-## written as the current version.
+## 1 and 2 have no box line, versions 1 to 4 no tuning line, versions 1 to 6
+## no weapon lines. Files are always written as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 6
+const FORMAT_VERSION: int = 7
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -50,6 +55,8 @@ var box_min_mm: Vector3i = Vector3i.ZERO
 var box_max_mm: Vector3i = Vector3i.ZERO
 ## Feel values of every ship from the first tick, or null for the defaults.
 var tuning: ShipTuning = null
+## Weapons every ship starts with, already resolved, or null for none.
+var loadout: ShipLoadout = null
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -81,6 +88,8 @@ func run() -> Sim:
 	run_error = ""
 	var sim: Sim = Sim.new(run_seed, ship_count, bounds())
 	apply_tuning(sim)
+	if loadout != null:
+		sim.equip(loadout)
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -125,6 +134,8 @@ func to_text() -> String:
 		lines.append(ReplayLines.box_text(box_min_mm, box_max_mm))
 	if tuning != null:
 		lines.append(ReplayLines.tuning_text(tuning))
+	if loadout != null:
+		lines.append_array(ReplayLines.weapon_lines(loadout))
 	lines.append("inputs")
 	for frame: Array in frames:
 		lines.append(ReplayLines.tick_text(frame))
@@ -180,6 +191,8 @@ static func load_file(path: String) -> Replay:
 func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 	if line.begins_with("tuning "):
 		return ReplayLines.parse_tuning_line(self, line.substr(7), seen, _parse_version)
+	if line.begins_with("weapon "):
+		return ReplayLines.parse_weapon_line(self, line, seen, _parse_version)
 	var words: PackedStringArray = line.split(" ", false)
 	if words.size() > 0 and words[0] == "box":
 		return ReplayLines.parse_box_line(self, words, seen, _parse_version)

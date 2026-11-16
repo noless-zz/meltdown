@@ -60,8 +60,17 @@ var shield_recharge: float = 5.0
 ## 0.1..100; at 0 the shield would recharge for free (CMB-2).
 var shield_energy_cost: float = 1.0
 
-## Every key of the data file, in the order the file lists them. Each one is
-## a field of this class and of `ShipState` with the same name.
+## Weapons the ship starts with, by id (CMB-1). Optional in the data file:
+## without a `loadout` key every slot starts empty. Not one of `KEYS`, so it
+## is not written on a replay's tuning line; replays record the resolved
+## weapons on their own lines.
+var loadout: ShipLoadout = ShipLoadout.new()
+
+## Key of the loadout entry in the data file.
+const LOADOUT_KEY: String = "loadout"
+
+## Every number key of the data file, in the order the file lists them. Each
+## one is a field of this class and of `ShipState` with the same name.
 const KEYS: Array[String] = [
 	"max_speed", "acceleration", "damping",
 	"max_energy", "afterburner_max_speed", "afterburner_acceleration",
@@ -98,7 +107,7 @@ var error: String = ""
 
 
 ## Parses the text of a ship data file: one JSON object holding every key in
-## `KEYS` as a number, and nothing else. A missing key is an error rather
+## `KEYS` as a number, optionally a `loadout` entry, and nothing else. A missing key is an error rather
 ## than a silent default, so a typo in the file cannot leave a value
 ## untuned without anyone noticing. Each value must lie in its range in
 ## `RANGES`, so a data file cannot put the simulation into a nonsense state.
@@ -114,8 +123,13 @@ static func parse_json(text: String) -> ShipTuning:
 		return tuning
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == LOADOUT_KEY):
 			return _defaults_with_error("unknown key \"%s\"" % str(key))
+	if data.has(LOADOUT_KEY):
+		var loadout: ShipLoadout = ShipLoadout.from_data(data[LOADOUT_KEY])
+		if loadout.error != "":
+			return _defaults_with_error(loadout.error)
+		tuning.loadout = loadout
 	for key: String in KEYS:
 		if not data.has(key):
 			return _defaults_with_error("missing key \"%s\"" % key)

@@ -99,6 +99,18 @@ func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis) -> int:
 	return robots.size() - 1
 
 
+## Fills the weapon slots of every ship from `loadout`'s resolved weapons.
+## Only before the first tick: a run starts armed or not, and a replay must be
+## able to do the same from its header alone (ARC-2). Returns false, changing
+## nothing, once the run has started.
+func equip(loadout: ShipLoadout) -> bool:
+	if tick != 0 or _stepping:
+		return false
+	for ship: ShipState in ships:
+		loadout.equip(ship)
+	return true
+
+
 ## Moves every robot one tick, after the ships, and keeps it inside the walls.
 func _advance_robots() -> void:
 	for robot: RobotState in robots:
