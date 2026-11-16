@@ -6,7 +6,9 @@ extends RefCounted
 ## `run_file()` loads one test script, calls each `test_*` method and returns
 ## the outcome as data; the caller prints it. A method fails when it returns
 ## anything but `""`, or when a script error was raised while it ran, whatever
-## it returned.
+## it returned. A file whose loading or instantiation raised a script error
+## (in `_init` or a static initialiser) counts one extra failure, and its
+## methods still run (issue #171).
 
 const ScriptErrorLogger := preload("res://tests/script_error_logger.gd")
 
@@ -26,11 +28,15 @@ static func run_file(path: String, label: String) -> Dictionary:
 	var instance: Object = null
 	if script != null and script.can_instantiate():
 		instance = script.new()
-	# Errors while loading are reported by the "could not load" line below.
-	_end_capture()
+	var load_errors: PackedStringArray = _end_capture()
+	# A script that does not load at all gets only this line; its parse errors
+	# are already printed above it.
 	if instance == null:
 		lines.append("FAIL %s - could not load script" % label)
 		return {"count": 0, "failures": 1, "lines": lines}
+	if not load_errors.is_empty():
+		failures += 1
+		lines.append("FAIL %s - script error while loading: %s" % [label, "; ".join(load_errors)])
 	for method: Dictionary in instance.get_method_list():
 		var method_name: String = method["name"]
 		if not method_name.begins_with("test_"):
