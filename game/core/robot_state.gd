@@ -23,18 +23,9 @@ var weapon: WeaponDef = null
 ## Ticks until it can fire again, as `ShipState.fire_cooldown`.
 var fire_cooldown: int = 0
 
-## Chasers stop this many of their own radii, plus the ship's radius, from the
-## ship's centre: close enough to press, far enough not to ram. A named
-## constant until `RobotDef` gains an optional key for it (lane-c).
-const CHASE_STANDOFF_RADII: float = 4.0
-## Distance band a strafer holds from its target's centre, metres. Constants
-## for the same reason as above.
-const STRAFE_MIN_DISTANCE: float = 10.0
-const STRAFE_MAX_DISTANCE: float = 20.0
-## How hard a strafer pulls back to the middle of its band, metres per second
-## of radial speed per metre off the middle. Inside the band the pull is
-## gentle, so the circling dominates.
-const STRAFE_RADIAL_GAIN: float = 0.5
+## The chase stand-off, the strafe band and its radial gain come from `def`
+## (`standoff_radii`, `strafe_min_distance`, `strafe_max_distance`,
+## `strafe_radial_gain`), so tuning a robot is a data change (ARC-4, #246).
 ## A robot fires only at a target within this angle of its facing, degrees.
 ## Shots leave along the facing, so a wider cone would mostly miss.
 const FIRE_CONE_HALF_ANGLE_DEG: float = 10.0
@@ -81,7 +72,7 @@ func max_turn_per_tick() -> float:
 
 ## Distance from the target's centre a chaser holds.
 func chase_standoff(target: ShipState) -> float:
-	return CHASE_STANDOFF_RADII * def.radius + target.radius
+	return def.standoff_radii * def.radius + target.radius
 
 
 ## Turns the facing towards `direction` (unit length) by at most
@@ -125,11 +116,11 @@ func _strafe(to_target: Vector3, distance: float) -> void:
 	if absf(to_target.dot(axis)) > 0.99:
 		axis = Vector3.RIGHT
 	var sideways: Vector3 = to_target.cross(axis).normalized() * float(strafe_direction)
-	var middle: float = (STRAFE_MIN_DISTANCE + STRAFE_MAX_DISTANCE) * 0.5
-	var radial: float = clampf((distance - middle) * STRAFE_RADIAL_GAIN,
+	var middle: float = (def.strafe_min_distance + def.strafe_max_distance) * 0.5
+	var radial: float = clampf((distance - middle) * def.strafe_radial_gain,
 		-def.max_speed, def.max_speed)
 	# Outside the band, getting back in comes first.
-	if distance < STRAFE_MIN_DISTANCE or distance > STRAFE_MAX_DISTANCE:
+	if distance < def.strafe_min_distance or distance > def.strafe_max_distance:
 		radial = signf(radial) * def.max_speed
 	_steer((sideways * def.max_speed + to_target * radial).limit_length(def.max_speed))
 
