@@ -39,6 +39,9 @@ var robots: Array[RobotState] = []
 ## takes one (`SalvagePickup`). Part of the hash while there are any. They do
 ## not expire in M2.
 var salvage: Array[SalvageItem] = []
+## The level's reactor (RUN-2), or null. Set before the first tick by
+## `set_reactor`. Part of the hash only when there is one.
+var reactor: ReactorState = null
 ## The part catalogue: part id to the weapon that part is, each resolved by the
 ## caller since core opens no files (SLV-1, ARC-4). Set before the first tick
 ## by `set_parts` and read-only afterwards, through `part`. Part of the hash
@@ -76,6 +79,8 @@ func step(inputs: Array[ShipInput]) -> bool:
 	_stepping = true
 	if tick == 0:
 		_record_start_poses()
+	if reactor != null:
+		reactor.count_down()
 	# Projectiles already in flight move before any new shot, so a shot
 	# spawns where its ship is at the end of the tick it was fired on.
 	ProjectileHits.advance(self, _hit_events, _killers)
@@ -102,7 +107,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 		if inputs[i].slot_held:
 			PartSlotting.slot_held(self, i, slot_drops)
-		_fire(i, inputs[i].fire_primary)
+		ProjectileHits.fire(self, i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
 	RobotTick.advance(self)
@@ -151,6 +156,15 @@ func set_walls(p_walls: BoxUnion) -> bool:
 		return false
 	walls = p_walls
 	bounds = null if p_walls == null else p_walls.boxes[0]
+	return true
+
+
+## Gives the run `p_reactor`, or none for null. Only before the first tick,
+## like the walls. Returns false, changing nothing, once the run has started.
+func set_reactor(p_reactor: ReactorState) -> bool:
+	if tick != 0 or _stepping:
+		return false
+	reactor = p_reactor
 	return true
 
 
@@ -244,22 +258,9 @@ func _reset_to_start(index: int) -> void:
 	ship.velocity = Vector3.ZERO
 
 
-## Fires ship `index`'s primary weapon if it is held and ready. The shot
-## leaves the ship's nose at the weapon's speed, without the ship's own
-## velocity, so a weapon's range is exactly what its data file says.
-func _fire(index: int, held: bool) -> void:
-	var ship: ShipState = ships[index]
-	var weapon: WeaponDef = ship.fire_primary(held)
-	if weapon == null:
-		return
-	var forward: Vector3 = -ship.orientation.z.normalized()
-	projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
-		index, weapon.lifetime_ticks(), weapon.damage))
-
-
-## Hash of the whole simulation state. Projectiles, robots, salvage and the
-## part catalogue join only while there are any, so runs recorded before them
-## keep their hashes.
+## Hash of the whole simulation state. Projectiles, robots, salvage, the part
+## catalogue and the reactor join only while there are any, so runs recorded
+## before them keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
@@ -281,4 +282,7 @@ func state_hash() -> int:
 		for id: String in part_ids():
 			parts.append(hash(id))
 			parts.append(_parts[id].values_hash())
+	if reactor != null:
+		parts.append(hash("reactor"))
+		parts.append(reactor.state_hash())
 	return hash(parts)

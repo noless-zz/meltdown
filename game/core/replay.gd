@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 12       format name and version
+##     meltdown-replay 13       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -14,6 +14,9 @@ extends RefCounted
 ##                              inside, min then max corner in millimetres;
 ##                              from version 12 one line per box of the level,
 ##                              in order, read as one `BoxUnion`
+##     reactor {"position":[0,-39,-114],...}
+##                              optional (version 13): the level's reactor
+##                              before the first tick (`ReactorState`)
 ##     tuning {"max_speed":20.0,...}
 ##                              optional (version 5): every ship's feel values,
 ##                              as a one-line ship data file (`ShipTuning`)
@@ -47,7 +50,7 @@ extends RefCounted
 ## 1 to 10 have no slot column and are read with it off. Versions
 ## 1 and 2 have no box line, versions 3 to 11 at most one, versions 1 to 4 no
 ## tuning line, versions 1 to 6 no weapon lines, versions 1 to 7 no robot
-## lines, versions 1 to 9 no part lines. Version 8 robot lines hold the robot's
+## lines, versions 1 to 9 no part lines, versions 1 to 12 no reactor line. Version 8 robot lines hold the robot's
 ## data file alone, with no "robot" or "weapon" key, and read as unarmed. Files
 ## are always written as the current version.
 ##
@@ -55,7 +58,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 12
+const FORMAT_VERSION: int = 13
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -75,6 +78,8 @@ var box_max_mm: Vector3i = Vector3i.ZERO
 ## `add_box` or `set_boxes`.
 var box_mins_mm: Array[Vector3i] = []
 var box_maxs_mm: Array[Vector3i] = []
+## The level's reactor before the first tick, or null. Each run gets a copy.
+var reactor: ReactorState = null
 ## Feel values of every ship from the first tick, or null for the defaults.
 var tuning: ShipTuning = null
 ## Weapons every ship starts with, already resolved, or null for none.
@@ -89,8 +94,9 @@ var frames: Array[Array] = []
 var error: String = ""
 ## Set by `run` when a frame was rejected; empty after a complete run.
 var run_error: String = ""
-## Version of the text being parsed; decides how many numbers a ship has.
-var _parse_version: int = FORMAT_VERSION
+## Version of the text being parsed; decides how many numbers a ship has and
+## which lines may appear. Set by the format line.
+var parse_version: int = FORMAT_VERSION
 
 
 func _init(p_run_seed: int = 0, p_ship_count: int = 1) -> void:
@@ -116,6 +122,7 @@ func run() -> Sim:
 	var sim: Sim = Sim.new(run_seed, ship_count, null)
 	# A one-box union is exactly what the constructor builds from one box.
 	sim.set_walls(walls())
+	sim.set_reactor(null if reactor == null else reactor.fresh_copy())
 	apply_tuning(sim)
 	if loadout != null:
 		sim.equip(loadout)
@@ -204,6 +211,8 @@ func to_text() -> String:
 		lines.append("hash %d" % expected_hash)
 	for index: int in box_mins_mm.size():
 		lines.append(ReplayLines.box_text(box_mins_mm[index], box_maxs_mm[index]))
+	if reactor != null:
+		lines.append(ReplayReactorLine.text(reactor))
 	if tuning != null:
 		lines.append(ReplayLines.tuning_text(tuning))
 	if loadout != null:
@@ -235,9 +244,9 @@ static func from_text(text: String) -> Replay:
 				if not (seen.has("seed") and seen.has("ships")):
 					problem = "header needs both seed and ships"
 			else:
-				problem = replay._parse_header_line(line, seen)
+				problem = ReplayHeader.parse_line(replay, line, seen)
 		else:
-			problem = ReplayLines.parse_tick_line(replay, line, replay._parse_version)
+			problem = ReplayLines.parse_tick_line(replay, line, replay.parse_version)
 		if problem != "":
 			replay.error = "line %d: %s" % [line_number, problem]
 			return replay
@@ -261,48 +270,3 @@ static func load_file(path: String) -> Replay:
 		missing.error = "cannot open %s" % path
 		return missing
 	return from_text(FileAccess.get_file_as_string(path))
-
-
-func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
-	if line.begins_with("tuning "):
-		return ReplayLines.parse_tuning_line(self, line.substr(7), seen, _parse_version)
-	if line.begins_with("weapon "):
-		return ReplayLines.parse_weapon_line(self, line, seen, _parse_version)
-	if line.begins_with("robot "):
-		return ReplayLines.parse_robot_line(self, line, seen, _parse_version)
-	if line.begins_with("part "):
-		return ReplayPartLines.parse_part_line(self, line, seen, _parse_version)
-	var words: PackedStringArray = line.split(" ", false)
-	if words.size() > 0 and words[0] == "box":
-		return ReplayLines.parse_box_line(self, words, seen, _parse_version)
-	if words.size() != 2 or not words[1].is_valid_int():
-		return "expected a name and one whole number"
-	var key: String = words[0]
-	var value: int = words[1].to_int()
-	# The format line must come first so that a file of another kind, or of a
-	# newer version whose keys mean something else, is rejected before use.
-	if seen.is_empty() != (key == FORMAT_NAME):
-		return "the first line must be '%s <version>'" % FORMAT_NAME
-	if seen.has(key):
-		return "'%s' appears twice" % key
-	seen[key] = true
-	match key:
-		FORMAT_NAME:
-			if value < OLDEST_VERSION or value > FORMAT_VERSION:
-				return "unsupported format version %d" % value
-			_parse_version = value
-		"seed":
-			run_seed = value
-		"ships":
-			if value < 1:
-				return "ships must be at least 1"
-			ship_count = value
-		"hash":
-			# State hashes are never negative, and NO_HASH is. Reading
-			# "hash -1" as "no hash" would switch the check off silently.
-			if value < 0:
-				return "hash must not be negative"
-			expected_hash = value
-		_:
-			return "unknown header line '%s'" % key
-	return ""

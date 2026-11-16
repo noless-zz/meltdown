@@ -15,5 +15,6 @@
 		{"id": "glider", "position": [14.0, -38.0, -80.0], "facing": [-1.0, 0.0, 0.0]},
 		{"id": "hauler", "position": [1.0, -39.0, -95.0], "facing": [0.0, 0.0, 1.0]},
 		{"id": "warden", "position": [0.0, -39.0, -124.0], "facing": [0.0, 0.0, 1.0]}
-	]
+	],
+	"reactor": {"position": [0.0, -39.0, -116.0], "radius": 2.5, "hull": 400.0, "meltdown_seconds": 90.0}
 }
