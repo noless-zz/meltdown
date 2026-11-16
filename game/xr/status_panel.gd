@@ -1,0 +1,183 @@
+class_name StatusPanel
+extends Node3D
+
+## A small panel fixed in the cockpit, low and ahead of the eye point, that
+## shows at a glance what the owner could not tell in the headset (#146): the
+## active comfort preset, the ship's speed, the energy pool, whether the
+## afterburner is boosting or locked out, and which build is running.
+##
+## It is given plain values every frame and keeps no reference to the ship or
+## the session, so it can never read more than it is handed or write
+## simulation state (ARC-3, MP-2). Unshaded labels and one bar mesh: no
+## lights, no textures, nothing per-pixel beyond the glyphs (PRF-2).
+
+const NODE_NAME: String = "StatusPanel"
+const PRESET_NAME: String = "Preset"
+const PRESET_LARGE_NAME: String = "PresetLarge"
+const SPEED_NAME: String = "Speed"
+const BOOST_NAME: String = "Boost"
+const BUILD_NAME: String = "Build"
+const ENERGY_LABEL_NAME: String = "EnergyLabel"
+const ENERGY_BAR_NAME: String = "EnergyBar"
+const ENERGY_TRACK_NAME: String = "EnergyTrack"
+const BOOST_ON: String = "BOOST"
+const BOOST_RECHARGING: String = "recharging"
+
+## How long a new preset is shown large. Two seconds is long enough to read
+## the name after pressing Y without leaving a big label in view during flight.
+const PRESET_LARGE_SECONDS: float = 2.0
+## Where the panel sits in the cockpit, from the eye point: 0.3 m down and
+## 0.55 m ahead, about 30 degrees below straight ahead, so it is read by
+## glancing down and leaves the tunnel ahead clear. Inside the ship's 1 m
+## collision sphere, so no wall can come between it and the eyes.
+const COCKPIT_POSITION: Vector3 = Vector3(0.0, -0.3, -0.55)
+## Tilted back (top away from the eyes) by about the same angle, so its face
+## points up at the eyes rather than straight back along the ship.
+const TILT_DEGREES: float = 30.0
+## Metres per font pixel. With `SMALL_FONT` the text is about 1.3 cm tall,
+## roughly 1.3 degrees at 0.63 m: comfortably readable on Quest 3.
+const PIXEL_SIZE: float = 0.0004
+const SMALL_FONT: int = 32
+const LARGE_FONT: int = 96
+const BAR_WIDTH: float = 0.12
+const BAR_HEIGHT: float = 0.012
+## Centre of the full bar; the energy label sits to its left.
+const BAR_CENTRE_X: float = 0.0
+const TEXT_COLOR: Color = Color(0.85, 0.95, 1.0)
+const BOOST_COLOR: Color = Color(1.0, 0.6, 0.15)
+const RECHARGING_COLOR: Color = Color(0.6, 0.6, 0.6)
+const BAR_COLOR: Color = Color(0.3, 0.85, 1.0)
+const TRACK_COLOR: Color = Color(0.15, 0.2, 0.25)
+
+## Seconds the large preset label has left; 0 when it is hidden.
+var large_seconds_left: float = 0.0
+
+## The preset number last shown; 0 before the first values, so the preset the
+## game starts on is also shown large once.
+var _shown_preset: int = 0
+var _preset: Label3D
+var _preset_large: Label3D
+var _speed: Label3D
+var _boost: Label3D
+var _build: Label3D
+var _energy_bar: MeshInstance3D
+
+
+func _init() -> void:
+	name = NODE_NAME
+	_preset = _label(PRESET_NAME, Vector3(-0.12, 0.045, 0.0), SMALL_FONT)
+	_speed = _label(SPEED_NAME, Vector3(-0.12, 0.015, 0.0), SMALL_FONT)
+	_label(ENERGY_LABEL_NAME, Vector3(-0.12, -0.015, 0.0), SMALL_FONT).text = "Energy"
+	_boost = _label(BOOST_NAME, Vector3(0.04, 0.015, 0.0), SMALL_FONT)
+	_build = _label(BUILD_NAME, Vector3(-0.12, -0.045, 0.0), SMALL_FONT)
+	_build.font_size = SMALL_FONT * 3 / 4
+	_preset_large = _label(PRESET_LARGE_NAME, Vector3(0.0, 0.11, 0.0), LARGE_FONT)
+	_preset_large.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_preset_large.visible = false
+	_bar(ENERGY_TRACK_NAME, TRACK_COLOR, -0.001)
+	_energy_bar = _bar(ENERGY_BAR_NAME, BAR_COLOR, 0.0)
+	_set_bar_fraction(1.0)
+
+
+## Shows this frame's values. `boost` is `""`, `BOOST_ON` or
+## `BOOST_RECHARGING`. A preset number different from the last one shows the
+## preset large for `PRESET_LARGE_SECONDS`.
+func show_values(preset_number: int, preset_name: String, speed_mps: float,
+		energy_fraction: float, boost: String, build_text: String) -> void:
+	var preset_text: String = "Preset %d %s" % [preset_number, preset_name]
+	if preset_number != _shown_preset:
+		_shown_preset = preset_number
+		large_seconds_left = PRESET_LARGE_SECONDS
+	_set_text(_preset, preset_text)
+	_set_text(_preset_large, preset_text)
+	_set_text(_speed, "Speed %d m/s" % roundi(speed_mps))
+	_set_text(_boost, boost)
+	_boost.modulate = RECHARGING_COLOR if boost == BOOST_RECHARGING else BOOST_COLOR
+	_set_text(_build, build_text)
+	_set_bar_fraction(energy_fraction)
+	_show_large(large_seconds_left > 0.0)
+
+
+## Runs the large preset label's timer by `delta` seconds.
+func advance(delta: float) -> void:
+	if large_seconds_left <= 0.0:
+		return
+	large_seconds_left = maxf(large_seconds_left - maxf(delta, 0.0), 0.0)
+	_show_large(large_seconds_left > 0.0)
+
+
+## The text each label shows, by node name, for tests and logs.
+func texts() -> Dictionary:
+	var shown: Dictionary = {}
+	for child: Node in get_children():
+		if child is Label3D:
+			shown[String(child.name)] = (child as Label3D).text
+	return shown
+
+
+func large_preset_visible() -> bool:
+	return _preset_large.visible
+
+
+## The energy bar's length as a fraction of the full bar, 0..1.
+func energy_bar_scale() -> float:
+	return _energy_bar.scale.x
+
+
+## Large and small never show together, so the preset is not read twice.
+func _show_large(large: bool) -> void:
+	_preset_large.visible = large
+	_preset.visible = not large
+
+
+func _set_bar_fraction(fraction: float) -> void:
+	var clamped: float = clampf(fraction, 0.0, 1.0) if is_finite(fraction) else 0.0
+	_energy_bar.scale = Vector3(clamped, 1.0, 1.0)
+	# Anchored at the left end, so the bar empties towards the left.
+	_energy_bar.position.x = BAR_CENTRE_X + BAR_WIDTH * (clamped - 1.0) * 0.5
+
+
+## Label3D rebuilds its glyph mesh on every assignment; most frames change nothing.
+static func _set_text(label: Label3D, text: String) -> void:
+	if label.text != text:
+		label.text = text
+
+
+func _label(label_name: String, at: Vector3, font_size: int) -> Label3D:
+	var label: Label3D = Label3D.new()
+	label.name = label_name
+	label.position = at
+	label.pixel_size = PIXEL_SIZE
+	label.font_size = font_size
+	label.outline_size = 0
+	label.shaded = false
+	label.double_sided = false
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.modulate = TEXT_COLOR
+	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(label)
+	return label
+
+
+func _bar(bar_name: String, color: Color, depth: float) -> MeshInstance3D:
+	var quad: QuadMesh = QuadMesh.new()
+	quad.size = Vector2(BAR_WIDTH, BAR_HEIGHT)
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = color
+	var bar: MeshInstance3D = MeshInstance3D.new()
+	bar.name = bar_name
+	bar.mesh = quad
+	bar.material_override = material
+	bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bar.position = Vector3(BAR_CENTRE_X, -0.015, depth)
+	add_child(bar)
+	return bar
+
+
+## The panel's transform under the rig origin. `cockpit` is where the ship's
+## centre (the eye point) sits in the rig's tracked space, so the panel moves
+## with the ship and not with the head.
+static func rig_transform(cockpit: Transform3D) -> Transform3D:
+	var local: Transform3D = Transform3D(Basis(Vector3.RIGHT, -deg_to_rad(TILT_DEGREES)), COCKPIT_POSITION)
+	return cockpit * local

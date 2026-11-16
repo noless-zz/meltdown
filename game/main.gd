@@ -45,6 +45,12 @@ var fade_overlay: FadeOverlay = null
 var head_recentre: HeadRecentre = HeadRecentre.new()
 ## Set when focus returns; the frame after a pause may run only one tick.
 var _resume_frame: bool = false
+## The panel under the rig, added by `attach_status_panel` (#146).
+var status_panel: StatusPanel = null
+## Which build this is, shown on the status panel; unknown in an editor run.
+var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
+## The afterburner state last logged, so each start and stop is logged once.
+var _afterburner_logged: bool = false
 
 
 func _ready() -> void:
@@ -75,6 +81,7 @@ func _ready() -> void:
 		get_node_or_null("XRRig/RightHand") as XRController3D)
 	place_tunnel()
 	attach_fade_overlay()
+	attach_status_panel()
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 
@@ -131,7 +138,9 @@ func advance_frame(delta_seconds: float) -> void:
 		_end_one_tick_if_flown()
 	if fade_overlay != null:
 		fade_overlay.set_alpha(reset_hold.alpha)
+	log_afterburner()
 	place_rig()
+	update_status_panel(delta_seconds)
 
 
 ## Makes preset `number` (1..4) the active one; see `ComfortWiring.set_preset`.
@@ -159,6 +168,45 @@ func attach_fade_overlay() -> void:
 	if camera != null and fade_overlay == null:
 		fade_overlay = FadeOverlay.new()
 		camera.add_child(fade_overlay)
+
+
+## Puts the status panel under the rig origin, not the camera, so it stays in
+## the cockpit while the head turns; `update_status_panel` places it.
+func attach_status_panel() -> void:
+	var rig: Node3D = get_node_or_null("XRRig") as Node3D
+	if rig != null and status_panel == null:
+		status_panel = StatusPanel.new()
+		rig.add_child(status_panel)
+
+
+## Hands the panel this frame's values, read from copies of the latest ship
+## state; the panel never sees the session itself (ARC-3).
+func update_status_panel(delta_seconds: float) -> void:
+	if status_panel == null:
+		return
+	# The ship's centre sits at the recentred head point in the rig's space.
+	status_panel.transform = StatusPanel.rig_transform(head_recentre.offset.affine_inverse())
+	var ship: ShipState = session.current_ship()
+	var boost: String = ""
+	if ship.afterburner_active:
+		boost = StatusPanel.BOOST_ON
+	elif ship.afterburner_locked:
+		boost = StatusPanel.BOOST_RECHARGING
+	var energy_fraction: float = ship.energy / ship.max_energy if ship.max_energy > 0.0 else 0.0
+	status_panel.show_values(comfort.number, comfort.preset.display_name, ship.velocity.length(),
+		energy_fraction, boost, build_info.describe())
+	status_panel.advance(delta_seconds)
+
+
+## Logs each afterburner start and stop, so a device log shows whether the
+## stick click reaches the simulation (#146). Read from the latest state once
+## per frame: `Sim.last_events` only holds the last tick of a frame, so an
+## event on an earlier tick of a multi-tick frame would be missed.
+func log_afterburner() -> void:
+	var active: bool = session.current_ship().afterburner_active
+	if active != _afterburner_logged:
+		_afterburner_logged = active
+		print("Meltdown: afterburner %s" % ("on" if active else "off"))
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
