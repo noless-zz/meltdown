@@ -2,14 +2,22 @@ extends RefCounted
 
 ## The control-label toggle in the main scene (#181, PLT-5, CMF-4, ARC-3): the
 ## stick click of the hand that does not turn flips `XRRig.show_labels` once
-## per press, and the press never reaches the ship.
+## per click, and the click never reaches the ship. The same click held for
+## `MapHologram.HOLD_SECONDS` shows the map instead (#314), so a click flips
+## the labels on release, and only when it was shorter than that.
 
 const FRAME: float = 1.0 / 90.0
 
 
+## The main scene with its label clock stopped, so every click counts as short
+## however slow the test machine is.
 func _main() -> Node:
 	var scene: PackedScene = load("res://main.tscn") as PackedScene
-	return scene.instantiate() if scene != null else null
+	if scene == null:
+		return null
+	var main: Node = scene.instantiate()
+	(main.get("comfort") as ComfortWiring).clock = func() -> float: return 0.0
+	return main
 
 
 static func _values(buttons: Dictionary = {}, right_stick: Vector2 = Vector2.ZERO) -> Dictionary:
@@ -32,7 +40,7 @@ func test_labels_start_shown() -> String:
 	return ""
 
 
-func test_a_press_flips_once_and_holding_does_not_repeat() -> String:
+func test_a_click_flips_once_on_release() -> String:
 	var main: Node = _main()
 	var seen: Array[bool] = []
 	for press: int in 2:
@@ -42,8 +50,8 @@ func test_a_press_flips_once_and_holding_does_not_repeat() -> String:
 		main.call("apply_controls", _values())
 		seen.append(_labels_shown(main))
 	main.free()
-	var expected: Array[bool] = [false, false, false, false, false, false,
-		true, true, true, true, true, true]
+	var expected: Array[bool] = [true, true, true, true, true, false,
+		false, false, false, false, false, true]
 	if seen != expected:
 		return "two held presses gave %s, expected %s" % [str(seen), str(expected)]
 	return ""
@@ -66,6 +74,7 @@ func test_left_handed_uses_the_right_stick_click() -> String:
 	var after_left: bool = _labels_shown(main)
 	main.call("apply_controls", _values())
 	main.call("apply_controls", _values({"right_stick_click": true}))
+	main.call("apply_controls", _values())
 	var after_right: bool = _labels_shown(main)
 	main.free()
 	if not after_left:
@@ -90,7 +99,8 @@ func test_the_button_follows_the_hand() -> String:
 func test_the_click_never_reaches_the_ship() -> String:
 	var with_click: Node = _main()
 	var without: Node = _main()
-	for i: int in 30:
+	# Five clicks of three frames, the last released on frame 31.
+	for i: int in 32:
 		var stick: Vector2 = Vector2(0.6, -0.4)
 		var click: bool = i % 7 < 3
 		with_click.call("apply_controls", _values({"left_stick_click": click}, stick))
@@ -116,4 +126,43 @@ func test_the_click_never_reaches_the_ship() -> String:
 		return "the click changed the ship input"
 	if not same_sim or not same_ship:
 		return "the click changed the simulation"
+	return ""
+
+
+## A wiring whose clock the test moves by hand.
+class StepClock:
+	var now: float = 0.0
+
+	func read() -> float:
+		return now
+
+
+func test_a_hold_for_the_map_never_flips_the_labels() -> String:
+	var wiring: ComfortWiring = ComfortWiring.new(LatestInputSource.new(), ThumbstickMapping.new())
+	var clock: StepClock = StepClock.new()
+	wiring.clock = clock.read
+	var flips: Array[bool] = []
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	clock.now = MapHologram.HOLD_SECONDS + 0.05
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	flips.append(wiring.read_label_button({}))
+	# A short click straight after still flips.
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	clock.now += MapHologram.HOLD_SECONDS * 0.5
+	flips.append(wiring.read_label_button({}))
+	if flips != [false, false, false, false, true]:
+		return "a long hold then a short click gave %s" % str(flips)
+	return ""
+
+
+func test_with_the_map_elsewhere_a_press_flips_at_once() -> String:
+	var mapping: ThumbstickMapping = ThumbstickMapping.new()
+	mapping.layout["show_map"] = {"left_button_upper": 1.0}
+	var wiring: ComfortWiring = ComfortWiring.new(LatestInputSource.new(), mapping)
+	var flips: Array[bool] = []
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	flips.append(wiring.read_label_button({}))
+	if flips != [true, false, false]:
+		return "with show_map on Y the label click gave %s" % str(flips)
 	return ""
