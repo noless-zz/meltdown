@@ -138,6 +138,118 @@ func test_hash_changes_with_every_value() -> String:
 	return ""
 
 
+## The optional movement keys (#242): absent means today's constants.
+func test_optional_keys_default_when_absent() -> String:
+	var robot: RobotDef = RobotDef.parse_json(GOOD)
+	if robot.error != "":
+		return "rejected: %s" % robot.error
+	if robot.standoff_radii != 4.0 or robot.strafe_min_distance != 10.0:
+		return "stand-off %f, strafe min %f" % [robot.standoff_radii, robot.strafe_min_distance]
+	if robot.strafe_max_distance != 20.0 or robot.strafe_radial_gain != 0.5:
+		return "strafe max %f, gain %f" % [robot.strafe_max_distance, robot.strafe_radial_gain]
+	return ""
+
+
+## Every shipped robot file stays valid without the optional keys.
+func test_shipped_robots_parse_with_defaults() -> String:
+	var dir: String = "res://data/robots"
+	var names: PackedStringArray = DirAccess.get_files_at(dir)
+	var count: int = 0
+	for name: String in names:
+		if not name.ends_with(".json"):
+			continue
+		count += 1
+		var robot: RobotDef = RobotDef.parse_json(FileAccess.get_file_as_string("%s/%s" % [dir, name]))
+		if robot.error != "":
+			return "%s rejected: %s" % [name, robot.error]
+		var fresh: RobotDef = RobotDef.new()
+		for key: String in RobotDef.OPTIONAL_KEYS:
+			if robot.get(key) != fresh.get(key):
+				return "%s: %s is %s, not the default" % [name, key, robot.get(key)]
+	if count < 6:
+		return "only %d robot files found" % count
+	return ""
+
+
+func test_optional_keys_are_read() -> String:
+	var data: Dictionary = JSON.parse_string(GOOD)
+	data["standoff_radii"] = 6.5
+	data["strafe_min_distance"] = 7.0
+	data["strafe_max_distance"] = 25.0
+	data["strafe_radial_gain"] = 1.25
+	var robot: RobotDef = RobotDef.parse_json(JSON.stringify(data))
+	if robot.error != "":
+		return "rejected: %s" % robot.error
+	if robot.standoff_radii != 6.5 or robot.strafe_min_distance != 7.0:
+		return "stand-off %f, strafe min %f" % [robot.standoff_radii, robot.strafe_min_distance]
+	if robot.strafe_max_distance != 25.0 or robot.strafe_radial_gain != 1.25:
+		return "strafe max %f, gain %f" % [robot.strafe_max_distance, robot.strafe_radial_gain]
+	return ""
+
+
+func test_optional_keys_reject_out_of_range_and_non_numbers() -> String:
+	var bad: Dictionary = {
+		"standoff_radii": [0.5, 51.0, "4"],
+		"strafe_min_distance": [-1.0, 501.0, true],
+		"strafe_max_distance": [-0.5, 600.0, null],
+		"strafe_radial_gain": [-0.1, 10.5, [1]],
+	}
+	for key: String in RobotDef.OPTIONAL_KEYS:
+		if not bad.has(key):
+			return "no bad values for %s" % key
+		for value: Variant in bad[key]:
+			var data: Dictionary = JSON.parse_string(GOOD)
+			data[key] = value
+			if key == "strafe_min_distance":
+				data["strafe_max_distance"] = 500.0
+			var robot: RobotDef = RobotDef.parse_json(JSON.stringify(data))
+			if robot.error == "" or not robot.error.contains("\"%s\"" % key):
+				return "%s = %s: error was \"%s\"" % [key, str(value), robot.error]
+			if typeof(value) != TYPE_FLOAT and not robot.error.contains("must be a number"):
+				return "%s = %s: error was \"%s\"" % [key, str(value), robot.error]
+	return ""
+
+
+func test_rejects_strafe_min_above_max() -> String:
+	var data: Dictionary = JSON.parse_string(GOOD)
+	data["strafe_min_distance"] = 15.0
+	data["strafe_max_distance"] = 12.0
+	var robot: RobotDef = RobotDef.parse_json(JSON.stringify(data))
+	if not robot.error.contains("strafe_min_distance") or not robot.error.contains("strafe_max_distance"):
+		return "error was \"%s\"" % robot.error
+	if robot.strafe_min_distance != RobotDef.new().strafe_min_distance:
+		return "a rejected file kept strafe min %f" % robot.strafe_min_distance
+	data["strafe_max_distance"] = 15.0
+	if RobotDef.parse_json(JSON.stringify(data)).error != "":
+		return "an empty band (min equal to max) was rejected"
+	return ""
+
+
+## A misspelt optional key is caught rather than silently defaulted.
+func test_rejects_misspelt_optional_key() -> String:
+	var robot: RobotDef = RobotDef.parse_json(GOOD.replace("{", "{\"standoff_radius\": 4.0, "))
+	if not robot.error.contains("unknown key \"standoff_radius\""):
+		return "error was \"%s\"" % robot.error
+	return ""
+
+
+func test_hash_changes_with_every_optional_value() -> String:
+	var base_hash: int = RobotDef.parse_json(GOOD).values_hash()
+	var changed: Dictionary = {
+		"standoff_radii": 5.0, "strafe_min_distance": 11.0,
+		"strafe_max_distance": 21.0, "strafe_radial_gain": 0.6,
+	}
+	for key: String in RobotDef.OPTIONAL_KEYS:
+		var data: Dictionary = JSON.parse_string(GOOD)
+		data[key] = changed[key]
+		var robot: RobotDef = RobotDef.parse_json(JSON.stringify(data))
+		if robot.error != "":
+			return "%s: %s" % [key, robot.error]
+		if robot.values_hash() == base_hash:
+			return "changing %s left the hash unchanged" % key
+	return ""
+
+
 func _expect_error(field: String, text: String) -> String:
 	var robot: RobotDef = RobotDef.parse_json(text)
 	if robot.error == "" or not robot.error.contains(field):
