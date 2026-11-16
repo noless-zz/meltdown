@@ -96,10 +96,13 @@ static func load_file(path: String = DEFAULT_FILE) -> HitShake:
 	return shake
 
 
-## Takes in one tick's events. Only wall impacts on `ship` (this player's
+## Takes in one frame's events. Only wall impacts on `ship` (this player's
 ## ship) count; a stronger hit replaces a weaker one still fading, and hits
 ## never add up past full strength, so a burst stays within the caps.
-func feed(events: Array[SimEvent], ship: int) -> void:
+## `ship_basis` is that ship's orientation: the hit side is read in the ship's
+## own frame, so the roll matches the cockpit whichever way the ship faces.
+func feed(events: Array[SimEvent], ship: int, ship_basis: Basis) -> void:
+	var right: Vector3 = ship_basis.x.normalized()
 	for event: SimEvent in events:
 		if event == null or event.ship != ship or event.kind != SimEvent.Kind.WALL_IMPACT:
 			continue
@@ -108,8 +111,16 @@ func feed(events: Array[SimEvent], ship: int) -> void:
 		var strength: float = minf(event.magnitude / full_impact_speed_m_per_s, 1.0)
 		if strength >= _strength:
 			_strength = strength
-			# A hit from the right rolls the view left and the other way round.
-			_roll_sign = -1.0 if event.vector.x > 0.0 else 1.0
+			_roll_sign = roll_sign_for(event.vector, right)
+
+
+## +1 or -1: the roll direction for a wall whose normal (pointing back into
+## the open space, as `SimEvent` gives it) is `normal`, on a ship whose right
+## is `right`. A wall on the ship's right has its normal pointing to the
+## ship's left; that hit rolls the view left (-1, the camera's top towards its
+## left) and a hit on the left rolls it right.
+static func roll_sign_for(normal: Vector3, right: Vector3) -> float:
+	return -1.0 if normal.dot(right) < 0.0 else 1.0
 
 
 ## Advances the effect by `delta` seconds and returns the view offset for the

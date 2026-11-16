@@ -43,6 +43,8 @@ var _accumulator: float = 0.0
 var _resuming: bool = false
 var _previous_ship: ShipState
 var _current_ship: ShipState
+## Events of every tick run by the latest `advance`, in tick order.
+var _frame_events: Array[SimEvent] = []
 
 
 ## `bounds` are the walls the ship flies inside, or null for open space.
@@ -69,6 +71,7 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 ## `MAX_TICKS_PER_ADVANCE`. Returns the number of ticks run.
 func advance(delta_seconds: float) -> int:
 	ticks_last_advance = 0
+	_frame_events = []
 	# Paused time is not owed to the simulation; keeping it would replay the
 	# pause as a burst of ticks on resume. The fraction stays put so the rig
 	# shows the same pose every paused frame (CMF-8).
@@ -110,6 +113,14 @@ static func load_tuning(path: String) -> ShipTuning:
 	return tuning
 
 
+## The `SimEvent`s of every tick run by the latest `advance`, in order; empty
+## when it ran none. `Sim.last_events` holds only the last tick, so a frame
+## that runs two ticks would otherwise lose the first tick's wall impact. A
+## copy of the list: changing it leaves the session as it was.
+func frame_events() -> Array[SimEvent]:
+	return _frame_events.duplicate()
+
+
 ## Ship state after the tick before the latest one. A copy: writing to it
 ## changes nothing in the simulation.
 func previous_ship() -> ShipState:
@@ -124,6 +135,7 @@ func current_ship() -> ShipState:
 func _run_tick() -> void:
 	var inputs: Array[ShipInput] = [_input_source.next_input(sim.tick)]
 	sim.step(inputs)
+	_frame_events.append_array(sim.last_events)
 	replay.add_tick(inputs)
 	_accumulator -= ShipState.TICK_DT
 	_previous_ship = _current_ship

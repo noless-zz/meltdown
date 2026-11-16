@@ -138,6 +138,8 @@ func advance_frame(delta_seconds: float) -> void:
 	else:
 		session.advance(delta_seconds)
 		_end_one_tick_if_flown()
+	# A paused view holds still (CMF-8), shake included.
+	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
 	if fade_overlay != null:
 		fade_overlay.set_alpha(reset_hold.alpha)
 	log_afterburner()
@@ -150,8 +152,11 @@ func set_comfort_preset(number: int) -> void:
 	comfort.set_preset(number)
 
 
-## A flown reset is followed by the fade back in and a recentre.
+## Runs after every `session.advance`. The ticks' wall impacts reach the hit
+## shake with the ship's orientation (#169). A flown reset is followed by the
+## fade back in and a recentre.
 func _end_one_tick_if_flown() -> void:
+	comfort.feed_hit_shake(session.frame_events(), 0, session.current_ship().orientation)
 	if comfort.end_one_tick_if_flown(session.ticks_last_advance):
 		reset_hold.reset_flown()
 		head_recentre.request()
@@ -222,6 +227,7 @@ func log_afterburner() -> void:
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
 ## the ship's centre. The headset camera and controllers are tracked relative
 ## to the rig, so they ride along. A requested recentre takes the head pose here.
+## The hit shake goes on after the pose, in the cockpit's own frame.
 func place_rig() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig == null:
@@ -229,8 +235,9 @@ func place_rig() -> void:
 	var camera: Node3D = rig.get_node_or_null("Camera") as Node3D
 	if camera != null:
 		head_recentre.update(camera.transform, _xr_running)
-	rig.transform = head_recentre.rig_transform(ComfortWiring.interpolated_pose(session.previous_ship(),
-		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped))
+	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
+		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped)
+	rig.transform = head_recentre.rig_transform(pose * comfort.shake_offset)
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:
