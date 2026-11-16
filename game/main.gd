@@ -80,6 +80,7 @@ func _ready() -> void:
 		get_node_or_null("XRRig/LeftHand") as XRController3D,
 		get_node_or_null("XRRig/RightHand") as XRController3D)
 	place_tunnel()
+	attach_cockpit_frame()
 	attach_fade_overlay()
 	attach_status_panel()
 	place_rig()
@@ -160,6 +161,14 @@ func place_tunnel() -> void:
 	var tunnel: Node3D = get_node_or_null("TestTunnel") as Node3D
 	if tunnel != null:
 		tunnel.position = TUNNEL_OFFSET
+
+
+## Puts the active preset's cockpit frame under the rig's camera, as the fade
+## quad is; every preset change rebuilds it there (`ComfortWiring.set_preset`).
+func attach_cockpit_frame() -> void:
+	var camera: Node3D = get_node_or_null("XRRig/Camera") as Node3D
+	if camera != null:
+		comfort.attach_cockpit_frame(camera)
 
 
 ## Puts the fade quad under the rig's camera; the rig scene stays as it is.

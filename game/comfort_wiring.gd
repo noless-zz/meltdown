@@ -28,6 +28,11 @@ var one_tick_pending: bool = false
 ## tick rather than from how far it turned: an auto-level roll snap can be
 ## smaller than any yaw or pitch snap.
 var latest_tick_snapped: bool = false
+## The active preset's cockpit frame, under the rig's camera once
+## `attach_cockpit_frame` has run, null before. `set_preset` rebuilds this
+## one node, so the scene never holds two frames or none (CMF-1, #160). It
+## only reads the preset; it never writes `ShipState` or `Sim` (ARC-3).
+var cockpit_frame: CockpitFrame = null
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
@@ -53,7 +58,29 @@ func set_preset(p_number: int) -> void:
 	one_tick_pending = false
 	latest_tick_snapped = false
 	_roll_snap_pending = false
+	if cockpit_frame != null:
+		cockpit_frame.set_spec(cockpit_spec())
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
+
+
+## Builds the active preset's cockpit frame under `camera`, its origin at the
+## eye. Does nothing once a frame exists; `set_preset` keeps it current.
+## Created here rather than with the wiring, so a wiring that never reaches
+## a scene owns no node.
+func attach_cockpit_frame(camera: Node3D) -> void:
+	if cockpit_frame != null:
+		return
+	cockpit_frame = CockpitFrame.new(cockpit_spec())
+	camera.add_child(cockpit_frame)
+
+
+## The cockpit named by the active preset. A rejected file still gives a frame
+## (the spec's defaults) so the view is never left without one, and says why.
+func cockpit_spec() -> CockpitSpec:
+	var spec: CockpitSpec = CockpitSpec.for_preset(preset)
+	if spec.error != "":
+		push_warning("Meltdown: cockpit for preset %d rejected, using defaults: %s" % [number, spec.error])
+	return spec
 
 
 ## The development preset switch: the upper face button of the hand that does
