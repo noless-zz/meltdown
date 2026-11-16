@@ -18,6 +18,7 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_button_upper": "up",
 	"right_button_lower": "boost",
 	"right_trigger": "fire",
+	"right_stick_click": "slot part",
 	"left_menu": "reset (hold)",
 }
 
@@ -48,8 +49,7 @@ func test_default_layout_labels_every_bound_control() -> String:
 func test_unbound_controls_get_no_label() -> String:
 	var got: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout())
 	# Y and the left stick click are read outside the layout (decision record 0004).
-	for control: String in ["left_trigger", "left_button_upper",
-			"left_stick_click", "right_stick_click"]:
+	for control: String in ["left_trigger", "left_button_upper", "left_stick_click"]:
 		if got.has(control):
 			return "%s is unbound but labelled '%s'" % [control, got[control]]
 	var zero: Dictionary = ControlLabels.for_layout({"lift": {"right_trigger": 0.0}})
@@ -179,13 +179,14 @@ func test_rig_rebuilds_labels_on_remap_and_left_handed() -> String:
 	mapping.layout["lift"] = {"right_stick_click": 1.0}
 	rig.call("_process", 0.0)
 	var right: ControllerModel = rig.call("model_for", "right") as ControllerModel
-	if right.label_texts().get("stick_click", "") != "up" or right.label_texts().has("button_upper"):
+	# The click already slots the held part (#312), so both actions share the label.
+	if right.label_texts().get("stick_click", "") != "up, slot part" or right.label_texts().has("button_upper"):
 		message = "remap not shown: %s" % right.label_texts()
 	if message == "":
 		mapping.left_handed = true
 		rig.call("_process", 0.0)
 		var left: ControllerModel = rig.call("model_for", "left") as ControllerModel
-		if left.label_texts().get("stick_click", "") != "up":
+		if left.label_texts().get("stick_click", "") != "up, slot part":
 			message = "left-handed not shown: %s" % left.label_texts()
 		elif right.label_texts().get("button_lower", "") != "" or left.label_texts().get("button_lower", "") != "boost":
 			message = "boost should move to X: %s / %s" % [left.label_texts(), right.label_texts()]

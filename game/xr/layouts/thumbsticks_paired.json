@@ -6,5 +6,6 @@
 	"roll": {"left_button_lower": -1.0, "left_grip": 1.0},
 	"lift": {"right_button_upper": 1.0, "right_grip": -1.0},
 	"afterburner": {"right_button_lower": 1.0},
-	"fire_primary": {"right_trigger": 1.0}
+	"fire_primary": {"right_trigger": 1.0},
+	"slot_part": {"right_stick_click": 1.0}
 }

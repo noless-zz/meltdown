@@ -17,6 +17,8 @@ extends RefCounted
 ## - B (right upper) moves up, X (left lower) moves down
 ## - A (right lower) holds the afterburner (FLT-2), which also gives full
 ##   forward thrust unless the stick is pulled back
+## - the right stick click slots the part in the hold into a primary slot
+##   (SLV-1, #312), a stand-in until a hand gesture is designed
 ## - Y (left upper) is the comfort preset button, read outside this mapping;
 ##   the left stick click shows and hides the labels, also read outside this
 ##   mapping (#181)
@@ -32,8 +34,8 @@ extends RefCounted
 ## left stick turns. Stick x keeps its direction, so pushing right still means
 ## right.
 ##
-## Besides the six axes the layout holds button actions, `afterburner` and
-## `fire_primary`. They are bound like an axis, so the settings menu remaps
+## Besides the six axes the layout holds button actions, `afterburner`,
+## `fire_primary` and `slot_part`. They are bound like an axis, so the settings menu remaps
 ## them the same way, and each counts as held when its bound controls add up
 ## to at least `BUTTON_THRESHOLD`. Left-handed mode moves them to the other
 ## hand like everything else.
@@ -55,7 +57,7 @@ const MAX_ROLL_RATE: float = PI * 0.75
 
 const AXES: Array[String] = ["strafe", "lift", "forward", "pitch", "yaw", "roll"]
 ## On/off actions held while their controls are pressed.
-const BUTTON_ACTIONS: Array[String] = ["afterburner", "fire_primary"]
+const BUTTON_ACTIONS: Array[String] = ["afterburner", "fire_primary", "slot_part"]
 ## Half way, so an action bound to a trigger or grip fires at half pull.
 const BUTTON_THRESHOLD: float = 0.5
 ## Physical controls a layout may bind. Buttons are named by position rather
@@ -105,6 +107,8 @@ static func default_layout() -> Dictionary:
 		# A, away from the thumb that holds the left stick forward (#149).
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
+		# The one control decision record 0004 left free (#312).
+		"slot_part": {"right_stick_click": 1.0},
 	}
 
 
@@ -210,6 +214,7 @@ func map_controls(left_stick: Vector2, right_stick: Vector2,
 		thrust.z = -1.0
 	var input: ShipInput = ShipInput.from_floats(thrust, turn, afterburner)
 	input.fire_primary = _axis_value(controls, "fire_primary") >= BUTTON_THRESHOLD
+	input.slot_held = _axis_value(controls, "slot_part") >= BUTTON_THRESHOLD
 	return input
 
 
