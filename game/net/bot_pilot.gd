@@ -33,14 +33,32 @@ const CLOSING_GAIN: float = 1.0
 ## Thrust per metre per second of closing speed still missing: full thrust
 ## once the error reaches 4 m/s.
 const THRUST_GAIN: float = 0.25
+## Fastest the bot flies along a route through a level, metres per second.
+## Well under the ship's cap, so it can stop within an opening's width at full
+## thrust when it turns a corner.
+const ROUTE_SPEED: float = 10.0
 
 var _sim: Sim = null
 var _ship_index: int = 0
+## Null without a level: the bot then flies straight at its target.
+var _route: LevelRoute = null
+var _goal: Vector3 = Vector3.ZERO
+var _has_goal: bool = false
 
 
-func _init(sim: Sim, ship_index: int = 0) -> void:
+## With a `level`, the bot routes through its boxes rather than flying into
+## rock (#289); without one it flies straight, as before.
+func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 	_sim = sim
 	_ship_index = ship_index
+	if level != null and level.error == "" and not level.union.boxes.is_empty():
+		_route = LevelRoute.new(level)
+
+
+## A point to fly to and stop at once no robot is left, such as a level's exit.
+func set_goal(point: Vector3) -> void:
+	_goal = point
+	_has_goal = true
 
 
 ## Reads the sim as it stands before tick `tick` and returns the input to fly.
@@ -49,6 +67,8 @@ func next_input(_tick: int) -> ShipInput:
 		return ShipInput.new()
 	var ship: ShipState = _sim.ships[_ship_index]
 	var target: RobotState = nearest_robot(ship.position)
+	if _route != null:
+		return _routed_input(ship, target)
 	if target == null:
 		return ShipInput.new()
 	var offset: Vector3 = target.position - ship.position
@@ -56,15 +76,7 @@ func next_input(_tick: int) -> ShipInput:
 	# Ship space: x right, y up, forward is -z. The basis is orthonormal, so
 	# its transpose is its inverse.
 	var local: Vector3 = ship.orientation.transposed() * offset
-	# Positive pitch raises the nose and positive yaw turns it left (see
-	# `ShipState.step`). Straight behind, atan2 gives a full half turn, so
-	# the bot turns at its full rate rather than stalling.
-	var pitch_error: float = atan2(local.y, -local.z)
-	var yaw_error: float = atan2(-local.x, -local.z)
-	var turn: Vector3 = Vector3(
-		clampf(pitch_error * TURN_GAIN, -MAX_PITCH_RATE, MAX_PITCH_RATE),
-		clampf(yaw_error * TURN_GAIN, -MAX_YAW_RATE, MAX_YAW_RATE),
-		0.0)
+	var turn: Vector3 = _turn_towards(local)
 	var thrust: Vector3 = Vector3.ZERO
 	if distance > 0.0:
 		var to_target: Vector3 = offset / distance
@@ -75,6 +87,51 @@ func next_input(_tick: int) -> ShipInput:
 	var input: ShipInput = ShipInput.from_floats(thrust, turn)
 	input.fire_primary = should_fire(ship, offset)
 	return input
+
+
+## Flying in a level: towards the robot, or the goal when none is left, by
+## way of the next waypoint when the straight way is not clear. Thrust aims at
+## the velocity wanted, not only the closing speed, so drift across the route
+## is cancelled and the ship stays off the walls at corners.
+func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
+	var aim: Vector3 = _goal
+	var hold: float = 0.0
+	if target != null:
+		aim = target.position
+		hold = ENGAGE_DISTANCE
+	elif not _has_goal:
+		return ShipInput.new()
+	var waypoint: Vector3 = _route.next_waypoint(ship.position, aim, ship.radius)
+	if waypoint != aim:
+		hold = 0.0
+	var offset: Vector3 = waypoint - ship.position
+	var distance: float = offset.length()
+	var wanted: Vector3 = Vector3.ZERO
+	if distance > 0.0:
+		var speed: float = clampf((distance - hold) * CLOSING_GAIN, -ROUTE_SPEED, ROUTE_SPEED)
+		wanted = offset / distance * speed
+	var push: Vector3 = ((wanted - ship.velocity) * THRUST_GAIN).limit_length(1.0)
+	var basis_inverse: Basis = ship.orientation.transposed()
+	var input: ShipInput = ShipInput.from_floats(basis_inverse * push,
+		_turn_towards(basis_inverse * offset))
+	# Only at the robot itself: a shot at a waypoint would hit rock.
+	input.fire_primary = target != null and waypoint == aim \
+		and should_fire(ship, target.position - ship.position)
+	return input
+
+
+## Turn rates that bring the nose to `local`, a direction in ship space,
+## within the caps.
+static func _turn_towards(local: Vector3) -> Vector3:
+	# Positive pitch raises the nose and positive yaw turns it left (see
+	# `ShipState.step`). Straight behind, atan2 gives a full half turn, so
+	# the bot turns at its full rate rather than stalling.
+	var pitch_error: float = atan2(local.y, -local.z)
+	var yaw_error: float = atan2(-local.x, -local.z)
+	return Vector3(
+		clampf(pitch_error * TURN_GAIN, -MAX_PITCH_RATE, MAX_PITCH_RATE),
+		clampf(yaw_error * TURN_GAIN, -MAX_YAW_RATE, MAX_YAW_RATE),
+		0.0)
 
 
 ## The live robot nearest to `point`, or null when there is none. Only a
