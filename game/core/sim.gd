@@ -31,9 +31,9 @@ var start_orientations: Array[Basis] = []
 var projectiles: Array[Projectile] = []
 ## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
 var robots: Array[RobotState] = []
-## Robot events of the tick being stepped. Hits are found when projectiles
-## move, before the ships, but their events follow the ship events.
-var _robot_events: Array[SimEvent] = []
+## Projectile hit events of the tick being stepped. Hits are found when
+## projectiles move, before the ships, but their events follow the ship events.
+var _hit_events: Array[SimEvent] = []
 ## True only while `step` runs, so a spawn cannot land part-way through a tick.
 var _stepping: bool = false
 
@@ -54,7 +54,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	last_events = []
 	if inputs.size() != ships.size():
 		return false
-	_robot_events = []
+	_hit_events = []
 	_stepping = true
 	if tick == 0:
 		_record_start_poses()
@@ -80,7 +80,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 				last_events.append(SimEvent.new(
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 		_fire(i, inputs[i].fire_primary)
-	last_events.append_array(_robot_events)
+	last_events.append_array(_hit_events)
 	_advance_robots()
 	_remove_destroyed_robots()
 	_stepping = false
@@ -89,13 +89,17 @@ func step(inputs: Array[ShipInput]) -> bool:
 
 
 ## Adds a robot of type `def` at rest and returns its index in `robots`.
+## `weapon` is `def.weapon` resolved by the caller, since core opens no files;
+## without one the robot never fires.
 ## Allowed before the first tick or between ticks; during `step` it changes
 ## nothing and returns -1, because a robot appearing mid-tick would depend on
 ## the order things happen to be advanced in.
-func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis) -> int:
+func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis,
+		weapon: WeaponDef = null) -> int:
 	if _stepping:
 		return -1
 	var robot: RobotState = RobotState.new(def, position, orientation)
+	robot.weapon = weapon
 	# Even spawn indices circle one way, odd the other, so a pair of
 	# strafers spread around the ship instead of chasing each other's tail.
 	robot.strafe_direction = 1 if robots.size() % 2 == 0 else -1
@@ -115,13 +119,20 @@ func equip(loadout: ShipLoadout) -> bool:
 	return true
 
 
-## Moves every robot one tick, after the ships, towards its target, and keeps
-## it inside the walls.
+## Moves every robot one tick, after the ships, towards its target, keeps it
+## inside the walls and fires at its target if it can. The shot leaves the
+## robot's centre along its facing at the weapon's speed, like a ship's.
 func _advance_robots() -> void:
-	for robot: RobotState in robots:
+	for r: int in robots.size():
+		var robot: RobotState = robots[r]
 		robot.step(nearest_live_ship(robot.position))
 		if bounds != null:
 			robot.keep_inside(bounds)
+		var weapon: WeaponDef = robot.fire_at(nearest_live_ship(robot.position))
+		if weapon != null:
+			projectiles.append(Projectile.new(robot.position,
+				robot.forward() * weapon.projectile_speed, Projectile.robot_owner(r),
+				weapon.lifetime_ticks(), weapon.damage))
 
 
 ## The live ship (hull above zero) nearest to `point`, or null if there is
@@ -177,7 +188,8 @@ func _remove_destroyed_robots() -> void:
 	robots = kept
 
 
-## Moves every projectile one tick and removes those that hit a robot, whose
+## Moves every projectile one tick and removes those that hit a robot (ship
+## shots) or a ship (robot shots), whose
 ## lifetime is over or that have left the walls. The hit test runs on the
 ## whole segment flown this tick, before the other two, so a shot on its
 ## last tick or leaving through a wall still hits what it passed on the way.
@@ -186,7 +198,9 @@ func _advance_projectiles() -> void:
 	for projectile: Projectile in projectiles:
 		var from: Vector3 = projectile.position
 		var alive: bool = projectile.advance()
-		if _hit_robot(projectile, from):
+		var hit: bool = (_hit_ship(projectile, from) if projectile.is_robot_owned()
+			else _hit_robot(projectile, from))
+		if hit:
 			continue
 		if not alive:
 			continue
@@ -216,10 +230,32 @@ func _hit_robot(projectile: Projectile, from: Vector3) -> bool:
 	var robot: RobotState = robots[best]
 	robot.apply_damage(projectile.damage)
 	var direction: Vector3 = projectile.velocity.normalized()
-	_robot_events.append(SimEvent.new(SimEvent.Kind.ROBOT_HIT, projectile.owner_index,
+	_hit_events.append(SimEvent.new(SimEvent.Kind.ROBOT_HIT, projectile.owner_index,
 		projectile.damage, direction))
 	if not robot.is_alive():
-		_robot_events.append(SimEvent.new(SimEvent.Kind.ROBOT_DESTROYED, projectile.owner_index))
+		_hit_events.append(SimEvent.new(SimEvent.Kind.ROBOT_DESTROYED, projectile.owner_index))
+	return true
+
+
+## As `_hit_robot`, for a robot's shot against the live ships (hull above
+## zero), within each ship's `radius`: the damage goes through
+## `ShipState.apply_damage`, shield first, and a SHIP_HIT event names the ship.
+func _hit_ship(projectile: Projectile, from: Vector3) -> bool:
+	var best: int = -1
+	var best_t: float = INF
+	for i: int in ships.size():
+		var ship: ShipState = ships[i]
+		if ship.hull <= 0.0:
+			continue
+		var t: float = Projectile.segment_entry(from, projectile.position, ship.position, ship.radius)
+		if t >= 0.0 and t < best_t:
+			best = i
+			best_t = t
+	if best < 0:
+		return false
+	ships[best].apply_damage(projectile.damage)
+	_hit_events.append(SimEvent.new(SimEvent.Kind.SHIP_HIT, best, projectile.damage,
+		projectile.velocity.normalized()))
 	return true
 
 
