@@ -185,3 +185,15 @@ func test_json_key_order_does_not_depend_on_insertion_order() -> String:
 	if first.to_json() != second.to_json():
 		return "reports differ:\n%s\n%s" % [first.to_json(), second.to_json()]
 	return ""
+
+
+func test_required_flag_is_read_and_checked() -> String:
+	var suite: AcceptanceSuite = AcceptanceSuite.parse_json(
+		_suite_text("{\"id\": \"a\", \"checks\": [\"xr_session\"], \"required\": true}"))
+	if suite.error != "" or not suite.steps[0].required:
+		return "required: true was not read: %s" % suite.error
+	suite = AcceptanceSuite.parse_json(_suite_text("{\"id\": \"a\", \"checks\": [\"xr_session\"]}"))
+	if suite.error != "" or suite.steps[0].required:
+		return "a step without the key is required"
+	return _expect_rejected(_suite_text("{\"id\": \"a\", \"checks\": [\"xr_session\"], \"required\": 1}"),
+		"steps[0].required")

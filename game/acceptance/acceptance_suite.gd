@@ -11,7 +11,8 @@ extends RefCounted
 ##         "name": "m1",
 ##         "steps": [
 ##             {"id": "fly", "replay": "res://acceptance/replays/x.replay",
-##              "preset": 2, "checks": ["final_hash"], "expected_hash": 123}
+##              "preset": 2, "checks": ["final_hash"], "expected_hash": 123,
+##              "required": false}
 ##         ]
 ##     }
 ##
@@ -25,7 +26,7 @@ const SUITE_EXTENSION: String = ".json"
 const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
-const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash"]
+const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required"]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -124,6 +125,10 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 		if step.preset < AcceptanceStep.MIN_PRESET or step.preset > AcceptanceStep.MAX_PRESET:
 			return "%s.preset: %d is outside %d..%d" % [
 				field, step.preset, AcceptanceStep.MIN_PRESET, AcceptanceStep.MAX_PRESET]
+	if data.has("required"):
+		if typeof(data["required"]) != TYPE_BOOL:
+			return "%s.required: must be true or false" % field
+		step.required = data["required"]
 	problem = _parse_checks(data.get("checks"), field + ".checks", step)
 	if problem != "":
 		return problem
