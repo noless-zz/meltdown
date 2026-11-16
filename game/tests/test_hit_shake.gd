@@ -98,7 +98,7 @@ func test_preset_1_is_identity_for_a_burst_of_strong_impacts() -> String:
 	var shake: HitShake = _shake_for(1)
 	for frame: int in 120:
 		if frame % 3 == 0:
-			shake.feed(_impact(500.0, 0, Vector3(1.0, 0.0, 0.0)), 0)
+			shake.feed(_impact(500.0, 0, Vector3(1.0, 0.0, 0.0)), 0, Basis.IDENTITY)
 		var offset: Transform3D = shake.advance(FRAME_S)
 		if offset != Transform3D.IDENTITY:
 			return "preset 1 moved the view on frame %d: %s" % [frame, offset]
@@ -108,8 +108,8 @@ func test_preset_1_is_identity_for_a_burst_of_strong_impacts() -> String:
 func test_preset_2_peak_is_below_preset_3_peak() -> String:
 	var guided: HitShake = _shake_for(2)
 	var pilot: HitShake = _shake_for(3)
-	guided.feed(_impact(12.0), 0)
-	pilot.feed(_impact(12.0), 0)
+	guided.feed(_impact(12.0), 0, Basis.IDENTITY)
+	pilot.feed(_impact(12.0), 0, Basis.IDENTITY)
 	var low: Vector2 = _peaks(guided, 0.5)
 	var high: Vector2 = _peaks(pilot, 0.5)
 	if high.x <= 0.0:
@@ -122,7 +122,7 @@ func test_preset_2_peak_is_below_preset_3_peak() -> String:
 func test_only_spin_presets_rotate() -> String:
 	for number: int in [1, 2, 3, 4]:
 		var shake: HitShake = _shake_for(number)
-		shake.feed(_impact(30.0, 0, Vector3(-1.0, 0.0, 0.0)), 0)
+		shake.feed(_impact(30.0, 0, Vector3(-1.0, 0.0, 0.0)), 0, Basis.IDENTITY)
 		var roll: float = _peaks(shake, 0.5).y
 		if shake.preset.hit_spin and roll <= 0.0:
 			return "preset %d has hit_spin but did not roll" % number
@@ -131,7 +131,7 @@ func test_only_spin_presets_rotate() -> String:
 	var unrestricted: HitShake = _shake_for(4)
 	unrestricted.preset = unrestricted.preset.duplicate()
 	unrestricted.preset.hit_spin = false
-	unrestricted.feed(_impact(30.0), 0)
+	unrestricted.feed(_impact(30.0), 0, Basis.IDENTITY)
 	if _peaks(unrestricted, 0.5).y != 0.0:
 		return "preset 4 with hit_spin off still rolled"
 	return ""
@@ -141,7 +141,7 @@ func test_offsets_stay_within_the_caps() -> String:
 	var shake: HitShake = _shake_for(4)
 	var cap_roll: float = deg_to_rad(shake.max_roll_deg)
 	for frame: int in 90:
-		shake.feed(_impact(1000.0), 0)
+		shake.feed(_impact(1000.0), 0, Basis.IDENTITY)
 		var offset: Transform3D = shake.advance(FRAME_S)
 		if offset.origin.length() > shake.max_offset_m + 1e-6:
 			return "offset %f m over the %f m cap" % [offset.origin.length(), shake.max_offset_m]
@@ -153,7 +153,7 @@ func test_offsets_stay_within_the_caps() -> String:
 func test_back_to_identity_within_the_decay_time() -> String:
 	for number: int in [2, 3, 4]:
 		var shake: HitShake = _shake_for(number)
-		shake.feed(_impact(100.0), 0)
+		shake.feed(_impact(100.0), 0, Basis.IDENTITY)
 		var elapsed: float = 0.0
 		var offset: Transform3D = shake.advance(FRAME_S)
 		elapsed += FRAME_S
@@ -176,7 +176,7 @@ func test_zero_magnitude_and_other_events_do_nothing() -> String:
 		SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, 0),
 		SimEvent.new(SimEvent.Kind.WALL_IMPACT, 1, 20.0, Vector3.BACK),
 	]
-	shake.feed(events, 0)
+	shake.feed(events, 0, Basis.IDENTITY)
 	for frame: int in 30:
 		if shake.advance(FRAME_S) != Transform3D.IDENTITY:
 			return "moved on frame %d without a hit on this ship" % frame
@@ -188,7 +188,7 @@ func test_feed_leaves_the_events_unchanged() -> String:
 	var copy: SimEvent = SimEvent.new(event.kind, event.ship, event.magnitude, event.vector)
 	var events: Array[SimEvent] = [event]
 	var shake: HitShake = _shake_for(4)
-	shake.feed(events, 0)
+	shake.feed(events, 0, Basis.IDENTITY)
 	shake.advance(FRAME_S)
 	if not event.equals(copy):
 		return "feed changed the event to %s" % event
@@ -214,4 +214,31 @@ func test_reads_only_sim_events_from_core() -> String:
 			continue
 		if RegEx.create_from_string("\\b%s\\b" % core_name).search(source) != null:
 			return "%s references core class %s" % [SCRIPT_PATH, core_name]
+	return ""
+
+
+## Rolled left: the camera's top leans towards its own left (-X).
+static func _rolled_left(shake: HitShake) -> bool:
+	return shake.advance(FRAME_S).basis.y.x < 0.0
+
+
+## The hit side is read in the ship's frame (#169): a ship facing +X and one
+## facing -X, each hit on its own right, both roll left; on its left, right.
+func test_a_hit_on_the_ship_right_rolls_left_whichever_way_it_faces() -> String:
+	# Godot's forward is -Z; a quarter turn about up faces the ship along +X or -X.
+	var facings: Dictionary[String, Basis] = {
+		"+X": Basis(Vector3.UP, -PI / 2.0), "-X": Basis(Vector3.UP, PI / 2.0),
+		"-Z": Basis.IDENTITY,
+	}
+	for facing: String in facings:
+		var ship_basis: Basis = facings[facing]
+		# The wall on the right: its normal points back to the ship's left.
+		var right_hit: HitShake = _shake_for(4)
+		right_hit.feed(_impact(30.0, 0, -ship_basis.x), 0, ship_basis)
+		if not _rolled_left(right_hit):
+			return "ship facing %s hit on its right did not roll left" % facing
+		var left_hit: HitShake = _shake_for(4)
+		left_hit.feed(_impact(30.0, 0, ship_basis.x), 0, ship_basis)
+		if _rolled_left(left_hit):
+			return "ship facing %s hit on its left rolled left" % facing
 	return ""
