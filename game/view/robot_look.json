@@ -1,0 +1,11 @@
+{
+	"default": {"shape": "sphere", "scale": 1.0, "emission_color": [0.8, 0.8, 0.8]},
+	"robots": {
+		"drone": {"shape": "sphere", "scale": 1.0, "emission_color": [1.0, 0.2, 0.15]},
+		"glider": {"shape": "prism", "scale": 1.0, "emission_color": [0.1, 0.85, 1.0]},
+		"hauler": {"shape": "box", "scale": 0.9, "emission_color": [1.0, 0.6, 0.1]},
+		"needler": {"shape": "capsule", "scale": 1.0, "emission_color": [1.0, 0.2, 0.9]},
+		"skimmer": {"shape": "prism", "scale": 1.0, "emission_color": [0.95, 0.95, 0.15]},
+		"warden": {"shape": "box", "scale": 0.9, "emission_color": [0.2, 1.0, 0.3]}
+	}
+}
