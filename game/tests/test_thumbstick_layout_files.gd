@@ -58,6 +58,7 @@ func test_default_layout_is_unchanged() -> String:
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
 		"slot_part": {"right_stick_click": 1.0},
+		"show_map": {"left_stick_click": 1.0},
 	}
 	return _layout_diff(ThumbstickMapping.default_layout(), want)
 
@@ -73,6 +74,7 @@ func test_paired_file_follows_decision_record() -> String:
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
 		"slot_part": {"right_stick_click": 1.0},
+		"show_map": {"left_stick_click": 1.0},
 	}
 	return _layout_diff(_paired().layout, want)
 

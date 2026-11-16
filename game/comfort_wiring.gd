@@ -45,8 +45,13 @@ var _input_source: LatestInputSource
 var _mapping: ThumbstickMapping
 ## The preset switch acts once per press, not once per frame it is held.
 var _preset_button_held: bool = false
-## The label toggle, likewise, flips once per press.
+## Seconds on a steady clock; `read_label_button` times a click with it. Tests
+## replace it so a hold can be timed without waiting.
+var clock: Callable = _seconds_now
+## The label toggle, likewise, flips once per click.
 var _label_button_held: bool = false
+## `clock` when the label button last went down.
+var _label_down_at: float = 0.0
 ## True while the pending one-tick input is a snap whose roll came from the
 ## auto-level, so that roll is not flown again before the next sample.
 var _roll_snap_pending: bool = false
@@ -117,13 +122,25 @@ func label_button() -> String:
 	return "right_stick_click" if _mapping.left_handed else "left_stick_click"
 
 
-## True only on the frame the label button goes down, so a held click flips
-## the labels once.
+## True on the one frame a click should flip the labels. When the label
+## button also shows the map (`show_map`, #314), that is the release of a
+## click shorter than `MapHologram.HOLD_SECONDS`, so holding for the map
+## never flips them; otherwise it is the frame the button goes down.
 func read_label_button(buttons: Dictionary) -> bool:
 	var pressed: bool = bool(buttons.get(label_button(), false))
 	var went_down: bool = pressed and not _label_button_held
+	var went_up: bool = _label_button_held and not pressed
 	_label_button_held = pressed
-	return went_down
+	if not _mapping.physical_controls("show_map").has(label_button()):
+		return went_down
+	if went_down:
+		_label_down_at = float(clock.call())
+		return false
+	return went_up and float(clock.call()) - _label_down_at < MapHologram.HOLD_SECONDS
+
+
+static func _seconds_now() -> float:
+	return Time.get_ticks_usec() / 1000000.0
 
 
 ## Hands this frame's mapped `input` to the session's input source.

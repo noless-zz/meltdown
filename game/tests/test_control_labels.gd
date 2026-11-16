@@ -19,6 +19,8 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_button_lower": "boost",
 	"right_trigger": "fire",
 	"right_stick_click": "slot part",
+	# Holding it shows the map (#314); a short click is the label toggle.
+	"left_stick_click": "map (hold)",
 	"left_menu": "reset (hold)",
 }
 
@@ -48,8 +50,8 @@ func test_default_layout_labels_every_bound_control() -> String:
 
 func test_unbound_controls_get_no_label() -> String:
 	var got: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout())
-	# Y and the left stick click are read outside the layout (decision record 0004).
-	for control: String in ["left_trigger", "left_button_upper", "left_stick_click"]:
+	# Y is read outside the layout (decision record 0004).
+	for control: String in ["left_trigger", "left_button_upper"]:
 		if got.has(control):
 			return "%s is unbound but labelled '%s'" % [control, got[control]]
 	var zero: Dictionary = ControlLabels.for_layout({"lift": {"right_trigger": 0.0}})
