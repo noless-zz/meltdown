@@ -23,8 +23,9 @@ const LABEL_POSITIONS: Dictionary = {
 	"stick_click": Vector3(COLUMN_X, 0.080 - 2.0 * ROW_PITCH, COLUMN_Z),
 	"button_upper": Vector3(COLUMN_X, 0.080 - 3.0 * ROW_PITCH, COLUMN_Z),
 	"button_lower": Vector3(COLUMN_X, 0.080 - 4.0 * ROW_PITCH, COLUMN_Z),
-	"trigger": Vector3(COLUMN_X, 0.080 - 5.0 * ROW_PITCH, COLUMN_Z),
-	"grip": Vector3(COLUMN_X, 0.080 - 6.0 * ROW_PITCH, COLUMN_Z),
+	"menu": Vector3(COLUMN_X, 0.080 - 5.0 * ROW_PITCH, COLUMN_Z),
+	"trigger": Vector3(COLUMN_X, 0.080 - 6.0 * ROW_PITCH, COLUMN_Z),
+	"grip": Vector3(COLUMN_X, 0.080 - 7.0 * ROW_PITCH, COLUMN_Z),
 }
 ## Just outside the controller head (half width 25 mm) and the runtime models.
 const COLUMN_X: float = 0.045
@@ -38,7 +39,7 @@ const ROW_PITCH: float = 0.017
 const LABEL_FONT_SIZE: int = 32
 ## 0.28 mm per pixel gives letters about 9 mm high (the em), down from 16 mm
 ## (#147). At 0.4-0.6 m that is about 1 degree, around 20 headset pixels on a
-## Quest 3, still readable, while seven rows fit beside one controller
+## Quest 3, still readable, while eight rows fit beside one controller
 ## without crowding the view ahead.
 const LABEL_PIXEL_SIZE: float = 0.00028
 ## A thin dark outline keeps the white text readable over a bright tunnel.
