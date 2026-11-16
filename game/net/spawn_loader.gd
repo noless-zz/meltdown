@@ -53,7 +53,17 @@ static func load_spawns(path: String, robot_dir: String, weapon_dir: String) -> 
 	if not FileAccess.file_exists(path):
 		print("Meltdown: robot spawns %s rejected (file not found); no robots" % path)
 		return none
-	var list: RobotSpawnList = RobotSpawnList.parse_json(FileAccess.get_file_as_string(path))
+	return resolve_list(RobotSpawnList.parse_json(FileAccess.get_file_as_string(path)),
+		path, robot_dir, weapon_dir)
+
+
+## The spawns of `list`, already parsed from the file at `source`, resolved
+## and armed as `load_spawns` does. A level file carries its spawns inline, so
+## the main scene's level switch (#291) resolves them here, the same way as the
+## test tunnel's spawn file (#269). `source` only names the file in messages.
+static func resolve_list(list: RobotSpawnList, source: String, robot_dir: String,
+		weapon_dir: String) -> Array[RobotSpawn]:
+	var none: Array[RobotSpawn] = []
 	var problem: String = list.error
 	if problem == "":
 		var texts: Dictionary = {}
@@ -63,7 +73,7 @@ static func load_spawns(path: String, robot_dir: String, weapon_dir: String) -> 
 				texts[id] = FileAccess.get_file_as_string(robot_path)
 		problem = list.resolve(texts)
 	if problem != "":
-		print("Meltdown: robot spawns %s rejected (%s); no robots" % [path, problem])
+		print("Meltdown: robot spawns %s rejected (%s); no robots" % [source, problem])
 		return none
 	arm(list.spawns, weapon_dir)
 	return list.spawns

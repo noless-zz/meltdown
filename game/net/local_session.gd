@@ -147,6 +147,36 @@ static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
 	return SpawnLoader.load_spawns(path, robot_dir, weapon_dir)
 
 
+## A session in `level`'s walls (GEN-5): every box goes into the replay, so a
+## replay meets the same walls (ARC-2), the ship starts at the level's start
+## pose, and the level's robots are resolved and armed from `robot_dir` and
+## `weapon_dir` as `load_spawns` does (CMB-3, #269, #291). `level` must have
+## parsed without an error. The replay does not record a start pose yet, so
+## a replay of a level whose start is not the origin facing -z would start
+## elsewhere; G2 starts there.
+static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInputSource = null,
+		tuning: ShipTuning = null, robot_dir: String = ROBOT_DIR,
+		weapon_dir: String = WEAPON_DIR) -> LocalSession:
+	var robots: Array[RobotSpawn] = SpawnLoader.resolve_list(level.robots, "in the level",
+		robot_dir, weapon_dir)
+	var session: LocalSession = LocalSession.new(run_seed, input_source, null, tuning, robots)
+	var mins: Array[Vector3i] = []
+	var maxs: Array[Vector3i] = []
+	for box: BoxBounds in level.union.boxes:
+		mins.append(SessionSnapshots.to_mm(box.min_corner))
+		maxs.append(SessionSnapshots.to_mm(box.max_corner))
+	session.replay.set_boxes(mins, maxs)
+	# Taken back from the replay, rounded like the single-box walls in `_init`.
+	session.sim.set_walls(session.replay.walls())
+	var facing: Vector3 = level.start_facing()
+	# Straight up or down has no world-up to roll against; `RobotSpawn` does the same.
+	var up: Vector3 = Vector3.BACK if absf(facing.dot(Vector3.UP)) > 0.999 else Vector3.UP
+	session.sim.set_start_pose(0, level.start_position(), Basis.looking_at(facing, up))
+	session._current_ship = SessionSnapshots.ship(session.sim.ships[0])
+	session._previous_ship = SessionSnapshots.ship(session.sim.ships[0])
+	return session
+
+
 ## The `SimEvent`s of every tick run by the latest `advance`, in order; empty
 ## when it ran none. `Sim.last_events` holds only the last tick, so a frame
 ## that runs two ticks would otherwise lose the first tick's wall impact. A
