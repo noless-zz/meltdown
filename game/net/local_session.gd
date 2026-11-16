@@ -67,9 +67,11 @@ var _current_robots: Array[RobotState] = []
 ## loadout has been resolved (see `load_tuning`) starts the ship armed, and the
 ## weapons are recorded in the replay (CMB-1, ARC-2). `robots` (see
 ## `load_spawns`) are spawned before the first tick and recorded in the replay
-## too, so a replay starts with the same robots (CMB-3).
+## too, so a replay starts with the same robots (CMB-3). `loadout`, when given,
+## replaces the tuning's: a replay read from text carries its weapons resolved
+## on their own lines, not in its tuning, and flying it again needs them (DEV-6).
 func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null,
-		tuning: ShipTuning = null, robots: Array[RobotSpawn] = []) -> void:
+		tuning: ShipTuning = null, robots: Array[RobotSpawn] = [], loadout: ShipLoadout = null) -> void:
 	replay = Replay.new(run_seed, 1)
 	if bounds != null:
 		replay.set_box(_to_mm(bounds.min_corner), _to_mm(bounds.max_corner))
@@ -80,8 +82,10 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 	# The tuning goes through the replay too, so a replay flies the same ship.
 	sim = Sim.new(run_seed, 1, replay.bounds())
 	replay.apply_tuning(sim)
-	if replay.tuning != null and replay.tuning.loadout.is_armed():
-		replay.loadout = replay.tuning.loadout
+	if loadout == null and replay.tuning != null:
+		loadout = replay.tuning.loadout
+	if loadout != null and loadout.is_armed():
+		replay.loadout = loadout
 		sim.equip(replay.loadout)
 	if RobotSpawn.spawn_all(sim, robots):
 		replay.robots = robots.duplicate()

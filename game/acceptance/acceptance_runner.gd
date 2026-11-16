@@ -149,9 +149,10 @@ func _start_step(step: AcceptanceStep) -> void:
 	if replay.error != "" or replay.ship_count != 1:
 		return  # `_replay_problem` reports it when the step is recorded.
 	_source = ReplayInputSource.new(replay)
-	# A fresh session from the replay's own seed, walls and tuning, so the
-	# scene flies exactly the run the replay recorded.
-	main.set("session", LocalSession.new(replay.run_seed, _source, replay.bounds(), replay.tuning))
+	# A fresh session from the replay's own seed, walls, tuning, weapons and
+	# robots, so the scene flies exactly the run the replay recorded.
+	main.set("session", LocalSession.new(replay.run_seed, _source, replay.bounds(), replay.tuning,
+		replay.robots, replay.loadout))
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
