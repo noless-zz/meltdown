@@ -2,8 +2,8 @@ class_name CombatWiring
 extends RefCounted
 
 ## Joins the session's combat state to what the main scene shows (CMB-1,
-## CMB-2, CMB-3, LGT-1): the projectiles, the robots (#228) and the shield and
-## hull bars on the status panel.
+## CMB-2, CMB-3, LGT-1, SLV-1): the projectiles, the robots (#228), the
+## floating salvage (#287) and the shield and hull bars on the status panel.
 ##
 ## It sits beside `main.gd`, like `ComfortWiring`, because it reads the `net/`
 ## session, which `view/` may not depend on. It hands the view copies from
@@ -13,9 +13,11 @@ extends RefCounted
 var projectile_view: ProjectileView = null
 ## The robots, beside the bolts once `attach` has run, null before.
 var robot_view: RobotView = null
+## The floating parts, beside the robots once `attach` has run, null before.
+var salvage_view: SalvageView = null
 
 
-## Puts the projectile and robot views under `world`, the node whose space is
+## Puts the projectile, robot and salvage views under `world`, the node whose space is
 ## the simulation's: both are drawn at the simulated positions as they are.
 ## Calling it again adds nothing.
 func attach(world: Node3D) -> void:
@@ -25,9 +27,11 @@ func attach(world: Node3D) -> void:
 	world.add_child(projectile_view)
 	robot_view = RobotView.new()
 	world.add_child(robot_view)
+	salvage_view = SalvageView.new()
+	world.add_child(salvage_view)
 
 
-## Shows this frame's projectiles, blended by the session's interpolation
+## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
 ## `panel`, if given, shows the ship's shield and hull.
 func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) -> void:
@@ -39,6 +43,8 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) ->
 		projectile_view.set_viewer(point_in(projectile_view, camera))
 	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction)
 	robot_view.show_robots(session.previous_robots(), session.current_robots(),
+		session.interpolation_fraction)
+	salvage_view.show_salvage(session.previous_salvage(), session.current_salvage(),
 		session.interpolation_fraction)
 
 
