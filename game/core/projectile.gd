@@ -12,7 +12,7 @@ var velocity: Vector3 = Vector3.ZERO
 var owner_index: int = 0
 ## Ticks it still flies; it is removed when this reaches zero.
 var ticks_left: int = 0
-## Damage it deals on a hit (hits arrive in a later issue).
+## Damage it deals to the robot it hits.
 var damage: float = 0.0
 
 
