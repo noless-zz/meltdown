@@ -1,0 +1,11 @@
+{
+	"id": "vertical_shaft",
+	"boxes": [
+		{"min": [-6.0, -40.0, -6.0], "max": [6.0, 0.0, 6.0]}
+	],
+	"connectors": [
+		{"position": [0.0, 0.0, 0.0], "axis": "+y", "size": "small"},
+		{"position": [0.0, -40.0, 0.0], "axis": "-y", "size": "small"},
+		{"position": [0.0, -34.0, 6.0], "axis": "+z", "size": "small"}
+	]
+}
