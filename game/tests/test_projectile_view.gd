@@ -11,7 +11,10 @@ const EPSILON: float = 1e-5
 
 
 func _valid_look() -> Dictionary:
-	return {"bolt_length_m": 0.6, "bolt_radius_m": 0.03, "emission_color": [1.0, 0.5, 0.1]}
+	return {
+		"bolt_length_m": 0.6, "bolt_radius_m": 0.03, "emission_color": [1.0, 0.5, 0.1],
+		"max_lights": 4, "light_range": 6.0, "light_energy": 1.5,
+	}
 
 
 func _shots(count: int) -> Array[Projectile]:
@@ -30,8 +33,8 @@ func _hash(projectiles: Array[Projectile]) -> int:
 
 func _bolt_ids(view: ProjectileView) -> Array[int]:
 	var ids: Array[int] = []
-	for child: Node in view.get_children():
-		ids.append(child.get_instance_id())
+	for index: int in view.bolt_count():
+		ids.append(view.bolt(index).get_instance_id())
 	return ids
 
 
@@ -63,7 +66,7 @@ func test_bolts_are_pooled() -> String:
 	if _bolt_ids(view) != ids:
 		result = "bolt nodes changed while the count stayed at 4"
 	view.show_projectiles(_shots(7), 0.5)
-	if result == "" and (view.bolt_count() != 7 or view.get_child_count() != 7):
+	if result == "" and (view.bolt_count() != 7 or view.get_child_count() != 7 + view.light_count()):
 		result = "7 shots gave %d bolts and %d children" % [view.bolt_count(), view.get_child_count()]
 	var grown: Array[int] = _bolt_ids(view)
 	view.show_projectiles(_shots(2), 0.5)
@@ -224,7 +227,10 @@ func test_defaults_match_the_shipped_file() -> String:
 		return str(values["error"])
 	if not is_equal_approx(values["bolt_length_m"], ProjectileView.DEFAULT_BOLT_LENGTH_M) \
 			or not is_equal_approx(values["bolt_radius_m"], ProjectileView.DEFAULT_BOLT_RADIUS_M) \
-			or not (values["emission_color"] as Color).is_equal_approx(ProjectileView.DEFAULT_EMISSION_COLOR):
+			or not (values["emission_color"] as Color).is_equal_approx(ProjectileView.DEFAULT_EMISSION_COLOR) \
+			or values["max_lights"] != ProjectileView.DEFAULT_MAX_LIGHTS \
+			or not is_equal_approx(values["light_range"], ProjectileView.DEFAULT_LIGHT_RANGE_M) \
+			or not is_equal_approx(values["light_energy"], ProjectileView.DEFAULT_LIGHT_ENERGY):
 		return "shipped look %s differs from the defaults" % values
 	return ""
 
