@@ -19,10 +19,9 @@ const MAX_TICKS_PER_ADVANCE: int = 5
 ## (90 frames of 1/90 s), which would lose one tick per second. Time within this
 ## margin of a whole tick counts as the whole tick.
 const TICK_EPSILON: float = 1.0e-6
-## Where the weapons a ship file's loadout names are read from, by id (#189).
-const WEAPON_DIR: String = "res://data/weapons/"
-## Where the robot types a spawn file names are read from, by id (#228).
-const ROBOT_DIR: String = "res://data/robots/"
+## Forwards to `SpawnLoader`, which reads the data files (#296).
+const WEAPON_DIR: String = SpawnLoader.WEAPON_DIR
+const ROBOT_DIR: String = SpawnLoader.ROBOT_DIR
 
 var sim: Sim
 ## Every input fed to `sim`, in order; running it reproduces `sim` (ARC-2).
@@ -78,7 +77,8 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 		tuning: ShipTuning = null, robots: Array[RobotSpawn] = [], loadout: ShipLoadout = null) -> void:
 	replay = Replay.new(run_seed, 1)
 	if bounds != null:
-		replay.set_box(_to_mm(bounds.min_corner), _to_mm(bounds.max_corner))
+		replay.set_box(SessionSnapshots.to_mm(bounds.min_corner),
+				SessionSnapshots.to_mm(bounds.max_corner))
 	if tuning != null and tuning.error == "":
 		replay.tuning = tuning
 	# The walls are taken back from the replay, rounded to its whole
@@ -94,11 +94,11 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 	if RobotSpawn.spawn_all(sim, robots):
 		replay.robots = robots.duplicate()
 	_input_source = input_source if input_source != null else ShipInputSource.new()
-	_current_ship = _snapshot(sim.ships[0])
-	_previous_ship = _snapshot(sim.ships[0])
-	_current_robots = _snapshot_robots()
+	_current_ship = SessionSnapshots.ship(sim.ships[0])
+	_previous_ship = SessionSnapshots.ship(sim.ships[0])
+	_current_robots = SessionSnapshots.robots(sim.robots)
 	_previous_robots = _current_robots
-	_current_salvage = _snapshot_salvage()
+	_current_salvage = SessionSnapshots.salvage(sim.salvage)
 	_previous_salvage = _current_salvage
 
 
@@ -132,32 +132,10 @@ func advance(delta_seconds: float) -> int:
 	return ticks_last_advance
 
 
-## Reads a ship data file. Returns null, after printing why, when the file is
-## missing or rejected, so the caller flies the built-in defaults.
-## The weapons its loadout names are read from `weapon_dir` and resolved here,
-## since core opens no files. If any of them is missing or rejected, the
-## problem is printed and the ship flies unarmed with the file's other values:
-## a half-armed ship would hide which weapon broke.
+## Reads a ship data file and the weapons its loadout names; see
+## `SpawnLoader.load_tuning`. Returns null when the file is missing or rejected.
 static func load_tuning(path: String, weapon_dir: String = WEAPON_DIR) -> ShipTuning:
-	var problem: String = ""
-	var tuning: ShipTuning = null
-	if not FileAccess.file_exists(path):
-		problem = "file not found"
-	else:
-		tuning = ShipTuning.parse_json(FileAccess.get_file_as_string(path))
-		problem = tuning.error
-	if problem != "":
-		print("Meltdown: ship tuning %s rejected (%s); flying with the built-in defaults" % [path, problem])
-		return null
-	var texts: Dictionary = {}
-	for id: String in tuning.loadout.weapon_ids():
-		var weapon_path: String = weapon_dir.path_join(id + ".json")
-		if FileAccess.file_exists(weapon_path):
-			texts[id] = FileAccess.get_file_as_string(weapon_path)
-	var weapon_problem: String = tuning.loadout.resolve(texts)
-	if weapon_problem != "":
-		print("Meltdown: ship loadout in %s rejected (%s); flying unarmed" % [path, weapon_problem])
-	return tuning
+	return SpawnLoader.load_tuning(path, weapon_dir)
 
 
 ## Reads a level's robot spawn file, the robot types it names from
@@ -224,12 +202,12 @@ func _run_tick() -> void:
 	replay.add_tick(inputs)
 	_accumulator -= ShipState.TICK_DT
 	_previous_ship = _current_ship
-	_current_ship = _snapshot(sim.ships[0])
+	_current_ship = SessionSnapshots.ship(sim.ships[0])
 	_snapshot_projectiles()
 	_previous_robots = _current_robots
-	_current_robots = _snapshot_robots()
+	_current_robots = SessionSnapshots.robots(sim.robots)
 	_previous_salvage = _current_salvage
-	_current_salvage = _snapshot_salvage()
+	_current_salvage = SessionSnapshots.salvage(sim.salvage)
 
 
 ## Drops the whole ticks left in the accumulator and keeps the fraction, so the
@@ -241,56 +219,10 @@ func _drop_whole_ticks() -> void:
 	_accumulator = maxf(_accumulator - dropped, 0.0)
 
 
-static func _snapshot(ship: ShipState) -> ShipState:
-	var copy: ShipState = ShipState.new()
-	_copy_fields(ship, copy)
-	return copy
-
-
-## Refreshes `_current_projectiles` from `sim.projectiles`, reusing the copy
-## each projectile already has and dropping those of removed projectiles.
+## Refreshes `_current_projectiles` from `sim.projectiles`, keeping each
+## projectile's copy from tick to tick.
 func _snapshot_projectiles() -> void:
-	var copies: Dictionary[Projectile, Projectile] = {}
+	_projectile_copies = SessionSnapshots.projectiles(sim.projectiles, _projectile_copies)
 	var listed: Array[Projectile] = []
-	for projectile: Projectile in sim.projectiles:
-		var copy: Projectile = _projectile_copies.get(projectile, null) as Projectile
-		if copy == null:
-			copy = Projectile.new()
-		_copy_fields(projectile, copy)
-		copies[projectile] = copy
-		listed.append(copy)
-	_projectile_copies = copies
+	listed.assign(_projectile_copies.values())
 	_current_projectiles = listed
-
-
-## A copy of each robot. The type is shared: `RobotDef` is never changed
-## after it is read.
-func _snapshot_robots() -> Array[RobotState]:
-	var copies: Array[RobotState] = []
-	for robot: RobotState in sim.robots:
-		var copy: RobotState = RobotState.new(robot.def)
-		_copy_fields(robot, copy)
-		copies.append(copy)
-	return copies
-
-
-func _snapshot_salvage() -> Array[SalvageItem]:
-	var copies: Array[SalvageItem] = []
-	for item: SalvageItem in sim.salvage:
-		var copy: SalvageItem = SalvageItem.new()
-		_copy_fields(item, copy)
-		copies.append(copy)
-	return copies
-
-
-## Copies every script variable, so fields added to `ShipState` or
-## `Projectile` later are carried along without changing this file.
-static func _copy_fields(from: Object, to: Object) -> void:
-	for property: Dictionary in from.get_property_list():
-		if int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE:
-			var prop_name: String = property["name"]
-			to.set(prop_name, from.get(prop_name))
-
-
-static func _to_mm(metres: Vector3) -> Vector3i:
-	return Vector3i((metres * float(Replay.BOX_SCALE)).round())
