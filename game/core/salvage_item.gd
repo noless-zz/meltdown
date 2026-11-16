@@ -51,6 +51,13 @@ func advance(bounds: BoxBounds = null) -> void:
 	velocity *= maxf(1.0 - DAMPING_PER_SECOND * ShipState.TICK_DT, 0.0)
 	if velocity.length() < REST_SPEED:
 		velocity = Vector3.ZERO
+	keep_inside(bounds)
+
+
+## Holds the item inside `bounds` as `RobotState.keep_inside` does: clamped to
+## the walls, any velocity into a wall dropped. Nothing happens for null, so
+## `Sim` can pass the box a `BoxUnion` picks after the move.
+func keep_inside(bounds: BoxBounds) -> void:
 	if bounds == null:
 		return
 	for axis: int in 3:
