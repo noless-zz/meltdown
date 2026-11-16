@@ -17,13 +17,14 @@ const TARGET_REFRESH_RATE: float = 90.0
 const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
 ## The ship's feel values, tuned after headset sessions without code changes.
 const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
+const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  # (#228)
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
 ## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
 ## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults.
 var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET),
-		LocalSession.load_tuning(SHIP_TUNING_PATH))
+		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH))
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
@@ -51,7 +52,7 @@ var status_panel: StatusPanel = null
 var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
 ## Logs each afterburner start and stop and pulses the boosting hand (#170).
 var boost_haptics: BoostHaptics = BoostHaptics.new()
-## The bolts and, later, the robots, drawn from session copies (#189, MP-2).
+## The bolts, robots, shield and hull, shown from session copies (#189, #228, MP-2).
 var combat: CombatWiring = CombatWiring.new()
 
 
@@ -150,7 +151,7 @@ func advance_frame(delta_seconds: float) -> void:
 		fade_overlay.set_alpha(reset_hold.alpha)
 	log_afterburner()
 	place_rig()
-	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D)
+	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
 	update_status_panel(delta_seconds)
 
 

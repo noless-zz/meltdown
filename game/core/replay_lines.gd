@@ -2,8 +2,8 @@ class_name ReplayLines
 extends RefCounted
 
 ## Writes and reads the lines of a replay that carry data: the box line
-## (version 3), the tuning line (version 5), the weapon lines (version 7) and
-## the tick lines. Split out of
+## (version 3), the tuning line (version 5), the weapon lines (version 7), the
+## robot lines (version 8) and the tick lines. Split out of
 ## `Replay` to keep both files short; the format is documented there.
 ##
 ## The parse functions return "" on success, with the value stored on the
@@ -118,6 +118,44 @@ static func parse_weapon_line(replay: Replay, line: String,
 	if replay.loadout == null:
 		replay.loadout = ShipLoadout.new()
 	replay.loadout.set_slot(kind, slot - 1, words[3], weapon)
+	return ""
+
+
+## `robot <x y z> <facing x y z> <json>`: position and facing in whole
+## millimetres, then every value of the robot's type at full precision, so the
+## robot read back is exactly the robot flown against.
+static func robot_text(spawn: RobotSpawn) -> String:
+	var data: Dictionary = {}
+	for key: String in RobotDef.KEYS:
+		data[key] = spawn.def.get(key)
+	var p: Vector3i = spawn.position_mm
+	var f: Vector3i = spawn.facing_mm
+	return "robot %d %d %d %d %d %d %s" % [p.x, p.y, p.z, f.x, f.y, f.z,
+		JSON.stringify(data, "", false, true)]
+
+
+## `line` is the whole robot line. Appends one spawn to `replay.robots`.
+static func parse_robot_line(replay: Replay, line: String,
+		seen: Dictionary[String, bool], version: int) -> String:
+	if seen.is_empty():
+		return "the first line must be '%s <version>'" % Replay.FORMAT_NAME
+	if version < 8:
+		return "a robot line needs format version 8 or later"
+	var words: PackedStringArray = line.split(" ", false, 7)
+	if words.size() != 8:
+		return "robot needs a position, a facing and the robot's data"
+	var values: Array[int] = []
+	for index: int in range(1, 7):
+		if not words[index].is_valid_int():
+			return "'%s' is not a whole number" % words[index]
+		values.append(words[index].to_int())
+	var facing: Vector3i = Vector3i(values[3], values[4], values[5])
+	if facing == Vector3i.ZERO:
+		return "robot facing must not be zero"
+	var def: RobotDef = RobotDef.parse_json(words[7])
+	if def.error != "":
+		return "robot %d: %s" % [replay.robots.size() + 1, def.error]
+	replay.robots.append(RobotSpawn.new(def, Vector3i(values[0], values[1], values[2]), facing))
 	return ""
 
 
