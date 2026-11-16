@@ -15,8 +15,13 @@ extends RefCounted
 ## - Q / E: roll left / right (left / right grip)
 ## - Shift: afterburner (A)
 ## - Space: primary fire (right trigger)
+## - G (`SLOT_PART_KEY`): slot the held part (right stick click, #312)
 ##
 ## The key state is passed in, so nothing here reads a device.
+
+## Slots the part in the hold, through the control the layout binds to
+## `slot_part`; G sits beside the movement keys under the left hand.
+const SLOT_PART_KEY: Key = KEY_G
 
 ## Physical key -> [control, value]. Stick controls add up, so opposite keys
 ## cancel; triggers, grips and buttons are set while their key is held.
@@ -39,6 +44,7 @@ static func default_bindings() -> Dictionary[int, Array]:
 		KEY_Q: ["left_grip", 1.0],
 		KEY_E: ["right_grip", 1.0],
 		KEY_SHIFT: ["right_button_lower", 1.0],
+		SLOT_PART_KEY: ["right_stick_click", 1.0],
 	}
 
 

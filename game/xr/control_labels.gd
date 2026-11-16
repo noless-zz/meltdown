@@ -22,6 +22,7 @@ const WORDS: Dictionary = {
 	"roll": ["roll left", "roll right"],
 	"afterburner": ["boost", "boost"],
 	"fire_primary": ["fire", "fire"],
+	"slot_part": ["slot part", "slot part"],
 }
 ## Controls labelled in every layout, because what they do is not part of a
 ## layout. The reset hold (#162) stays on the left menu button in left-handed
