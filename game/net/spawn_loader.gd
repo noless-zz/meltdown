@@ -1,10 +1,45 @@
 class_name SpawnLoader
 extends RefCounted
 
-## Reads a level's robot spawn file, the robot types it names and the weapon
-## each type fires, for `LocalSession.load_spawns`. Core opens no files
-## (ARC-1), so the reading happens here and core gets resolved definitions.
-## Kept out of `local_session.gd` so that file stays under its size limit.
+## Reads the data files a session starts from: a ship file and its weapons,
+## for `LocalSession.load_tuning`, and a level's robot spawn file, the robot
+## types it names and the weapon each type fires, for
+## `LocalSession.load_spawns`. Core opens no files (ARC-1), so the reading
+## happens here and core gets resolved definitions. Kept out of
+## `local_session.gd` so that file stays under its size limit.
+
+## Where the weapons a ship file's loadout names are read from, by id (#189).
+const WEAPON_DIR: String = "res://data/weapons/"
+## Where the robot types a spawn file names are read from, by id (#228).
+const ROBOT_DIR: String = "res://data/robots/"
+
+
+## Reads a ship data file. Returns null, after printing why, when the file is
+## missing or rejected, so the caller flies the built-in defaults.
+## The weapons its loadout names are read from `weapon_dir` and resolved here,
+## since core opens no files. If any of them is missing or rejected, the
+## problem is printed and the ship flies unarmed with the file's other values:
+## a half-armed ship would hide which weapon broke.
+static func load_tuning(path: String, weapon_dir: String = WEAPON_DIR) -> ShipTuning:
+	var problem: String = ""
+	var tuning: ShipTuning = null
+	if not FileAccess.file_exists(path):
+		problem = "file not found"
+	else:
+		tuning = ShipTuning.parse_json(FileAccess.get_file_as_string(path))
+		problem = tuning.error
+	if problem != "":
+		print("Meltdown: ship tuning %s rejected (%s); flying with the built-in defaults" % [path, problem])
+		return null
+	var texts: Dictionary = {}
+	for id: String in tuning.loadout.weapon_ids():
+		var weapon_path: String = weapon_dir.path_join(id + ".json")
+		if FileAccess.file_exists(weapon_path):
+			texts[id] = FileAccess.get_file_as_string(weapon_path)
+	var weapon_problem: String = tuning.loadout.resolve(texts)
+	if weapon_problem != "":
+		print("Meltdown: ship loadout in %s rejected (%s); flying unarmed" % [path, weapon_problem])
+	return tuning
 
 
 ## The spawns in the file at `path`, with their types read from `robot_dir`
