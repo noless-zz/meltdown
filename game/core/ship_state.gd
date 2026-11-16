@@ -183,14 +183,15 @@ func take_wall_hit(impact_speed: float) -> void:
 ## Hash of the full state, used by replay tests and network desync checks.
 ## Hull and shield each join the hash only once they differ from their
 ## maximum, so replays recorded before they existed, which never touch a
-## wall, keep their hashes. The shield goes last so that a full shield
-## leaves the hash of a damaged hull as it was.
+## wall, keep their hashes. Each carries a tag: untagged, a damaged hull with
+## a full shield and a full hull with an equally damaged shield appended the
+## same number and hashed alike, which would hide a desync (MP-2).
 func state_hash() -> int:
 	var parts: Array = [position, velocity, orientation, energy, afterburner_locked]
 	if hull != max_hull:
-		parts.append(hull)
+		parts.append(["hull", hull])
 	if shield != max_shield:
-		parts.append(shield)
+		parts.append(["shield", shield])
 	# Weapons join only once a slot is filled or a cooldown runs, so ships
 	# that never carried a weapon keep their hashes.
 	var weapons: Array = ["weapons", selected_primary, fire_cooldown]

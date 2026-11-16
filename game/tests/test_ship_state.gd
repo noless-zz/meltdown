@@ -61,3 +61,38 @@ func test_orientation_stays_orthonormal() -> String:
 	if absf(basis.determinant() - 1.0) > 0.001:
 		return "orientation determinant drifted to %f" % basis.determinant()
 	return ""
+
+
+## Hull and shield were once appended untagged, so a damaged hull and an
+## equally damaged shield hashed alike and a desync between them went unseen.
+func test_damaged_hull_and_damaged_shield_hash_differently() -> String:
+	var hull_hit: ShipState = ShipState.new()
+	hull_hit.hull = 40.0
+	var shield_hit: ShipState = ShipState.new()
+	shield_hit.shield = 40.0
+	if hull_hit.state_hash() == shield_hit.state_hash():
+		return "hull 40 with a full shield hashed like a full hull with shield 40"
+	return ""
+
+
+func test_swapped_hull_and_shield_hash_differently() -> String:
+	var a: ShipState = ShipState.new()
+	a.hull = 40.0
+	a.shield = 30.0
+	var b: ShipState = ShipState.new()
+	b.hull = 30.0
+	b.shield = 40.0
+	if a.state_hash() == b.state_hash():
+		return "hull 40 / shield 30 hashed like hull 30 / shield 40"
+	return ""
+
+
+## A full ship leaves hull and shield out, so replays that never take damage
+## keep the hashes recorded before the tags were added.
+func test_full_ship_keeps_the_untagged_hash() -> String:
+	var ship: ShipState = _fly(120, Vector3(0.3, -0.2, -1.0), Vector3(0.4, -0.7, 0.2))
+	var old: int = hash([ship.position, ship.velocity, ship.orientation, ship.energy,
+		ship.afterburner_locked])
+	if ship.state_hash() != old:
+		return "a full hull and shield changed the hash"
+	return ""
