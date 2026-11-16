@@ -54,7 +54,7 @@ static func log_line(status: String) -> String:
 ## not asked for (or this is not a debug build) and does nothing then;
 ## otherwise runs it, prints the log line and returns the status.
 static func run_if_requested() -> String:
-	return _run_if_requested(OS.is_debug_build(), OS.get_cmdline_user_args(), _android_runtime())
+	return _run_if_requested(OS.is_debug_build(), OS.get_cmdline_user_args(), android_runtime())
 
 
 ## The start-up decision with its inputs passed in, so the tests exercise the
@@ -63,7 +63,7 @@ static func run_if_requested() -> String:
 static func _run_if_requested(is_debug_build: bool, user_args: PackedStringArray, runtime: Object) -> String:
 	if not is_debug_build:
 		return ""
-	var intent_value: String = _intent_extra(runtime) if runtime != null else ""
+	var intent_value: String = intent_extra(runtime, INTENT_EXTRA) if runtime != null else ""
 	if not requested(user_args, intent_value):
 		return ""
 	var status: String = run(runtime)
@@ -81,7 +81,9 @@ static func run(runtime: Object) -> String:
 	return _hand_own_apk_to_installer(runtime)
 
 
-static func _android_runtime() -> Object:
+## The AndroidRuntime singleton, or null off Android. Public so other launch
+## switches (the acceptance runner, #165) read intents the same way.
+static func android_runtime() -> Object:
 	# The singleton only exists in an Android build; checking the OS first
 	# keeps desktop, headless and test runs away from Android classes.
 	if OS.get_name() != "Android" or not Engine.has_singleton("AndroidRuntime"):
@@ -89,14 +91,16 @@ static func _android_runtime() -> Object:
 	return Engine.get_singleton("AndroidRuntime")
 
 
-static func _intent_extra(runtime: Object) -> String:
+## The string extra `extra_name` of the intent that started the activity, or
+## "" when it is absent.
+static func intent_extra(runtime: Object, extra_name: String) -> String:
 	var activity: Object = runtime.call("getActivity")
 	if activity == null:
 		return ""
 	var intent: Object = activity.call("getIntent")
 	if intent == null:
 		return ""
-	var value: Variant = intent.call("getStringExtra", INTENT_EXTRA)
+	var value: Variant = intent.call("getStringExtra", extra_name)
 	return value if value is String else ""
 
 

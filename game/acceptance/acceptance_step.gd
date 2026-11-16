@@ -28,6 +28,10 @@ var preset: int = NO_PRESET
 var checks: Array[String] = []
 ## State hash the replay must end with, for the final_hash check, or NO_HASH.
 var expected_hash: int = NO_HASH
+## A check that cannot run on this device (no OpenXR runtime for xr_session)
+## is skipped; a required step fails instead, so a headset run cannot pass
+## without the check it was started for.
+var required: bool = false
 
 
 func has_check(check: String) -> bool:
