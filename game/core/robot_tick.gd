@@ -7,13 +7,17 @@ extends RefCounted
 ## `remove_destroyed` last.
 
 
-## Moves every robot in `sim.robots` one tick towards its target, keeps it
+## Wakes each sleeping robot a ship has come near, then moves every awake
+## robot in `sim.robots` one tick towards its target, keeps it
 ## inside the box of `sim.walls` picked where it ends up, and fires at its
 ## target if it can. The shot leaves the robot's centre along its facing at the
 ## weapon's speed, like a ship's.
 static func advance(sim: Sim) -> void:
 	for r: int in sim.robots.size():
 		var robot: RobotState = sim.robots[r]
+		robot.wake_if_near(sim.nearest_live_ship(robot.position))
+		if not robot.awake:
+			continue
 		robot.step(sim.nearest_live_ship(robot.position))
 		if sim.walls != null:
 			robot.keep_inside(sim.walls.box_for(robot.position, robot.def.radius))

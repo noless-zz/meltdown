@@ -9,6 +9,8 @@ const WEAPONS_DIR: String = "res://data/weapons"
 ## A scratch weapon folder with one good, one broken and the rest missing.
 const PARTIAL_DIR: String = "user://test_main_robot_weapons"
 const TICKS: int = 120
+## Forward flight that brings the drone's wake range over the ship.
+const WAKE_TICKS: int = 60
 
 
 func _main_session() -> Array:
@@ -51,13 +53,19 @@ func test_the_drone_fires_at_the_ship_and_the_replay_reproduces_it() -> String:
 	if drone < 0:
 		main.free()
 		return "no drone in the main scene"
-	# The ship holds still at the start, about 16 m from the drone and in
-	# front of it, well inside the pulse cannon's 180 m.
+	# The ship starts about 16 m from the drone and in front of it, well
+	# inside the pulse cannon's 180 m. The drone waits for the ship to come
+	# within its wake range (#301), so the ship flies forward for WAKE_TICKS
+	# and then lets go of the stick.
 	var distance: float = session.sim.robots[drone].position.distance_to(session.sim.ships[0].position)
 	var range_m: float = session.sim.robots[drone].weapon_range()
 	var start_defence: float = session.sim.ships[0].shield + session.sim.ships[0].hull
+	var source: LatestInputSource = main.get("input_source")
+	source.set_input(ShipInput.new(Vector3i(0, 0, -1000)))
 	var fired_at: int = -1
 	for tick: int in TICKS:
+		if tick == WAKE_TICKS:
+			source.set_input(ShipInput.new())
 		session.advance(ShipState.TICK_DT)
 		for projectile: Projectile in session.sim.projectiles:
 			if fired_at < 0 and projectile.owner_index == Projectile.robot_owner(drone):

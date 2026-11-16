@@ -84,6 +84,9 @@ func test_forward_thrust_moves_the_rig_along_minus_z() -> String:
 	var source: LatestInputSource = main.get("input_source")
 	var session: LocalSession = main.get("session")
 	source.set_input(ShipInput.new(Vector3i(0, 0, -1000)))
+	# Flying forward wakes the tunnel's robots (#301) and their hits shake the
+	# rig; this checks the rig follows the ship alone.
+	(main.get("session") as LocalSession).sim.robots.clear()
 	_fly(main, 90)
 	var rig: Node3D = main.get_node("XRRig") as Node3D
 	var rig_position: Vector3 = rig.position
