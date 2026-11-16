@@ -13,8 +13,8 @@ extends RefCounted
 ## It flies the bot in a session built as the main scene builds one for
 ## `--level=g2`, overwrites `acceptance/replays/bot_g2_level.replay` and prints
 ## the new hash; paste that hash into `expected_hash` of the step in
-## `acceptance/suites/m2.json`. The replay carries no reactor: the format has
-## none yet (#310).
+## `acceptance/suites/m2.json`. The replay carries no reactor, like the main
+## scene's G2 session: with it armed the bot cannot win yet (#345).
 
 const SUITE_PATH: String = "res://acceptance/suites/m2.json"
 const STEP_ID: String = "bot_clears_g2_level"

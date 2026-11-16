@@ -1,10 +1,10 @@
 # The bot pilot clearing the G2 level (#334), flown in the m2 suite.
 # Re-record from the repository root, then copy the printed hash into m2.json:
 #     MELTDOWN_RECORD_M2=1 godot --headless --path game -s res://tests/run_tests.gd
-meltdown-replay 12
+meltdown-replay 13
 seed 0
 ships 1
-hash 1787173250
+hash 2319032124
 box -6000 -4000 -40000 6000 4000 6000
 box -5000 -44000 -48000 5000 4000 -36000
 box -4000 -44000 -110000 4000 -36000 -44000
@@ -19,6 +19,10 @@ robot -1000 -40000 -60000 0 0 1000 {"robot":{"id":"skimmer","hull":30.0,"radius"
 robot 14000 -38000 -80000 -1000 0 0 {"robot":{"id":"glider","hull":40.0,"radius":1.2,"max_speed":18.0,"acceleration":30.0,"turn_rate":150.0,"movement":"strafe","weapon":"arc_lance","salvage":"arc_lance","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5},"weapon":{"fire_interval_ticks":20,"projectile_speed":300.0,"lifetime":0.4,"damage":14.0,"energy_cost":4.0}}
 robot 1000 -39000 -95000 0 0 1000 {"robot":{"id":"hauler","hull":60.0,"radius":1.6,"max_speed":6.0,"acceleration":8.0,"turn_rate":60.0,"movement":"chase","weapon":"slug_thrower","salvage":"slug_thrower","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5},"weapon":{"fire_interval_ticks":40,"projectile_speed":60.0,"lifetime":3.0,"damage":30.0,"energy_cost":6.0}}
 robot 0 -39000 -124000 0 0 1000 {"robot":{"id":"warden","hull":90.0,"radius":2.0,"max_speed":2.0,"acceleration":4.0,"turn_rate":45.0,"movement":"hover","weapon":"slug_thrower","salvage":"slug_thrower","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5},"weapon":{"fire_interval_ticks":40,"projectile_speed":60.0,"lifetime":3.0,"damage":30.0,"energy_cost":6.0}}
+part arc_lance {"fire_interval_ticks":20,"projectile_speed":300.0,"lifetime":0.4,"damage":14.0,"energy_cost":4.0}
+part needle_gun {"fire_interval_ticks":4,"projectile_speed":180.0,"lifetime":0.8,"damage":3.0,"energy_cost":1.0}
+part pulse_cannon {"fire_interval_ticks":10,"projectile_speed":120.0,"lifetime":1.5,"damage":8.0,"energy_cost":2.0}
+part slug_thrower {"fire_interval_ticks":40,"projectile_speed":60.0,"lifetime":3.0,"damage":30.0,"energy_cost":6.0}
 inputs
 62 31 -998 187 -375 0 0 0 1 0
 56 28 -998 169 -337 0 0 0 1 0

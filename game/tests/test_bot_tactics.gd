@@ -90,3 +90,20 @@ func test_falls_back_out_of_fire_with_a_low_shield() -> String:
 	if input.thrust_q.z <= 0:
 		return "with its shield low the bot thrust %s, expected back towards the start" % input.thrust_q
 	return ""
+
+
+## The reactor takes the ship's shots, so a robot behind it is out of reach
+## while one beside it is not.
+func test_a_robot_behind_the_reactor_is_out_of_reach() -> String:
+	var level: LevelDef = _level()
+	var sim: Sim = _sim(level, [])
+	var reactor: ReactorState = ReactorState.parse_json(
+		"{\"position\": [0.0, 0.0, -20.0], \"radius\": 2.5, \"hull\": 400.0, \"meltdown_seconds\": 90.0}")
+	if reactor.error != "" or not sim.set_reactor(reactor):
+		return "set-up: the reactor was refused: %s" % reactor.error
+	var bot: BotPilot = BotPilot.new(sim, 0, level)
+	if bot.shot_reaches(sim.ships[0], Vector3(0.0, 0.0, -30.0)):
+		return "a shot through the reactor reaches the robot behind it"
+	if not bot.shot_reaches(sim.ships[0], Vector3(5.0, 2.0, -39.9)):
+		return "a shot past the reactor does not reach"
+	return ""

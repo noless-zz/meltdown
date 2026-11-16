@@ -12,7 +12,7 @@
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_level.replay",
 			"checks": ["final_hash", "robots_cleared", "ship_alive"],
-			"expected_hash": 1787173250
+			"expected_hash": 2319032124
 		}
 	]
 }

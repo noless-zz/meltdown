@@ -135,7 +135,9 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 		aim = _last_safe
 	elif target != null:
 		aim = target.position
-		hold = ENGAGE_DISTANCE
+		# Out of reach (behind the reactor, say), holding off would only
+		# trade shots one way: close in until a shot gets through.
+		hold = ENGAGE_DISTANCE if in_sight else 0.0
 	elif not _has_goal:
 		return ShipInput.new()
 	var waypoint: Vector3 = _route.next_waypoint(ship.position, aim, ship.radius)
@@ -208,10 +210,15 @@ func _target_in_level(ship: ShipState, nearest: RobotState) -> RobotState:
 ## Whether a shot from `ship`'s selected primary weapon, fired straight at
 ## `point`, would reach it inside the walls. A shot is dropped once it ends a
 ## tick outside every box (`ProjectileHits`), so this checks the same points:
-## one per tick of flight. An empty slot never reaches anything.
+## one per tick of flight. An intact reactor in the way takes the shot, so
+## a robot behind it is out of reach too. An empty slot never reaches anything.
 func shot_reaches(ship: ShipState, point: Vector3) -> bool:
 	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
-	return weapon != null and _reaches(ship.position, point, weapon.projectile_speed)
+	if weapon == null:
+		return false
+	if _sim.reactor != null and _sim.reactor.segment_entry(ship.position, point) >= 0.0:
+		return false
+	return _reaches(ship.position, point, weapon.projectile_speed)
 
 
 ## Whether a shot at `speed` from `from` straight at `point` stays inside the
