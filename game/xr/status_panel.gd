@@ -4,8 +4,8 @@ extends Node3D
 ## A small panel fixed in the cockpit, low and ahead of the eye point, that
 ## shows at a glance what the owner could not tell in the headset (#146): the
 ## active comfort preset, the ship's speed, the energy pool, the shield and
-## hull (#227), whether the afterburner is boosting or locked out, and which
-## build is running.
+## hull (#227), whether the afterburner is boosting or locked out, the part in
+## the hold (#290), and which build is running.
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
 ## the session, so it can never read more than it is handed or write
@@ -27,6 +27,10 @@ const SHIELD_TRACK_NAME: String = "ShieldTrack"
 const HULL_LABEL_NAME: String = "HullLabel"
 const HULL_BAR_NAME: String = "HullBar"
 const HULL_TRACK_NAME: String = "HullTrack"
+const HOLD_NAME: String = "Hold"
+## The hold line reads "Hold <part>" or this, so an empty hold is said, not
+## left blank: a blank line looks the same as an unwired panel.
+const HOLD_EMPTY: String = "Hold empty"
 const BOOST_ON: String = "BOOST"
 const BOOST_RECHARGING: String = "recharging"
 
@@ -57,14 +61,15 @@ const HULL_COLOR: Color = Color(1.0, 0.72, 0.3)
 ## At or below this hull fraction the hull label turns `HULL_WARNING_COLOR`.
 const HULL_WARNING_FRACTION: float = 0.25
 const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
-## Rows, top to bottom, 3 cm apart: the bars sit under the energy bar and the
-## build line moves down below them.
+## Rows, top to bottom, 3 cm apart: the bars sit under the energy bar, the
+## hold line under the hull bar (#290), and the build line moves down below it.
 const PRESET_Y: float = 0.045
 const SPEED_Y: float = 0.015
 const ENERGY_Y: float = -0.015
 const SHIELD_Y: float = -0.045
 const HULL_Y: float = -0.075
-const BUILD_Y: float = -0.105
+const HOLD_Y: float = -0.105
+const BUILD_Y: float = -0.135
 const LABEL_X: float = -0.12
 ## The panel draws without a depth test, over whatever lies between it and the
 ## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
@@ -77,6 +82,9 @@ const RENDER_PRIORITY: int = 10
 ## track never covers them now that depth no longer decides.
 const RENDER_PRIORITY_TOP: int = RENDER_PRIORITY + 1
 
+## How many times the hold label's text was replaced. Only tests read it: it
+## shows that a per-frame call with the same part leaves the glyphs alone.
+var hold_text_changes: int = 0
 ## Seconds the large preset label has left; 0 when it is hidden.
 var large_seconds_left: float = 0.0
 
@@ -88,6 +96,7 @@ var _preset_large: Label3D
 var _speed: Label3D
 var _boost: Label3D
 var _build: Label3D
+var _hold: Label3D
 var _hull_label: Label3D
 var _energy_bar: PanelBar
 var _shield_bar: PanelBar
@@ -103,6 +112,8 @@ func _init() -> void:
 	_hull_label = _label(HULL_LABEL_NAME, Vector3(LABEL_X, HULL_Y, 0.0), SMALL_FONT)
 	_hull_label.text = "Hull"
 	_boost = _label(BOOST_NAME, Vector3(0.04, SPEED_Y, 0.0), SMALL_FONT)
+	_hold = _label(HOLD_NAME, Vector3(LABEL_X, HOLD_Y, 0.0), SMALL_FONT)
+	_hold.text = HOLD_EMPTY
 	_build = _label(BUILD_NAME, Vector3(LABEL_X, BUILD_Y, 0.0), SMALL_FONT)
 	_build.font_size = SMALL_FONT * 3 / 4
 	_preset_large = _label(PRESET_LARGE_NAME, Vector3(0.0, 0.11, 0.0), LARGE_FONT)
@@ -142,6 +153,13 @@ func show_defence(shield_fraction: float, hull_fraction: float) -> void:
 	_shield_bar.set_fraction(shield_fraction)
 	var hull: float = _hull_bar.set_fraction(hull_fraction)
 	_hull_label.modulate = HULL_WARNING_COLOR if hull <= HULL_WARNING_FRACTION else TEXT_COLOR
+
+
+## Shows the part in the hold by name; an empty string shows `HOLD_EMPTY`.
+## Safe to call every frame: the label is only rebuilt when the text changes.
+func show_hold(part_name: String) -> void:
+	if _set_text(_hold, HOLD_EMPTY if part_name.is_empty() else "Hold %s" % part_name):
+		hold_text_changes += 1
 
 
 ## Runs the large preset label's timer by `delta` seconds.
@@ -190,9 +208,12 @@ func _show_large(large: bool) -> void:
 
 
 ## Label3D rebuilds its glyph mesh on every assignment; most frames change nothing.
-static func _set_text(label: Label3D, text: String) -> void:
-	if label.text != text:
-		label.text = text
+## Returns whether the text was replaced.
+static func _set_text(label: Label3D, text: String) -> bool:
+	if label.text == text:
+		return false
+	label.text = text
+	return true
 
 
 func _label(label_name: String, at: Vector3, font_size: int) -> Label3D:
