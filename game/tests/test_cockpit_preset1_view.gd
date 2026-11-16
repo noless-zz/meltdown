@@ -10,12 +10,6 @@ extends RefCounted
 const LABEL_LAYOUT: GDScript = preload("res://tests/test_label_layout.gd")
 ## The flat stand-in for a seated head, as in `test_head_recentre.gd`.
 const SEATED_HEAD: Vector3 = Vector3(0.0, 1.6, 0.0)
-## Markers closer than this have their text label checked too. The 1 m label
-## hangs about 34 degrees up from the start, above even preset 2's 30 degree
-## window, so it is not a preset 1 matter; its marker ball is checked.
-const LABEL_CHECK_FROM_M: float = 5.0
-
-
 static func _anchored() -> CockpitSpec:
 	return CockpitSpec.for_preset(ComfortPresetFiles.load_number(1))
 
@@ -90,11 +84,11 @@ func test_distance_markers_are_inside_the_anchored_window() -> String:
 	var message: String = ""
 	if markers != null:
 		for marker: Node3D in markers.get_children():
-			var points: Dictionary = {"the %s ball" % marker.name: marker.position}
-			var distance: float = -marker.position.z
-			if distance >= LABEL_CHECK_FROM_M:
-				var label: Node3D = marker.get_node("Label") as Node3D
-				points["the %s label" % marker.name] = marker.position + label.position
+			# Every marker's label too: the 1 m label once hung about 34 degrees
+			# up, outside both the preset 1 and 2 windows (#249).
+			var label: Node3D = marker.get_node("Label") as Node3D
+			var points: Dictionary = {"the %s ball" % marker.name: marker.position,
+				"the %s label" % marker.name: marker.position + label.position}
 			for what: String in points:
 				var seen: Vector3 = eye.affine_inverse() * (tunnel.transform * (points[what] as Vector3))
 				message = outside_message(spec, seen, what)

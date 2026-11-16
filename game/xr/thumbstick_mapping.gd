@@ -18,7 +18,8 @@ extends RefCounted
 ## - A (right lower) holds the afterburner (FLT-2), which also gives full
 ##   forward thrust unless the stick is pulled back
 ## - Y (left upper) is the comfort preset button, read outside this mapping;
-##   the left stick click is kept for showing and hiding labels (not wired yet)
+##   the left stick click shows and hides the labels, also read outside this
+##   mapping (#181)
 ##
 ## Ship axes use the pilot's view, each -1..1 before scaling:
 ## `strafe` (+ right), `lift` (+ up), `forward` (+ ahead), `pitch` (+ nose up),
