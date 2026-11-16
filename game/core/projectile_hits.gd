@@ -83,7 +83,7 @@ static func _hit_robot(sim: Sim, projectile: Projectile, from: Vector3,
 
 
 ## As `_hit_robot`, for a robot's shot against the live ships (hull above
-## zero), within each ship's `radius`: the damage goes through
+## zero, not escaped: an escaped ship has left the level), within each ship's `radius`: the damage goes through
 ## `ShipState.apply_damage`, shield first, and a SHIP_HIT event names the ship.
 static func _hit_ship(sim: Sim, projectile: Projectile, from: Vector3,
 		hit_events: Array[SimEvent]) -> bool:
@@ -91,7 +91,7 @@ static func _hit_ship(sim: Sim, projectile: Projectile, from: Vector3,
 	var best_t: float = INF
 	for i: int in sim.ships.size():
 		var ship: ShipState = sim.ships[i]
-		if ship.hull <= 0.0:
+		if ship.hull <= 0.0 or ship.escaped:
 			continue
 		var t: float = Projectile.segment_entry(from, projectile.position, ship.position, ship.radius)
 		if t >= 0.0 and t < best_t:

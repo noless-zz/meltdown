@@ -88,9 +88,12 @@ func step(inputs: Array[ShipInput]) -> bool:
 	var slot_drops: Array[SalvageItem] = []
 	for i: int in ships.size():
 		var ship: ShipState = ships[i]
+		from.append(ship.position)
+		if ship.escaped:
+			continue
 		if inputs[i].reset_to_start:
 			_reset_to_start(i)
-		from.append(ship.position)
+			from[i] = ship.position
 		var was_active: bool = ship.afterburner_active
 		var was_locked: bool = ship.afterburner_locked
 		ship.step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
@@ -121,6 +124,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 			item.keep_inside(walls.box_for(item.position, SalvageItem.RADIUS))
 	salvage.append_array(slot_drops)
 	RobotTick.remove_destroyed(self, _killers)
+	ExitRule.apply(self, last_events)
 	_stepping = false
 	tick += 1
 	return true
@@ -215,14 +219,19 @@ func part_ids() -> Array[String]:
 	return ids
 
 
-## The live ship (hull above zero) nearest to `point`, or null if there is
+## How the run stands (RUN-3, RUN-7): running, escaped or lost. Read-only.
+func outcome() -> ExitRule.Outcome:
+	return ExitRule.outcome(self)
+
+
+## The live ship (hull above zero, not escaped) nearest to `point`, or null if there is
 ## none. Ships are tested in index order and only a strictly nearer one
 ## replaces the best, so ties go to the lower index.
 func nearest_live_ship(point: Vector3) -> ShipState:
 	var best: ShipState = null
 	var best_distance: float = INF
 	for ship: ShipState in ships:
-		if ship.hull <= 0.0:
+		if ship.hull <= 0.0 or ship.escaped:
 			continue
 		var distance: float = point.distance_squared_to(ship.position)
 		if distance < best_distance:
@@ -259,8 +268,8 @@ func _reset_to_start(index: int) -> void:
 
 
 ## Hash of the whole simulation state. Projectiles, robots, salvage, the part
-## catalogue and the reactor join only while there are any, so runs recorded
-## before them keep their hashes.
+## catalogue and the reactor, with the run's outcome, join only while there are
+## any, so runs recorded before them keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
@@ -285,4 +294,5 @@ func state_hash() -> int:
 	if reactor != null:
 		parts.append(hash("reactor"))
 		parts.append(reactor.state_hash())
+		parts.append(ExitRule.state_hash(self))
 	return hash(parts)

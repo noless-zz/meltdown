@@ -10,12 +10,16 @@ extends RefCounted
 ##     {"boxes": [{"min": [-6, -4, -40], "max": [6, 4, 6]}, ...],
 ##      "start": {"position": [0, 0, 0], "facing": [0, 0, -1]},
 ##      "robots": [{"id": "drone", "position": [0, -20, -42], "facing": [0, 1, 0]}],
-##      "reactor": {"position": [0, -39, -114], "radius": 2.5, "hull": 400, "meltdown_seconds": 90}}
+##      "reactor": {"position": [0, -39, -114], "radius": 2.5, "hull": 400, "meltdown_seconds": 90},
+##      "exit_radius": 4}
 ##
 ## Corners, positions and facings are metres, read in whole millimetres like
 ## robot spawns, so a level reads the same on every run (ARC-2). `robots` uses
 ## the entry format of `RobotSpawnList`, which parses it. `reactor` is optional
 ## (RUN-2) and read by `ReactorState`; a level without one runs as before.
+## `exit_radius` is optional too: the radius in metres of the exit sphere around
+## the start (RUN-3), `ExitRule.DEFAULT_RADIUS_M` when left out. It is handed to
+## the reactor, which carries it into the simulation and the replay.
 ##
 ## A level is rejected, with a message naming the problem, when a box's min is
 ## not below its max, a box cannot be reached from box 0, the start or a robot
@@ -25,7 +29,7 @@ extends RefCounted
 
 const TOP_KEYS: Array[String] = ["boxes", "start", "robots"]
 ## Top-level keys a level may leave out.
-const OPTIONAL_KEYS: Array[String] = ["reactor"]
+const OPTIONAL_KEYS: Array[String] = ["reactor", "exit_radius"]
 const BOX_KEYS: Array[String] = ["min", "max"]
 const START_KEYS: Array[String] = ["position", "facing"]
 ## Two boxes are joined when they overlap by at least this much on every axis:
@@ -43,6 +47,8 @@ var start_position_mm: Vector3i = Vector3i.ZERO
 var start_facing_mm: Vector3i = Vector3i(0, 0, -RobotSpawn.SCALE)
 ## The level's reactor before the first tick, or null for a level without one.
 var reactor: ReactorState = null
+## Radius of the exit sphere around the start (RUN-3), also set on `reactor`.
+var exit_radius_mm: int = roundi(ExitRule.DEFAULT_RADIUS_M * RobotSpawn.SCALE)
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -67,6 +73,8 @@ static func parse_json(text: String) -> LevelDef:
 		problem = level._read_robots(data["robots"])
 	if problem == "" and data.has("reactor"):
 		problem = level._read_reactor(data["reactor"])
+	if problem == "" and data.has("exit_radius"):
+		problem = level._read_exit_radius(data["exit_radius"])
 	if problem == "":
 		problem = level._check_connected()
 	if problem == "":
@@ -161,10 +169,24 @@ func _read_robots(value: Variant) -> String:
 
 
 func _read_reactor(value: Variant) -> String:
+	# One place to set the exit in a level file: the top level.
+	if typeof(value) == TYPE_DICTIONARY and (value as Dictionary).has("exit_radius"):
+		return "reactor: unknown key \"exit_radius\" (it belongs at the top level)"
 	var read: ReactorState = ReactorState.parse(value)
 	if read.error != "":
 		return read.error
 	reactor = read
+	return ""
+
+
+func _read_exit_radius(value: Variant) -> String:
+	var read: Array[int] = []
+	var problem: String = ReactorState.read_radius_mm(value, "exit_radius", read)
+	if problem != "":
+		return problem
+	exit_radius_mm = read[0]
+	if reactor != null:
+		reactor.exit_radius_mm = exit_radius_mm
 	return ""
 
 

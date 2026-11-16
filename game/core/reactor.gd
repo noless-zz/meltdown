@@ -13,8 +13,16 @@ extends RefCounted
 ## Position and radius are metres, read in whole millimetres like robot spawns,
 ## so the reactor is the same on every device (ARC-2). Hull and meltdown time
 ## are data, not code (ARC-4).
+##
+## The reactor also carries the radius of the level's exit (RUN-3): the exit only
+## matters once the reactor is dead, and so the replay's reactor line holds it
+## too. A level file sets it with its top-level `exit_radius` key (`LevelDef`); the
+## optional `exit_radius` key here exists for the replay line, and is missing in
+## replays written before #311, which then get `ExitRule.DEFAULT_RADIUS_M`.
 
 const KEYS: Array[String] = ["position", "radius", "hull", "meltdown_seconds"]
+## Keys the JSON may leave out.
+const OPTIONAL_KEYS: Array[String] = ["exit_radius"]
 const TICKS_PER_SECOND: int = 60
 ## Large enough for any room; a typo of a few orders of magnitude is caught.
 const MAX_RADIUS_M: float = 100.0
@@ -30,6 +38,9 @@ var hull: float = 1.0
 var destroyed: bool = false
 ## Ticks until the meltdown ends; 0 until destroyed. Part of the hash.
 var meltdown_ticks_left: int = 0
+## Radius of the exit sphere at the start (RUN-3). Fixed for the run, so not
+## part of the hash.
+var exit_radius_mm: int = roundi(ExitRule.DEFAULT_RADIUS_M * RobotSpawn.SCALE)
 ## Set by `parse` when the data was rejected; empty otherwise.
 var error: String = ""
 
@@ -61,6 +72,7 @@ func fresh_copy() -> ReactorState:
 	copy.radius_mm = radius_mm
 	copy.max_hull = max_hull
 	copy.meltdown_seconds = meltdown_seconds
+	copy.exit_radius_mm = exit_radius_mm
 	copy.hull = max_hull
 	return copy
 
@@ -71,7 +83,8 @@ func to_json() -> String:
 	var position: Array[float] = [position_mm.x / scale, position_mm.y / scale,
 		position_mm.z / scale]
 	return JSON.stringify({"position": position, "radius": radius_mm / scale,
-		"hull": max_hull, "meltdown_seconds": meltdown_seconds}, "", false, true)
+		"hull": max_hull, "meltdown_seconds": meltdown_seconds,
+		"exit_radius": exit_radius_mm / scale}, "", false, true)
 
 
 func position() -> Vector3:
@@ -80,6 +93,25 @@ func position() -> Vector3:
 
 func radius() -> float:
 	return radius_mm / float(RobotSpawn.SCALE)
+
+
+func exit_radius() -> float:
+	return exit_radius_mm / float(RobotSpawn.SCALE)
+
+
+## Reads `value`, metres, as a radius in whole millimetres into `read`.
+## Returns "" or the problem, naming `key`.
+static func read_radius_mm(value: Variant, key: String, read: Array[int]) -> String:
+	if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT \
+			or not is_finite(float(value)) or float(value) <= 0.0:
+		return "%s must be a number above zero" % key
+	if float(value) > MAX_RADIUS_M:
+		return "%s must be at most %s m" % [key, MAX_RADIUS_M]
+	var mm: int = roundi(float(value) * RobotSpawn.SCALE)
+	if mm < 1:
+		return "%s must be at least 1 mm" % key
+	read.append(mm)
+	return ""
 
 
 ## Ticks the countdown starts from when the reactor dies.
@@ -124,7 +156,7 @@ func _read(value: Variant) -> String:
 		return "must be a JSON object"
 	var data: Dictionary = value
 	for key: Variant in data:
-		if not KEYS.has(key):
+		if not KEYS.has(key) and not OPTIONAL_KEYS.has(key):
 			return "unknown key \"%s\"" % str(key)
 	for key: String in KEYS:
 		if not data.has(key):
@@ -151,4 +183,10 @@ func _read(value: Variant) -> String:
 	meltdown_seconds = numbers["meltdown_seconds"]
 	if meltdown_ticks() < 1:
 		return "meltdown_seconds must be at least one tick"
+	if data.has("exit_radius"):
+		var read_exit: Array[int] = []
+		problem = read_radius_mm(data["exit_radius"], "exit_radius", read_exit)
+		if problem != "":
+			return problem
+		exit_radius_mm = read_exit[0]
 	return ""

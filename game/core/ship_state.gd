@@ -86,6 +86,11 @@ var fire_cooldown: int = 0
 const HOLD_CAPACITY: int = 1
 ## Part ids in the order they were taken, at most HOLD_CAPACITY.
 var hold: Array[String] = []
+## Set by `ExitRule` when the ship leaves through the exit during the meltdown
+## (RUN-3); `Sim` then stops stepping it and nothing can hit it. Not in this
+## state's hash: `Sim` hashes it with the reactor, so levels without one keep
+## their hashes.
+var escaped: bool = false
 
 const MIN_WALL_RESTITUTION: float = 0.05
 
