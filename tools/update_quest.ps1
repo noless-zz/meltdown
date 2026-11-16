@@ -60,6 +60,37 @@ function Invoke-Adb {
 	return [pscustomobject]@{ Ok = $ok; Text = ($lines -join "`n") }
 }
 
+# A failure with no `Failure [...]` part has been seen once on a headset that
+# then took the same APK by hand (#210), so it is retried once without
+# streaming. A failure with a reason is not retried: the reason will not change.
+# Returns the last attempt's result.
+function Install-Apk {
+	param([string]$Serial, [string]$Path)
+	$result = Invoke-Adb @('-s', $Serial, 'install', '-r', $Path)
+	if ($result.Ok -or $result.Text -match 'Failure \[') {
+		return $result
+	}
+	Write-Host '  adb gave no reason; trying once more with --no-streaming...' -ForegroundColor Yellow
+	return Invoke-Adb @('-s', $Serial, 'install', '-r', '--no-streaming', $Path)
+}
+
+# Always ends with adb's reason, or a plain statement that it gave none, and
+# the command to try by hand.
+function Write-InstallFailure {
+	param([string]$Serial, [string]$Path, [string]$Text)
+	Write-Host "  Install failed on ${Serial}:" -ForegroundColor Red
+	foreach ($line in ($Text -split "`n")) {
+		Write-Host "    $line"
+	}
+	$match = [regex]::Match($Text, 'Failure \[.*\]')
+	if ($match.Success) {
+		Write-Host "  Reason: $($match.Value)" -ForegroundColor Red
+	} else {
+		Write-Host '  adb gave no reason.' -ForegroundColor Red
+	}
+	Write-Host "  To try by hand: adb -s $Serial install -r `"$Path`""
+}
+
 # Checked before downloading so a forgotten cable fails in a second.
 $serials = @()
 $list = Invoke-Adb @('devices')
@@ -78,6 +109,8 @@ if ($serials.Count -eq 0) {
 $work = Join-Path ([IO.Path]::GetTempPath()) ('meltdown-update-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 $exitCode = 0
+# Kept after a failed install so the printed manual command has a file to use.
+$keepDownload = $false
 try {
 	$apkPath = Join-Path $work $apkName
 	$shaPath = "$apkPath.sha256"
@@ -112,7 +145,7 @@ try {
 	$installed = @()
 	foreach ($serial in $serials) {
 		Write-Host "Installing on $serial..."
-		$result = Invoke-Adb @('-s', $serial, 'install', '-r', $apkPath)
+		$result = Install-Apk -Serial $serial -Path $apkPath
 		if (-not $result.Ok -and $result.Text -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
 			Write-Host "  The copy on $serial has a different signature, so it cannot be updated in place." -ForegroundColor Yellow
 			if (-not $UninstallFirst) {
@@ -122,16 +155,19 @@ try {
 			}
 			Write-Host '  Uninstalling it first; its saved data is lost.' -ForegroundColor Yellow
 			Invoke-Adb @('-s', $serial, 'uninstall', $package) | Out-Null
-			$result = Invoke-Adb @('-s', $serial, 'install', '-r', $apkPath)
+			$result = Install-Apk -Serial $serial -Path $apkPath
 		}
 		if ($result.Ok) {
 			$installed += $serial
 			Write-Host '  Installed.'
 		} else {
-			Write-Host "  Install failed on ${serial}:" -ForegroundColor Red
-			Write-Host $result.Text
+			Write-InstallFailure -Serial $serial -Path $apkPath -Text $result.Text
+			$keepDownload = $true
 			$exitCode = 1
 		}
+	}
+	if ($keepDownload) {
+		Write-Host "The download is kept in $work for that; delete the folder when done." -ForegroundColor Yellow
 	}
 
 	Write-Host ''
@@ -152,6 +188,8 @@ try {
 		}
 	}
 } finally {
-	Remove-Item -Recurse -Force -Path $work -ErrorAction SilentlyContinue
+	if (-not $keepDownload) {
+		Remove-Item -Recurse -Force -Path $work -ErrorAction SilentlyContinue
+	}
 }
 exit $exitCode
