@@ -31,6 +31,9 @@ jobs:
       - name: Check the release notes script
         run: tools/test_release_notes.sh
 
+      - name: Check the Quest update script
+        run: tools/test_update_quest.sh
+
       - name: Download Godot
         run: |
           curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
