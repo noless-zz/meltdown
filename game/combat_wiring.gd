@@ -3,7 +3,8 @@ extends RefCounted
 
 ## Joins the session's combat state to what the main scene shows (CMB-1,
 ## CMB-2, CMB-3, LGT-1, SLV-1): the projectiles, the robots (#228), the
-## floating salvage (#287) and the shield and hull bars on the status panel.
+## floating salvage (#287), the shield and hull bars and the hold row (#316) on
+## the status panel.
 ##
 ## It sits beside `main.gd`, like `ComfortWiring`, because it reads the `net/`
 ## session, which `view/` may not depend on. It hands the view copies from
@@ -33,10 +34,11 @@ func attach(world: Node3D) -> void:
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
-## `panel`, if given, shows the ship's shield and hull.
+## `panel`, if given, shows the ship's shield, hull and the part in its hold.
 func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) -> void:
 	if panel != null:
 		show_defence(panel, session.current_ship())
+		panel.show_hold(held_part(session.current_ship()))
 	if projectile_view == null:
 		return
 	if camera != null:
@@ -54,6 +56,13 @@ static func show_defence(panel: StatusPanel, ship: ShipState) -> void:
 	var shield: float = ship.shield / ship.max_shield if ship.max_shield > 0.0 else 0.0
 	var hull: float = ship.hull / ship.max_hull if ship.max_hull > 0.0 else 0.0
 	panel.show_defence(shield, hull)
+
+
+## The part `ship`, a session copy, would slot next: the first id in its hold,
+## or "" when the hold is empty. Weapon data files carry no display name yet,
+## so the id is what the panel shows.
+static func held_part(ship: ShipState) -> String:
+	return ship.hold[0] if not ship.hold.is_empty() else ""
 
 
 ## Where `node` is, in `space`'s coordinates: its global position seen from
