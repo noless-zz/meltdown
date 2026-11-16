@@ -1,15 +1,17 @@
 class_name ReplayLines
 extends RefCounted
 
-## Writes and reads the lines of a replay that carry data: the box line
-## (version 3), the tuning line (version 5), the weapon lines (version 7), the
-## robot lines (version 8, armed and with every robot key from version 9)
-## and the tick lines. Split out of
-## `Replay` to keep both files short; the format is documented there.
+## Writes and reads the lines of a replay that carry data: the box lines
+## (version 3, several from version 12), the tuning line (version 5), the
+## weapon lines (version 7), the robot lines (version 8, armed and with every
+## robot key from version 9) and the tick lines. Split out of `Replay` to keep
+## both files short; the format is documented there.
 ##
 ## The parse functions return "" on success, with the value stored on the
 ## replay, or a problem without the line number, which `Replay.from_text` adds.
 
+## First format version that may carry several box lines, one per box.
+const MULTI_BOX_VERSION: int = 12
 ## The two keys of a version 9 robot line's JSON object.
 const ROBOT_LINE_KEYS: Array[String] = ["robot", "weapon"]
 
@@ -35,7 +37,7 @@ static func parse_box_line(replay: Replay, words: PackedStringArray,
 		return "the first line must be '%s <version>'" % Replay.FORMAT_NAME
 	if version < 3:
 		return "a box line needs format version 3 or later"
-	if seen.has("box"):
+	if seen.has("box") and version < MULTI_BOX_VERSION:
 		return "'box' appears twice"
 	seen["box"] = true
 	if words.size() != 7:
@@ -49,7 +51,7 @@ static func parse_box_line(replay: Replay, words: PackedStringArray,
 	var max_mm: Vector3i = Vector3i(values[3], values[4], values[5])
 	if min_mm.x >= max_mm.x or min_mm.y >= max_mm.y or min_mm.z >= max_mm.z:
 		return "box min corner must be below its max corner on every axis"
-	replay.set_box(min_mm, max_mm)
+	replay.add_box(min_mm, max_mm)
 	return ""
 
 

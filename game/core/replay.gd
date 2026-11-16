@@ -5,13 +5,15 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 11       format name and version
+##     meltdown-replay 12       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
 ##     box -5000 -5000 -40000 5000 5000 5000
 ##                              optional (version 3): walls the ships fly
-##                              inside, min then max corner in millimetres
+##                              inside, min then max corner in millimetres;
+##                              from version 12 one line per box of the level,
+##                              in order, read as one `BoxUnion`
 ##     tuning {"max_speed":20.0,...}
 ##                              optional (version 5): every ship's feel values,
 ##                              as a one-line ship data file (`ShipTuning`)
@@ -43,18 +45,17 @@ extends RefCounted
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
 ## off. Versions 1 to 5 have no fire column and are read with it off. Versions
 ## 1 to 10 have no slot column and are read with it off. Versions
-## 1 and 2 have no box line, versions 1 to 4 no tuning line, versions 1 to 6
-## no weapon lines, versions 1 to 7 no robot lines, versions 1 to 9 no part
-## lines. Version 8 robot lines hold
-## the robot's data file alone, with no "robot" or "weapon" key, and read as
-## unarmed. Files are always written
-## as the current version.
+## 1 and 2 have no box line, versions 3 to 11 at most one, versions 1 to 4 no
+## tuning line, versions 1 to 6 no weapon lines, versions 1 to 7 no robot
+## lines, versions 1 to 9 no part lines. Version 8 robot lines hold the robot's
+## data file alone, with no "robot" or "weapon" key, and read as unarmed. Files
+## are always written as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 11
+const FORMAT_VERSION: int = 12
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -66,10 +67,14 @@ var run_seed: int = 0
 var ship_count: int = 1
 ## Final state hash this replay is expected to produce, or NO_HASH.
 var expected_hash: int = NO_HASH
-## Whether the run has walls; if so, their corners in millimetres.
+## Whether the run has walls; if so, the first box's corners in millimetres.
 var has_box: bool = false
 var box_min_mm: Vector3i = Vector3i.ZERO
 var box_max_mm: Vector3i = Vector3i.ZERO
+## Corners of every box in order, in millimetres. Change them with `set_box`,
+## `add_box` or `set_boxes`.
+var box_mins_mm: Array[Vector3i] = []
+var box_maxs_mm: Array[Vector3i] = []
 ## Feel values of every ship from the first tick, or null for the defaults.
 var tuning: ShipTuning = null
 ## Weapons every ship starts with, already resolved, or null for none.
@@ -108,7 +113,9 @@ func add_tick(inputs: Array[ShipInput]) -> bool:
 ## downstream could tell.
 func run() -> Sim:
 	run_error = ""
-	var sim: Sim = Sim.new(run_seed, ship_count, bounds())
+	var sim: Sim = Sim.new(run_seed, ship_count, null)
+	# A one-box union is exactly what the constructor builds from one box.
+	sim.set_walls(walls())
 	apply_tuning(sim)
 	if loadout != null:
 		sim.equip(loadout)
@@ -127,11 +134,34 @@ func run() -> Sim:
 	return sim
 
 
-## Gives the run walls, from corners in millimetres.
+## Gives the run walls of one box, from corners in millimetres, replacing any
+## boxes it had.
 func set_box(min_mm: Vector3i, max_mm: Vector3i) -> void:
+	box_mins_mm.clear()
+	box_maxs_mm.clear()
+	add_box(min_mm, max_mm)
+
+
+## Adds a box after the run's other boxes, from corners in millimetres.
+func add_box(min_mm: Vector3i, max_mm: Vector3i) -> void:
+	box_mins_mm.append(min_mm)
+	box_maxs_mm.append(max_mm)
 	has_box = true
-	box_min_mm = min_mm
-	box_max_mm = max_mm
+	box_min_mm = box_mins_mm[0]
+	box_max_mm = box_maxs_mm[0]
+
+
+## Gives the run walls of every box in order, `mins_mm[i]` and `maxs_mm[i]`
+## being the corners of box i in millimetres. Returns false, changing nothing,
+## unless both lists hold the same number of boxes, at least one.
+func set_boxes(mins_mm: Array[Vector3i], maxs_mm: Array[Vector3i]) -> bool:
+	if mins_mm.is_empty() or mins_mm.size() != maxs_mm.size():
+		return false
+	box_mins_mm.clear()
+	box_maxs_mm.clear()
+	for index: int in mins_mm.size():
+		add_box(mins_mm[index], maxs_mm[index])
+	return true
 
 
 ## Gives every ship of `sim` this run's tuning, if it has one. Call it before
@@ -143,11 +173,26 @@ func apply_tuning(sim: Sim) -> void:
 		tuning.apply_to(ship)
 
 
-## The walls of this run as a `BoxBounds`, or null without a box line.
+## The first box of the walls, or null without a box line.
 func bounds() -> BoxBounds:
 	if not has_box:
 		return null
-	return BoxBounds.new(Vector3(box_min_mm) / float(BOX_SCALE), Vector3(box_max_mm) / float(BOX_SCALE))
+	return _box(0)
+
+
+## Every box of the walls, in order, or null without a box line.
+func walls() -> BoxUnion:
+	if not has_box:
+		return null
+	var list: Array[BoxBounds] = []
+	for index: int in box_mins_mm.size():
+		list.append(_box(index))
+	return BoxUnion.new(list)
+
+
+func _box(index: int) -> BoxBounds:
+	return BoxBounds.new(Vector3(box_mins_mm[index]) / float(BOX_SCALE),
+		Vector3(box_maxs_mm[index]) / float(BOX_SCALE))
 
 
 func to_text() -> String:
@@ -157,8 +202,8 @@ func to_text() -> String:
 	lines.append("ships %d" % ship_count)
 	if expected_hash != NO_HASH:
 		lines.append("hash %d" % expected_hash)
-	if has_box:
-		lines.append(ReplayLines.box_text(box_min_mm, box_max_mm))
+	for index: int in box_mins_mm.size():
+		lines.append(ReplayLines.box_text(box_mins_mm[index], box_maxs_mm[index]))
 	if tuning != null:
 		lines.append(ReplayLines.tuning_text(tuning))
 	if loadout != null:
