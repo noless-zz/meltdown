@@ -39,6 +39,11 @@ enum Kind {
 	## `vector` where it was dropped. Reported after every other event of the
 	## tick, in robot order.
 	SALVAGE_DROPPED,
+	## A ship flew through a floating part and took it into its hold (SLV-1).
+	## `ship` is that ship, `magnitude` the item's index in `Sim.salvage` as it was
+	## before this tick's pickups and `vector` where it floated. Reported after the
+	## projectile hits and before any SALVAGE_DROPPED of the tick, in ship order.
+	SALVAGE_COLLECTED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
