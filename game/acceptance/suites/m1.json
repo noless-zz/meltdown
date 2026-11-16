@@ -1,0 +1,11 @@
+{
+	"name": "m1",
+	"steps": [
+		{
+			"id": "basic_flight",
+			"replay": "res://acceptance/replays/basic_flight.replay",
+			"checks": ["final_hash"],
+			"expected_hash": 861662111
+		}
+	]
+}
