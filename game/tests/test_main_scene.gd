@@ -191,9 +191,9 @@ func test_rig_labels_follow_the_main_scene_mapping() -> String:
 	rig.call("_process", 0.0)
 	var left: ControllerModel = rig.call("model_for", "left") as ControllerModel
 	var right: ControllerModel = rig.call("model_for", "right") as ControllerModel
-	if message == "" and right.label_texts().get("stick_click", "") != "boost":
-		message = "left-handed boost should label the right stick click: %s" % right.label_texts()
-	if message == "" and left.label_texts().has("stick_click"):
-		message = "the left stick click still has a label: %s" % left.label_texts()
+	if message == "" and left.label_texts().get("button_lower", "") != "boost":
+		message = "left-handed boost should label X: %s" % left.label_texts()
+	if message == "" and right.label_texts().get("button_lower", "") == "boost":
+		message = "A still reads boost: %s" % right.label_texts()
 	main.free()
 	return message

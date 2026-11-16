@@ -21,6 +21,7 @@ const WORDS: Dictionary = {
 	"yaw": ["yaw left", "yaw right"],
 	"roll": ["roll left", "roll right"],
 	"afterburner": ["boost", "boost"],
+	"fire_primary": ["fire", "fire"],
 }
 ## Controls that report both directions (-1..1). Every other control reports
 ## 0..1, so only the sign of its weight picks the word.

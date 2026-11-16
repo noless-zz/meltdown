@@ -77,29 +77,35 @@ func test_unexpected_reads_count_as_released() -> String:
 
 
 func test_controller_chain_flies_forward_and_boosts() -> String:
-	var hands: Dictionary = {"left": {"primary": Vector2(0.0, 1.0), "primary_click": true}}
+	var hands: Dictionary = {"left": {"primary": Vector2(0.0, 1.0)}, "right": {"ax_button": true}}
 	var values: Dictionary = _fake_controllers(["left", "right"], hands).sample()
 	var input: ShipInput = ControllerSampler.map_values(ThumbstickMapping.new(), values)
 	if input.thrust_q != Vector3i(0, 0, -1000):
 		return "full left stick forward gave thrust %s" % str(input.thrust_q)
 	if not input.afterburner:
-		return "left stick click did not hold the afterburner"
+		return "A did not hold the afterburner"
+	var trigger: Dictionary = {"right": {"trigger": 1.0}}
+	var fired: ShipInput = ControllerSampler.map_values(ThumbstickMapping.new(),
+		_fake_controllers(["left", "right"], trigger).sample())
+	if not fired.fire_primary or fired.thrust_q != Vector3i.ZERO:
+		return "the right trigger should fire without moving, got fire %s thrust %s" % [
+			fired.fire_primary, fired.thrust_q]
 	return ""
 
 
 func test_keyboard_keys_reach_plain_values() -> String:
 	var keyboard: KeyboardSampler = KeyboardSampler.new()
-	var values: Dictionary = keyboard.sample([KEY_W, KEY_LEFT, KEY_R, KEY_E, KEY_SHIFT])
+	var values: Dictionary = keyboard.sample([KEY_W, KEY_LEFT, KEY_R, KEY_E, KEY_SHIFT, KEY_SPACE])
 	if values["left_stick"] != Vector2(0.0, 1.0):
 		return "W gave left stick %s" % str(values["left_stick"])
 	if values["right_stick"] != Vector2(-1.0, 0.0):
 		return "Left arrow gave right stick %s" % str(values["right_stick"])
 	if values["right_trigger"] != 1.0 or values["left_trigger"] != 0.0:
-		return "R gave triggers %s / %s" % [values["left_trigger"], values["right_trigger"]]
+		return "Space gave triggers %s / %s" % [values["left_trigger"], values["right_trigger"]]
 	if values["right_grip"] != 1.0 or values["left_grip"] != 0.0:
 		return "E gave grips %s / %s" % [values["left_grip"], values["right_grip"]]
-	if values["buttons"] != {"left_stick_click": true}:
-		return "Shift gave buttons %s" % str(values["buttons"])
+	if values["buttons"] != {"right_button_upper": true, "right_button_lower": true}:
+		return "R and Shift gave buttons %s" % str(values["buttons"])
 	return ""
 
 
@@ -118,7 +124,7 @@ func test_no_keys_and_unbound_keys_give_idle() -> String:
 	var keyboard: KeyboardSampler = KeyboardSampler.new()
 	if keyboard.sample([]) != ControllerSampler.idle_values():
 		return "no keys did not read idle"
-	if keyboard.sample([KEY_Z, KEY_SPACE]) != ControllerSampler.idle_values():
+	if keyboard.sample([KEY_Z, KEY_TAB]) != ControllerSampler.idle_values():
 		return "unbound keys did not read idle"
 	if keyboard.used_keys().size() != KeyboardSampler.default_bindings().size():
 		return "used_keys does not list every bound key"

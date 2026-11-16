@@ -14,9 +14,10 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_stick_y": "nose down / up",
 	"left_grip": "roll left",
 	"right_grip": "roll right",
-	"left_trigger": "down",
-	"right_trigger": "up",
-	"left_stick_click": "boost",
+	"left_button_lower": "down",
+	"right_button_upper": "up",
+	"right_button_lower": "boost",
+	"right_trigger": "fire",
 }
 
 
@@ -45,8 +46,9 @@ func test_default_layout_labels_every_bound_control() -> String:
 
 func test_unbound_controls_get_no_label() -> String:
 	var got: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout())
-	for control: String in ["left_button_lower", "left_button_upper",
-			"right_button_lower", "right_button_upper", "right_stick_click"]:
+	# Y and the left stick click are read outside the layout (decision record 0004).
+	for control: String in ["left_trigger", "left_button_upper",
+			"left_stick_click", "right_stick_click"]:
 		if got.has(control):
 			return "%s is unbound but labelled '%s'" % [control, got[control]]
 	var zero: Dictionary = ControlLabels.for_layout({"lift": {"right_trigger": 0.0}})
@@ -63,19 +65,19 @@ func test_left_handed_moves_labels_to_the_other_hand() -> String:
 	var message: String = _compare(got, want, "left-handed")
 	if message != "":
 		return message
-	if got.get("right_stick_click", "") != "boost":
-		return "left-handed boost should be on the right stick click"
+	if got.get("left_button_lower", "") != "boost" or got.get("left_trigger", "") != "fire":
+		return "left-handed boost should be on X and fire on the left trigger: %s" % got
 	return ""
 
 
 func test_remapping_one_axis_changes_its_label() -> String:
 	var layout: Dictionary = ThumbstickMapping.default_layout()
-	layout["lift"] = {"right_button_upper": 1.0, "right_button_lower": -1.0}
+	layout["lift"] = {"left_trigger": -1.0, "right_grip": 1.0}
 	var got: Dictionary = ControlLabels.for_layout(layout)
-	if got.has("right_trigger") or got.has("left_trigger"):
-		return "triggers still labelled after lift moved to the buttons: %s" % got
-	if got.get("right_button_upper", "") != "up" or got.get("right_button_lower", "") != "down":
-		return "buttons should read up and down, got %s" % got
+	if got.has("right_button_upper") or got.has("left_button_lower"):
+		return "buttons still labelled after lift moved away: %s" % got
+	if got.get("left_trigger", "") != "down" or got.get("right_grip", "") != "roll right, up":
+		return "left trigger should read down and right grip roll right, up; got %s" % got
 	if got.get("right_stick_x", "") != DEFAULT_LABELS["right_stick_x"]:
 		return "an untouched axis changed its label"
 	return ""
@@ -102,8 +104,8 @@ func test_two_actions_on_one_control_are_both_named() -> String:
 	layout["afterburner"] = {"right_trigger": 1.0}
 	var got: Dictionary = ControlLabels.for_layout(layout)
 	var text: String = str(got.get("right_trigger", ""))
-	if not ("up" in text and "boost" in text):
-		return "right trigger should name up and boost, got '%s'" % text
+	if not ("fire" in text and "boost" in text):
+		return "right trigger should name fire and boost, got '%s'" % text
 	return ""
 
 
@@ -113,8 +115,9 @@ func test_labels_split_by_hand() -> String:
 	var right: Dictionary = ControlLabels.for_hand(labels, "right")
 	if left.size() + right.size() != labels.size():
 		return "hands should share all %d labels, got %d + %d" % [labels.size(), left.size(), right.size()]
-	if left.get("trigger", "") != "down" or right.get("trigger", "") != "up":
-		return "trigger labels per hand wrong: %s / %s" % [left, right]
+	if left.get("button_lower", "") != "down" or right.get("button_upper", "") != "up" \
+			or right.get("trigger", "") != "fire" or left.has("trigger"):
+		return "labels per hand wrong: %s / %s" % [left, right]
 	return ""
 
 
@@ -155,19 +158,19 @@ func test_rig_rebuilds_labels_on_remap_and_left_handed() -> String:
 	var mapping: ThumbstickMapping = rig.get("mapping") as ThumbstickMapping
 	var message: String = ""
 	# A remap made in place, as a settings menu would, is picked up per frame.
-	mapping.layout["lift"] = {"right_button_upper": 1.0}
+	mapping.layout["lift"] = {"right_stick_click": 1.0}
 	rig.call("_process", 0.0)
 	var right: ControllerModel = rig.call("model_for", "right") as ControllerModel
-	if right.label_texts().get("button_upper", "") != "up" or right.label_texts().has("trigger"):
+	if right.label_texts().get("stick_click", "") != "up" or right.label_texts().has("button_upper"):
 		message = "remap not shown: %s" % right.label_texts()
 	if message == "":
 		mapping.left_handed = true
 		rig.call("_process", 0.0)
 		var left: ControllerModel = rig.call("model_for", "left") as ControllerModel
-		if left.label_texts().get("button_upper", "") != "up":
+		if left.label_texts().get("stick_click", "") != "up":
 			message = "left-handed not shown: %s" % left.label_texts()
-		elif left.label_texts().get("stick_click", "") != "" or right.label_texts().get("stick_click", "") != "boost":
-			message = "boost should move to the right stick click: %s / %s" % [left.label_texts(), right.label_texts()]
+		elif right.label_texts().get("button_lower", "") != "" or left.label_texts().get("button_lower", "") != "boost":
+			message = "boost should move to X: %s / %s" % [left.label_texts(), right.label_texts()]
 	rig.free()
 	return message
 
