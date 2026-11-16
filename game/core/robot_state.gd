@@ -13,6 +13,23 @@ var velocity: Vector3 = Vector3.ZERO
 var orientation: Basis = Basis.IDENTITY
 ## Hull points left; starts at `def.hull`.
 var hull: float = 0.0
+## Which way a strafer circles its target: +1 or -1. `Sim` sets it from the
+## spawn index, so the choice is deterministic and does not change when an
+## earlier robot is destroyed and the indices shift (ARC-2).
+var strafe_direction: int = 1
+
+## Chasers stop this many of their own radii, plus the ship's radius, from the
+## ship's centre: close enough to press, far enough not to ram. A named
+## constant until `RobotDef` gains an optional key for it (lane-c).
+const CHASE_STANDOFF_RADII: float = 4.0
+## Distance band a strafer holds from its target's centre, metres. Constants
+## for the same reason as above.
+const STRAFE_MIN_DISTANCE: float = 10.0
+const STRAFE_MAX_DISTANCE: float = 20.0
+## How hard a strafer pulls back to the middle of its band, metres per second
+## of radial speed per metre off the middle. Inside the band the pull is
+## gentle, so the circling dominates.
+const STRAFE_RADIAL_GAIN: float = 0.5
 
 
 func _init(p_def: RobotDef, p_position: Vector3 = Vector3.ZERO,
@@ -23,10 +40,108 @@ func _init(p_def: RobotDef, p_position: Vector3 = Vector3.ZERO,
 	hull = p_def.hull
 
 
-## Moves one tick according to `def.movement`. Every movement is treated as
-## hover until chase and strafe get their own issue.
-func step() -> void:
-	_hover()
+## Moves one tick according to `def.movement`, towards or around `target`,
+## the ship `Sim` chose for it. With no target every movement is hover and the
+## robot does not turn: there is nothing to face.
+func step(target: ShipState = null) -> void:
+	if target == null:
+		_hover()
+		return
+	var offset: Vector3 = target.position - position
+	var distance: float = offset.length()
+	# A target exactly on the centre gives no direction; keep the facing.
+	var to_target: Vector3 = offset / distance if distance > 0.0 else forward()
+	turn_towards(to_target)
+	match def.movement:
+		"chase":
+			_chase(to_target, distance, chase_standoff(target))
+		"strafe":
+			_strafe(to_target, distance)
+		_:
+			_hover()
+
+
+## The direction the robot faces: its local -z, as for ships.
+func forward() -> Vector3:
+	return -orientation.z.normalized()
+
+
+## Largest turn in one tick, radians.
+func max_turn_per_tick() -> float:
+	return deg_to_rad(def.turn_rate) * ShipState.TICK_DT
+
+
+## Distance from the target's centre a chaser holds.
+func chase_standoff(target: ShipState) -> float:
+	return CHASE_STANDOFF_RADII * def.radius + target.radius
+
+
+## Turns the facing towards `direction` (unit length) by at most
+## `max_turn_per_tick`. The rotation is about the axis perpendicular to both,
+## so the facing moves by exactly the turned angle and no roll is added.
+func turn_towards(direction: Vector3) -> void:
+	var facing: Vector3 = forward()
+	var angle: float = facing.angle_to(direction)
+	if angle <= 0.0:
+		return
+	var axis: Vector3 = facing.cross(direction)
+	if axis.length_squared() < 1e-12:
+		# Exactly behind: any perpendicular axis will do; the robot's own up
+		# keeps the choice deterministic.
+		axis = orientation.y
+	var turn: float = minf(angle, max_turn_per_tick())
+	orientation = Basis(axis.normalized(), turn) * orientation
+	orientation = orientation.orthonormalized()
+
+
+## Closes on the target along the facing, slowing so that it can stop at
+## `standoff` with its own acceleration; inside the stand-off it backs away.
+## The approach is scaled by how well it faces the target, so a chaser still
+## turning does not fly off sideways.
+func _chase(to_target: Vector3, distance: float, standoff: float) -> void:
+	var gap: float = distance - standoff
+	var desired: Vector3 = Vector3.ZERO
+	if gap > 0.0:
+		var alignment: float = maxf(forward().dot(to_target), 0.0)
+		desired = forward() * _stopping_speed(gap) * alignment
+	elif gap < 0.0:
+		desired = -to_target * _stopping_speed(-gap)
+	_steer(desired)
+
+
+## Circles the target sideways in `strafe_direction`, about the world vertical
+## (or the world x axis when straight above or below it), drifting back to the
+## middle of the distance band.
+func _strafe(to_target: Vector3, distance: float) -> void:
+	var axis: Vector3 = Vector3.UP
+	if absf(to_target.dot(axis)) > 0.99:
+		axis = Vector3.RIGHT
+	var sideways: Vector3 = to_target.cross(axis).normalized() * float(strafe_direction)
+	var middle: float = (STRAFE_MIN_DISTANCE + STRAFE_MAX_DISTANCE) * 0.5
+	var radial: float = clampf((distance - middle) * STRAFE_RADIAL_GAIN,
+		-def.max_speed, def.max_speed)
+	# Outside the band, getting back in comes first.
+	if distance < STRAFE_MIN_DISTANCE or distance > STRAFE_MAX_DISTANCE:
+		radial = signf(radial) * def.max_speed
+	_steer((sideways * def.max_speed + to_target * radial).limit_length(def.max_speed))
+
+
+## Fastest speed from which `def.acceleration` still stops within `gap`
+## metres, capped at `def.max_speed`. One tick of margin keeps the discrete
+## tick from overshooting.
+func _stopping_speed(gap: float) -> float:
+	var a: float = def.acceleration
+	var speed: float = sqrt(2.0 * a * gap + a * a * ShipState.TICK_DT * ShipState.TICK_DT) \
+		- a * ShipState.TICK_DT
+	return minf(maxf(speed, 0.0), def.max_speed)
+
+
+## Changes velocity towards `desired` by at most `def.acceleration` this tick,
+## caps it at `def.max_speed` and moves.
+func _steer(desired: Vector3) -> void:
+	var change: Vector3 = (desired - velocity).limit_length(def.acceleration * ShipState.TICK_DT)
+	velocity = (velocity + change).limit_length(def.max_speed)
+	position += velocity * ShipState.TICK_DT
 
 
 ## Holds position: any velocity is braked towards zero at `def.acceleration`,
@@ -108,4 +223,5 @@ func state_hash() -> int:
 		"velocity", velocity,
 		"orientation", orientation,
 		"hull", hull,
+		"strafe_direction", strafe_direction,
 	])

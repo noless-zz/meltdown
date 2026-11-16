@@ -95,7 +95,11 @@ func step(inputs: Array[ShipInput]) -> bool:
 func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis) -> int:
 	if _stepping:
 		return -1
-	robots.append(RobotState.new(def, position, orientation))
+	var robot: RobotState = RobotState.new(def, position, orientation)
+	# Even spawn indices circle one way, odd the other, so a pair of
+	# strafers spread around the ship instead of chasing each other's tail.
+	robot.strafe_direction = 1 if robots.size() % 2 == 0 else -1
+	robots.append(robot)
 	return robots.size() - 1
 
 
@@ -111,12 +115,29 @@ func equip(loadout: ShipLoadout) -> bool:
 	return true
 
 
-## Moves every robot one tick, after the ships, and keeps it inside the walls.
+## Moves every robot one tick, after the ships, towards its target, and keeps
+## it inside the walls.
 func _advance_robots() -> void:
 	for robot: RobotState in robots:
-		robot.step()
+		robot.step(nearest_live_ship(robot.position))
 		if bounds != null:
 			robot.keep_inside(bounds)
+
+
+## The live ship (hull above zero) nearest to `point`, or null if there is
+## none. Ships are tested in index order and only a strictly nearer one
+## replaces the best, so ties go to the lower index.
+func nearest_live_ship(point: Vector3) -> ShipState:
+	var best: ShipState = null
+	var best_distance: float = INF
+	for ship: ShipState in ships:
+		if ship.hull <= 0.0:
+			continue
+		var distance: float = point.distance_squared_to(ship.position)
+		if distance < best_distance:
+			best = ship
+			best_distance = distance
+	return best
 
 
 ## Sets where ship `index` returns on a reset. Before the first tick it also
