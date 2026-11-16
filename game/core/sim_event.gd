@@ -1,7 +1,7 @@
 class_name SimEvent
 extends RefCounted
 
-## Something that happened to one ship on one tick, reported by `Sim.step` in
+## Something that happened to or was done by one ship on one tick, reported by `Sim.step` in
 ## `Sim.last_events`.
 ##
 ## Haptics, cockpit shake and sound (PLT-6, CMF-6) react to these instead of
@@ -21,10 +21,19 @@ enum Kind {
 	## metres per second; `vector` is the unit wall normal, pointing back into
 	## the open space. A corner hit is one event whose normal is the average.
 	WALL_IMPACT,
+	## A projectile hit a robot. `ship` is the ship that fired it, `magnitude`
+	## the damage dealt and `vector` the projectile's unit direction of flight.
+	## Reported after every ship event of the tick, in projectile order.
+	ROBOT_HIT,
+	## A robot's hull reached zero; it is removed from `Sim.robots` at the end
+	## of the tick. Follows the ROBOT_HIT of the killing shot, and `ship` is
+	## the ship that fired it.
+	ROBOT_DESTROYED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
-## Index into `Sim.ships`.
+## Index into `Sim.ships`: the ship it happened to, or for robot events the
+## ship whose shot caused it.
 var ship: int = 0
 ## Kind-specific size; 0.0 for kinds that have none.
 var magnitude: float = 0.0

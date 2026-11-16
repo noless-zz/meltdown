@@ -31,6 +31,9 @@ var start_orientations: Array[Basis] = []
 var projectiles: Array[Projectile] = []
 ## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
 var robots: Array[RobotState] = []
+## Robot events of the tick being stepped. Hits are found when projectiles
+## move, before the ships, but their events follow the ship events.
+var _robot_events: Array[SimEvent] = []
 ## True only while `step` runs, so a spawn cannot land part-way through a tick.
 var _stepping: bool = false
 
@@ -51,6 +54,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	last_events = []
 	if inputs.size() != ships.size():
 		return false
+	_robot_events = []
 	_stepping = true
 	if tick == 0:
 		_record_start_poses()
@@ -76,7 +80,9 @@ func step(inputs: Array[ShipInput]) -> bool:
 				last_events.append(SimEvent.new(
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 		_fire(i, inputs[i].fire_primary)
+	last_events.append_array(_robot_events)
 	_advance_robots()
+	_remove_destroyed_robots()
 	_stepping = false
 	tick += 1
 	return true
@@ -128,17 +134,60 @@ func _reset_to_start(index: int) -> void:
 	ship.velocity = Vector3.ZERO
 
 
-## Moves every projectile one tick and removes those whose lifetime is over
-## or that have left the walls.
+## Removes robots whose hull reached zero this tick, keeping the order of
+## the rest, so robot indices stay in spawn order.
+func _remove_destroyed_robots() -> void:
+	var kept: Array[RobotState] = []
+	for robot: RobotState in robots:
+		if robot.is_alive():
+			kept.append(robot)
+	robots = kept
+
+
+## Moves every projectile one tick and removes those that hit a robot, whose
+## lifetime is over or that have left the walls. The hit test runs on the
+## whole segment flown this tick, before the other two, so a shot on its
+## last tick or leaving through a wall still hits what it passed on the way.
 func _advance_projectiles() -> void:
 	var kept: Array[Projectile] = []
 	for projectile: Projectile in projectiles:
-		if not projectile.advance():
+		var from: Vector3 = projectile.position
+		var alive: bool = projectile.advance()
+		if _hit_robot(projectile, from):
+			continue
+		if not alive:
 			continue
 		if bounds != null and not bounds.holds(projectile.position, 0.0):
 			continue
 		kept.append(projectile)
 	projectiles = kept
+
+
+## Applies `projectile`'s damage to the first live robot its segment from
+## `from` to its current position passes within reach of, and records the
+## events. Returns whether it hit, so the caller removes it: one shot never
+## hits two robots. Robots are tested in index order and only a strictly
+## nearer entry replaces the best, so ties go to the lower index.
+func _hit_robot(projectile: Projectile, from: Vector3) -> bool:
+	var best: int = -1
+	var best_t: float = INF
+	for r: int in robots.size():
+		if not robots[r].is_alive():
+			continue
+		var t: float = robots[r].segment_entry(from, projectile.position)
+		if t >= 0.0 and t < best_t:
+			best = r
+			best_t = t
+	if best < 0:
+		return false
+	var robot: RobotState = robots[best]
+	robot.apply_damage(projectile.damage)
+	var direction: Vector3 = projectile.velocity.normalized()
+	_robot_events.append(SimEvent.new(SimEvent.Kind.ROBOT_HIT, projectile.owner_index,
+		projectile.damage, direction))
+	if not robot.is_alive():
+		_robot_events.append(SimEvent.new(SimEvent.Kind.ROBOT_DESTROYED, projectile.owner_index))
+	return true
 
 
 ## Fires ship `index`'s primary weapon if it is held and ready. The shot
