@@ -5,7 +5,8 @@ extends Node
 ## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
 ## is set, so a normal start never sees it.
 ##
-## Each step sets its comfort preset, flies its replay through the scene's own
+## Each step sets its comfort preset, switches the scene to its level (#334),
+## flies its replay through the scene's own
 ## `advance_frame` (one tick per frame, the replay's inputs in place of the
 ## controllers), runs its checks and records them in an `AcceptanceReport`.
 ## At the end every report is written to `user://acceptance/` and echoed to the
@@ -23,7 +24,7 @@ const XR_WAIT_FRAMES: int = 900
 const LOG_PREFIX: String = "Meltdown: acceptance"
 
 ## The game scene (`main.gd`): read through `session`, `build_info`,
-## `advance_frame` and `set_comfort_preset`.
+## `advance_frame`, `set_comfort_preset` and `use_level`.
 var main: Node = null
 var suites: Array[AcceptanceSuite] = []
 ## The OpenXR interface, or null when there is none; tests pass their own.
@@ -47,6 +48,8 @@ var _step_started: bool = false
 var _xr_waited: int = 0
 var _errors_at_step_start: int = 0
 var _source: ReplayInputSource = null
+## Why the step's level could not be flown, or "".
+var _level_problem: String = ""
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -139,20 +142,23 @@ func _start_step(step: AcceptanceStep) -> void:
 	_step_started = true
 	_xr_waited = 0
 	_source = null
+	_level_problem = ""
 	_errors_at_step_start = _errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
 	if step.replay_path == "":
 		return
+	# The scene draws the level and drops the tunnel, as `--level=` does; the
+	# session it builds is replaced by the replay's below.
+	if step.level != "" and not main.call("use_level", LevelSwitch.path_for(step.level)):
+		_level_problem = "level %s: the scene could not switch to it" % step.level
+		return
 	var replay: Replay = Replay.load_file(step.replay_path)
 	if replay.error != "" or replay.ship_count != 1:
 		return  # `_replay_problem` reports it when the step is recorded.
 	_source = ReplayInputSource.new(replay)
-	# A fresh session from the replay's own seed, walls, tuning, weapons, robots
-	# and part catalogue, so the scene flies exactly the run the replay recorded.
-	main.set("session", LocalSession.new(replay.run_seed, _source, replay.bounds(), replay.tuning,
-		replay.robots, replay.loadout, replay.parts))
+	main.set("session", _source.new_session())
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
@@ -176,7 +182,7 @@ func _record_step(step: AcceptanceStep) -> void:
 	var outcomes: Array[String] = []
 	var notes: PackedStringArray = PackedStringArray()
 	var measurements: Dictionary = {}
-	var problem: String = _replay_problem(step)
+	var problem: String = _level_problem if _level_problem != "" else _replay_problem(step)
 	if problem != "":
 		outcomes.append(AcceptanceReport.RESULT_FAIL)
 		notes.append(problem)
@@ -209,19 +215,9 @@ func _replay_problem(step: AcceptanceStep) -> String:
 
 ## [result, message] for one check, adding its measurements.
 func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -> Array:
+	if AcceptanceStep.REPLAY_CHECKS.has(check):
+		return AcceptanceStateChecks.run(check, step, main.get("session"), _source != null, measurements)
 	match check:
-		AcceptanceStep.CHECK_FINAL_HASH:
-			if _source == null:
-				return [AcceptanceReport.RESULT_FAIL, "no replay was flown"]
-			var session: LocalSession = main.get("session")
-			var actual: int = session.sim.state_hash()
-			measurements["final_hash"] = actual
-			measurements["expected_hash"] = step.expected_hash
-			measurements["ticks"] = session.sim.tick
-			if actual != step.expected_hash:
-				return [AcceptanceReport.RESULT_FAIL,
-					"final hash %d, expected %d" % [actual, step.expected_hash]]
-			return [AcceptanceReport.RESULT_PASS, "final hash %d" % actual]
 		AcceptanceStep.CHECK_XR_SESSION:
 			if not _xr_available():
 				var outcome: String = AcceptanceReport.RESULT_FAIL if step.required \
