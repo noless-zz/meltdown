@@ -1,0 +1,9 @@
+{
+	"name": "m0",
+	"steps": [
+		{
+			"id": "stereo_session",
+			"checks": ["xr_session"]
+		}
+	]
+}
