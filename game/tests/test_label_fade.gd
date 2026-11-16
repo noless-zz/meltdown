@@ -145,12 +145,12 @@ func test_rig_fades_each_hand_on_its_own() -> String:
 	if message == "" and not (is_equal_approx(right.label_alpha(), 1.0) and is_zero_approx(left.label_alpha())):
 		message = "only the right hand's labels should come back: left %f, right %f" % [
 			left.label_alpha(), right.label_alpha()]
-	var label: Label3D = right.label_set().label_for("trigger")
+	var label: Label3D = right.label_set().label_for("stick_x")
 	if message == "" and (label == null or not is_equal_approx(label.modulate.a, 1.0)):
-		message = "the right trigger label is not drawn at full opacity"
-	label = left.label_set().label_for("trigger")
+		message = "the right stick label is not drawn at full opacity"
+	label = left.label_set().label_for("stick_x")
 	if message == "" and (label == null or not is_zero_approx(label.modulate.a)):
-		message = "the left trigger label should be transparent"
+		message = "the left stick label should be transparent"
 	rig.free()
 	return message
 

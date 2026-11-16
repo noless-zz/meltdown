@@ -3,7 +3,8 @@ extends RefCounted
 ## Control layouts as data files (issue #82, PLT-5, ARC-4, FLT-1): the
 ## default file matches the built-in layout, the paired layout puts both
 ## directions of lift and roll on one hand each, and bad files are rejected
-## with the built-in default kept.
+## with the built-in default kept. Both files follow decision record 0004
+## (#149): triggers fire, A boosts, face buttons lift.
 
 const ROLL: float = ThumbstickMapping.MAX_ROLL_RATE
 
@@ -32,9 +33,10 @@ func _layout_diff(got: Dictionary, want: Dictionary) -> String:
 
 func _same_input(got: ShipInput, want: ShipInput, label: String) -> String:
 	if got.thrust_q != want.thrust_q or got.turn_q != want.turn_q \
-			or got.afterburner != want.afterburner:
-		return "%s: got thrust %s turn %s, want thrust %s turn %s" % [
-			label, got.thrust_q, got.turn_q, want.thrust_q, want.turn_q]
+			or got.afterburner != want.afterburner or got.fire_primary != want.fire_primary:
+		return "%s: got thrust %s turn %s boost %s fire %s, want thrust %s turn %s boost %s fire %s" % [
+			label, got.thrust_q, got.turn_q, got.afterburner, got.fire_primary,
+			want.thrust_q, want.turn_q, want.afterburner, want.fire_primary]
 	return ""
 
 
@@ -52,10 +54,38 @@ func test_default_layout_is_unchanged() -> String:
 		"yaw": {"right_stick_x": 1.0},
 		"pitch": {"right_stick_y": 1.0},
 		"roll": {"left_grip": -1.0, "right_grip": 1.0},
-		"lift": {"left_trigger": -1.0, "right_trigger": 1.0},
-		"afterburner": {"left_stick_click": 1.0},
+		"lift": {"left_button_lower": -1.0, "right_button_upper": 1.0},
+		"afterburner": {"right_button_lower": 1.0},
+		"fire_primary": {"right_trigger": 1.0},
 	}
 	return _layout_diff(ThumbstickMapping.default_layout(), want)
+
+
+func test_paired_file_follows_decision_record() -> String:
+	var want: Dictionary = {
+		"strafe": {"left_stick_x": 1.0},
+		"forward": {"left_stick_y": 1.0},
+		"yaw": {"right_stick_x": 1.0},
+		"pitch": {"right_stick_y": 1.0},
+		"roll": {"left_button_lower": -1.0, "left_grip": 1.0},
+		"lift": {"right_button_upper": 1.0, "right_grip": -1.0},
+		"afterburner": {"right_button_lower": 1.0},
+		"fire_primary": {"right_trigger": 1.0},
+	}
+	return _layout_diff(_paired().layout, want)
+
+
+func test_no_layout_file_binds_a_trigger_to_lift() -> String:
+	for path: String in [ThumbstickMapping.DEFAULT_LAYOUT_FILE, ThumbstickMapping.PAIRED_LAYOUT_FILE]:
+		var m: ThumbstickMapping = ThumbstickMapping.from_file(path)
+		var z: Vector2 = Vector2.ZERO
+		for pull: Array in [[1.0, 0.0], [0.0, 1.0]]:
+			var input: ShipInput = m.map_controls(z, z, pull[0], pull[1], 0.0, 0.0)
+			if input.thrust_q != Vector3i.ZERO:
+				return "%s: triggers %s moved the ship %s" % [path, pull, input.thrust_q]
+		if not m.map_controls(z, z, 0.0, 1.0, 0.0, 0.0).fire_primary:
+			return "%s: right trigger does not fire" % path
+	return ""
 
 
 func test_paired_file_loads() -> String:
@@ -69,11 +99,11 @@ func test_paired_bindings_give_right_axis_and_sign() -> String:
 	var m: ThumbstickMapping = _paired()
 	var z: Vector2 = Vector2.ZERO
 	var cases: Array[Array] = [
-		["right trigger up", m.map_controls(z, z, 0.0, 1.0, 0.0, 0.0),
+		["B up", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"right_button_upper": true}),
 			ShipInput.from_floats(Vector3(0, 1, 0), Vector3.ZERO)],
 		["right grip down", m.map_controls(z, z, 0.0, 0.0, 0.0, 1.0),
 			ShipInput.from_floats(Vector3(0, -1, 0), Vector3.ZERO)],
-		["left trigger roll left", m.map_controls(z, z, 1.0, 0.0, 0.0, 0.0),
+		["X roll left", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"left_button_lower": true}),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, ROLL))],
 		["left grip roll right", m.map_controls(z, z, 0.0, 0.0, 1.0, 0.0),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, -ROLL))],
@@ -88,7 +118,7 @@ func test_paired_bindings_give_right_axis_and_sign() -> String:
 func test_paired_sticks_and_afterburner_match_default() -> String:
 	var paired: ThumbstickMapping = _paired()
 	var built_in: ThumbstickMapping = ThumbstickMapping.new()
-	for action: String in ["strafe", "forward", "yaw", "pitch", "afterburner"]:
+	for action: String in ["strafe", "forward", "yaw", "pitch", "afterburner", "fire_primary"]:
 		if paired.layout.get(action) != built_in.layout.get(action):
 			return "\"%s\": paired %s, default %s" % [
 				action, paired.layout.get(action), built_in.layout.get(action)]
@@ -98,11 +128,11 @@ func test_paired_sticks_and_afterburner_match_default() -> String:
 func test_right_controller_alone_gives_both_directions_of_lift() -> String:
 	var m: ThumbstickMapping = _paired()
 	var z: Vector2 = Vector2.ZERO
-	# Only right-hand values: the left trigger and grip stay at rest.
-	var up: ShipInput = m.map_controls(z, z, 0.0, 1.0, 0.0, 0.0)
+	# Only right-hand values: the left trigger, grip and buttons stay at rest.
+	var up: ShipInput = m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"right_button_upper": true})
 	var down: ShipInput = m.map_controls(z, z, 0.0, 0.0, 0.0, 1.0)
 	if up.thrust().y <= 0.0:
-		return "right trigger alone should lift up, got %s" % up.thrust()
+		return "B alone should lift up, got %s" % up.thrust()
 	if down.thrust().y >= 0.0:
 		return "right grip alone should lift down, got %s" % down.thrust()
 	return ""
@@ -112,15 +142,20 @@ func test_left_handed_paired_swaps_hands() -> String:
 	var m: ThumbstickMapping = _paired()
 	m.left_handed = true
 	var z: Vector2 = Vector2.ZERO
+	var fire: ShipInput = ShipInput.new()
+	fire.fire_primary = true
 	var cases: Array[Array] = [
-		["left trigger up", m.map_controls(z, z, 1.0, 0.0, 0.0, 0.0),
+		["Y up", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"left_button_upper": true}),
 			ShipInput.from_floats(Vector3(0, 1, 0), Vector3.ZERO)],
 		["left grip down", m.map_controls(z, z, 0.0, 0.0, 1.0, 0.0),
 			ShipInput.from_floats(Vector3(0, -1, 0), Vector3.ZERO)],
-		["right trigger roll left", m.map_controls(z, z, 0.0, 1.0, 0.0, 0.0),
+		["A roll left", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"right_button_lower": true}),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, ROLL))],
 		["right grip roll right", m.map_controls(z, z, 0.0, 0.0, 0.0, 1.0),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, -ROLL))],
+		["left trigger fires", m.map_controls(z, z, 1.0, 0.0, 0.0, 0.0), fire],
+		["X boosts forward", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"left_button_lower": true}),
+			ShipInput.from_floats(Vector3(0, 0, -1), Vector3.ZERO, true)],
 	]
 	for c: Array in cases:
 		var problem: String = _same_input(c[1], c[2], c[0])

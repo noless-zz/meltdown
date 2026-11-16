@@ -98,8 +98,8 @@ func test_default_labels_do_not_overlap_in_the_neutral_pose() -> String:
 	var rig: Node = _rig_in_neutral_pose()
 	var rects: Dictionary = _view_rects(rig)
 	var message: String = _first_overlap(rects)
-	if message == "" and rects.size() != 9:
-		message = "want the 9 default labels, measured %d" % rects.size()
+	if message == "" and rects.size() != 10:
+		message = "want the 10 default labels, measured %d" % rects.size()
 	rig.free()
 	return message
 
