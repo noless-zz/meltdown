@@ -1,0 +1,11 @@
+{
+	"id": "drone",
+	"hull": 20.0,
+	"radius": 0.8,
+	"max_speed": 8.0,
+	"acceleration": 16.0,
+	"turn_rate": 120.0,
+	"movement": "hover",
+	"weapon": "pulse_cannon",
+	"salvage": "pulse_cannon"
+}
