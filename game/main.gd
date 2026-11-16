@@ -83,6 +83,7 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
+	use_level(LevelSwitch.requested_path())  # Only with --level=<name> (#291).
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
@@ -97,7 +98,7 @@ func _process(delta: float) -> void:
 	apply_controls(sample_controls())
 	advance_frame(delta)
 	if _smoke_probe != null and _smoke_probe.tick():
-		print(_smoke_report())
+		print(_smoke_probe.report(_session_begun))
 		get_tree().quit()
 
 
@@ -168,6 +169,19 @@ func _end_one_tick_if_flown() -> void:
 	if comfort.end_one_tick_if_flown(session.ticks_last_advance):
 		reset_hold.reset_flown()
 		head_recentre.request()
+
+
+## Flies the level file at `path` in place of the test tunnel (#291): a new
+## session in the level's walls, from its start, with its robots, and the
+## level drawn where the tunnel was. Call it before the first frame. Returns
+## false, leaving the tunnel and its session, for "" or a rejected file.
+func use_level(path: String) -> bool:
+	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
+	if level == null:
+		return false
+	session = LocalSession.for_level(level, 0, input_source, LocalSession.load_tuning(SHIP_TUNING_PATH))
+	LevelSwitch.show_level(self, level)
+	return true
 
 
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
@@ -281,17 +295,3 @@ func on_session_loss_pending() -> void:
 func on_session_stopping() -> void:
 	_xr_running = false
 	session.paused = true
-
-
-## Reads what the runtime reports at the moment of quitting, so the line shows
-## the state after the frames ran and not what was hoped for at start.
-func _smoke_report() -> String:
-	var runtime: String = ""
-	var views: int = 0
-	var refresh_rate: float = 0.0
-	var openxr: OpenXRInterface = XRServer.find_interface("OpenXR") as OpenXRInterface
-	if openxr != null and openxr.is_initialized():
-		runtime = str(openxr.get_system_info().get("XRRuntimeName", ""))
-		views = openxr.get_view_count()
-		refresh_rate = openxr.display_refresh_rate
-	return XrSmokeProbe.format_line(_session_begun, runtime, views, refresh_rate, _smoke_probe.frames_seen())

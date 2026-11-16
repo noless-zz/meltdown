@@ -59,3 +59,17 @@ func tick() -> bool:
 		return false
 	_frames_seen += 1
 	return _frames_seen == _frames_total
+
+
+## Reads what the runtime reports at the moment of quitting, so the line shows
+## the state after the frames ran and not what was hoped for at start.
+func report(session_begun: bool) -> String:
+	var runtime: String = ""
+	var views: int = 0
+	var refresh_rate: float = 0.0
+	var openxr: OpenXRInterface = XRServer.find_interface("OpenXR") as OpenXRInterface
+	if openxr != null and openxr.is_initialized():
+		runtime = str(openxr.get_system_info().get("XRRuntimeName", ""))
+		views = openxr.get_view_count()
+		refresh_rate = openxr.display_refresh_rate
+	return XrSmokeProbe.format_line(session_begun, runtime, views, refresh_rate, frames_seen())
