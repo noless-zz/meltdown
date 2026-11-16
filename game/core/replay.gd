@@ -122,20 +122,12 @@ func to_text() -> String:
 	if expected_hash != NO_HASH:
 		lines.append("hash %d" % expected_hash)
 	if has_box:
-		lines.append("box %d %d %d %d %d %d" % [
-			box_min_mm.x, box_min_mm.y, box_min_mm.z, box_max_mm.x, box_max_mm.y, box_max_mm.z])
+		lines.append(ReplayLines.box_text(box_min_mm, box_max_mm))
 	if tuning != null:
-		lines.append("tuning " + _tuning_json(tuning))
+		lines.append(ReplayLines.tuning_text(tuning))
 	lines.append("inputs")
 	for frame: Array in frames:
-		var parts: PackedStringArray = PackedStringArray()
-		for input: ShipInput in frame:
-			var t: Vector3i = input.thrust_q
-			var r: Vector3i = input.turn_q
-			parts.append("%d %d %d %d %d %d %d %d %d" % [
-				t.x, t.y, t.z, r.x, r.y, r.z, 1 if input.afterburner else 0,
-				1 if input.reset_to_start else 0, 1 if input.fire_primary else 0])
-		lines.append(SHIP_SEPARATOR.join(parts))
+		lines.append(ReplayLines.tick_text(frame))
 	return "\n".join(lines) + "\n"
 
 
@@ -159,7 +151,7 @@ static func from_text(text: String) -> Replay:
 			else:
 				problem = replay._parse_header_line(line, seen)
 		else:
-			problem = replay._parse_tick_line(line)
+			problem = ReplayLines.parse_tick_line(replay, line, replay._parse_version)
 		if problem != "":
 			replay.error = "line %d: %s" % [line_number, problem]
 			return replay
@@ -187,10 +179,10 @@ static func load_file(path: String) -> Replay:
 
 func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 	if line.begins_with("tuning "):
-		return _parse_tuning_line(line.substr(7), seen)
+		return ReplayLines.parse_tuning_line(self, line.substr(7), seen, _parse_version)
 	var words: PackedStringArray = line.split(" ", false)
 	if words.size() > 0 and words[0] == "box":
-		return _parse_box_line(words, seen)
+		return ReplayLines.parse_box_line(self, words, seen, _parse_version)
 	if words.size() != 2 or not words[1].is_valid_int():
 		return "expected a name and one whole number"
 	var key: String = words[0]
@@ -222,92 +214,3 @@ func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 		_:
 			return "unknown header line '%s'" % key
 	return ""
-
-
-func _parse_box_line(words: PackedStringArray, seen: Dictionary[String, bool]) -> String:
-	if seen.is_empty():
-		return "the first line must be '%s <version>'" % FORMAT_NAME
-	if _parse_version < 3:
-		return "a box line needs format version 3 or later"
-	if seen.has("box"):
-		return "'box' appears twice"
-	seen["box"] = true
-	if words.size() != 7:
-		return "box needs six whole numbers"
-	var values: Array[int] = []
-	for index: int in range(1, 7):
-		if not words[index].is_valid_int():
-			return "'%s' is not a whole number" % words[index]
-		values.append(words[index].to_int())
-	var min_mm: Vector3i = Vector3i(values[0], values[1], values[2])
-	var max_mm: Vector3i = Vector3i(values[3], values[4], values[5])
-	if min_mm.x >= max_mm.x or min_mm.y >= max_mm.y or min_mm.z >= max_mm.z:
-		return "box min corner must be below its max corner on every axis"
-	set_box(min_mm, max_mm)
-	return ""
-
-
-## Full precision, so the values read back are exactly the values flown.
-static func _tuning_json(values: ShipTuning) -> String:
-	var data: Dictionary = {}
-	for key: String in ShipTuning.KEYS:
-		data[key] = values.get(key)
-	return JSON.stringify(data, "", false, true)
-
-
-func _parse_tuning_line(json_text: String, seen: Dictionary[String, bool]) -> String:
-	if seen.is_empty():
-		return "the first line must be '%s <version>'" % FORMAT_NAME
-	if _parse_version < 5:
-		return "a tuning line needs format version 5 or later"
-	if seen.has("tuning"):
-		return "'tuning' appears twice"
-	seen["tuning"] = true
-	var parsed: ShipTuning = ShipTuning.parse_json(json_text)
-	if parsed.error != "":
-		return "tuning: " + parsed.error
-	tuning = parsed
-	return ""
-
-
-func _parse_tick_line(line: String) -> String:
-	var groups: PackedStringArray = line.split("|")
-	if groups.size() != ship_count:
-		return "expected inputs for %d ships, found %d" % [ship_count, groups.size()]
-	var expected: int = _numbers_per_ship(_parse_version)
-	var inputs: Array[ShipInput] = []
-	for group: String in groups:
-		var words: PackedStringArray = group.split(" ", false)
-		if words.size() != expected:
-			return "each ship needs %d numbers, found %d" % [expected, words.size()]
-		var values: Array[int] = []
-		for word: String in words:
-			if not word.is_valid_int():
-				return "'%s' is not a whole number" % word
-			values.append(word.to_int())
-		# Only 0 and 1 are accepted, so a typo cannot be read as "on".
-		var afterburner: int = values[6] if expected >= 7 else 0
-		if afterburner != 0 and afterburner != 1:
-			return "afterburner must be 0 or 1, found %d" % afterburner
-		var reset: int = values[7] if expected >= 8 else 0
-		if reset != 0 and reset != 1:
-			return "reset must be 0 or 1, found %d" % reset
-		var fire: int = values[8] if expected >= 9 else 0
-		if fire != 0 and fire != 1:
-			return "fire must be 0 or 1, found %d" % fire
-		inputs.append(ShipInput.new(
-			Vector3i(values[0], values[1], values[2]),
-			Vector3i(values[3], values[4], values[5]),
-			afterburner == 1, reset == 1, fire == 1))
-	frames.append(inputs)
-	return ""
-
-
-static func _numbers_per_ship(version: int) -> int:
-	if version == 1:
-		return 6
-	if version <= 3:
-		return 7
-	if version <= 5:
-		return 8
-	return 9
