@@ -160,28 +160,13 @@ static func load_tuning(path: String, weapon_dir: String = WEAPON_DIR) -> ShipTu
 	return tuning
 
 
-## Reads a level's robot spawn file and the robot types it names from
-## `robot_dir`. Returns an empty list, after printing why, when any of them is
-## missing or rejected: a level with some robots silently missing would hide
-## which file broke.
-static func load_spawns(path: String, robot_dir: String = ROBOT_DIR) -> Array[RobotSpawn]:
-	var none: Array[RobotSpawn] = []
-	if not FileAccess.file_exists(path):
-		print("Meltdown: robot spawns %s rejected (file not found); no robots" % path)
-		return none
-	var list: RobotSpawnList = RobotSpawnList.parse_json(FileAccess.get_file_as_string(path))
-	var problem: String = list.error
-	if problem == "":
-		var texts: Dictionary = {}
-		for id: String in list.ids():
-			var robot_path: String = robot_dir.path_join(id + ".json")
-			if FileAccess.file_exists(robot_path):
-				texts[id] = FileAccess.get_file_as_string(robot_path)
-		problem = list.resolve(texts)
-	if problem != "":
-		print("Meltdown: robot spawns %s rejected (%s); no robots" % [path, problem])
-		return none
-	return list.spawns
+## Reads a level's robot spawn file, the robot types it names from
+## `robot_dir` and each type's weapon from `weapon_dir`; see
+## `SpawnLoader.load_spawns`. The robots are spawned armed, so the main scene's
+## robots shoot back (CMB-2, #269).
+static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
+		weapon_dir: String = WEAPON_DIR) -> Array[RobotSpawn]:
+	return SpawnLoader.load_spawns(path, robot_dir, weapon_dir)
 
 
 ## The `SimEvent`s of every tick run by the latest `advance`, in order; empty

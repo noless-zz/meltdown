@@ -93,6 +93,10 @@ func test_preset_3_shakes_then_returns_to_the_pose() -> String:
 	if shake == null:
 		main.free()
 		return "the shipped hit-shake file was rejected"
+	# The main scene's robots shoot the ship from the start (#269); their hits
+	# would keep restarting the shake this test waits to settle.
+	for robot: RobotState in (main.get("session") as LocalSession).sim.robots:
+		robot.weapon = null
 	_dive(main)
 	var moved: bool = false
 	var frame: int = 0
