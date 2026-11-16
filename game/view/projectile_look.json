@@ -1,5 +1,8 @@
 {
 	"bolt_length_m": 0.6,
 	"bolt_radius_m": 0.03,
-	"emission_color": [1.0, 0.55, 0.15]
+	"emission_color": [1.0, 0.55, 0.15],
+	"max_lights": 4,
+	"light_range": 6.0,
+	"light_energy": 1.5
 }
