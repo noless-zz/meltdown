@@ -51,6 +51,8 @@ var status_panel: StatusPanel = null
 var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
 ## Logs each afterburner start and stop and pulses the boosting hand (#170).
 var boost_haptics: BoostHaptics = BoostHaptics.new()
+## The bolts and, later, the robots, drawn from session copies (#189, MP-2).
+var combat: CombatWiring = CombatWiring.new()
 
 
 func _ready() -> void:
@@ -84,6 +86,7 @@ func _ready() -> void:
 	attach_cockpit_frame()
 	attach_fade_overlay()
 	attach_status_panel()
+	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
@@ -147,6 +150,7 @@ func advance_frame(delta_seconds: float) -> void:
 		fade_overlay.set_alpha(reset_hold.alpha)
 	log_afterburner()
 	place_rig()
+	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D)
 	update_status_panel(delta_seconds)
 
 
