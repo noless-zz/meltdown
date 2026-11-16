@@ -119,9 +119,11 @@ install_apk() {
 # the command to try by hand.
 report_failure() {
 	local serial="$1"
-	local reason
+	local reason line
 	echo "  Install failed on $serial:" >&2
-	sed 's/^/    /' <<< "$output" >&2
+	while IFS= read -r line; do
+		echo "    $line" >&2
+	done <<< "$output"
 	reason="$(grep -o 'Failure \[.*\]' <<< "$output" | head -n 1 || true)"
 	if [ -n "$reason" ]; then
 		echo "  Reason: $reason" >&2
