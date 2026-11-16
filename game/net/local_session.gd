@@ -73,8 +73,11 @@ var _current_salvage: Array[SalvageItem] = []
 ## too, so a replay starts with the same robots (CMB-3). `loadout`, when given,
 ## replaces the tuning's: a replay read from text carries its weapons resolved
 ## on their own lines, not in its tuning, and flying it again needs them (DEV-6).
+## `parts` (see `load_parts`) is the part catalogue a held part is slotted from;
+## it is set before the first tick and recorded in the replay (SLV-1, #267).
 func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null,
-		tuning: ShipTuning = null, robots: Array[RobotSpawn] = [], loadout: ShipLoadout = null) -> void:
+		tuning: ShipTuning = null, robots: Array[RobotSpawn] = [], loadout: ShipLoadout = null,
+		parts: Dictionary[String, WeaponDef] = {}) -> void:
 	replay = Replay.new(run_seed, 1)
 	if bounds != null:
 		replay.set_box(SessionSnapshots.to_mm(bounds.min_corner),
@@ -93,6 +96,11 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 		sim.equip(replay.loadout)
 	if RobotSpawn.spawn_all(sim, robots):
 		replay.robots = robots.duplicate()
+	var parts_problem: String = sim.set_parts(parts)
+	if parts_problem == "":
+		replay.parts = parts.duplicate()
+	else:
+		print("Meltdown: part catalogue rejected (%s); parts cannot be slotted" % parts_problem)
 	_input_source = input_source if input_source != null else ShipInputSource.new()
 	_current_ship = SessionSnapshots.ship(sim.ships[0])
 	_previous_ship = SessionSnapshots.ship(sim.ships[0])
@@ -138,6 +146,12 @@ static func load_tuning(path: String, weapon_dir: String = WEAPON_DIR) -> ShipTu
 	return SpawnLoader.load_tuning(path, weapon_dir)
 
 
+## The part catalogue from every weapon data file in `weapon_dir`; see
+## `SpawnLoader.load_parts`. Pass it to the constructor so slotting works (#320).
+static func load_parts(weapon_dir: String = WEAPON_DIR) -> Dictionary[String, WeaponDef]:
+	return SpawnLoader.load_parts(weapon_dir)
+
+
 ## Reads a level's robot spawn file, the robot types it names from
 ## `robot_dir` and each type's weapon from `weapon_dir`; see
 ## `SpawnLoader.load_spawns`. The robots are spawned armed, so the main scene's
@@ -150,7 +164,9 @@ static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
 ## A session in `level`'s walls (GEN-5): every box goes into the replay, so a
 ## replay meets the same walls (ARC-2), the ship starts at the level's start
 ## pose, and the level's robots are resolved and armed from `robot_dir` and
-## `weapon_dir` as `load_spawns` does (CMB-3, #269, #291). `level` must have
+## `weapon_dir` as `load_spawns` does (CMB-3, #269, #291). Its part catalogue
+## is every weapon in `weapon_dir`, so parts the robots drop can be slotted
+## (SLV-1, #320). `level` must have
 ## parsed without an error. The replay does not record a start pose yet, so
 ## a replay of a level whose start is not the origin facing -z would start
 ## elsewhere; G2 starts there.
@@ -159,7 +175,8 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 		weapon_dir: String = WEAPON_DIR) -> LocalSession:
 	var robots: Array[RobotSpawn] = SpawnLoader.resolve_list(level.robots, "in the level",
 		robot_dir, weapon_dir)
-	var session: LocalSession = LocalSession.new(run_seed, input_source, null, tuning, robots)
+	var session: LocalSession = LocalSession.new(run_seed, input_source, null, tuning, robots,
+		null, load_parts(weapon_dir))
 	var mins: Array[Vector3i] = []
 	var maxs: Array[Vector3i] = []
 	for box: BoxBounds in level.union.boxes:

@@ -4,7 +4,8 @@ extends RefCounted
 ## Reads the data files a session starts from: a ship file and its weapons,
 ## for `LocalSession.load_tuning`, and a level's robot spawn file, the robot
 ## types it names and the weapon each type fires, for
-## `LocalSession.load_spawns`. Core opens no files (ARC-1), so the reading
+## `LocalSession.load_spawns`, and the part catalogue every weapon file makes,
+## for `LocalSession.load_parts`. Core opens no files (ARC-1), so the reading
 ## happens here and core gets resolved definitions. Kept out of
 ## `local_session.gd` so that file stays under its size limit.
 
@@ -103,3 +104,28 @@ static func arm(spawns: Array[RobotSpawn], weapon_dir: String) -> void:
 				print("Meltdown: weapon %s for robot type %s rejected (%s); it spawns unarmed"
 					% [weapon_path, spawn.id, problem])
 		spawn.weapon = resolved.get(weapon_path, null)
+
+
+## The part catalogue: every weapon data file in `weapon_dir`, keyed by its
+## file name without `.json`, the id robots drop it under (`RobotDef.salvage`)
+## and a loadout names it by (SLV-1, ARC-4, #320). A file that is rejected, or
+## whose name is not a valid id, is left out after printing why: one broken
+## weapon should not stop every other part from slotting.
+static func load_parts(weapon_dir: String = WEAPON_DIR) -> Dictionary[String, WeaponDef]:
+	var parts: Dictionary[String, WeaponDef] = {}
+	var files: PackedStringArray = DirAccess.get_files_at(weapon_dir)
+	for file: String in files:
+		if file.get_extension() != "json":
+			continue
+		var id: String = file.get_basename()
+		var problem: String = ShipLoadout.check_id("part id", id)
+		var weapon: WeaponDef = null
+		if problem == "":
+			weapon = WeaponDef.parse_json(FileAccess.get_file_as_string(weapon_dir.path_join(file)))
+			problem = weapon.error
+		if problem != "":
+			print("Meltdown: part %s rejected (%s); it cannot be slotted"
+				% [weapon_dir.path_join(file), problem])
+			continue
+		parts[id] = weapon
+	return parts
