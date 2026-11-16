@@ -1,0 +1,5 @@
+{
+	"bolt_length_m": 0.6,
+	"bolt_radius_m": 0.03,
+	"emission_color": [1.0, 0.55, 0.15]
+}
