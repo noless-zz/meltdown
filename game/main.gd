@@ -49,8 +49,8 @@ var _resume_frame: bool = false
 var status_panel: StatusPanel = null
 ## Which build this is, shown on the status panel; unknown in an editor run.
 var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
-## The afterburner state last logged, so each start and stop is logged once.
-var _afterburner_logged: bool = false
+## Logs each afterburner start and stop and pulses the boosting hand (#170).
+var boost_haptics: BoostHaptics = BoostHaptics.new()
 
 
 func _ready() -> void:
@@ -76,9 +76,10 @@ func _ready() -> void:
 	_smoke_probe = XrSmokeProbe.new(XrSmokeProbe.frames_from_args(OS.get_cmdline_user_args()))
 	# One mapping, so a remap or left-handed mode reaches the control labels too (#110).
 	$XRRig.mapping = mapping
+	boost_haptics.left_controller = get_node_or_null("XRRig/LeftHand") as XRController3D
+	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
-		get_node_or_null("XRRig/LeftHand") as XRController3D,
-		get_node_or_null("XRRig/RightHand") as XRController3D)
+		boost_haptics.left_controller, boost_haptics.right_controller)
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
@@ -214,14 +215,11 @@ func update_status_panel(delta_seconds: float) -> void:
 
 
 ## Logs each afterburner start and stop, so a device log shows whether the
-## stick click reaches the simulation (#146). Read from the latest state once
-## per frame: `Sim.last_events` only holds the last tick of a frame, so an
-## event on an earlier tick of a multi-tick frame would be missed.
+## button reaches the simulation (#146), and pulses the boosting hand at the
+## same moment (#170). Read from the latest state once per frame:
+## `Sim.last_events` only holds the last tick of a frame.
 func log_afterburner() -> void:
-	var active: bool = session.current_ship().afterburner_active
-	if active != _afterburner_logged:
-		_afterburner_logged = active
-		print("Meltdown: afterburner %s" % ("on" if active else "off"))
+	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
