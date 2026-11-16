@@ -23,6 +23,12 @@ const WORDS: Dictionary = {
 	"afterburner": ["boost", "boost"],
 	"fire_primary": ["fire", "fire"],
 }
+## Controls labelled in every layout, because what they do is not part of a
+## layout. The reset hold (#162) stays on the left menu button in left-handed
+## mode too (see `ResetHold.BUTTON`), so these never swap hands.
+const FIXED_LABELS: Dictionary = {
+	ResetHold.BUTTON: "reset (hold)",
+}
 ## Controls that report both directions (-1..1). Every other control reports
 ## 0..1, so only the sign of its weight picks the word.
 const TWO_WAY_CONTROLS: Array[String] = [
@@ -36,9 +42,9 @@ const ACTION_SEPARATOR: String = ", "
 
 
 ## Physical control -> its label, for every control the layout binds with a
-## non-zero weight. In left-handed mode each binding is shown on the other
-## hand's control, where `ThumbstickMapping` reads it from. `invert_pitch`
-## swaps the pitch words to match the mapping.
+## non-zero weight, plus `FIXED_LABELS`. In left-handed mode each binding is
+## shown on the other hand's control, where `ThumbstickMapping` reads it from.
+## `invert_pitch` swaps the pitch words to match the mapping.
 static func for_layout(layout: Dictionary, left_handed: bool = false,
 		invert_pitch: bool = false) -> Dictionary:
 	var actions: Dictionary = {}
@@ -54,7 +60,7 @@ static func for_layout(layout: Dictionary, left_handed: bool = false,
 			if not actions.has(physical):
 				actions[physical] = []
 			(actions[physical] as Array).append(_words_for(str(action), str(control), weight))
-	var labels: Dictionary = {}
+	var labels: Dictionary = FIXED_LABELS.duplicate()
 	for physical: String in actions:
 		labels[physical] = ACTION_SEPARATOR.join(PackedStringArray(actions[physical]))
 	return labels

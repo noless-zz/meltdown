@@ -18,6 +18,7 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_button_upper": "up",
 	"right_button_lower": "boost",
 	"right_trigger": "fire",
+	"left_menu": "reset (hold)",
 }
 
 
@@ -52,7 +53,7 @@ func test_unbound_controls_get_no_label() -> String:
 		if got.has(control):
 			return "%s is unbound but labelled '%s'" % [control, got[control]]
 	var zero: Dictionary = ControlLabels.for_layout({"lift": {"right_trigger": 0.0}})
-	if not zero.is_empty():
+	if zero != ControlLabels.FIXED_LABELS:
 		return "a zero weight should give no label, got %s" % zero
 	return ""
 
@@ -61,7 +62,9 @@ func test_left_handed_moves_labels_to_the_other_hand() -> String:
 	var got: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout(), true)
 	var want: Dictionary = {}
 	for control: String in DEFAULT_LABELS:
-		want[ControlLabels.other_hand(control)] = DEFAULT_LABELS[control]
+		var physical: String = control if ControlLabels.FIXED_LABELS.has(control) \
+				else ControlLabels.other_hand(control)
+		want[physical] = DEFAULT_LABELS[control]
 	var message: String = _compare(got, want, "left-handed")
 	if message != "":
 		return message
@@ -118,6 +121,21 @@ func test_labels_split_by_hand() -> String:
 	if left.get("button_lower", "") != "down" or right.get("button_upper", "") != "up" \
 			or right.get("trigger", "") != "fire" or left.has("trigger"):
 		return "labels per hand wrong: %s / %s" % [left, right]
+	return ""
+
+
+## The reset hold (#162) is named on the left menu button in every layout and
+## in left-handed mode, where the right menu button is the system button.
+func test_reset_is_labelled_on_the_left_menu_button() -> String:
+	for left_handed: bool in [false, true]:
+		var got: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout(), left_handed)
+		if got.get(ResetHold.BUTTON, "") != "reset (hold)" or got.has("right_menu"):
+			return "left-handed %s: reset labels %s" % [left_handed, got]
+		var left: Dictionary = ControlLabels.for_hand(got, "left")
+		if left.get("menu", "") != "reset (hold)":
+			return "left hand labels lack the reset: %s" % left
+	if not ControllerModel.LABEL_POSITIONS.has("menu") or not ControllerModel.CONTROL_POINTS.has("menu"):
+		return "the menu button has no label position or control point"
 	return ""
 
 

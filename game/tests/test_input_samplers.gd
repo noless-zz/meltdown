@@ -41,6 +41,23 @@ func test_controller_values_reach_plain_values() -> String:
 	return ""
 
 
+## The left menu button reads under one name (#162). The right controller's
+## menu action is the system button, which never reaches the app, so it is
+## not read even if a runtime reported it.
+func test_left_menu_button_reads_under_one_name() -> String:
+	var hands: Dictionary = {"left": {"menu_button": true}, "right": {"menu_button": true}}
+	var values: Dictionary = _fake_controllers(["left", "right"], hands).sample()
+	if values["buttons"] != {ControllerSampler.MENU_BUTTON: true}:
+		return "menu buttons read as %s" % str(values["buttons"])
+	var untracked: Dictionary = _fake_controllers(["right"], hands).sample()
+	if not untracked["buttons"].is_empty():
+		return "an untracked left hand still holds its menu button: %s" % str(untracked["buttons"])
+	var input: ShipInput = ControllerSampler.map_values(ThumbstickMapping.new(), values)
+	if input.thrust_q != Vector3i.ZERO or input.turn_q != Vector3i.ZERO or input.afterburner:
+		return "the menu button flew %s %s %s" % [input.thrust_q, input.turn_q, input.afterburner]
+	return ""
+
+
 func test_untracked_controllers_give_idle_input() -> String:
 	var sampler: ControllerSampler = _fake_controllers([], _both_hands_busy())
 	var values: Dictionary = sampler.sample()

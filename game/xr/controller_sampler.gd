@@ -5,7 +5,8 @@ extends RefCounted
 ## `ThumbstickMapping.map_controls` takes (PLT-5, FLT-1).
 ##
 ## The OpenXR actions come from `openxr_action_map.tres`: `primary` (stick),
-## `trigger`, `grip`, `ax_button`, `by_button` and `primary_click`. Reading goes
+## `trigger`, `grip`, `ax_button`, `by_button`, `primary_click` and, on the
+## left hand only, `menu_button`. Reading goes
 ## through two injected callables, so tests can feed values without a device:
 ## - `tracking.call(hand: String) -> bool`, hand `"left"` or `"right"`
 ## - `read.call(hand: String, action: String) -> Variant`: a Vector2 for
@@ -17,7 +18,8 @@ extends RefCounted
 ## The values form a Dictionary, also produced by `KeyboardSampler`:
 ## `left_stick`, `right_stick` (Vector2), `left_trigger`, `right_trigger`,
 ## `left_grip`, `right_grip` (float 0..1) and `buttons` (button name from
-## `ThumbstickMapping.BUTTONS` -> bool).
+## `ThumbstickMapping.BUTTONS`, or `MENU_BUTTON`, -> bool). No mapping binds
+## `MENU_BUTTON`; `ResetHold` reads it.
 
 const HANDS: Array[String] = ["left", "right"]
 ## OpenXR button action -> the position name `ThumbstickMapping` uses. A/X is
@@ -27,6 +29,12 @@ const BUTTON_ACTIONS: Dictionary[String, String] = {
 	"by_button": "button_upper",
 	"primary_click": "stick_click",
 }
+## The left controller's menu button, read under this one name (#162). The
+## action map also binds `menu_button` to the right controller's system
+## button, but that is the Meta button: the system keeps it and it never
+## reaches the app, so only the left hand is read.
+const MENU_ACTION: String = "menu_button"
+const MENU_BUTTON: String = "left_menu"
 
 var tracking: Callable
 var read: Callable
@@ -89,6 +97,8 @@ func sample() -> Dictionary:
 		for action: String in BUTTON_ACTIONS:
 			if _pressed(hand, action):
 				buttons[hand + "_" + BUTTON_ACTIONS[action]] = true
+		if hand == "left" and _pressed(hand, MENU_ACTION):
+			buttons[MENU_BUTTON] = true
 	values["buttons"] = buttons
 	return values
 

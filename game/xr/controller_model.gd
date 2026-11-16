@@ -5,7 +5,7 @@ extends Node3D
 ## meshes, with a floating label beside each bound control (PLT-5, CMF-4).
 ##
 ## The shape is original and deliberately plain: a handle, a head with a
-## stick, two face buttons and a trigger. When the OpenXR runtime supplies its
+## stick, two face buttons, a small menu button and a trigger. When the OpenXR runtime supplies its
 ## own model of the controller (XR_EXT_render_model, #93), that model is shown
 ## instead and the generic shape is hidden; it comes back if the runtime
 ## removes its model. The runtime's model is fetched at run time and never
@@ -29,6 +29,10 @@ const BUTTON_RADIUS: float = 0.006
 const BUTTON_HEIGHT: float = 0.004
 const BUTTON_UPPER_OFFSET: Vector3 = Vector3(0.012, 0.029, -0.015)
 const BUTTON_LOWER_OFFSET: Vector3 = Vector3(0.012, 0.029, 0.002)
+## Behind the stick, towards the grip. Only the left one is read (reset, #162);
+## on the right hand the same place is the system button.
+const MENU_RADIUS: float = 0.004
+const MENU_OFFSET: Vector3 = Vector3(-0.01, 0.029, 0.012)
 const TRIGGER_SIZE: Vector3 = Vector3(0.012, 0.025, 0.012)
 const TRIGGER_OFFSET: Vector3 = Vector3(0.0, -0.01, -0.05)
 const DETAIL_COLOR: Color = Color(0.15, 0.15, 0.15)
@@ -41,11 +45,12 @@ const CONTROL_POINTS: Dictionary = {
 	"stick_click": STICK_OFFSET + Vector3(0.0, STICK_HEIGHT * 0.5, 0.0),
 	"button_upper": BUTTON_UPPER_OFFSET + Vector3(0.0, BUTTON_HEIGHT * 0.5, 0.0),
 	"button_lower": BUTTON_LOWER_OFFSET + Vector3(0.0, BUTTON_HEIGHT * 0.5, 0.0),
+	"menu": MENU_OFFSET + Vector3(0.0, BUTTON_HEIGHT * 0.5, 0.0),
 	"trigger": TRIGGER_OFFSET,
 	"grip": Vector3(HANDLE_RADIUS, -HANDLE_LENGTH * 0.4, 0.01),
 }
 ## Child names of the generic shape, hidden while a runtime model is shown.
-const GENERIC_PARTS: PackedStringArray = ["Handle", "Head", "Stick", "ButtonUpper", "ButtonLower", "Trigger"]
+const GENERIC_PARTS: PackedStringArray = ["Handle", "Head", "Stick", "ButtonUpper", "ButtonLower", "Menu", "Trigger"]
 ## The node that asks the runtime for this hand's controller model.
 const RUNTIME_MODELS_NAME: String = "RuntimeModels"
 
@@ -90,6 +95,7 @@ func build() -> void:
 	_part("Stick", _cylinder(STICK_RADIUS, STICK_HEIGHT), detail, _mirror(STICK_OFFSET))
 	_part("ButtonUpper", _cylinder(BUTTON_RADIUS, BUTTON_HEIGHT), detail, _mirror(BUTTON_UPPER_OFFSET))
 	_part("ButtonLower", _cylinder(BUTTON_RADIUS, BUTTON_HEIGHT), detail, _mirror(BUTTON_LOWER_OFFSET))
+	_part("Menu", _cylinder(MENU_RADIUS, BUTTON_HEIGHT), detail, _mirror(MENU_OFFSET))
 	var trigger: BoxMesh = BoxMesh.new()
 	trigger.size = TRIGGER_SIZE
 	_part("Trigger", trigger, detail, TRIGGER_OFFSET)

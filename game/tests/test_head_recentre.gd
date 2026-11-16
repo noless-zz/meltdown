@@ -143,7 +143,7 @@ func test_reset_to_start_recentres() -> String:
 	# The player has shifted in the seat by the time they reset.
 	_camera(main).transform = Transform3D(Basis(Vector3.UP, 0.5), Vector3(0.2, 1.4, 0.1))
 	var values: Dictionary = ControllerSampler.idle_values()
-	values["buttons"] = {"left_stick_click": true, "right_stick_click": true}
+	values["buttons"] = {ResetHold.BUTTON: true}
 	var hold: ResetHold = main.get("reset_hold") as ResetHold
 	var frames: int = 0
 	while not hold.reset_due() and frames < 600:

@@ -1,23 +1,28 @@
 class_name ResetHold
 extends RefCounted
 
-## The deliberate way back to the start (#90): hold both stick clicks, or
-## Backspace in the flat build, for `RESET_HOLD_SECONDS`. The view fades to
+## The deliberate way back to the start (#90): hold the left menu button
+## (#162), or Backspace in the flat build, for `RESET_HOLD_SECONDS`. The view fades to
 ## black, exactly one tick's input then asks the simulation for
 ## `reset_to_start`, and the view fades back in, so the pilot never sees the
-## ship sweep to the start (CMF-8). The Meta button cannot be used: the system
-## reserves it.
+## ship sweep to the start (CMF-8). Holding both stick clicks did this before
+## #162 and was awkward to reach.
 ##
 ## This class only times the gesture and the fade. It never touches ship
 ## state; the reset goes through `ShipInput` and the simulation (ARC-3, MP-2).
-## A hold fires once and re-arms only after both clicks are released, so a
+## A hold fires once and re-arms only after the button is released, so a
 ## pilot who keeps holding is not reset again and again.
 
 enum Phase { IDLE, FADING_OUT, BLACK, FADING_IN }
 
 const RESET_HOLD_SECONDS: float = 1.0
 const FADE_SECONDS: float = 0.25
-## The flat build's stand-in for the two stick clicks, a physical key.
+## The left menu button, in every layout and in left-handed mode too. It does
+## not swap hands like the flight controls: the right controller's menu
+## button is the Meta system button, which the system keeps and which never
+## reaches the app (decision record 0004).
+const BUTTON: String = ControllerSampler.MENU_BUTTON
+## The flat build's stand-in for the menu button, a physical key.
 const KEYBOARD_KEY: Key = KEY_BACKSPACE
 ## The button name `main.gd` sets while `KEYBOARD_KEY` is held. No mapping
 ## binds it, so it flies nothing.
@@ -38,8 +43,7 @@ static func is_held(values: Dictionary) -> bool:
 	var buttons: Dictionary = values.get("buttons", {})
 	if bool(buttons.get(KEYBOARD_BUTTON, false)):
 		return true
-	return bool(buttons.get("left_stick_click", false)) \
-		and bool(buttons.get("right_stick_click", false))
+	return bool(buttons.get(BUTTON, false))
 
 
 ## Records whether the gesture is held this frame. Letting go cancels a hold
