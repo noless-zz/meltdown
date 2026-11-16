@@ -23,12 +23,20 @@ var filter: ComfortInputFilter = ComfortInputFilter.new(preset)
 ## reset) is set until a tick has flown it. A frame at 90 Hz runs no tick
 ## about one time in three, and a hitch runs several.
 var one_tick_pending: bool = false
+## True while the latest tick the session flew was a snap on any axis, so the
+## view shows it at once instead of blending it (CMF-3, #132). Decided from the
+## tick rather than from how far it turned: an auto-level roll snap can be
+## smaller than any yaw or pitch snap.
+var latest_tick_snapped: bool = false
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
 var _mapping: ThumbstickMapping
 ## The preset switch acts once per press, not once per frame it is held.
 var _preset_button_held: bool = false
+## True while the pending one-tick input is a snap whose roll came from the
+## auto-level, so that roll is not flown again before the next sample.
+var _roll_snap_pending: bool = false
 
 
 func _init(p_input_source: LatestInputSource, p_mapping: ThumbstickMapping) -> void:
@@ -43,6 +51,8 @@ func set_preset(p_number: int) -> void:
 	preset = ComfortPresetFiles.load_number(p_number)
 	filter = ComfortInputFilter.new(preset)
 	one_tick_pending = false
+	latest_tick_snapped = false
+	_roll_snap_pending = false
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
 
 
@@ -75,6 +85,8 @@ func hand_input(input: ShipInput, orientation: Basis, reset_due: bool) -> void:
 		_input_source.set_input(next)
 		return
 	var filtered: ShipInput = filter.filter(input, orientation)
+	var snapped: bool = filter.produced_snap and not reset_due
+	_roll_snap_pending = snapped and filter.produced_roll_snap
 	if reset_due:
 		# Still and not firing, so the reset tick ends exactly at the start pose.
 		filtered.thrust_q = Vector3i.ZERO
@@ -82,22 +94,21 @@ func hand_input(input: ShipInput, orientation: Basis, reset_due: bool) -> void:
 		filtered.afterburner = false
 		filtered.fire_primary = false
 		filtered.reset_to_start = true
-	one_tick_pending = carries_snap(filtered) or filtered.reset_to_start
+	one_tick_pending = snapped or filtered.reset_to_start
 	_input_source.set_input(filtered)
-
-
-## True when `input` turns the ship by a snap on an axis the preset snaps.
-func carries_snap(input: ShipInput) -> bool:
-	return (preset.yaw_mode == ComfortPreset.YawMode.SNAP and input.turn_q.y != 0) \
-		or (preset.pitch_mode == ComfortPreset.PitchMode.SNAP and input.turn_q.x != 0)
 
 
 ## Call after the session advanced `ticks` ticks. Once a tick has flown a snap
 ## or the reset, later ticks before the next sample must not repeat it; the
 ## filter keeps a snapped axis at zero until the stick returns. Returns true
 ## when the flown input was the reset, so the caller can fade back in.
+## Call after every advance, including the second half of a split frame, so
+## `latest_tick_snapped` drops once a later tick has flown.
 func end_one_tick_if_flown(ticks: int) -> bool:
-	if not one_tick_pending or ticks == 0:
+	if ticks == 0:
+		return false
+	latest_tick_snapped = false
+	if not one_tick_pending:
 		return false
 	one_tick_pending = false
 	var flown: ShipInput = ComfortInputFilter.copy_input(_input_source.latest_input())
@@ -109,29 +120,24 @@ func end_one_tick_if_flown(ticks: int) -> bool:
 		flown.turn_q.x = 0
 	if preset.yaw_mode == ComfortPreset.YawMode.SNAP:
 		flown.turn_q.y = 0
+	if _roll_snap_pending:
+		flown.turn_q.z = 0
+	_roll_snap_pending = false
+	# The caller splits the frame so a pending snap flies in a tick of its own.
+	latest_tick_snapped = ticks == 1
 	_input_source.set_input(flown)
 	return false
-
-
-## Radians a tick must turn to be shown as a snap: half a snap while the
-## preset snaps yaw or pitch, 0 (never) otherwise.
-func snap_show_angle() -> float:
-	var snaps: bool = preset.yaw_mode == ComfortPreset.YawMode.SNAP \
-		or preset.pitch_mode == ComfortPreset.PitchMode.SNAP
-	return deg_to_rad(preset.snap_angle_deg) * 0.5 if snaps else 0.0
 
 
 ## The ship's pose `fraction` of the way from `previous` to `current`:
 ## position lerped, rotation slerped. Frames fall between ticks, so showing
 ## either tick's pose alone would judder at 72 or 90 Hz against a 60 Hz sim.
-## A turn of at least `snap_angle` (when above 0) is a snap and is shown at
-## once: slerping it would show a snap as smooth rotation (CMF-3).
+## With `snapped` (the latest tick was a snap) the rotation is shown at once:
+## slerping it would show a snap as smooth rotation (CMF-3).
 static func interpolated_pose(previous: ShipState, current: ShipState, fraction: float,
-		snap_angle: float = 0.0) -> Transform3D:
+		snapped: bool = false) -> Transform3D:
 	var weight: float = clampf(fraction, 0.0, 1.0)
 	var from_rotation: Quaternion = previous.orientation.orthonormalized().get_rotation_quaternion()
 	var to_rotation: Quaternion = current.orientation.orthonormalized().get_rotation_quaternion()
-	var rotation: Quaternion = from_rotation.slerp(to_rotation, weight)
-	if snap_angle > 0.0 and from_rotation.angle_to(to_rotation) >= snap_angle:
-		rotation = to_rotation
+	var rotation: Quaternion = to_rotation if snapped else from_rotation.slerp(to_rotation, weight)
 	return Transform3D(Basis(rotation), previous.position.lerp(current.position, weight))

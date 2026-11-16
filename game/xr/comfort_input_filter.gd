@@ -32,6 +32,13 @@ const SNAP_REARM_FRACTION: float = 0.25
 const LIMIT_EPSILON: float = 0.0001
 
 var preset: ComfortPreset
+## True when the last `filter` call turned by a snap on any axis, including an
+## auto-level roll snap. Read only: the view uses it to show such a tick at
+## once rather than blended (CMF-3, #132). A snap dropped by the pitch limit
+## turns nothing, so it does not count.
+var produced_snap: bool = false
+## True when that snap includes an auto-level roll snap. Read only.
+var produced_roll_snap: bool = false
 ## Per snap axis: true while the stick has been released since the last snap.
 var _pitch_armed: bool = true
 var _yaw_armed: bool = true
@@ -84,9 +91,14 @@ func filter(input: ShipInput, orientation: Basis = Basis.IDENTITY) -> ShipInput:
 		turn.z = 0
 	if preset.pitch_limit_deg != ComfortPreset.NO_LIMIT and turn.x != 0:
 		turn.x = _limit_pitch(turn, orientation, pitch_snapped)
+	produced_roll_snap = false
 	if preset.levels_roll() and turn.z == 0:
 		turn.z = ComfortAutoLevel.roll_q(preset,
 			_turned(orientation, Vector3i(turn.x, turn.y, 0)))
+		produced_roll_snap = turn.z != 0 \
+			and preset.auto_level_snap_threshold_deg != ComfortPreset.NO_LIMIT
+	produced_snap = produced_roll_snap or (pitch_snapped and turn.x != 0) \
+		or (preset.yaw_mode == ComfortPreset.YawMode.SNAP and turn.y != 0)
 	var out: ShipInput = copy_input(input)
 	out.turn_q = turn
 	return out
