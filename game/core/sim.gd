@@ -31,8 +31,9 @@ var start_orientations: Array[Basis] = []
 var projectiles: Array[Projectile] = []
 ## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
 var robots: Array[RobotState] = []
-## Parts dropped by destroyed robots, in drop order (SLV-1). Part of the hash
-## while there are any. They do not expire in M2.
+## Parts dropped by destroyed robots, in drop order (SLV-1), until a ship
+## takes one (`SalvagePickup`). Part of the hash while there are any. They do
+## not expire in M2.
 var salvage: Array[SalvageItem] = []
 ## Projectile hit events of the tick being stepped. Hits are found when
 ## projectiles move, before the ships, but their events follow the ship events.
@@ -67,10 +68,12 @@ func step(inputs: Array[ShipInput]) -> bool:
 	# Projectiles already in flight move before any new shot, so a shot
 	# spawns where its ship is at the end of the tick it was fired on.
 	_advance_projectiles()
+	var from: Array[Vector3] = []
 	for i: int in ships.size():
 		var ship: ShipState = ships[i]
 		if inputs[i].reset_to_start:
 			_reset_to_start(i)
+		from.append(ship.position)
 		var was_active: bool = ship.afterburner_active
 		var was_locked: bool = ship.afterburner_locked
 		ship.step(inputs[i].thrust(), inputs[i].turn(), inputs[i].afterburner)
@@ -87,6 +90,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
 		_fire(i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
+	SalvagePickup.collect(self, from)
 	_advance_robots()
 	# Items already floating move before this tick's drops, so a part appears
 	# exactly where its robot died.

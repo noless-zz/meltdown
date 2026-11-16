@@ -76,6 +76,12 @@ var selected_primary: int = 0
 ## Ticks until the selected primary may fire again; 0 means ready.
 var fire_cooldown: int = 0
 
+## Salvage hold (SLV-1). Parts taken from the mine wait here, by id, until
+## they are slotted. One part, as it is pulled into the cockpit.
+const HOLD_CAPACITY: int = 1
+## Part ids in the order they were taken, at most HOLD_CAPACITY.
+var hold: Array[String] = []
+
 const MIN_WALL_RESTITUTION: float = 0.05
 
 
@@ -166,6 +172,10 @@ func fire_primary(held: bool) -> WeaponDef:
 	return weapon
 
 
+func hold_has_room() -> bool:
+	return hold.size() < HOLD_CAPACITY
+
+
 ## Restitution actually used by a bounce: `wall_restitution` kept in
 ## MIN_WALL_RESTITUTION..1.
 func bounce_factor() -> float:
@@ -201,4 +211,7 @@ func state_hash() -> int:
 		armed = armed or slot != null
 	if armed:
 		parts.append(weapons)
+	# Joins only once something is held, so earlier replays keep their hashes.
+	if not hold.is_empty():
+		parts.append(["hold", hold.duplicate()])
 	return hash(parts)
