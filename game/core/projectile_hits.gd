@@ -3,11 +3,12 @@ extends RefCounted
 
 ## Moving projectiles and finding what they hit (CMB-1, CMB-2). Kept out of
 ## `Sim` so the tick there stays short; `Sim.step` calls `advance` once per
-## tick, before the ships move.
+## tick, before the ships move, and `fire` for each ship after it moves.
 
 
 ## Moves every projectile in `sim.projectiles` one tick and removes those that
-## hit a robot (ship shots) or a ship (robot shots), whose lifetime is over or
+## hit a robot or the reactor (ship shots) or a ship (robot shots, which pass
+## through the reactor), whose lifetime is over or
 ## that have left the walls. The hit test runs on the whole segment flown this
 ## tick, before the other two, so a shot on its last tick or leaving through a
 ## wall still hits what it passed on the way. Hit events go to `hit_events`;
@@ -31,11 +32,25 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 	sim.projectiles = kept
 
 
-## Applies `projectile`'s damage to the first live robot its segment from
-## `from` to its current position passes within reach of, and records the
-## events. Returns whether it hit, so the caller removes it: one shot never
-## hits two robots. Robots are tested in index order and only a strictly
-## nearer entry replaces the best, so ties go to the lower index.
+## Fires ship `index`'s primary weapon if it is held and ready. The shot
+## leaves the ship's nose at the weapon's speed, without the ship's own
+## velocity, so a weapon's range is exactly what its data file says.
+static func fire(sim: Sim, index: int, held: bool) -> void:
+	var ship: ShipState = sim.ships[index]
+	var weapon: WeaponDef = ship.fire_primary(held)
+	if weapon == null:
+		return
+	var forward: Vector3 = -ship.orientation.z.normalized()
+	sim.projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
+		index, weapon.lifetime_ticks(), weapon.damage))
+
+
+## Applies `projectile`'s damage to the first live robot or intact reactor its
+## segment from `from` to its current position passes within reach of, and
+## records the events. Returns whether it hit, so the caller removes it: one
+## shot never hits two targets. Robots are tested in index order, then the
+## reactor, and only a strictly nearer entry replaces the best, so ties go to
+## the lower index and robots win ties with the reactor.
 static func _hit_robot(sim: Sim, projectile: Projectile, from: Vector3,
 		hit_events: Array[SimEvent], killers: Dictionary) -> bool:
 	var best: int = -1
@@ -47,6 +62,13 @@ static func _hit_robot(sim: Sim, projectile: Projectile, from: Vector3,
 		if t >= 0.0 and t < best_t:
 			best = r
 			best_t = t
+	if sim.reactor != null:
+		var reactor_t: float = sim.reactor.segment_entry(from, projectile.position)
+		if reactor_t >= 0.0 and reactor_t < best_t:
+			if sim.reactor.apply_damage(projectile.damage):
+				hit_events.append(SimEvent.new(SimEvent.Kind.REACTOR_DESTROYED,
+					projectile.owner_index, 0.0, sim.reactor.position()))
+			return true
 	if best < 0:
 		return false
 	var robot: RobotState = sim.robots[best]

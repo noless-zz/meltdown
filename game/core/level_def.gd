@@ -9,19 +9,23 @@ extends RefCounted
 ##
 ##     {"boxes": [{"min": [-6, -4, -40], "max": [6, 4, 6]}, ...],
 ##      "start": {"position": [0, 0, 0], "facing": [0, 0, -1]},
-##      "robots": [{"id": "drone", "position": [0, -20, -42], "facing": [0, 1, 0]}]}
+##      "robots": [{"id": "drone", "position": [0, -20, -42], "facing": [0, 1, 0]}],
+##      "reactor": {"position": [0, -39, -114], "radius": 2.5, "hull": 400, "meltdown_seconds": 90}}
 ##
 ## Corners, positions and facings are metres, read in whole millimetres like
 ## robot spawns, so a level reads the same on every run (ARC-2). `robots` uses
-## the entry format of `RobotSpawnList`, which parses it.
+## the entry format of `RobotSpawnList`, which parses it. `reactor` is optional
+## (RUN-2) and read by `ReactorState`; a level without one runs as before.
 ##
 ## A level is rejected, with a message naming the problem, when a box's min is
 ## not below its max, a box cannot be reached from box 0, the start or a robot
-## spawn is not held by the union with `CLEARANCE_M` to spare, or a key is
-## unknown or missing. Checking here, not when the level is flown, means a bad
+## spawn is not held by the union with `CLEARANCE_M` to spare, the reactor's
+## sphere is not held by the union, or a key is unknown or missing. Checking here, not when the level is flown, means a bad
 ## file never puts a ship in rock (see the #271 devlog).
 
 const TOP_KEYS: Array[String] = ["boxes", "start", "robots"]
+## Top-level keys a level may leave out.
+const OPTIONAL_KEYS: Array[String] = ["reactor"]
 const BOX_KEYS: Array[String] = ["min", "max"]
 const START_KEYS: Array[String] = ["position", "facing"]
 ## Two boxes are joined when they overlap by at least this much on every axis:
@@ -37,6 +41,8 @@ var union: BoxUnion = BoxUnion.new()
 var robots: RobotSpawnList = RobotSpawnList.new()
 var start_position_mm: Vector3i = Vector3i.ZERO
 var start_facing_mm: Vector3i = Vector3i(0, 0, -RobotSpawn.SCALE)
+## The level's reactor before the first tick, or null for a level without one.
+var reactor: ReactorState = null
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -50,7 +56,7 @@ static func parse_json(text: String) -> LevelDef:
 	if typeof(json.data) != TYPE_DICTIONARY:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
-	var problem: String = _check_keys(data, TOP_KEYS)
+	var problem: String = _check_keys(data, TOP_KEYS, OPTIONAL_KEYS)
 	if problem != "":
 		return _failed(problem)
 	var level: LevelDef = LevelDef.new()
@@ -59,6 +65,8 @@ static func parse_json(text: String) -> LevelDef:
 		problem = level._read_start(data["start"])
 	if problem == "":
 		problem = level._read_robots(data["robots"])
+	if problem == "" and data.has("reactor"):
+		problem = level._read_reactor(data["reactor"])
 	if problem == "":
 		problem = level._check_connected()
 	if problem == "":
@@ -152,6 +160,14 @@ func _read_robots(value: Variant) -> String:
 	return ""
 
 
+func _read_reactor(value: Variant) -> String:
+	var read: ReactorState = ReactorState.parse(value)
+	if read.error != "":
+		return read.error
+	reactor = read
+	return ""
+
+
 ## Every box reachable from box 0 through joined boxes, visited in index order.
 func _check_connected() -> String:
 	var reached: Array[bool] = []
@@ -178,13 +194,17 @@ func _check_held() -> String:
 		if not union.holds(robots.spawns[index].position(), CLEARANCE_M):
 			return "robot %d: position is not inside the level with %s m to spare" \
 					% [index + 1, CLEARANCE_M]
+	if reactor != null and not union.holds(reactor.position(), reactor.radius()):
+		return "reactor: position is not inside the level with its radius to spare"
 	return ""
 
 
 ## "" or the first unknown key, then the first missing one, in `keys` order.
-static func _check_keys(data: Dictionary, keys: Array[String]) -> String:
+## Keys in `optional` may appear but need not.
+static func _check_keys(data: Dictionary, keys: Array[String],
+		optional: Array[String] = []) -> String:
 	for key: Variant in data:
-		if not keys.has(key):
+		if not keys.has(key) and not optional.has(key):
 			return "unknown key \"%s\"" % str(key)
 	for key: String in keys:
 		if not data.has(key):

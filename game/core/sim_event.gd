@@ -50,6 +50,11 @@ enum Kind {
 	## which case `vector` is where. Reported with that ship's other events,
 	## after any WALL_IMPACT and before the projectile hits.
 	PART_SLOTTED,
+	## A ship's shot brought the level's reactor to zero hull (RUN-2); the
+	## meltdown countdown starts on the next tick. Reported once, with the
+	## projectile hits. `ship` is the ship that fired it and `vector` the
+	## reactor's position.
+	REACTOR_DESTROYED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
