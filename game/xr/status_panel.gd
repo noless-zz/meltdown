@@ -48,6 +48,16 @@ const BOOST_COLOR: Color = Color(1.0, 0.6, 0.15)
 const RECHARGING_COLOR: Color = Color(0.6, 0.6, 0.6)
 const BAR_COLOR: Color = Color(0.3, 0.85, 1.0)
 const TRACK_COLOR: Color = Color(0.15, 0.2, 0.25)
+## The panel draws without a depth test, over whatever lies between it and the
+## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
+## (#199). Its render priority sits above the cockpit frame's materials, which
+## keep the default 0, so the panel lands on top of the shell, and well below
+## the reset fade quad (`Material.RENDER_PRIORITY_MAX`), so the fade still
+## covers the panel.
+const RENDER_PRIORITY: int = 10
+## Labels and the filled bar draw one step above the bar's track, so the
+## track never covers them now that depth no longer decides.
+const RENDER_PRIORITY_TOP: int = RENDER_PRIORITY + 1
 
 ## Seconds the large preset label has left; 0 when it is hidden.
 var large_seconds_left: float = 0.0
@@ -74,8 +84,8 @@ func _init() -> void:
 	_preset_large = _label(PRESET_LARGE_NAME, Vector3(0.0, 0.11, 0.0), LARGE_FONT)
 	_preset_large.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_preset_large.visible = false
-	_bar(ENERGY_TRACK_NAME, TRACK_COLOR, -0.001)
-	_energy_bar = _bar(ENERGY_BAR_NAME, BAR_COLOR, 0.0)
+	_bar(ENERGY_TRACK_NAME, TRACK_COLOR, -0.001, RENDER_PRIORITY)
+	_energy_bar = _bar(ENERGY_BAR_NAME, BAR_COLOR, 0.0, RENDER_PRIORITY_TOP)
 	_set_bar_fraction(1.0)
 
 
@@ -155,16 +165,20 @@ func _label(label_name: String, at: Vector3, font_size: int) -> Label3D:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.modulate = TEXT_COLOR
 	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	label.no_depth_test = true
+	label.render_priority = RENDER_PRIORITY_TOP
 	add_child(label)
 	return label
 
 
-func _bar(bar_name: String, color: Color, depth: float) -> MeshInstance3D:
+func _bar(bar_name: String, color: Color, depth: float, priority: int) -> MeshInstance3D:
 	var quad: QuadMesh = QuadMesh.new()
 	quad.size = Vector2(BAR_WIDTH, BAR_HEIGHT)
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = color
+	material.no_depth_test = true
+	material.render_priority = priority
 	var bar: MeshInstance3D = MeshInstance3D.new()
 	bar.name = bar_name
 	bar.mesh = quad
