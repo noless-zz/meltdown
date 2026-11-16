@@ -15,6 +15,7 @@ func _valid_data() -> Dictionary:
 	return {
 		"max_offset_m": 0.02, "max_roll_deg": 6.0, "decay_s": 0.4,
 		"full_impact_speed_m_per_s": 15.0, "shake_frequency_hz": 18.0,
+		"full_hit_damage": 16.0,
 	}
 
 
@@ -175,11 +176,43 @@ func test_zero_magnitude_and_other_events_do_nothing() -> String:
 		SimEvent.new(SimEvent.Kind.AFTERBURNER_STARTED, 0),
 		SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, 0),
 		SimEvent.new(SimEvent.Kind.WALL_IMPACT, 1, 20.0, Vector3.BACK),
+		SimEvent.new(SimEvent.Kind.SHIP_HIT, 1, 20.0, Vector3.BACK),
+		SimEvent.new(SimEvent.Kind.SHIP_HIT, 0, 0.0, Vector3.BACK),
+		SimEvent.new(SimEvent.Kind.ROBOT_HIT, 0, 20.0, Vector3.BACK),
+		SimEvent.new(SimEvent.Kind.ROBOT_DESTROYED, 0),
 	]
 	shake.feed(events, 0, Basis.IDENTITY)
 	for frame: int in 30:
 		if shake.advance(FRAME_S) != Transform3D.IDENTITY:
 			return "moved on frame %d without a hit on this ship" % frame
+	return ""
+
+
+## #225: a robot's shot hitting this ship shakes like a wall impact, its
+## strength scaled by the damage against `full_hit_damage`, and a shot from
+## the ship's right rolls the view left, whichever way the ship faces.
+func test_a_shot_hitting_the_ship_shakes_scaled_by_damage() -> String:
+	var shake: HitShake = _shake_for(3)
+	var half: float = shake.full_hit_damage * 0.5
+	var events: Array[SimEvent] = [SimEvent.new(SimEvent.Kind.SHIP_HIT, 0, half, Vector3.LEFT)]
+	shake.feed(events, 0, Basis.IDENTITY)
+	if not is_equal_approx(shake.strength(), 0.5):
+		return "strength %f for half of full_hit_damage, expected 0.5" % shake.strength()
+	if shake.advance(FRAME_S) == Transform3D.IDENTITY:
+		return "a shot hitting the ship did not move the view under preset 3"
+	var big: Array[SimEvent] = [
+		SimEvent.new(SimEvent.Kind.SHIP_HIT, 0, shake.full_hit_damage * 4.0, Vector3.LEFT)]
+	shake.feed(big, 0, Basis.IDENTITY)
+	if shake.strength() != 1.0:
+		return "strength %f for a shot past full_hit_damage, expected 1" % shake.strength()
+	for facing: Basis in [Basis.IDENTITY, Basis(Vector3.UP, PI)]:
+		var spin: HitShake = _shake_for(4)
+		# From the ship's right, flying towards its left.
+		var flight: Vector3 = -facing.x
+		var shot: Array[SimEvent] = [SimEvent.new(SimEvent.Kind.SHIP_HIT, 0, half, flight)]
+		spin.feed(shot, 0, facing)
+		if not _rolled_left(spin):
+			return "a shot from the right of a ship facing %s did not roll left" % -facing.z
 	return ""
 
 

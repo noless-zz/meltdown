@@ -25,13 +25,16 @@ var decay_s: float = 0.4
 ## Impact speed that gives a full-strength hit, metres per second, 1..60.
 ## Faster impacts are capped there.
 var full_impact_speed_m_per_s: float = 15.0
+## Damage from one shot that gives a full-strength hit, damage points, 1..1000.
+## Bigger shots are capped there.
+var full_hit_damage: float = 16.0
 ## How fast the shake wobbles, hertz, 1..40.
 var shake_frequency_hz: float = 18.0
 
 ## Every key of the data file, with the same name as the field it sets.
 const KEYS: Array[String] = [
 	"max_offset_m", "max_roll_deg", "decay_s", "full_impact_speed_m_per_s",
-	"shake_frequency_hz",
+	"shake_frequency_hz", "full_hit_damage",
 ]
 
 ## Allowed range of each key, inclusive: [minimum, maximum]. Keep these in
@@ -42,6 +45,7 @@ const RANGES: Dictionary[String, Array] = {
 	"decay_s": [0.05, 2.0],
 	"full_impact_speed_m_per_s": [1.0, 60.0],
 	"shake_frequency_hz": [1.0, 40.0],
+	"full_hit_damage": [1.0, 1000.0],
 }
 
 ## Set when the text was rejected; empty otherwise.
@@ -96,19 +100,26 @@ static func load_file(path: String = DEFAULT_FILE) -> HitShake:
 	return shake
 
 
-## Takes in one frame's events. Only wall impacts on `ship` (this player's
-## ship) count; a stronger hit replaces a weaker one still fading, and hits
+## Takes in one frame's events. Only wall impacts and shots hitting `ship`
+## (this player's ship) count; a stronger hit replaces a weaker one still fading, and hits
 ## never add up past full strength, so a burst stays within the caps.
 ## `ship_basis` is that ship's orientation: the hit side is read in the ship's
 ## own frame, so the roll matches the cockpit whichever way the ship faces.
 func feed(events: Array[SimEvent], ship: int, ship_basis: Basis) -> void:
 	var right: Vector3 = ship_basis.x.normalized()
 	for event: SimEvent in events:
-		if event == null or event.ship != ship or event.kind != SimEvent.Kind.WALL_IMPACT:
+		if event == null or event.ship != ship:
+			continue
+		var full: float = 0.0
+		if event.kind == SimEvent.Kind.WALL_IMPACT:
+			full = full_impact_speed_m_per_s
+		elif event.kind == SimEvent.Kind.SHIP_HIT:
+			full = full_hit_damage
+		else:
 			continue
 		if not event.magnitude > 0.0:
 			continue
-		var strength: float = minf(event.magnitude / full_impact_speed_m_per_s, 1.0)
+		var strength: float = minf(event.magnitude / full, 1.0)
 		if strength >= _strength:
 			_strength = strength
 			_roll_sign = roll_sign_for(event.vector, right)
@@ -116,7 +127,8 @@ func feed(events: Array[SimEvent], ship: int, ship_basis: Basis) -> void:
 
 ## +1 or -1: the roll direction for a wall whose normal (pointing back into
 ## the open space, as `SimEvent` gives it) is `normal`, on a ship whose right
-## is `right`. A wall on the ship's right has its normal pointing to the
+## is `right`. A shot's direction of flight works the same way: a shot from
+## the right flies left, as a wall on the right's normal points left. A wall on the ship's right has its normal pointing to the
 ## ship's left; that hit rolls the view left (-1, the camera's top towards its
 ## left) and a hit on the left rolls it right.
 static func roll_sign_for(normal: Vector3, right: Vector3) -> float:

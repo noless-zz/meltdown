@@ -3,5 +3,6 @@
 	"max_roll_deg": 6,
 	"decay_s": 0.4,
 	"full_impact_speed_m_per_s": 15,
-	"shake_frequency_hz": 18
+	"shake_frequency_hz": 18,
+	"full_hit_damage": 16
 }

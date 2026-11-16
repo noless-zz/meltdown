@@ -29,11 +29,16 @@ enum Kind {
 	## of the tick. Follows the ROBOT_HIT of the killing shot, and `ship` is
 	## the ship that fired it.
 	ROBOT_DESTROYED,
+	## A robot's projectile hit a ship. `ship` is the ship hit, `magnitude` the
+	## damage dealt (before the shield absorbs any) and `vector` the
+	## projectile's unit direction of flight. Reported with the robot events,
+	## after every ship event of the tick, in projectile order.
+	SHIP_HIT,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
-## Index into `Sim.ships`: the ship it happened to, or for robot events the
-## ship whose shot caused it.
+## Index into `Sim.ships`: the ship it happened to (SHIP_HIT included), or
+## for robot events the ship whose shot caused it.
 var ship: int = 0
 ## Kind-specific size; 0.0 for kinds that have none.
 var magnitude: float = 0.0
