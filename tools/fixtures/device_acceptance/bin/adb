@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Stub adb for tools/test_device_acceptance.sh. Every call is appended to
+# $STUB_ADB_LOG. `adb devices` prints $STUB_ADB_DEVICES; `logcat -d` prints
+# $STUB_GODOT_LOG; `pidof` succeeds unless $STUB_ADB_DEAD is 1. With
+# $STUB_ADB_BLANK_INSTALL=1 a streamed install fails with no reason, as in
+# playtest #210, and an install with --no-streaming succeeds.
+set -euo pipefail
+echo "$*" >> "$STUB_ADB_LOG"
+if [ "${1:-}" = "-s" ]; then
+	shift 2
+fi
+case "${1:-}" in
+	devices)
+		echo "List of devices attached"
+		printf '%b' "${STUB_ADB_DEVICES:-}"
+		echo
+		;;
+	install)
+		if [ "${STUB_ADB_BLANK_INSTALL:-0}" = "1" ] && [[ " $* " != *" --no-streaming "* ]]; then
+			echo "Performing Streamed Install"
+			echo "adb: failed to install meltdown-quest-debug.apk:" >&2
+			exit 1
+		fi
+		echo "Performing Streamed Install"
+		echo "Success"
+		;;
+	logcat)
+		if [ "${2:-}" = "-d" ] && [ -f "${STUB_GODOT_LOG:-}" ]; then
+			cat "$STUB_GODOT_LOG"
+		fi
+		;;
+	pull)
+		echo "not a real PNG" > "$3"
+		echo "1 file pulled"
+		;;
+	shell)
+		case "${2:-}" in
+			settings)
+				if [ "${3:-}" = "get" ]; then
+					echo "2"
+				fi
+				;;
+			pidof)
+				if [ "${STUB_ADB_DEAD:-0}" = "1" ]; then
+					exit 1
+				fi
+				echo "4242"
+				;;
+			cmd)
+				echo "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true"
+				echo "io.github.nolesszz.meltdown/com.godot.game.GodotApp"
+				;;
+			am)
+				if [ "${3:-}" = "start" ]; then
+					echo "Starting: Intent { cmp=io.github.nolesszz.meltdown/com.godot.game.GodotApp (has extras) }"
+				fi
+				;;
+		esac
+		;;
+	*)
+		echo "stub adb: unexpected command '$*'" >&2
+		exit 1
+		;;
+esac

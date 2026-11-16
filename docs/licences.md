@@ -9,3 +9,4 @@ Free assets and AI-generated or AI-modified assets only.
 | Monado OpenXR runtime | not vendored; installed by the `xr-smoke` CI job from the Ubuntu archive | https://monado.freedesktop.org | BSL-1.0 | | #26 |
 | Mesa lavapipe (`mesa-vulkan-drivers`) | not vendored; installed by the `xr-smoke` CI job | https://mesa3d.org | MIT | | #26 |
 | Xvfb | not vendored; installed by the `xr-smoke` CI job | https://www.x.org | MIT (X11) | | #26 |
+| Meta XR Simulator | not vendored; installed by the owner on his `quest-pc` runner and used by the `simulator` job of `device-acceptance.yml` when it is the active OpenXR runtime | https://developers.meta.com/horizon/documentation/native/xrsim-intro/ | Meta's SDK licence, accepted by the owner at install | | #154 |
