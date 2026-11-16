@@ -2,7 +2,8 @@ extends RefCounted
 
 ## The comfort presets in the main scene (CMF-1, CMF-3, CMF-6, CMF-8, ARC-3):
 ## the filter sits between the mapping and the ship, the preset switch, the
-## command-line override and how snaps are shown.
+## command-line override and the one-tick bookkeeping. How snaps are shown is
+## in `test_comfort_snap_display.gd`.
 
 const FRAME: float = 1.0 / 90.0
 
@@ -185,52 +186,6 @@ func test_switching_presets_leaves_the_ship_alone() -> String:
 		return "switching presets changed the simulation"
 	if tick != 20:
 		return "30 frames ran %d ticks" % tick
-	return ""
-
-
-func test_a_snap_tick_is_shown_without_slerp() -> String:
-	var previous: ShipState = ShipState.new()
-	previous.position = Vector3(0.0, 0.0, 0.0)
-	var snapped: ShipState = ShipState.new()
-	snapped.position = Vector3(0.0, 0.0, -1.0)
-	snapped.orientation = Basis(Vector3.UP, deg_to_rad(30.0))
-	var half_snap: float = deg_to_rad(15.0)
-	var pose: Transform3D = ComfortWiring.interpolated_pose(previous, snapped, 0.5, half_snap)
-	if not pose.basis.is_equal_approx(snapped.orientation):
-		return "a 30 degree tick was blended: %s" % str(pose.basis)
-	if not pose.origin.is_equal_approx(Vector3(0.0, 0.0, -0.5)):
-		return "the snap tick's position was not interpolated: %s" % str(pose.origin)
-	var smooth: ShipState = ShipState.new()
-	smooth.orientation = Basis(Vector3.UP, deg_to_rad(1.5))
-	var blended: Transform3D = ComfortWiring.interpolated_pose(previous, smooth, 0.5, half_snap)
-	if not blended.basis.is_equal_approx(Basis(Vector3.UP, deg_to_rad(0.75))):
-		return "a smooth 1.5 degree tick was not slerped: %s" % str(blended.basis)
-	return ""
-
-
-func test_the_rig_shows_a_snap_at_once() -> String:
-	var main: Node = _main()
-	main.call("set_comfort_preset", 1)
-	var shown_snap: bool = false
-	for i: int in 6:
-		_frame(main, _values(Vector2(1.0, 0.0)))
-		var session: LocalSession = main.get("session")
-		var turn: float = session.previous_ship().orientation.get_rotation_quaternion().angle_to(
-			session.current_ship().orientation.get_rotation_quaternion())
-		if turn > deg_to_rad(15.0):
-			var rig: Node3D = main.get_node("XRRig") as Node3D
-			if not rig.transform.basis.is_equal_approx(session.current_ship().orientation):
-				main.free()
-				return "the rig blended the snap tick: %s" % str(rig.transform.basis)
-			shown_snap = true
-	var snap_angle: float = (main.get("comfort") as ComfortWiring).snap_show_angle()
-	main.call("set_comfort_preset", 4)
-	var smooth_angle: float = (main.get("comfort") as ComfortWiring).snap_show_angle()
-	main.free()
-	if not shown_snap:
-		return "no snap tick was seen"
-	if not is_equal_approx(snap_angle, deg_to_rad(15.0)) or smooth_angle != 0.0:
-		return "snap show angles %f / %f" % [snap_angle, smooth_angle]
 	return ""
 
 

@@ -125,6 +125,7 @@ func advance_frame(delta_seconds: float) -> void:
 		_end_one_tick_if_flown()
 		# The session limits a resumed frame to one tick; the split must too.
 		session.advance(0.0 if resuming else delta_seconds - to_tick)
+		_end_one_tick_if_flown()  # A later tick ends the snap's showing.
 	else:
 		session.advance(delta_seconds)
 		_end_one_tick_if_flown()
@@ -171,7 +172,7 @@ func place_rig() -> void:
 	if camera != null:
 		head_recentre.update(camera.transform, _xr_running)
 	rig.transform = head_recentre.rig_transform(ComfortWiring.interpolated_pose(session.previous_ship(),
-		session.current_ship(), session.interpolation_fraction, comfort.snap_show_angle()))
+		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped))
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:
