@@ -31,9 +31,14 @@ var start_orientations: Array[Basis] = []
 var projectiles: Array[Projectile] = []
 ## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
 var robots: Array[RobotState] = []
+## Parts dropped by destroyed robots, in drop order (SLV-1). Part of the hash
+## while there are any. They do not expire in M2.
+var salvage: Array[SalvageItem] = []
 ## Projectile hit events of the tick being stepped. Hits are found when
 ## projectiles move, before the ships, but their events follow the ship events.
 var _hit_events: Array[SimEvent] = []
+## Robot index to the ship whose shot destroyed it, for the tick being stepped.
+var _killers: Dictionary = {}
 ## True only while `step` runs, so a spawn cannot land part-way through a tick.
 var _stepping: bool = false
 
@@ -55,6 +60,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	if inputs.size() != ships.size():
 		return false
 	_hit_events = []
+	_killers = {}
 	_stepping = true
 	if tick == 0:
 		_record_start_poses()
@@ -82,6 +88,10 @@ func step(inputs: Array[ShipInput]) -> bool:
 		_fire(i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	_advance_robots()
+	# Items already floating move before this tick's drops, so a part appears
+	# exactly where its robot died.
+	for item: SalvageItem in salvage:
+		item.advance(bounds)
 	_remove_destroyed_robots()
 	_stepping = false
 	tick += 1
@@ -179,12 +189,20 @@ func _reset_to_start(index: int) -> void:
 
 
 ## Removes robots whose hull reached zero this tick, keeping the order of
-## the rest, so robot indices stay in spawn order.
+## the rest, so robot indices stay in spawn order. Each leaves its salvage, in
+## robot order, with a SALVAGE_DROPPED event after the tick's other events.
 func _remove_destroyed_robots() -> void:
 	var kept: Array[RobotState] = []
-	for robot: RobotState in robots:
+	for r: int in robots.size():
+		var robot: RobotState = robots[r]
 		if robot.is_alive():
 			kept.append(robot)
+			continue
+		var item: SalvageItem = SalvageItem.dropped_by(robot)
+		if item != null:
+			salvage.append(item)
+			last_events.append(SimEvent.new(SimEvent.Kind.SALVAGE_DROPPED,
+				_killers.get(r, 0), salvage.size() - 1, item.position))
 	robots = kept
 
 
@@ -234,6 +252,7 @@ func _hit_robot(projectile: Projectile, from: Vector3) -> bool:
 		projectile.damage, direction))
 	if not robot.is_alive():
 		_hit_events.append(SimEvent.new(SimEvent.Kind.ROBOT_DESTROYED, projectile.owner_index))
+		_killers[best] = projectile.owner_index
 	return true
 
 
@@ -272,8 +291,8 @@ func _fire(index: int, held: bool) -> void:
 		index, weapon.lifetime_ticks(), weapon.damage))
 
 
-## Hash of the whole simulation state. Projectiles and robots join only while
-## there are any, so runs recorded before weapons and robots keep their hashes.
+## Hash of the whole simulation state. Projectiles, robots and salvage join
+## only while there are any, so runs recorded before them keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
@@ -286,4 +305,8 @@ func state_hash() -> int:
 		parts.append(hash("robots"))
 		for robot: RobotState in robots:
 			parts.append(robot.state_hash())
+	if not salvage.is_empty():
+		parts.append(hash("salvage"))
+		for item: SalvageItem in salvage:
+			parts.append(item.state_hash())
 	return hash(parts)
