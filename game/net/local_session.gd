@@ -7,8 +7,9 @@ extends RefCounted
 ##
 ## Time arrives only through `advance`; nothing here reads the clock, nodes or
 ## input devices (ARC-1). The view reads `previous_ship()`, `current_ship()`,
-## `current_projectiles()`, `previous_robots()`, `current_robots()` and
-## `interpolation_fraction` and never writes simulation state (MP-2).
+## `current_projectiles()`, `previous_robots()`, `current_robots()`,
+## `previous_salvage()`, `current_salvage()` and `interpolation_fraction` and
+## never writes simulation state (MP-2).
 
 ## A long hitch (a loading stall, the headset taken off) would otherwise make
 ## the next frame run hundreds of ticks, take longer than a frame, and fall
@@ -59,6 +60,9 @@ var _projectile_copies: Dictionary[Projectile, Projectile] = {}
 ## Copies of `sim.robots` after the tick before the latest one and after it.
 var _previous_robots: Array[RobotState] = []
 var _current_robots: Array[RobotState] = []
+## Copies of `sim.salvage` after the tick before the latest one and after it.
+var _previous_salvage: Array[SalvageItem] = []
+var _current_salvage: Array[SalvageItem] = []
 
 
 ## `bounds` are the walls the ship flies inside, or null for open space.
@@ -94,6 +98,8 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 	_previous_ship = _snapshot(sim.ships[0])
 	_current_robots = _snapshot_robots()
 	_previous_robots = _current_robots
+	_current_salvage = _snapshot_salvage()
+	_previous_salvage = _current_salvage
 
 
 ## Adds `delta_seconds` of frame time and runs every whole tick that fits, up to
@@ -215,6 +221,17 @@ func current_robots() -> Array[RobotState]:
 	return _current_robots.duplicate()
 
 
+## Every floating part after the tick before the latest one, in the
+## simulation's order. A new array of copies, like `previous_robots()`.
+func previous_salvage() -> Array[SalvageItem]:
+	return _previous_salvage.duplicate()
+
+
+## Every floating part after the latest tick, like `previous_salvage()`.
+func current_salvage() -> Array[SalvageItem]:
+	return _current_salvage.duplicate()
+
+
 func _run_tick() -> void:
 	var inputs: Array[ShipInput] = [_input_source.next_input(sim.tick)]
 	sim.step(inputs)
@@ -226,6 +243,8 @@ func _run_tick() -> void:
 	_snapshot_projectiles()
 	_previous_robots = _current_robots
 	_current_robots = _snapshot_robots()
+	_previous_salvage = _current_salvage
+	_current_salvage = _snapshot_salvage()
 
 
 ## Drops the whole ticks left in the accumulator and keeps the fraction, so the
@@ -266,6 +285,15 @@ func _snapshot_robots() -> Array[RobotState]:
 	for robot: RobotState in sim.robots:
 		var copy: RobotState = RobotState.new(robot.def)
 		_copy_fields(robot, copy)
+		copies.append(copy)
+	return copies
+
+
+func _snapshot_salvage() -> Array[SalvageItem]:
+	var copies: Array[SalvageItem] = []
+	for item: SalvageItem in sim.salvage:
+		var copy: SalvageItem = SalvageItem.new()
+		_copy_fields(item, copy)
 		copies.append(copy)
 	return copies
 
