@@ -6,8 +6,9 @@ extends RefCounted
 ## all drive the simulation through this, so they fly the same code.
 ##
 ## Time arrives only through `advance`; nothing here reads the clock, nodes or
-## input devices (ARC-1). The view reads `previous_ship()`, `current_ship()`
-## and `interpolation_fraction` and never writes simulation state (MP-2).
+## input devices (ARC-1). The view reads `previous_ship()`, `current_ship()`,
+## `current_projectiles()` and `interpolation_fraction` and never writes
+## simulation state (MP-2).
 
 ## A long hitch (a loading stall, the headset taken off) would otherwise make
 ## the next frame run hundreds of ticks, take longer than a frame, and fall
@@ -17,6 +18,8 @@ const MAX_TICKS_PER_ADVANCE: int = 5
 ## (90 frames of 1/90 s), which would lose one tick per second. Time within this
 ## margin of a whole tick counts as the whole tick.
 const TICK_EPSILON: float = 1.0e-6
+## Where the weapons a ship file's loadout names are read from, by id (#189).
+const WEAPON_DIR: String = "res://data/weapons/"
 
 var sim: Sim
 ## Every input fed to `sim`, in order; running it reproduces `sim` (ARC-2).
@@ -45,11 +48,19 @@ var _previous_ship: ShipState
 var _current_ship: ShipState
 ## Events of every tick run by the latest `advance`, in tick order.
 var _frame_events: Array[SimEvent] = []
+## Copies of `sim.projectiles` after the latest tick, oldest first.
+var _current_projectiles: Array[Projectile] = []
+## The copy of each live projectile, by the simulation's projectile. A
+## projectile keeps one copy for its whole flight, so the view can tell a bolt
+## it already drew from a new one and blend it between ticks.
+var _projectile_copies: Dictionary[Projectile, Projectile] = {}
 
 
 ## `bounds` are the walls the ship flies inside, or null for open space.
 ## `tuning` gives every ship its feel values before the first tick; null, or a
-## tuning whose `error` is set, flies the built-in defaults.
+## tuning whose `error` is set, flies the built-in defaults. A tuning whose
+## loadout has been resolved (see `load_tuning`) starts the ship armed, and the
+## weapons are recorded in the replay (CMB-1, ARC-2).
 func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null,
 		tuning: ShipTuning = null) -> void:
 	replay = Replay.new(run_seed, 1)
@@ -62,6 +73,9 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 	# The tuning goes through the replay too, so a replay flies the same ship.
 	sim = Sim.new(run_seed, 1, replay.bounds())
 	replay.apply_tuning(sim)
+	if replay.tuning != null and replay.tuning.loadout.is_armed():
+		replay.loadout = replay.tuning.loadout
+		sim.equip(replay.loadout)
 	_input_source = input_source if input_source != null else ShipInputSource.new()
 	_current_ship = _snapshot(sim.ships[0])
 	_previous_ship = _snapshot(sim.ships[0])
@@ -99,7 +113,11 @@ func advance(delta_seconds: float) -> int:
 
 ## Reads a ship data file. Returns null, after printing why, when the file is
 ## missing or rejected, so the caller flies the built-in defaults.
-static func load_tuning(path: String) -> ShipTuning:
+## The weapons its loadout names are read from `weapon_dir` and resolved here,
+## since core opens no files. If any of them is missing or rejected, the
+## problem is printed and the ship flies unarmed with the file's other values:
+## a half-armed ship would hide which weapon broke.
+static func load_tuning(path: String, weapon_dir: String = WEAPON_DIR) -> ShipTuning:
 	var problem: String = ""
 	var tuning: ShipTuning = null
 	if not FileAccess.file_exists(path):
@@ -110,6 +128,14 @@ static func load_tuning(path: String) -> ShipTuning:
 	if problem != "":
 		print("Meltdown: ship tuning %s rejected (%s); flying with the built-in defaults" % [path, problem])
 		return null
+	var texts: Dictionary = {}
+	for id: String in tuning.loadout.weapon_ids():
+		var weapon_path: String = weapon_dir.path_join(id + ".json")
+		if FileAccess.file_exists(weapon_path):
+			texts[id] = FileAccess.get_file_as_string(weapon_path)
+	var weapon_problem: String = tuning.loadout.resolve(texts)
+	if weapon_problem != "":
+		print("Meltdown: ship loadout in %s rejected (%s); flying unarmed" % [path, weapon_problem])
 	return tuning
 
 
@@ -132,6 +158,13 @@ func current_ship() -> ShipState:
 	return _current_ship
 
 
+## Every live projectile after the latest tick, oldest first. A new array of
+## copies: changing the array or a projectile in it leaves the simulation as it
+## was (MP-2). The same projectile is the same copy from tick to tick.
+func current_projectiles() -> Array[Projectile]:
+	return _current_projectiles.duplicate()
+
+
 func _run_tick() -> void:
 	var inputs: Array[ShipInput] = [_input_source.next_input(sim.tick)]
 	sim.step(inputs)
@@ -140,6 +173,7 @@ func _run_tick() -> void:
 	_accumulator -= ShipState.TICK_DT
 	_previous_ship = _current_ship
 	_current_ship = _snapshot(sim.ships[0])
+	_snapshot_projectiles()
 
 
 ## Drops the whole ticks left in the accumulator and keeps the fraction, so the
@@ -151,15 +185,35 @@ func _drop_whole_ticks() -> void:
 	_accumulator = maxf(_accumulator - dropped, 0.0)
 
 
-## Copies every script variable, so fields added to `ShipState` later are
-## carried along without changing this file.
 static func _snapshot(ship: ShipState) -> ShipState:
 	var copy: ShipState = ShipState.new()
-	for property: Dictionary in ship.get_property_list():
+	_copy_fields(ship, copy)
+	return copy
+
+
+## Refreshes `_current_projectiles` from `sim.projectiles`, reusing the copy
+## each projectile already has and dropping those of removed projectiles.
+func _snapshot_projectiles() -> void:
+	var copies: Dictionary[Projectile, Projectile] = {}
+	var listed: Array[Projectile] = []
+	for projectile: Projectile in sim.projectiles:
+		var copy: Projectile = _projectile_copies.get(projectile, null) as Projectile
+		if copy == null:
+			copy = Projectile.new()
+		_copy_fields(projectile, copy)
+		copies[projectile] = copy
+		listed.append(copy)
+	_projectile_copies = copies
+	_current_projectiles = listed
+
+
+## Copies every script variable, so fields added to `ShipState` or
+## `Projectile` later are carried along without changing this file.
+static func _copy_fields(from: Object, to: Object) -> void:
+	for property: Dictionary in from.get_property_list():
 		if int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE:
 			var prop_name: String = property["name"]
-			copy.set(prop_name, ship.get(prop_name))
-	return copy
+			to.set(prop_name, from.get(prop_name))
 
 
 static func _to_mm(metres: Vector3) -> Vector3i:
