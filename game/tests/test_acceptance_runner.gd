@@ -90,6 +90,21 @@ func test_m1_suite_passes_in_the_flat_main_scene() -> String:
 	return problem
 
 
+## The m2 replay starts with weapons and robots; the runner must give its
+## session both, or the bot's shots and the robots are missing and the hash
+## differs on every device (#270).
+func test_m2_suite_passes_in_the_flat_main_scene() -> String:
+	var runner: AcceptanceRunner = _run(AcceptanceSuite.load_named("m2"))
+	var problem: String = ""
+	if runner.exit_code != AcceptanceRunner.EXIT_PASS or runner.reports.size() != 1 \
+			or not runner.reports[0].passed():
+		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
+	elif not (runner.main.get("session") as LocalSession).sim.robots.is_empty():
+		problem = "robots are left after the m2 replay"
+	_done(runner)
+	return problem
+
+
 func _check_report_file(runner: AcceptanceRunner) -> String:
 	var expected: String = "user://acceptance/m1-%s.json" % BuildInfo.UNKNOWN
 	if runner.report_paths != [expected]:

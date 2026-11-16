@@ -1,0 +1,11 @@
+{
+	"name": "m2",
+	"steps": [
+		{
+			"id": "bot_clears_test_tunnel",
+			"replay": "res://acceptance/replays/bot_test_tunnel.replay",
+			"checks": ["final_hash"],
+			"expected_hash": 734254736
+		}
+	]
+}
