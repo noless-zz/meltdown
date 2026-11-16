@@ -22,6 +22,10 @@ var part_id: String = ""
 var position: Vector3 = Vector3.ZERO
 ## Metres per second.
 var velocity: Vector3 = Vector3.ZERO
+## Index of the ship that dropped this part by slotting another, which may not
+## take it back until its centre has left pickup range (`SalvagePickup`); -1
+## for none. Part of the hash only while set, so earlier replays keep theirs.
+var ignored_ship: int = -1
 
 
 func _init(p_part_id: String = "", p_position: Vector3 = Vector3.ZERO,
@@ -68,4 +72,6 @@ func is_at_rest() -> bool:
 
 
 func state_hash() -> int:
-	return hash([part_id, position, velocity])
+	if ignored_ship < 0:
+		return hash([part_id, position, velocity])
+	return hash([part_id, position, velocity, "ignored_ship", ignored_ship])

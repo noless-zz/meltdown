@@ -44,6 +44,12 @@ enum Kind {
 	## before this tick's pickups and `vector` where it floated. Reported after the
 	## projectile hits and before any SALVAGE_DROPPED of the tick, in ship order.
 	SALVAGE_COLLECTED,
+	## A ship slotted the part from its hold into a primary slot (SLV-1).
+	## `ship` is that ship, `magnitude` the primary slot index (0 or 1) and
+	## `dropped` whether the weapon it replaced was dropped as salvage, in
+	## which case `vector` is where. Reported with that ship's other events,
+	## after any WALL_IMPACT and before the projectile hits.
+	PART_SLOTTED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
@@ -54,6 +60,8 @@ var ship: int = 0
 var magnitude: float = 0.0
 ## Kind-specific direction; Vector3.ZERO for kinds that have none.
 var vector: Vector3 = Vector3.ZERO
+## PART_SLOTTED only: a replaced weapon was dropped. False for every other kind.
+var dropped: bool = false
 
 
 func _init(
@@ -70,7 +78,8 @@ func _init(
 ## Exact comparison: two simulations fed the same inputs must agree to the bit.
 func equals(other: SimEvent) -> bool:
 	return (other != null and kind == other.kind and ship == other.ship
-		and magnitude == other.magnitude and vector == other.vector)
+		and magnitude == other.magnitude and vector == other.vector
+		and dropped == other.dropped)
 
 
 func _to_string() -> String:

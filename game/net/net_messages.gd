@@ -19,7 +19,7 @@ extends RefCounted
 
 ## Raised whenever any packet layout changes, so mismatched builds refuse each
 ## other at hello instead of misreading inputs (MP-11).
-const PROTOCOL_VERSION: int = 1
+const PROTOCOL_VERSION: int = 2
 
 const TYPE_HELLO: int = 1
 const TYPE_INPUT: int = 2
@@ -37,7 +37,7 @@ const MAX_SHIP_INDEX: int = 255
 ## the network unnoticed.
 const VECTOR_FIELDS: Array[String] = ["thrust_q", "turn_q"]
 ## Packed as bits of the flags byte, bit 0 first.
-const BOOL_FIELDS: Array[String] = ["afterburner", "reset_to_start", "fire_primary"]
+const BOOL_FIELDS: Array[String] = ["afterburner", "reset_to_start", "fire_primary", "slot_held"]
 
 
 ## Empty array if `build` is longer than `MAX_BUILD_BYTES` in UTF-8.

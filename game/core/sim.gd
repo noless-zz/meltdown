@@ -74,6 +74,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	# spawns where its ship is at the end of the tick it was fired on.
 	ProjectileHits.advance(self, _hit_events, _killers)
 	var from: Array[Vector3] = []
+	var slot_drops: Array[SalvageItem] = []
 	for i: int in ships.size():
 		var ship: ShipState = ships[i]
 		if inputs[i].reset_to_start:
@@ -93,14 +94,17 @@ func step(inputs: Array[ShipInput]) -> bool:
 			if impact != Vector3.ZERO:
 				last_events.append(SimEvent.new(
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
+		if inputs[i].slot_held:
+			PartSlotting.slot_held(self, i, slot_drops)
 		_fire(i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
 	_advance_robots()
 	# Items already floating move before this tick's drops, so a part appears
-	# exactly where its robot died.
+	# exactly where its robot died or its ship swapped it out.
 	for item: SalvageItem in salvage:
 		item.advance(bounds)
+	salvage.append_array(slot_drops)
 	_remove_destroyed_robots()
 	_stepping = false
 	tick += 1

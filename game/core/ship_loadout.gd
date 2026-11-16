@@ -144,6 +144,8 @@ func is_armed() -> bool:
 ## Puts the resolved weapons in `ship`'s slots, emptying the rest.
 func equip(ship: ShipState) -> void:
 	ship.primary_slots.assign(primary_weapons)
+	for slot: int in SLOTS_PER_KIND:
+		ship.primary_ids[slot] = primary_ids[slot] if primary_weapons[slot] != null else ""
 	ship.secondary_slots.assign(secondary_weapons)
 
 

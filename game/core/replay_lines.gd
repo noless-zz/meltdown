@@ -216,15 +216,16 @@ static func _split_robot_json(text: String, into: Array) -> String:
 	return ""
 
 
-## One tick: nine integers per ship, ships joined by `Replay.SHIP_SEPARATOR`.
+## One tick: ten integers per ship, ships joined by `Replay.SHIP_SEPARATOR`.
 static func tick_text(frame: Array) -> String:
 	var parts: PackedStringArray = PackedStringArray()
 	for input: ShipInput in frame:
 		var t: Vector3i = input.thrust_q
 		var r: Vector3i = input.turn_q
-		parts.append("%d %d %d %d %d %d %d %d %d" % [
+		parts.append("%d %d %d %d %d %d %d %d %d %d" % [
 			t.x, t.y, t.z, r.x, r.y, r.z, 1 if input.afterburner else 0,
-			1 if input.reset_to_start else 0, 1 if input.fire_primary else 0])
+			1 if input.reset_to_start else 0, 1 if input.fire_primary else 0,
+			1 if input.slot_held else 0])
 	return Replay.SHIP_SEPARATOR.join(parts)
 
 
@@ -254,10 +255,13 @@ static func parse_tick_line(replay: Replay, line: String, version: int) -> Strin
 		var fire: int = values[8] if expected >= 9 else 0
 		if fire != 0 and fire != 1:
 			return "fire must be 0 or 1, found %d" % fire
+		var slot: int = values[9] if expected >= 10 else 0
+		if slot != 0 and slot != 1:
+			return "slot must be 0 or 1, found %d" % slot
 		inputs.append(ShipInput.new(
 			Vector3i(values[0], values[1], values[2]),
 			Vector3i(values[3], values[4], values[5]),
-			afterburner == 1, reset == 1, fire == 1))
+			afterburner == 1, reset == 1, fire == 1, slot == 1))
 	replay.frames.append(inputs)
 	return ""
 
@@ -270,4 +274,6 @@ static func numbers_per_ship(version: int) -> int:
 		return 7
 	if version <= 5:
 		return 8
-	return 9
+	if version <= 10:
+		return 9
+	return 10
