@@ -44,6 +44,11 @@ var strafe_max_distance: float = 20.0
 ## How hard a strafer pulls back to the middle of its band, metres per second
 ## of radial speed per metre off the middle, 0..10.
 var strafe_radial_gain: float = 0.5
+## Distance from a ship's centre that wakes the robot, metres, read in whole
+## millimetres, above zero. Until then it neither moves nor fires, so a level can
+## place robots that wait for the ship to come to them (#301). Zero means the
+## file has no such key: the robot is awake from the first tick, as before.
+var wake_range: float = 0.0
 
 ## Movement behaviours the simulation knows:
 ## hover: hold position near its spawn, turning to face the target.
@@ -63,6 +68,7 @@ const KEYS: Array[String] = [
 ## Keys a file may leave out; each falls back to its field's default above.
 const OPTIONAL_KEYS: Array[String] = [
 	"standoff_radii", "strafe_min_distance", "strafe_max_distance", "strafe_radial_gain",
+	"wake_range",
 ]
 
 ## Keys whose value is an id string rather than a number.
@@ -80,7 +86,12 @@ const RANGES: Dictionary = {
 	"strafe_min_distance": [0.0, 500.0],
 	"strafe_max_distance": [0.0, 500.0],
 	"strafe_radial_gain": [0.0, 10.0],
+	# One millimetre is the smallest wake range above zero.
+	"wake_range": [0.001, 10000.0],
 }
+
+## Millimetres per metre, for keys read in whole millimetres.
+const MM_PER_M: float = 1000.0
 
 const ID_MAX_LENGTH: int = 64
 
@@ -129,9 +140,23 @@ static func parse_json(text: String) -> RobotDef:
 		if message != "":
 			return _failed(message)
 		robot.set(key, float(data[key]))
+	# Whole millimetres, as spawn positions are, so every reader compares the
+	# same distance however the file wrote it.
+	robot.wake_range = roundf(robot.wake_range * MM_PER_M) / MM_PER_M
 	if robot.strafe_min_distance > robot.strafe_max_distance:
 		return _failed("key \"strafe_min_distance\" is %s, must not exceed \"strafe_max_distance\" %s" % [robot.strafe_min_distance, robot.strafe_max_distance])
 	return robot
+
+
+## Reads a wake range given outside a robot file, such as on one spawn in a
+## level file, with the same check and rounding as the file's key. Returns ""
+## and sets `wake_range`, or returns the problem and changes nothing.
+func set_wake_range(value: Variant) -> String:
+	var message: String = _check_number("wake_range", value)
+	if message != "":
+		return message
+	wake_range = roundf(float(value) * MM_PER_M) / MM_PER_M
+	return ""
 
 
 ## Path of the weapon data file this robot fires; the caller reads it and
@@ -140,10 +165,19 @@ func weapon_path() -> String:
 	return "%s/%s.json" % [WEAPONS_DIR, weapon]
 
 
+## True when the data gives a wake range, so the robot starts idle.
+func has_wake_range() -> bool:
+	return wake_range > 0.0
+
+
 ## Hash of the values, so a replay can record which robot data it ran with.
+## The wake range joins only when set, so robots without one keep their hashes.
 func values_hash() -> int:
-	return hash([id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon, salvage,
-		standoff_radii, strafe_min_distance, strafe_max_distance, strafe_radial_gain])
+	var values: Array = [id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon,
+		salvage, standoff_radii, strafe_min_distance, strafe_max_distance, strafe_radial_gain]
+	if has_wake_range():
+		values.append_array(["wake_range", wake_range])
+	return hash(values)
 
 
 static func _check_number(key: String, value: Variant) -> String:

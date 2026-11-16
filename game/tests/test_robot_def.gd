@@ -193,6 +193,7 @@ func test_optional_keys_reject_out_of_range_and_non_numbers() -> String:
 		"strafe_min_distance": [-1.0, 501.0, true],
 		"strafe_max_distance": [-0.5, 600.0, null],
 		"strafe_radial_gain": [-0.1, 10.5, [1]],
+		"wake_range": [0.0, -2.0, 10000.5, "8"],
 	}
 	for key: String in RobotDef.OPTIONAL_KEYS:
 		if not bad.has(key):
@@ -237,7 +238,7 @@ func test_hash_changes_with_every_optional_value() -> String:
 	var base_hash: int = RobotDef.parse_json(GOOD).values_hash()
 	var changed: Dictionary = {
 		"standoff_radii": 5.0, "strafe_min_distance": 11.0,
-		"strafe_max_distance": 21.0, "strafe_radial_gain": 0.6,
+		"strafe_max_distance": 21.0, "strafe_radial_gain": 0.6, "wake_range": 8.0,
 	}
 	for key: String in RobotDef.OPTIONAL_KEYS:
 		var data: Dictionary = JSON.parse_string(GOOD)

@@ -127,11 +127,16 @@ static func parse_weapon_line(replay: Replay, line: String,
 ## `robot <x y z> <facing x y z> <json>`: position and facing in whole
 ## millimetres, then one JSON object at full precision, so the robot read back
 ## is exactly the robot flown against. Its "robot" key holds every value of the
-## robot's type, optional ones included, and its "weapon" key the resolved
-## weapon's values, or null for an unarmed robot (version 9).
+## robot's type, optional ones included (a wake range only when set), and its
+## "weapon" key the resolved weapon's values, or null for an unarmed robot
+## (version 9).
 static func robot_text(spawn: RobotSpawn) -> String:
 	var def_data: Dictionary = {}
 	for key: String in RobotDef.KEYS + RobotDef.OPTIONAL_KEYS:
+		# An unset wake range is left out, so lines for robots without one
+		# read exactly as before (#301).
+		if key == "wake_range" and not spawn.def.has_wake_range():
+			continue
 		def_data[key] = spawn.def.get(key)
 	var weapon_values: Variant = null
 	if spawn.weapon != null:

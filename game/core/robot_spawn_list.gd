@@ -13,14 +13,20 @@ extends RefCounted
 ##
 ## `id` names `res://data/robots/<id>.json`; `position` is metres in the
 ## simulation's space; `facing` is the direction the robot faces at spawn.
+## An entry may add `wake_range`, metres: the robot's `RobotDef.wake_range` for
+## this placement only, since how near a ship must come to wake a robot depends
+## on where the level puts it (#301). It overrides any wake range in the file.
 
 const TOP_KEYS: Array[String] = ["robots"]
 const ENTRY_KEYS: Array[String] = ["id", "position", "facing"]
+const OPTIONAL_ENTRY_KEYS: Array[String] = ["wake_range"]
 
 ## In file order, with `def` null until `resolve` succeeds.
 var spawns: Array[RobotSpawn] = []
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
+## Wake range in metres by spawn index, for entries that give one.
+var _wake_ranges: Dictionary[int, float] = {}
 
 
 ## Parses the text of a level's spawn file. A missing or unknown key is an
@@ -70,8 +76,13 @@ func resolve(texts: Dictionary) -> String:
 		if def.id != id:
 			return "robot \"%s\": its file says id \"%s\"" % [id, def.id]
 		defs[id] = def
-	for spawn: RobotSpawn in spawns:
+	for index: int in spawns.size():
+		var spawn: RobotSpawn = spawns[index]
 		spawn.def = defs[spawn.id]
+		if _wake_ranges.has(index):
+			# A copy of its own, so the other spawns of the type keep the file's.
+			spawn.def = RobotDef.parse_json(texts[spawn.id])
+			spawn.def.set_wake_range(_wake_ranges[index])
 	return ""
 
 
@@ -80,7 +91,7 @@ func _add_entry(entry: Variant) -> String:
 		return "must be a JSON object"
 	var data: Dictionary = entry
 	for key: Variant in data:
-		if not ENTRY_KEYS.has(key):
+		if not ENTRY_KEYS.has(key) and not OPTIONAL_ENTRY_KEYS.has(key):
 			return "unknown key \"%s\"" % str(key)
 	for key: String in ENTRY_KEYS:
 		if not data.has(key):
@@ -98,6 +109,12 @@ func _add_entry(entry: Variant) -> String:
 		return problem
 	if read[1] == Vector3i.ZERO:
 		return "facing must not be zero"
+	if data.has("wake_range"):
+		var check: RobotDef = RobotDef.new()
+		var wake_problem: String = check.set_wake_range(data["wake_range"])
+		if wake_problem != "":
+			return wake_problem
+		_wake_ranges[spawns.size()] = check.wake_range
 	var spawn: RobotSpawn = RobotSpawn.new(null, read[0], read[1])
 	spawn.id = data["id"]
 	spawns.append(spawn)

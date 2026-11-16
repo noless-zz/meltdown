@@ -22,6 +22,9 @@ var strafe_direction: int = 1
 var weapon: WeaponDef = null
 ## Ticks until it can fire again, as `ShipState.fire_cooldown`.
 var fire_cooldown: int = 0
+## False while a robot with a wake range waits for a ship; it neither moves
+## nor fires until `wake_if_near` or a hit wakes it, and then stays awake (#301).
+var awake: bool = true
 
 ## The chase stand-off, the strafe band and its radial gain come from `def`
 ## (`standoff_radii`, `strafe_min_distance`, `strafe_max_distance`,
@@ -37,6 +40,7 @@ func _init(p_def: RobotDef, p_position: Vector3 = Vector3.ZERO,
 	position = p_position
 	orientation = p_orientation
 	hull = p_def.hull
+	awake = not p_def.has_wake_range()
 
 
 ## Moves one tick according to `def.movement`, towards or around `target`,
@@ -181,11 +185,21 @@ func is_alive() -> bool:
 	return hull > 0.0
 
 
+## Wakes the robot if `ship`'s centre is within `def.wake_range` of its own.
+## A robot without a wake range is already awake.
+func wake_if_near(ship: ShipState) -> void:
+	if awake or ship == null:
+		return
+	if position.distance_squared_to(ship.position) <= def.wake_range * def.wake_range:
+		awake = true
+
+
 ## Takes `amount` hull points, never below zero. Negative amounts are ignored,
-## so damage can never repair.
+## so damage can never repair. A hit wakes a sleeping robot.
 func apply_damage(amount: float) -> void:
 	if amount <= 0.0:
 		return
+	awake = true
 	hull = maxf(hull - amount, 0.0)
 
 
@@ -225,7 +239,7 @@ func fire_at(target: ShipState) -> WeaponDef:
 
 ## Tagged fields, so a value moving from one field to another changes the hash.
 ## The weapon joins only on an armed robot, so robots that never carried one
-## keep their hashes.
+## keep their hashes; the awake flag likewise only with a wake range.
 func state_hash() -> int:
 	var parts: Array = [
 		"def", def.values_hash(),
@@ -237,4 +251,7 @@ func state_hash() -> int:
 	]
 	if weapon != null:
 		parts.append_array(["weapon", weapon.values_hash(), "fire_cooldown", fire_cooldown])
+	# Only robots with a wake range carry the flag, so pinned hashes stand (#301).
+	if def.has_wake_range():
+		parts.append_array(["awake", awake])
 	return hash(parts)
