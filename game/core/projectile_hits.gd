@@ -25,7 +25,7 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 			continue
 		if not alive:
 			continue
-		if sim.bounds != null and not sim.bounds.holds(projectile.position, 0.0):
+		if sim.walls != null and not sim.walls.holds(projectile.position, 0.0):
 			continue
 		kept.append(projectile)
 	sim.projectiles = kept

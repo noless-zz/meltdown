@@ -14,8 +14,12 @@ var run_seed: int = 0
 ## Number of ticks simulated so far.
 var tick: int = 0
 var ships: Array[ShipState] = []
-## Walls the ships fly inside, or null for open space. Not part of the hash:
-## it is fixed for the run, like the seed's mine will be.
+## Walls everything flies inside, or null for open space (GEN-5). Not part of
+## the hash: it is fixed for the run, like the seed's mine will be. Set by the
+## constructor from one box, or by `set_walls` for a multi-box level.
+var walls: BoxUnion = null
+## The first box of `walls`, or null: the single box older callers built the
+## run with. Read-only; the simulation itself only uses `walls`.
 var bounds: BoxBounds = null
 ## What happened on the last tick only, in ship order and, per ship, in the
 ## order of `SimEvent.Kind`. Derived output for haptics, shake and sound
@@ -51,7 +55,9 @@ var _stepping: bool = false
 
 func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
 	run_seed = p_run_seed
-	bounds = p_bounds
+	if p_bounds != null:
+		var one: Array[BoxBounds] = [p_bounds]
+		set_walls(BoxUnion.new(one))
 	for i: int in ship_count:
 		ships.append(ShipState.new())
 	_record_start_poses()
@@ -89,8 +95,8 @@ func step(inputs: Array[ShipInput]) -> bool:
 			last_events.append(SimEvent.new(SimEvent.Kind.AFTERBURNER_STOPPED, i))
 		if ship.afterburner_locked and not was_locked:
 			last_events.append(SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, i))
-		if bounds != null:
-			var impact: Vector3 = bounds.contain_impact(ship)
+		if walls != null:
+			var impact: Vector3 = walls.contain_impact(ship)
 			if impact != Vector3.ZERO:
 				last_events.append(SimEvent.new(
 					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
@@ -99,13 +105,17 @@ func step(inputs: Array[ShipInput]) -> bool:
 		_fire(i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
-	_advance_robots()
+	RobotTick.advance(self)
 	# Items already floating move before this tick's drops, so a part appears
-	# exactly where its robot died or its ship swapped it out.
+	# exactly where its robot died or its ship swapped it out. Each is held by
+	# the box picked where it ends up, as ships are, so it can drift through
+	# an opening.
 	for item: SalvageItem in salvage:
-		item.advance(bounds)
+		item.advance(null)
+		if walls != null:
+			item.keep_inside(walls.box_for(item.position, SalvageItem.RADIUS))
 	salvage.append_array(slot_drops)
-	_remove_destroyed_robots()
+	RobotTick.remove_destroyed(self, _killers)
 	_stepping = false
 	tick += 1
 	return true
@@ -128,6 +138,20 @@ func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis,
 	robot.strafe_direction = 1 if robots.size() % 2 == 0 else -1
 	robots.append(robot)
 	return robots.size() - 1
+
+
+## Sets the walls to `p_walls`, a union of one or more boxes, or null for open
+## space. Only before the first tick, so a replay can rebuild the same level
+## from its header (ARC-2). Returns false, changing nothing, once the run has
+## started or for a union with no boxes (no space to fly in at all).
+func set_walls(p_walls: BoxUnion) -> bool:
+	if tick != 0 or _stepping:
+		return false
+	if p_walls != null and p_walls.boxes.is_empty():
+		return false
+	walls = p_walls
+	bounds = null if p_walls == null else p_walls.boxes[0]
+	return true
 
 
 ## Fills the weapon slots of every ship from `loadout`'s resolved weapons.
@@ -177,22 +201,6 @@ func part_ids() -> Array[String]:
 	return ids
 
 
-## Moves every robot one tick, after the ships, towards its target, keeps it
-## inside the walls and fires at its target if it can. The shot leaves the
-## robot's centre along its facing at the weapon's speed, like a ship's.
-func _advance_robots() -> void:
-	for r: int in robots.size():
-		var robot: RobotState = robots[r]
-		robot.step(nearest_live_ship(robot.position))
-		if bounds != null:
-			robot.keep_inside(bounds)
-		var weapon: WeaponDef = robot.fire_at(nearest_live_ship(robot.position))
-		if weapon != null:
-			projectiles.append(Projectile.new(robot.position,
-				robot.forward() * weapon.projectile_speed, Projectile.robot_owner(r),
-				weapon.lifetime_ticks(), weapon.damage))
-
-
 ## The live ship (hull above zero) nearest to `point`, or null if there is
 ## none. Ships are tested in index order and only a strictly nearer one
 ## replaces the best, so ties go to the lower index.
@@ -234,24 +242,6 @@ func _reset_to_start(index: int) -> void:
 	ship.position = start_positions[index]
 	ship.orientation = start_orientations[index]
 	ship.velocity = Vector3.ZERO
-
-
-## Removes robots whose hull reached zero this tick, keeping the order of
-## the rest, so robot indices stay in spawn order. Each leaves its salvage, in
-## robot order, with a SALVAGE_DROPPED event after the tick's other events.
-func _remove_destroyed_robots() -> void:
-	var kept: Array[RobotState] = []
-	for r: int in robots.size():
-		var robot: RobotState = robots[r]
-		if robot.is_alive():
-			kept.append(robot)
-			continue
-		var item: SalvageItem = SalvageItem.dropped_by(robot)
-		if item != null:
-			salvage.append(item)
-			last_events.append(SimEvent.new(SimEvent.Kind.SALVAGE_DROPPED,
-				_killers.get(r, 0), salvage.size() - 1, item.position))
-	robots = kept
 
 
 ## Fires ship `index`'s primary weapon if it is held and ready. The shot
