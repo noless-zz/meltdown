@@ -1,6 +1,6 @@
 {
-	"window_half_angle_h_deg": 25,
-	"window_half_angle_v_deg": 15,
+	"window_half_angle_h_deg": 38,
+	"window_half_angle_v_deg": 26,
 	"strut_width_m": 0.04,
 	"frame_distance_m": 0.5,
 	"glass_tint_alpha": 0.15

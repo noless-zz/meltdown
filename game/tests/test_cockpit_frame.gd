@@ -99,6 +99,10 @@ func test_windows_widen_from_preset_1_to_4() -> String:
 		if spec.window_half_angle_h_deg < previous.window_half_angle_h_deg \
 				or spec.window_half_angle_v_deg < previous.window_half_angle_v_deg:
 			return "preset %d narrows a window half-angle" % number
+		# Preset 1 must stay the most enclosed step on both axes (#212).
+		if number == 2 and (spec.window_half_angle_h_deg <= previous.window_half_angle_h_deg
+				or spec.window_half_angle_v_deg <= previous.window_half_angle_v_deg):
+			return "preset 1 window is not strictly smaller than preset 2's on both axes"
 		var wider: bool = spec.window_solid_angle() > previous.window_solid_angle()
 		var not_narrower: bool = spec.window_solid_angle() >= previous.window_solid_angle()
 		if (number < 4 and not wider) or not not_narrower:
