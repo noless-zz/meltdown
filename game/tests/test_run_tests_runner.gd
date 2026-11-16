@@ -4,6 +4,7 @@ extends RefCounted
 ## The broken examples live in `fixtures/runner/`, which the normal run skips,
 ## and go through `runner_core.gd`, the same per-file logic `run_tests.gd` uses.
 ## Their deliberate errors still print to the output; that is expected.
+## Script errors while a file loads fail it too (issue #171).
 
 const RunnerCore := preload("res://tests/runner_core.gd")
 const FIXTURES: String = "res://tests/fixtures/runner/"
@@ -51,6 +52,42 @@ func test_a_file_that_does_not_parse_fails() -> String:
 		return "%d tests, %d failed, expected 0 and 1" % [result["count"], result["failures"]]
 	if lines != ["FAIL does_not_parse.gd - could not load script"]:
 		return "unexpected report %s" % str(lines)
+	return ""
+
+
+## Checks that `file` failed once for a load-time script error naming `needle`
+## and still ran and passed its one test. Each fixture is run only once: a
+## static initialiser runs when the script first loads, not on a cached load.
+static func _expect_load_error(file: String, needle: String) -> String:
+	var result: Dictionary = _run(file)
+	var lines: Array[String] = result["lines"]
+	var expected: String = "FAIL %s - script error while loading: " % file
+	if result["count"] != 1 or result["failures"] != 1:
+		return "%s: %d tests, %d failed, expected 1 and 1" % [file, result["count"], result["failures"]]
+	if lines.size() != 2 or not lines[0].begins_with(expected):
+		return "%s: expected a first line starting %q, got %s" % [file, expected, str(lines)]
+	if not needle in lines[0] or not lines[0].ends_with(")"):
+		return "%s: the load failure does not name %q and where: %s" % [file, needle, lines[0]]
+	if lines[1] != "PASS %s::test_passes" % file:
+		return "%s: its test did not still run and pass: %s" % [file, str(lines)]
+	return ""
+
+
+func test_a_script_error_in_init_fails_the_file() -> String:
+	return _expect_load_error("errors_in_init.gd", "set_name")
+
+
+func test_a_script_error_in_a_static_initialiser_fails_the_file() -> String:
+	return _expect_load_error("errors_in_static_init.gd", "_pick_word")
+
+
+func test_a_clean_fixture_has_no_load_failure() -> String:
+	var result: Dictionary = _run("returns_results.gd")
+	for line: String in result["lines"]:
+		if "while loading" in line:
+			return "a clean file was failed for loading: %s" % line
+	if result["failures"] != 1:
+		return "expected only the one message failure, got %d" % result["failures"]
 	return ""
 
 
