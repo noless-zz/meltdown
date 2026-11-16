@@ -3,11 +3,15 @@ extends RefCounted
 
 ## Writes and reads the lines of a replay that carry data: the box line
 ## (version 3), the tuning line (version 5), the weapon lines (version 7), the
-## robot lines (version 8) and the tick lines. Split out of
+## robot lines (version 8, armed and with every robot key from version 9)
+## and the tick lines. Split out of
 ## `Replay` to keep both files short; the format is documented there.
 ##
 ## The parse functions return "" on success, with the value stored on the
 ## replay, or a problem without the line number, which `Replay.from_text` adds.
+
+## The two keys of a version 9 robot line's JSON object.
+const ROBOT_LINE_KEYS: Array[String] = ["robot", "weapon"]
 
 
 ## `box <min x y z> <max x y z>`, in whole millimetres.
@@ -78,11 +82,8 @@ static func weapon_lines(loadout: ShipLoadout) -> PackedStringArray:
 			var weapon: WeaponDef = weapons[slot]
 			if weapon == null:
 				continue
-			var data: Dictionary = {}
-			for key: String in WeaponDef.KEYS:
-				data[key] = weapon.get(key)
 			lines.append("weapon %s %d %s %s" % [kind, slot + 1, ids[slot],
-				JSON.stringify(data, "", false, true)])
+				JSON.stringify(weapon_data(weapon), "", false, true)])
 	return lines
 
 
@@ -122,19 +123,25 @@ static func parse_weapon_line(replay: Replay, line: String,
 
 
 ## `robot <x y z> <facing x y z> <json>`: position and facing in whole
-## millimetres, then every value of the robot's type at full precision, so the
-## robot read back is exactly the robot flown against.
+## millimetres, then one JSON object at full precision, so the robot read back
+## is exactly the robot flown against. Its "robot" key holds every value of the
+## robot's type, optional ones included, and its "weapon" key the resolved
+## weapon's values, or null for an unarmed robot (version 9).
 static func robot_text(spawn: RobotSpawn) -> String:
-	var data: Dictionary = {}
-	for key: String in RobotDef.KEYS:
-		data[key] = spawn.def.get(key)
+	var def_data: Dictionary = {}
+	for key: String in RobotDef.KEYS + RobotDef.OPTIONAL_KEYS:
+		def_data[key] = spawn.def.get(key)
+	var weapon_values: Variant = null
+	if spawn.weapon != null:
+		weapon_values = weapon_data(spawn.weapon)
 	var p: Vector3i = spawn.position_mm
 	var f: Vector3i = spawn.facing_mm
 	return "robot %d %d %d %d %d %d %s" % [p.x, p.y, p.z, f.x, f.y, f.z,
-		JSON.stringify(data, "", false, true)]
+		JSON.stringify({"robot": def_data, "weapon": weapon_values}, "", false, true)]
 
 
 ## `line` is the whole robot line. Appends one spawn to `replay.robots`.
+## Version 8 lines hold the robot type's data alone and read as unarmed.
 static func parse_robot_line(replay: Replay, line: String,
 		seen: Dictionary[String, bool], version: int) -> String:
 	if seen.is_empty():
@@ -152,10 +159,60 @@ static func parse_robot_line(replay: Replay, line: String,
 	var facing: Vector3i = Vector3i(values[3], values[4], values[5])
 	if facing == Vector3i.ZERO:
 		return "robot facing must not be zero"
-	var def: RobotDef = RobotDef.parse_json(words[7])
+	var number: int = replay.robots.size() + 1
+	var def_text: String = words[7]
+	var weapon: WeaponDef = null
+	if version >= 9:
+		var parts: Array = []
+		var problem: String = _split_robot_json(words[7], parts)
+		if problem != "":
+			return "robot %d: %s" % [number, problem]
+		def_text = parts[0]
+		if parts[1] != null:
+			weapon = WeaponDef.parse_json(parts[1])
+			if weapon.error != "":
+				return "robot %d weapon: %s" % [number, weapon.error]
+	var def: RobotDef = RobotDef.parse_json(def_text)
 	if def.error != "":
-		return "robot %d: %s" % [replay.robots.size() + 1, def.error]
-	replay.robots.append(RobotSpawn.new(def, Vector3i(values[0], values[1], values[2]), facing))
+		return "robot %d: %s" % [number, def.error]
+	replay.robots.append(RobotSpawn.new(def, Vector3i(values[0], values[1], values[2]),
+		facing, weapon))
+	return ""
+
+
+## Every value of `weapon` by key, as the weapon and robot lines write them.
+static func weapon_data(weapon: WeaponDef) -> Dictionary:
+	var data: Dictionary = {}
+	for key: String in WeaponDef.KEYS:
+		data[key] = weapon.get(key)
+	return data
+
+
+## Splits a version 9 robot object into the robot type's text and the
+## weapon's text (null when unarmed), appended to `into`. Each is written back
+## at full precision, so the parsers below see the values exactly.
+static func _split_robot_json(text: String, into: Array) -> String:
+	var json: JSON = JSON.new()
+	if json.parse(text) != OK:
+		return "invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()]
+	if typeof(json.data) != TYPE_DICTIONARY:
+		return "robot data must be a JSON object"
+	var data: Dictionary = json.data
+	for key: Variant in data:
+		if typeof(key) != TYPE_STRING or not ROBOT_LINE_KEYS.has(key):
+			return "unknown key \"%s\"" % str(key)
+	for key: String in ROBOT_LINE_KEYS:
+		if not data.has(key):
+			return "missing key \"%s\"" % key
+	if typeof(data["robot"]) != TYPE_DICTIONARY:
+		return "key \"robot\" must be a JSON object"
+	into.append(JSON.stringify(data["robot"], "", false, true))
+	if data["weapon"] == null:
+		into.append(null)
+		return ""
+	if typeof(data["weapon"]) != TYPE_DICTIONARY:
+		return "key \"weapon\" must be a JSON object or null"
+	into.append(JSON.stringify(data["weapon"], "", false, true))
 	return ""
 
 

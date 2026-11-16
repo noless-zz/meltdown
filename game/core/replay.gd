@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 7        format name and version
+##     meltdown-replay 9        format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -20,11 +20,13 @@ extends RefCounted
 ##                              kind, slot 1 or 2, weapon id and the weapon's
 ##                              data file on one line; every ship starts with
 ##                              these weapons (`ShipLoadout`)
-##     robot 0 500 -16000 0 0 1000 {"id":"drone",...}
+##     robot 0 500 -16000 0 0 1000 {"robot":{"id":"drone",...},"weapon":{...}}
 ##                              optional (version 8), one per robot in spawn
-##                              order: position and facing in millimetres and
-##                              the robot's data file on one line; every run
-##                              starts with these robots (`RobotSpawn`)
+##                              order: position and facing in millimetres, then
+##                              the robot's data file under "robot" and its
+##                              resolved weapon's values under "weapon" (null
+##                              when unarmed); every run starts with these
+##                              robots (`RobotSpawn`)
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1  one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start, fire primary
@@ -36,14 +38,16 @@ extends RefCounted
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
 ## off. Versions 1 to 5 have no fire column and are read with it off. Versions
 ## 1 and 2 have no box line, versions 1 to 4 no tuning line, versions 1 to 6
-## no weapon lines, versions 1 to 7 no robot lines. Files are always written
+## no weapon lines, versions 1 to 7 no robot lines. Version 8 robot lines hold
+## the robot's data file alone, with no "robot" or "weapon" key, and read as
+## unarmed. Files are always written
 ## as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 8
+const FORMAT_VERSION: int = 9
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
