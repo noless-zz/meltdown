@@ -76,7 +76,7 @@ func test_strafer_ends_in_its_band_circling_one_way() -> String:
 			for i: int in 600:
 				sim.step(_still())
 				var distance: float = robot.position.length()
-				if distance < RobotState.STRAFE_MIN_DISTANCE or distance > RobotState.STRAFE_MAX_DISTANCE:
+				if distance < robot.def.strafe_min_distance or distance > robot.def.strafe_max_distance:
 					return "%s from %s at %s m, outside its band, at tick %d" % [id, start, distance, sim.tick]
 				var bearing: float = _bearing(robot.position)
 				var change: float = wrapf(bearing - previous, -PI, PI)
