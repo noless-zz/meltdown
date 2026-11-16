@@ -2,32 +2,14 @@ extends RefCounted
 
 ## The status panel's hold row is fed from the session (#316, SLV-1, MP-2):
 ## empty at the start, the part's id once the ship has flown through it, and
-## empty again once the ship has slotted it.
-
-const WEAPONS: String = "res://data/weapons/%s.json"
-## Every weapon data file, so whichever part the first robot drops is known.
-const WEAPON_IDS: Array[String] = ["arc_lance", "needle_gun", "pulse_cannon", "slug_thrower"]
+## empty again once the ship has slotted it, from the part catalogue the main
+## scene's session carries (#320).
 
 
 func _main() -> Node:
 	var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	main.get_node("XRRig").call("build")
 	main.call("_ready")
-	return main
-
-
-## The main scene's session has no part catalogue until #320, so slotting
-## would leave the part in the hold. The test gives it one before the first
-## tick, as `Sim.set_parts` requires.
-func _main_with_catalogue() -> Node:
-	var main: Node = _main()
-	var parts: Dictionary = {}
-	for id: String in WEAPON_IDS:
-		parts[id] = WeaponDef.parse_json(FileAccess.get_file_as_string(WEAPONS % id))
-	var session: LocalSession = main.get("session")
-	var problem: String = session.sim.set_parts(parts)
-	if problem != "":
-		push_error("catalogue rejected: %s" % problem)
 	return main
 
 
@@ -85,7 +67,7 @@ func test_the_hold_row_names_a_part_flown_through() -> String:
 
 
 func test_slotting_through_the_input_source_empties_the_hold_row() -> String:
-	var main: Node = _main_with_catalogue()
+	var main: Node = _main()
 	var id: String = _take_first_part(main)
 	var held: String = _hold_text(main)
 	var slot: ShipInput = ShipInput.new()
