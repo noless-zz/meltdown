@@ -1,0 +1,11 @@
+{
+	"id": "needler",
+	"hull": 12.0,
+	"radius": 0.5,
+	"max_speed": 22.0,
+	"acceleration": 40.0,
+	"turn_rate": 240.0,
+	"movement": "chase",
+	"weapon": "needle_gun",
+	"salvage": "needle_gun"
+}

@@ -1,0 +1,11 @@
+{
+	"id": "skimmer",
+	"hull": 30.0,
+	"radius": 1.0,
+	"max_speed": 14.0,
+	"acceleration": 24.0,
+	"turn_rate": 180.0,
+	"movement": "strafe",
+	"weapon": "needle_gun",
+	"salvage": "needle_gun"
+}
