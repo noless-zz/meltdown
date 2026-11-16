@@ -20,6 +20,11 @@ extends RefCounted
 ##                              kind, slot 1 or 2, weapon id and the weapon's
 ##                              data file on one line; every ship starts with
 ##                              these weapons (`ShipLoadout`)
+##     robot 0 500 -16000 0 0 1000 {"id":"drone",...}
+##                              optional (version 8), one per robot in spawn
+##                              order: position and facing in millimetres and
+##                              the robot's data file on one line; every run
+##                              starts with these robots (`RobotSpawn`)
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1  one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start, fire primary
@@ -31,13 +36,14 @@ extends RefCounted
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
 ## off. Versions 1 to 5 have no fire column and are read with it off. Versions
 ## 1 and 2 have no box line, versions 1 to 4 no tuning line, versions 1 to 6
-## no weapon lines. Files are always written as the current version.
+## no weapon lines, versions 1 to 7 no robot lines. Files are always written
+## as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 7
+const FORMAT_VERSION: int = 8
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -57,6 +63,8 @@ var box_max_mm: Vector3i = Vector3i.ZERO
 var tuning: ShipTuning = null
 ## Weapons every ship starts with, already resolved, or null for none.
 var loadout: ShipLoadout = null
+## Robots placed before the first tick, in spawn order, each resolved.
+var robots: Array[RobotSpawn] = []
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -90,6 +98,7 @@ func run() -> Sim:
 	apply_tuning(sim)
 	if loadout != null:
 		sim.equip(loadout)
+	RobotSpawn.spawn_all(sim, robots)
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -136,6 +145,8 @@ func to_text() -> String:
 		lines.append(ReplayLines.tuning_text(tuning))
 	if loadout != null:
 		lines.append_array(ReplayLines.weapon_lines(loadout))
+	for spawn: RobotSpawn in robots:
+		lines.append(ReplayLines.robot_text(spawn))
 	lines.append("inputs")
 	for frame: Array in frames:
 		lines.append(ReplayLines.tick_text(frame))
@@ -193,6 +204,8 @@ func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 		return ReplayLines.parse_tuning_line(self, line.substr(7), seen, _parse_version)
 	if line.begins_with("weapon "):
 		return ReplayLines.parse_weapon_line(self, line, seen, _parse_version)
+	if line.begins_with("robot "):
+		return ReplayLines.parse_robot_line(self, line, seen, _parse_version)
 	var words: PackedStringArray = line.split(" ", false)
 	if words.size() > 0 and words[0] == "box":
 		return ReplayLines.parse_box_line(self, words, seen, _parse_version)

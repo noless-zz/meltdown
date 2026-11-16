@@ -7,8 +7,8 @@ extends RefCounted
 ##
 ## Time arrives only through `advance`; nothing here reads the clock, nodes or
 ## input devices (ARC-1). The view reads `previous_ship()`, `current_ship()`,
-## `current_projectiles()` and `interpolation_fraction` and never writes
-## simulation state (MP-2).
+## `current_projectiles()`, `previous_robots()`, `current_robots()` and
+## `interpolation_fraction` and never writes simulation state (MP-2).
 
 ## A long hitch (a loading stall, the headset taken off) would otherwise make
 ## the next frame run hundreds of ticks, take longer than a frame, and fall
@@ -20,6 +20,8 @@ const MAX_TICKS_PER_ADVANCE: int = 5
 const TICK_EPSILON: float = 1.0e-6
 ## Where the weapons a ship file's loadout names are read from, by id (#189).
 const WEAPON_DIR: String = "res://data/weapons/"
+## Where the robot types a spawn file names are read from, by id (#228).
+const ROBOT_DIR: String = "res://data/robots/"
 
 var sim: Sim
 ## Every input fed to `sim`, in order; running it reproduces `sim` (ARC-2).
@@ -54,15 +56,20 @@ var _current_projectiles: Array[Projectile] = []
 ## projectile keeps one copy for its whole flight, so the view can tell a bolt
 ## it already drew from a new one and blend it between ticks.
 var _projectile_copies: Dictionary[Projectile, Projectile] = {}
+## Copies of `sim.robots` after the tick before the latest one and after it.
+var _previous_robots: Array[RobotState] = []
+var _current_robots: Array[RobotState] = []
 
 
 ## `bounds` are the walls the ship flies inside, or null for open space.
 ## `tuning` gives every ship its feel values before the first tick; null, or a
 ## tuning whose `error` is set, flies the built-in defaults. A tuning whose
 ## loadout has been resolved (see `load_tuning`) starts the ship armed, and the
-## weapons are recorded in the replay (CMB-1, ARC-2).
+## weapons are recorded in the replay (CMB-1, ARC-2). `robots` (see
+## `load_spawns`) are spawned before the first tick and recorded in the replay
+## too, so a replay starts with the same robots (CMB-3).
 func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxBounds = null,
-		tuning: ShipTuning = null) -> void:
+		tuning: ShipTuning = null, robots: Array[RobotSpawn] = []) -> void:
 	replay = Replay.new(run_seed, 1)
 	if bounds != null:
 		replay.set_box(_to_mm(bounds.min_corner), _to_mm(bounds.max_corner))
@@ -76,9 +83,13 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 	if replay.tuning != null and replay.tuning.loadout.is_armed():
 		replay.loadout = replay.tuning.loadout
 		sim.equip(replay.loadout)
+	if RobotSpawn.spawn_all(sim, robots):
+		replay.robots = robots.duplicate()
 	_input_source = input_source if input_source != null else ShipInputSource.new()
 	_current_ship = _snapshot(sim.ships[0])
 	_previous_ship = _snapshot(sim.ships[0])
+	_current_robots = _snapshot_robots()
+	_previous_robots = _current_robots
 
 
 ## Adds `delta_seconds` of frame time and runs every whole tick that fits, up to
@@ -139,6 +150,30 @@ static func load_tuning(path: String, weapon_dir: String = WEAPON_DIR) -> ShipTu
 	return tuning
 
 
+## Reads a level's robot spawn file and the robot types it names from
+## `robot_dir`. Returns an empty list, after printing why, when any of them is
+## missing or rejected: a level with some robots silently missing would hide
+## which file broke.
+static func load_spawns(path: String, robot_dir: String = ROBOT_DIR) -> Array[RobotSpawn]:
+	var none: Array[RobotSpawn] = []
+	if not FileAccess.file_exists(path):
+		print("Meltdown: robot spawns %s rejected (file not found); no robots" % path)
+		return none
+	var list: RobotSpawnList = RobotSpawnList.parse_json(FileAccess.get_file_as_string(path))
+	var problem: String = list.error
+	if problem == "":
+		var texts: Dictionary = {}
+		for id: String in list.ids():
+			var robot_path: String = robot_dir.path_join(id + ".json")
+			if FileAccess.file_exists(robot_path):
+				texts[id] = FileAccess.get_file_as_string(robot_path)
+		problem = list.resolve(texts)
+	if problem != "":
+		print("Meltdown: robot spawns %s rejected (%s); no robots" % [path, problem])
+		return none
+	return list.spawns
+
+
 ## The `SimEvent`s of every tick run by the latest `advance`, in order; empty
 ## when it ran none. `Sim.last_events` holds only the last tick, so a frame
 ## that runs two ticks would otherwise lose the first tick's wall impact. A
@@ -165,6 +200,17 @@ func current_projectiles() -> Array[Projectile]:
 	return _current_projectiles.duplicate()
 
 
+## Every robot after the tick before the latest one, in the simulation's
+## order. A new array of copies: changing it leaves the simulation as it was.
+func previous_robots() -> Array[RobotState]:
+	return _previous_robots.duplicate()
+
+
+## Every robot after the latest tick, like `previous_robots()`.
+func current_robots() -> Array[RobotState]:
+	return _current_robots.duplicate()
+
+
 func _run_tick() -> void:
 	var inputs: Array[ShipInput] = [_input_source.next_input(sim.tick)]
 	sim.step(inputs)
@@ -174,6 +220,8 @@ func _run_tick() -> void:
 	_previous_ship = _current_ship
 	_current_ship = _snapshot(sim.ships[0])
 	_snapshot_projectiles()
+	_previous_robots = _current_robots
+	_current_robots = _snapshot_robots()
 
 
 ## Drops the whole ticks left in the accumulator and keeps the fraction, so the
@@ -205,6 +253,17 @@ func _snapshot_projectiles() -> void:
 		listed.append(copy)
 	_projectile_copies = copies
 	_current_projectiles = listed
+
+
+## A copy of each robot. The type is shared: `RobotDef` is never changed
+## after it is read.
+func _snapshot_robots() -> Array[RobotState]:
+	var copies: Array[RobotState] = []
+	for robot: RobotState in sim.robots:
+		var copy: RobotState = RobotState.new(robot.def)
+		_copy_fields(robot, copy)
+		copies.append(copy)
+	return copies
 
 
 ## Copies every script variable, so fields added to `ShipState` or

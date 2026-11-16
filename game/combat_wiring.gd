@@ -1,8 +1,9 @@
 class_name CombatWiring
 extends RefCounted
 
-## Joins the session's combat state to what the main scene draws (CMB-1,
-## LGT-1): for now the projectiles, later the robots (#228).
+## Joins the session's combat state to what the main scene shows (CMB-1,
+## CMB-2, CMB-3, LGT-1): the projectiles, the robots (#228) and the shield and
+## hull bars on the status panel.
 ##
 ## It sits beside `main.gd`, like `ComfortWiring`, because it reads the `net/`
 ## session, which `view/` may not depend on. It hands the view copies from
@@ -10,26 +11,43 @@ extends RefCounted
 
 ## The bolts, under the world node once `attach` has run, null before.
 var projectile_view: ProjectileView = null
+## The robots, beside the bolts once `attach` has run, null before.
+var robot_view: RobotView = null
 
 
-## Puts the projectile view under `world`, the node whose space is the
-## simulation's: the bolts are drawn at the simulated positions as they are.
+## Puts the projectile and robot views under `world`, the node whose space is
+## the simulation's: both are drawn at the simulated positions as they are.
 ## Calling it again adds nothing.
 func attach(world: Node3D) -> void:
 	if projectile_view != null:
 		return
 	projectile_view = ProjectileView.new()
 	world.add_child(projectile_view)
+	robot_view = RobotView.new()
+	world.add_child(robot_view)
 
 
 ## Shows this frame's projectiles, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
-func update(session: LocalSession, camera: Node3D) -> void:
+## `panel`, if given, shows the ship's shield and hull.
+func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) -> void:
+	if panel != null:
+		show_defence(panel, session.current_ship())
 	if projectile_view == null:
 		return
 	if camera != null:
 		projectile_view.set_viewer(point_in(projectile_view, camera))
 	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction)
+	robot_view.show_robots(session.previous_robots(), session.current_robots(),
+		session.interpolation_fraction)
+
+
+## Hands `panel` the shield and hull of `ship`, a session copy, as fractions
+## of their maximums; a maximum of zero shows an empty bar.
+static func show_defence(panel: StatusPanel, ship: ShipState) -> void:
+	var shield: float = ship.shield / ship.max_shield if ship.max_shield > 0.0 else 0.0
+	var hull: float = ship.hull / ship.max_hull if ship.max_hull > 0.0 else 0.0
+	panel.show_defence(shield, hull)
 
 
 ## Where `node` is, in `space`'s coordinates: its global position seen from

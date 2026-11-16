@@ -1,0 +1,10 @@
+{
+	"robots": [
+		{"id": "needler", "position": [-1.0, 0.0, -14.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "drone", "position": [1.0, 1.5, -16.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "skimmer", "position": [-0.8, 1.5, -18.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "glider", "position": [0.6, 0.6, -20.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "hauler", "position": [0.0, 1.0, -22.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "warden", "position": [0.0, 1.0, -25.5], "facing": [0.0, 0.0, 1.0]}
+	]
+}
