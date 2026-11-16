@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 9        format name and version
+##     meltdown-replay 10       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -27,6 +27,10 @@ extends RefCounted
 ##                              resolved weapon's values under "weapon" (null
 ##                              when unarmed); every run starts with these
 ##                              robots (`RobotSpawn`)
+##     part pulse_cannon {"fire_interval_ticks":10,...}
+##                              optional (version 10), one per part of the
+##                              catalogue, sorted by id: part id and the
+##                              weapon's data file on one line (`Sim.set_parts`)
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1  one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start, fire primary
@@ -38,7 +42,8 @@ extends RefCounted
 ## afterburner off. Versions 1 to 3 have no reset column and are read with it
 ## off. Versions 1 to 5 have no fire column and are read with it off. Versions
 ## 1 and 2 have no box line, versions 1 to 4 no tuning line, versions 1 to 6
-## no weapon lines, versions 1 to 7 no robot lines. Version 8 robot lines hold
+## no weapon lines, versions 1 to 7 no robot lines, versions 1 to 9 no part
+## lines. Version 8 robot lines hold
 ## the robot's data file alone, with no "robot" or "weapon" key, and read as
 ## unarmed. Files are always written
 ## as the current version.
@@ -47,7 +52,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 9
+const FORMAT_VERSION: int = 10
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -69,6 +74,8 @@ var tuning: ShipTuning = null
 var loadout: ShipLoadout = null
 ## Robots placed before the first tick, in spawn order, each resolved.
 var robots: Array[RobotSpawn] = []
+## The part catalogue the run starts with: part id to resolved weapon.
+var parts: Dictionary[String, WeaponDef] = {}
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -93,9 +100,10 @@ func add_tick(inputs: Array[ShipInput]) -> bool:
 
 
 ## Simulates the whole replay from a fresh `Sim` and returns it.
-## Returns null, with `run_error` set, if any frame does not hold exactly one
-## input per ship: a `Sim` that skipped a tick would still give a hash, for a
-## simulation that never ran, and nothing downstream could tell.
+## Returns null, with `run_error` set, if the part catalogue is refused or if
+## any frame does not hold exactly one input per ship: a `Sim` that skipped a
+## tick would still give a hash, for a simulation that never ran, and nothing
+## downstream could tell.
 func run() -> Sim:
 	run_error = ""
 	var sim: Sim = Sim.new(run_seed, ship_count, bounds())
@@ -103,6 +111,10 @@ func run() -> Sim:
 	if loadout != null:
 		sim.equip(loadout)
 	RobotSpawn.spawn_all(sim, robots)
+	var parts_problem: String = sim.set_parts(parts)
+	if parts_problem != "":
+		run_error = parts_problem
+		return null
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -151,6 +163,7 @@ func to_text() -> String:
 		lines.append_array(ReplayLines.weapon_lines(loadout))
 	for spawn: RobotSpawn in robots:
 		lines.append(ReplayLines.robot_text(spawn))
+	lines.append_array(ReplayPartLines.part_lines(parts))
 	lines.append("inputs")
 	for frame: Array in frames:
 		lines.append(ReplayLines.tick_text(frame))
@@ -210,6 +223,8 @@ func _parse_header_line(line: String, seen: Dictionary[String, bool]) -> String:
 		return ReplayLines.parse_weapon_line(self, line, seen, _parse_version)
 	if line.begins_with("robot "):
 		return ReplayLines.parse_robot_line(self, line, seen, _parse_version)
+	if line.begins_with("part "):
+		return ReplayPartLines.parse_part_line(self, line, seen, _parse_version)
 	var words: PackedStringArray = line.split(" ", false)
 	if words.size() > 0 and words[0] == "box":
 		return ReplayLines.parse_box_line(self, words, seen, _parse_version)

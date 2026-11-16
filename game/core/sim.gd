@@ -35,6 +35,11 @@ var robots: Array[RobotState] = []
 ## takes one (`SalvagePickup`). Part of the hash while there are any. They do
 ## not expire in M2.
 var salvage: Array[SalvageItem] = []
+## The part catalogue: part id to the weapon that part is, each resolved by the
+## caller since core opens no files (SLV-1, ARC-4). Set before the first tick
+## by `set_parts` and read-only afterwards, through `part`. Part of the hash
+## while non-empty.
+var _parts: Dictionary[String, WeaponDef] = {}
 ## Projectile hit events of the tick being stepped. Hits are found when
 ## projectiles move, before the ships, but their events follow the ship events.
 var _hit_events: Array[SimEvent] = []
@@ -133,6 +138,41 @@ func equip(loadout: ShipLoadout) -> bool:
 	return true
 
 
+## Sets the part catalogue from `parts`, a Dictionary from part id to its
+## resolved `WeaponDef`. Only before the first tick, so a replay can set the
+## same catalogue from its header alone (ARC-2). Returns "" on success, or a
+## problem naming the part; on any problem the catalogue is left unchanged.
+func set_parts(parts: Dictionary) -> String:
+	if tick != 0 or _stepping:
+		return "the part catalogue is set before the first tick"
+	var checked: Dictionary[String, WeaponDef] = {}
+	for id: Variant in parts:
+		if typeof(id) != TYPE_STRING:
+			return "part id %s is not a string" % str(id)
+		var id_problem: String = ShipLoadout.check_id("part id", id)
+		if id_problem != "":
+			return id_problem
+		var weapon: Variant = parts[id]
+		if not weapon is WeaponDef or (weapon as WeaponDef).error != "":
+			return "part \"%s\" is not a resolved weapon" % id
+		checked[id] = weapon
+	_parts = checked
+	return ""
+
+
+## The weapon part `id` is, or null if the catalogue has no such part.
+func part(id: String) -> WeaponDef:
+	return _parts.get(id, null)
+
+
+## Every part id in the catalogue, sorted, so callers and the hash see one order.
+func part_ids() -> Array[String]:
+	var ids: Array[String] = []
+	ids.assign(_parts.keys())
+	ids.sort()
+	return ids
+
+
 ## Moves every robot one tick, after the ships, towards its target, keeps it
 ## inside the walls and fires at its target if it can. The shot leaves the
 ## robot's centre along its facing at the weapon's speed, like a ship's.
@@ -223,8 +263,9 @@ func _fire(index: int, held: bool) -> void:
 		index, weapon.lifetime_ticks(), weapon.damage))
 
 
-## Hash of the whole simulation state. Projectiles, robots and salvage join
-## only while there are any, so runs recorded before them keep their hashes.
+## Hash of the whole simulation state. Projectiles, robots, salvage and the
+## part catalogue join only while there are any, so runs recorded before them
+## keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
@@ -241,4 +282,9 @@ func state_hash() -> int:
 		parts.append(hash("salvage"))
 		for item: SalvageItem in salvage:
 			parts.append(item.state_hash())
+	if not _parts.is_empty():
+		parts.append(hash("parts"))
+		for id: String in part_ids():
+			parts.append(hash(id))
+			parts.append(_parts[id].values_hash())
 	return hash(parts)
