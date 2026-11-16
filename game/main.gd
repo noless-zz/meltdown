@@ -116,6 +116,8 @@ func sample_controls() -> Dictionary:
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
 	comfort.read_preset_button(values.get("buttons", {}))
+	if comfort.read_label_button(values.get("buttons", {})):
+		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
 	reset_hold.press(ResetHold.is_held(values))
 	comfort.hand_input(ControllerSampler.map_values(mapping, values),
 		session.current_ship().orientation, reset_hold.reset_due())
