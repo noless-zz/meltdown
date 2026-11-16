@@ -70,7 +70,9 @@ if [ "${#serials[@]}" -eq 0 ]; then
 fi
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+keep_download=0
+# Kept after a failed install so the printed manual command has a file to use.
+trap '[ "$keep_download" -eq 1 ] || rm -rf "$work"' EXIT
 
 echo "Downloading $apk_name from the main-latest release..."
 curl -fsSL -o "$work/$apk_name" "$release_url/$apk_name"
@@ -97,11 +99,44 @@ if curl -fsSL -o "$work/release.json" "$release_api" 2> /dev/null; then
 	built="${built:-Built: unknown}"
 fi
 
+# A failure with no `Failure [...]` part has been seen once on a headset that
+# then took the same APK by hand (#210), so it is retried once without
+# streaming. A failure with a reason is not retried: the reason will not
+# change. Sets $output to the last attempt's text.
+install_apk() {
+	local serial="$1"
+	if output="$(adb -s "$serial" install -r "$work/$apk_name" 2>&1)"; then
+		return 0
+	fi
+	if grep -q 'Failure \[' <<< "$output"; then
+		return 1
+	fi
+	echo "  adb gave no reason; trying once more with --no-streaming..."
+	output="$(adb -s "$serial" install -r --no-streaming "$work/$apk_name" 2>&1)"
+}
+
+# Always ends with adb's reason, or a plain statement that it gave none, and
+# the command to try by hand.
+report_failure() {
+	local serial="$1"
+	local reason
+	echo "  Install failed on $serial:" >&2
+	sed 's/^/    /' <<< "$output" >&2
+	reason="$(grep -o 'Failure \[.*\]' <<< "$output" | head -n 1 || true)"
+	if [ -n "$reason" ]; then
+		echo "  Reason: $reason" >&2
+	else
+		echo "  adb gave no reason." >&2
+	fi
+	echo "  To try by hand: adb -s $serial install -r \"$work/$apk_name\"" >&2
+	keep_download=1
+}
+
 failed=0
 installed=()
 for serial in "${serials[@]}"; do
 	echo "Installing on $serial..."
-	if output="$(adb -s "$serial" install -r "$work/$apk_name" 2>&1)"; then
+	if install_apk "$serial"; then
 		installed+=("$serial")
 		echo "  Installed."
 		continue
@@ -111,7 +146,7 @@ for serial in "${serials[@]}"; do
 		if [ "$uninstall_first" -eq 1 ]; then
 			echo "  Uninstalling it first; its saved data is lost."
 			adb -s "$serial" uninstall "$package" > /dev/null 2>&1 || true
-			if output="$(adb -s "$serial" install -r "$work/$apk_name" 2>&1)"; then
+			if install_apk "$serial"; then
 				installed+=("$serial")
 				echo "  Installed."
 				continue
@@ -122,10 +157,13 @@ for serial in "${serials[@]}"; do
 			continue
 		fi
 	fi
-	echo "  Install failed on $serial:" >&2
-	echo "$output" >&2
+	report_failure "$serial"
 	failed=1
 done
+
+if [ "$keep_download" -eq 1 ]; then
+	echo "The download is kept in $work for that; delete the folder when done." >&2
+fi
 
 echo
 echo "Build: commit $commit"

@@ -30,13 +30,14 @@ make_release() {
 	(cd "$1" && sha256sum meltdown-quest-debug.apk > meltdown-quest-debug.apk.sha256)
 }
 
-# Runs the script in a fresh scenario. Sets $output, $status and $log (the adb
-# calls, one per line).
+# Runs the script in a fresh scenario. Sets $output, $status, $log (the adb
+# calls, one per line) and $tmp (the script's temporary folder).
 run_scenario() {
 	local devices="$1"
 	shift
 	local dir="$work/scenario$RANDOM$RANDOM"
-	mkdir -p "$dir/release" "$dir/state"
+	mkdir -p "$dir/release" "$dir/state" "$dir/tmp"
+	tmp="$dir/tmp"
 	make_release "$dir/release"
 	cp "$fixtures/release.json" "$dir/release/"
 	if [ "${BAD_CHECKSUM:-0}" = "1" ]; then
@@ -51,6 +52,8 @@ run_scenario() {
 		STUB_ADB_STATE="$dir/state" \
 		STUB_ADB_DEVICES="$devices" \
 		STUB_ADB_INCOMPATIBLE="${INCOMPATIBLE:-0}" \
+		STUB_ADB_BLANK="${BLANK:-}" \
+		TMPDIR="$tmp" \
 		"$script" "$@" 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
 }
@@ -114,6 +117,11 @@ if [ "$status" -ne 0 ] && [ "$(count_lines "uninstall")" -eq 0 ] \
 else
 	fail "signature mismatch explains and does not uninstall (status $status)"
 fi
+if [ "$(count_lines "no-streaming")" -eq 0 ]; then
+	pass "a failure with a reason is not retried"
+else
+	fail "a failure with a reason is not retried"
+fi
 
 INCOMPATIBLE=1 run_scenario "$one" --uninstall-first
 if [ "$status" -eq 0 ] \
@@ -123,6 +131,50 @@ if [ "$status" -eq 0 ] \
 	pass "--uninstall-first uninstalls and installs again"
 else
 	fail "--uninstall-first uninstalls and installs again (status $status)"
+fi
+
+# The uninstall does not help: the reason is printed, and still not retried.
+INCOMPATIBLE=sticky run_scenario "$one" --uninstall-first
+if [ "$status" -ne 0 ] \
+	&& [ "$(count_lines " install -r ")" -eq 2 ] \
+	&& [ "$(count_lines "no-streaming")" -eq 0 ] \
+	&& grep -q "^  Reason: Failure \[INSTALL_FAILED_UPDATE_INCOMPATIBLE" <<< "$output" \
+	&& grep -q "^  To try by hand: adb -s QUEST3A install -r " <<< "$output" \
+	&& ! grep -q "adb gave no reason" <<< "$output"; then
+	pass "a failure with a reason prints it and the manual command"
+else
+	fail "a failure with a reason prints it and the manual command (status $status)"
+fi
+
+# #210: adb fails with a blank reason on both attempts.
+BLANK=always run_scenario "$one"
+kept="$(find "$tmp" -name meltdown-quest-debug.apk)"
+if [ "$status" -ne 0 ] \
+	&& [ "$(count_lines "^-s QUEST3A install -r /")" -eq 1 ] \
+	&& [ "$(count_lines "^-s QUEST3A install -r --no-streaming /")" -eq 1 ] \
+	&& grep -qxF "  adb gave no reason." <<< "$output" \
+	&& ! grep -qxF "  Installed." <<< "$output"; then
+	pass "a blank failure is retried once without streaming, then says adb gave no reason"
+else
+	fail "a blank failure is retried once without streaming, then says adb gave no reason (status $status)"
+fi
+if [ -n "$kept" ] && grep -qxF "  To try by hand: adb -s QUEST3A install -r \"$kept\"" <<< "$output"; then
+	pass "a failed install prints the manual command and keeps the APK it names"
+else
+	fail "a failed install prints the manual command and keeps the APK it names"
+fi
+
+# #210: the streamed install fails blank, the unstreamed one works.
+BLANK=streamed run_scenario "$one"
+if [ "$status" -eq 0 ] \
+	&& [ "$(count_lines " install -r ")" -eq 2 ] \
+	&& [ "$(count_lines "install -r --no-streaming")" -eq 1 ] \
+	&& grep -qxF "  Installed." <<< "$output" \
+	&& ! grep -q "Install failed" <<< "$output" \
+	&& [ -z "$(ls -A "$tmp")" ]; then
+	pass "a blank streamed failure that works without streaming reports Installed."
+else
+	fail "a blank streamed failure that works without streaming reports Installed. (status $status)"
 fi
 
 # No headset at all.

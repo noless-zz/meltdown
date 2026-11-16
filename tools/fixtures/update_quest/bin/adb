@@ -2,7 +2,10 @@
 # Stub adb for tools/test_update_quest.sh. Every call is appended to
 # $STUB_ADB_LOG. `adb devices` prints $STUB_ADB_DEVICES. `install` succeeds,
 # unless $STUB_ADB_INCOMPATIBLE is 1 and the serial has not been uninstalled
-# yet, in which case it fails with a signature mismatch like a real headset.
+# yet, in which case it fails with a signature mismatch like a real headset
+# (`sticky` keeps failing after the uninstall).
+# $STUB_ADB_BLANK makes `install` fail with an empty reason, as seen in #210:
+# `always` on every attempt, `streamed` only without --no-streaming.
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
 serial=""
@@ -17,7 +20,21 @@ case "${1:-}" in
 		echo
 		;;
 	install)
-		if [ "${STUB_ADB_INCOMPATIBLE:-0}" = "1" ] && [ ! -f "$STUB_ADB_STATE/$serial.uninstalled" ]; then
+		streaming=1
+		for arg in "$@"; do
+			if [ "$arg" = "--no-streaming" ]; then
+				streaming=0
+			fi
+		done
+		blank="${STUB_ADB_BLANK:-}"
+		if [ "$blank" = "always" ] || { [ "$blank" = "streamed" ] && [ "$streaming" -eq 1 ]; }; then
+			echo "Performing Streamed Install"
+			echo "adb: failed to install ${*: -1}: " >&2
+			exit 1
+		fi
+		incompatible="${STUB_ADB_INCOMPATIBLE:-0}"
+		if [ "$incompatible" = "sticky" ] \
+			|| { [ "$incompatible" = "1" ] && [ ! -f "$STUB_ADB_STATE/$serial.uninstalled" ]; }; then
 			echo "Performing Streamed Install"
 			echo "adb: failed to install meltdown-quest-debug.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package io.github.nolesszz.meltdown signatures do not match newer version; ignoring!]"
 			exit 1
