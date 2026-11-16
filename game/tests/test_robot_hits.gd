@@ -175,8 +175,9 @@ func test_events_follow_ship_events_in_order() -> String:
 	if hit_tick < 1:
 		return "test setup: the shot did not land after the firing tick"
 	var events: Array[SimEvent] = _killing_tick_events(hit_tick)
-	if events.size() != 3:
-		return "expected 3 events on the killing tick with the robot removed, got %s" % [events]
+	# The drone's salvage drop (#243) follows, last.
+	if events.size() != 4:
+		return "expected 4 events on the killing tick with the robot removed, got %s" % [events]
 	var forward: Vector3 = Vector3(0.0, 0.0, -1.0)
 	if not events[0].equals(SimEvent.new(SimEvent.Kind.AFTERBURNER_STARTED, 0)):
 		return "first event %s, expected ship 0's AFTERBURNER_STARTED" % events[0]
@@ -184,6 +185,9 @@ func test_events_follow_ship_events_in_order() -> String:
 		return "second event %s, expected ROBOT_HIT by ship 1" % events[1]
 	if not events[2].equals(SimEvent.new(SimEvent.Kind.ROBOT_DESTROYED, 1)):
 		return "third event %s, expected ROBOT_DESTROYED by ship 1" % events[2]
+	if not events[3].equals(SimEvent.new(SimEvent.Kind.SALVAGE_DROPPED, 1, 0.0,
+			Vector3(3.0, 0.0, -10.5))):
+		return "fourth event %s, expected SALVAGE_DROPPED by ship 1 at the drone" % events[3]
 	return ""
 
 
