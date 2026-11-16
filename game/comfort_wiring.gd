@@ -45,6 +45,8 @@ var _input_source: LatestInputSource
 var _mapping: ThumbstickMapping
 ## The preset switch acts once per press, not once per frame it is held.
 var _preset_button_held: bool = false
+## The label toggle, likewise, flips once per press.
+var _label_button_held: bool = false
 ## True while the pending one-tick input is a snap whose roll came from the
 ## auto-level, so that roll is not flown again before the next sample.
 var _roll_snap_pending: bool = false
@@ -106,6 +108,22 @@ func read_preset_button(buttons: Dictionary) -> void:
 	if pressed and not _preset_button_held:
 		set_preset(ComfortPresetFiles.next_number(number))
 	_preset_button_held = pressed
+
+
+## The control-label toggle: the stick click of the hand that does not turn
+## (left, or right when left-handed), as decision record 0004 places it. Read
+## here like the preset button; it never reaches `ShipInput` (ARC-3).
+func label_button() -> String:
+	return "right_stick_click" if _mapping.left_handed else "left_stick_click"
+
+
+## True only on the frame the label button goes down, so a held click flips
+## the labels once.
+func read_label_button(buttons: Dictionary) -> bool:
+	var pressed: bool = bool(buttons.get(label_button(), false))
+	var went_down: bool = pressed and not _label_button_held
+	_label_button_held = pressed
+	return went_down
 
 
 ## Hands this frame's mapped `input` to the session's input source.
