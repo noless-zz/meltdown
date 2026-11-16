@@ -2,7 +2,8 @@ class_name ReplayLines
 extends RefCounted
 
 ## Writes and reads the lines of a replay that carry data: the box line
-## (version 3), the tuning line (version 5) and the tick lines. Split out of
+## (version 3), the tuning line (version 5), the weapon lines (version 7) and
+## the tick lines. Split out of
 ## `Replay` to keep both files short; the format is documented there.
 ##
 ## The parse functions return "" on success, with the value stored on the
@@ -62,6 +63,61 @@ static func parse_tuning_line(replay: Replay, json_text: String,
 	if parsed.error != "":
 		return "tuning: " + parsed.error
 	replay.tuning = parsed
+	return ""
+
+
+## `weapon <kind> <slot 1..2> <id> <json>` for every slot of `loadout` that
+## holds a resolved weapon, primary first. The JSON carries every value at full
+## precision, so the weapon read back is exactly the weapon flown.
+static func weapon_lines(loadout: ShipLoadout) -> PackedStringArray:
+	var lines: PackedStringArray = PackedStringArray()
+	for kind: String in ShipLoadout.KINDS:
+		var ids: Array[String] = loadout.ids_of(kind)
+		var weapons: Array[WeaponDef] = loadout.weapons_of(kind)
+		for slot: int in ShipLoadout.SLOTS_PER_KIND:
+			var weapon: WeaponDef = weapons[slot]
+			if weapon == null:
+				continue
+			var data: Dictionary = {}
+			for key: String in WeaponDef.KEYS:
+				data[key] = weapon.get(key)
+			lines.append("weapon %s %d %s %s" % [kind, slot + 1, ids[slot],
+				JSON.stringify(data, "", false, true)])
+	return lines
+
+
+## `line` is the whole weapon line. Fills one slot of `replay.loadout`,
+## creating it on the first weapon line.
+static func parse_weapon_line(replay: Replay, line: String,
+		seen: Dictionary[String, bool], version: int) -> String:
+	if seen.is_empty():
+		return "the first line must be '%s <version>'" % Replay.FORMAT_NAME
+	if version < 7:
+		return "a weapon line needs format version 7 or later"
+	var words: PackedStringArray = line.split(" ", false, 4)
+	if words.size() != 5:
+		return "weapon needs a kind, a slot, an id and the weapon's data"
+	var kind: String = words[1]
+	if not ShipLoadout.KINDS.has(kind):
+		return "weapon kind must be primary or secondary, found '%s'" % kind
+	if not words[2].is_valid_int():
+		return "weapon slot '%s' is not a whole number" % words[2]
+	var slot: int = words[2].to_int()
+	if slot < 1 or slot > ShipLoadout.SLOTS_PER_KIND:
+		return "weapon slot must be 1 to %d, found %d" % [ShipLoadout.SLOTS_PER_KIND, slot]
+	var seen_key: String = "weapon %s %d" % [kind, slot]
+	if seen.has(seen_key):
+		return "'%s' appears twice" % seen_key
+	seen[seen_key] = true
+	var id_problem: String = ShipLoadout.check_id("weapon id", words[3])
+	if id_problem != "":
+		return id_problem
+	var weapon: WeaponDef = WeaponDef.parse_json(words[4])
+	if weapon.error != "":
+		return "%s: %s" % [seen_key, weapon.error]
+	if replay.loadout == null:
+		replay.loadout = ShipLoadout.new()
+	replay.loadout.set_slot(kind, slot - 1, words[3], weapon)
 	return ""
 
 
