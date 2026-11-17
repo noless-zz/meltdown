@@ -1,28 +1,31 @@
 class_name LoopBridges
 extends RefCounted
 
-## Closes loops in a generated mine (#396, GEN-5): after the chain is placed,
-## two open connectors of the same size class that face each other along one
-## axis (outward axes opposite, centres on one line along it) are joined by a
-## straight tunnel, so a level has more than one way back to the exit (RUN-4,
-## MAP-2).
+## Closes loops in a generated mine (#396, #411, GEN-5): after the chain is
+## placed, two open connectors of the same size class that face each other
+## along one axis (outward axes opposite) are joined by a tunnel, so a level
+## has more than one way back to the exit (RUN-4, MAP-2).
 ##
 ## Read from `data/gen/generator.json`:
 ##
-##     {"loop_min_m": 10, "loop_max_m": 60, "loop_max_count": 2}
+##     {"loop_min_m": 10, "loop_max_m": 60, "loop_max_count": 2,
+##      "loop_max_offset_m": 20}
 ##
-## The gap is the distance between the two openings along their axis. A bridge
-## is the tunnel box (the connector's square, face to face) plus a doorway box
-## at each end, as `MineGenerator` adds for a join, so the level stays one
-## piece under `LevelDef.joined`. It is made only when the tunnel overlaps no
-## placed box and each doorway overlaps no placed box but those of the module
-## it opens into. One open connector is always left for the start.
+## The gap is the distance between the two openings along their axis; the
+## offset is how far apart their centres are across it. Openings exactly in
+## line get a straight tunnel; others, up to the offset, a Z (`LoopShapes`):
+## exactly facing pairs are rare with the shipped modules (#411). A bridge is
+## the tunnel boxes plus a doorway box at each end, as `MineGenerator` adds for
+## a join, so the level stays one piece under `LevelDef.joined`. It is made
+## only when no tunnel box overlaps a placed box and each doorway overlaps no
+## placed box but those of the module it opens into. One open connector is
+## always left for the start.
 ##
 ## Pairs are tried lowest open-connector index first, then lowest partner, so
 ## the same seed gives the same level (GEN-2, ARC-2); nothing here is random.
 ## The caller hands over the file's text, because `gen/` never opens files.
 
-const KEYS: Array[String] = ["loop_min_m", "loop_max_m", "loop_max_count"]
+const KEYS: Array[String] = ["loop_min_m", "loop_max_m", "loop_max_count", "loop_max_offset_m"]
 ## Upper bound on either gap key, metres: longer than any level is wide.
 const MAX_GAP_M: float = 1000.0
 
@@ -31,6 +34,8 @@ var min_gap_mm: int = 0
 var max_gap_mm: int = 0
 ## Most bridges in one level.
 var max_count: int = 0
+## Furthest apart, across their axis, two bridged openings' centres may be, mm.
+var max_offset_mm: int = 0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -81,32 +86,41 @@ func apply(generator: MineGenerator) -> int:
 	return made
 
 
-## The bridge's boxes as corner pairs [tunnel, door at a, door at b], or empty
-## when the two connectors do not face each other in range or it would not fit.
+## The bridge's boxes as corner pairs (tunnel boxes, then the doors at a and
+## b), or empty when the two connectors do not face each other in range or it
+## would not fit.
 func _bridge(generator: MineGenerator, a: int, b: int) -> Array[Vector3i]:
 	var from: ModuleConnector = generator.open_connectors[a]
 	var to: ModuleConnector = generator.open_connectors[b]
 	if from.size_class != to.size_class or from.axis() != to.axis() or from.axis_sign() == to.axis_sign():
 		return []
 	var axis: int = from.axis()
-	for other: int in 3:
-		if other != axis and from.position_mm[other] != to.position_mm[other]:
-			return []
 	var gap: int = (to.position_mm[axis] - from.position_mm[axis]) * from.axis_sign()
 	if gap < min_gap_mm or gap > max_gap_mm:
 		return []
-	var half: int = from.size_mm() / 2
-	var low: Vector3i = from.position_mm - Vector3i(half, half, half)
-	var high: Vector3i = from.position_mm + Vector3i(half, half, half)
-	low[axis] = mini(from.position_mm[axis], to.position_mm[axis])
-	high[axis] = maxi(from.position_mm[axis], to.position_mm[axis])
+	var shift: Vector3i = to.position_mm - from.position_mm
+	shift[axis] = 0
+	# Squared in 64-bit ints, so whole millimetres compare exactly (ARC-2).
+	var shift_x: int = shift.x
+	var shift_y: int = shift.y
+	var shift_z: int = shift.z
+	if shift_x * shift_x + shift_y * shift_y + shift_z * shift_z > max_offset_mm * max_offset_mm:
+		return []
+	var boxes: Array[Vector3i] = LoopShapes.straight(from, to) if shift == Vector3i.ZERO \
+			else LoopShapes.z_shape(from, to)
+	if boxes.is_empty():
+		return []
+	for index: int in range(0, boxes.size(), 2):
+		if not _clear(generator, boxes[index], boxes[index + 1], -1):
+			return []
 	var door_a: Array[Vector3i] = MineGenerator.door_for(from)
 	var door_b: Array[Vector3i] = MineGenerator.door_for(to)
-	if not _clear(generator, low, high, -1) \
-			or not _clear(generator, door_a[0], door_a[1], generator.open_owner[a].x) \
+	if not _clear(generator, door_a[0], door_a[1], generator.open_owner[a].x) \
 			or not _clear(generator, door_b[0], door_b[1], generator.open_owner[b].x):
 		return []
-	return [low, high, door_a[0], door_a[1], door_b[0], door_b[1]]
+	boxes.append_array(door_a)
+	boxes.append_array(door_b)
+	return boxes
 
 
 ## True if the box overlaps no placed box, apart from those of placement
@@ -144,13 +158,17 @@ func _read(data: Dictionary) -> String:
 	var low: float = float(data["loop_min_m"])
 	var high: float = float(data["loop_max_m"])
 	var count: float = float(data["loop_max_count"])
+	var offset: float = float(data["loop_max_offset_m"])
 	if low <= 0.0 or low > MAX_GAP_M:
 		return "key \"loop_min_m\" must be above 0 and at most %s" % MAX_GAP_M
 	if high < low or high > MAX_GAP_M:
 		return "key \"loop_max_m\" must be loop_min_m..%s" % MAX_GAP_M
 	if count < 0.0 or count != floorf(count):
 		return "key \"loop_max_count\" must be a whole number, at least 0"
+	if offset < 0.0 or offset > MAX_GAP_M:
+		return "key \"loop_max_offset_m\" must be 0..%s" % MAX_GAP_M
 	min_gap_mm = roundi(low * RobotSpawn.SCALE)
 	max_gap_mm = roundi(high * RobotSpawn.SCALE)
 	max_count = int(count)
+	max_offset_mm = roundi(offset * RobotSpawn.SCALE)
 	return ""
