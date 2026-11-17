@@ -160,19 +160,27 @@ func test_a_skipped_entry_shows_held() -> String:
 
 
 func test_a_level_without_debris_gets_no_view() -> String:
+	var main: Node = _main()
+	_ticks(main, 60)
 	var problem: String = ""
-	for level_name: String in ["g2", ""]:
-		var main: Node = _main(level_name)
-		_ticks(main, 60)
-		if level_name == "g2":
-			_destroy_reactor(main)
-			_ticks(main, 60)
-		if not _debris_views(main).is_empty() or _wiring(main).debris_view != null:
-			problem = "%s without debris has a debris view" % (level_name if level_name != "" else "the test tunnel")
-		main.free()
-		if problem != "":
-			return problem
-	return ""
+	if not _debris_views(main).is_empty() or _wiring(main).debris_view != null:
+		problem = "the test tunnel, which has no debris, has a debris view"
+	main.free()
+	return problem
+
+
+## Since #439 the session carries G2's own debris entry, so the view appears in
+## play without any debris handed in by the test.
+func test_g2_gets_its_own_debris_view_in_play() -> String:
+	var main: Node = _main("g2")
+	_ticks(main, 1)
+	var problem: String = ""
+	if _session(main).sim.debris == null:
+		problem = "G2's session has no debris"
+	elif _debris_views(main).size() != 1 or _wiring(main).debris_view == null:
+		problem = "G2 with its debris has %d debris views" % _debris_views(main).size()
+	main.free()
+	return problem
 
 
 func test_pausing_freezes_the_reactor_view_and_unpausing_resumes_it() -> String:

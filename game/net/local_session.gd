@@ -170,8 +170,8 @@ static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
 ## line and the ship is placed from what the line reads back, so a level that
 ## does not start at the origin facing -z replays to the same hash (#340).
 ## The level's reactor, if any, is armed on the sim and recorded in the replay
-## before the first tick, so the main scene flies with it (RUN-2, #332).
-## `level` must have parsed without an error.
+## before the first tick, so the main scene flies with it (RUN-2, #332), and
+## so is its debris (RUN-4, #439). `level` must have parsed without an error.
 static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInputSource = null,
 		tuning: ShipTuning = null, robot_dir: String = ROBOT_DIR,
 		weapon_dir: String = WEAPON_DIR) -> LocalSession:
@@ -196,6 +196,9 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 	if level.reactor != null:
 		session.replay.reactor = level.reactor.fresh_copy()
 		session.sim.set_reactor(level.reactor.fresh_copy())
+	if level.debris != null and level.debris.size() > 0:
+		session.replay.debris = level.debris.fresh_copy()
+		session.sim.set_debris(level.debris.fresh_copy())
 	session.reset_ship_snapshots()
 	return session
 
