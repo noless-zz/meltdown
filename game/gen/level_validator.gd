@@ -5,7 +5,8 @@ extends RefCounted
 ## GEN-5): one connected piece, every opening wide enough, every box reachable
 ## from the start, the start held inside a box, a reactor with room around it in
 ## a reachable box, an escape from the reactor to the exit that fits the
-## meltdown countdown (`EscapeChecks`), and robots with room around them in
+## meltdown countdown (`EscapeChecks`) and still fits it once the meltdown debris
+## the route guard lets fall is down (`DebrisEscape`, #493), and robots with room around them in
 ## reachable boxes outside the start module (`RobotChecks`, #399). `validate` returns one message per failure, each starting
 ## with the check's name (`CHECKS`) and naming the box or boxes; an empty list
 ## means the level passes.
@@ -43,7 +44,8 @@ const RANGES: Dictionary[String, Array] = {
 	"escape_margin": [0.1, 1.0],
 }
 ## Every check's name, in the order `validate` reports them.
-const CHECKS: Array[String] = ["piece", "passage", "start", "reachable", "reactor", "escape", "robots"]
+const CHECKS: Array[String] = ["piece", "passage", "start", "reachable", "reactor", "escape",
+		"debris_escape", "robots"]
 
 ## Narrowest opening allowed, in ship collision diameters.
 var min_passage_ship_diameters: float = 2.5
@@ -106,7 +108,7 @@ func min_passage(ship_radius: float) -> float:
 
 
 ## The level's failures for a ship of `ship_radius`; empty when it passes.
-## `check_reactor` false leaves out the `reactor` and `escape` checks, for
+## `check_reactor` false leaves out the `reactor`, `escape` and `debris_escape` checks, for
 ## hand-built test levels that have no reactor. `robot_radii_mm` gives the
 ## radius of unresolved robots by type id (`RobotPlan.radii_by_id`);
 ## `start_module` lists the boxes of the module the start is in, and when it is
@@ -155,8 +157,15 @@ func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
 	for index: int in unreached:
 		failures.append("reachable: box %d cannot be reached from start box %d" % [index, start_box])
 	if check_reactor:
-		failures.append_array(EscapeChecks.failures(level, ship_radius, start_box, unreached,
-				escape_speed_mps, escape_margin))
+		var escape: Array[String] = EscapeChecks.failures(level, ship_radius, start_box, unreached,
+				escape_speed_mps, escape_margin)
+		failures.append_array(escape)
+		# Only a level whose clear escape fits is timed again with debris fallen.
+		if escape.is_empty():
+			var late: String = DebrisEscape.failure(level, level.debris, ship_radius,
+					escape_speed_mps, escape_margin)
+			if late != "":
+				failures.append(late)
 	var module: Array[int] = start_module.duplicate()
 	if module.is_empty():
 		module.append(start_box)
