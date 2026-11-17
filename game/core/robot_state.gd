@@ -84,7 +84,7 @@ func chase_standoff(target: ShipState) -> float:
 ## so the facing moves by exactly the turned angle and no roll is added.
 func turn_towards(direction: Vector3) -> void:
 	var facing: Vector3 = forward()
-	var angle: float = facing.angle_to(direction)
+	var angle: float = StableAngle.between(facing, direction)
 	if angle <= 0.0:
 		return
 	var axis: Vector3 = facing.cross(direction)
@@ -231,7 +231,8 @@ func fire_at(target: ShipState) -> WeaponDef:
 	if distance > weapon_range():
 		return null
 	# A target exactly on the centre is straight ahead whichever way it faces.
-	if distance > 0.0 and forward().angle_to(offset) > deg_to_rad(FIRE_CONE_HALF_ANGLE_DEG):
+	var cone: float = deg_to_rad(FIRE_CONE_HALF_ANGLE_DEG)
+	if distance > 0.0 and StableAngle.between(forward(), offset) > cone:
 		return null
 	fire_cooldown = weapon.fire_interval_ticks
 	return weapon
