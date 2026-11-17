@@ -51,6 +51,15 @@ static func parse_json(text: String, robot_texts: Dictionary) -> RobotPlan:
 	return plan
 
 
+## Each type's radius in millimetres by id, as `LevelValidator.validate` takes
+## them for a generated level's unresolved robots.
+func radii_by_id() -> Dictionary[String, int]:
+	var radii: Dictionary[String, int] = {}
+	for index: int in types.size():
+		radii[types[index]] = radii_mm[index]
+	return radii
+
+
 func _read(data: Dictionary, robot_texts: Dictionary) -> String:
 	var problem: String = LevelDef._check_keys(data, KEYS)
 	if problem == "":
