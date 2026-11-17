@@ -2,7 +2,8 @@ class_name ShipContact
 extends RefCounted
 
 ## Keeps one ship out of solid debris and inside the walls at the end of its
-## move (FLT-3, RUN-4). Kept out of `Sim` so its tick stays short.
+## move (FLT-3, RUN-4), then lets burning debris burn it where it ends up
+## (`MeltdownFire`). Kept out of `Sim` so its tick stays short.
 
 
 ## Pushes ship `index` of `sim` out of solid debris, then keeps it inside the
@@ -15,6 +16,8 @@ static func apply(sim: Sim, index: int, events: Array[SimEvent]) -> void:
 		_report(sim.debris.contain_impact(ship), index, events)
 	if sim.walls != null:
 		_report(sim.walls.contain_impact(ship), index, events)
+	if sim.debris != null:
+		MeltdownFire.burn(sim.debris, ship)
 
 
 static func _report(impact: Vector3, index: int, events: Array[SimEvent]) -> void:

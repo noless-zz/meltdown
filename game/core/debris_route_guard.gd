@@ -15,7 +15,8 @@ extends RefCounted
 ## A ship that already has no route is not counted: holding debris back cannot
 ## give it one, and debris never took it away, since the guard ran for every
 ## entry before. Open space (no walls) has no openings to close, so nothing is
-## checked there. Everything the check reads is whole millimetres and the
+## checked there. Fire never closes an opening, so it is never checked or held
+## back and never counts as solid here. Everything the check reads is whole millimetres and the
 ## simulation's own state, so the outcome is the same on every device and in
 ## every replay (ARC-1, ARC-2).
 
@@ -35,7 +36,7 @@ static func advance(sim: Sim, events: Array[SimEvent]) -> void:
 	for box: int in sim.walls.boxes.size():
 		explored.append(box)
 	for index: int in debris.size():
-		if debris.after_ticks[index] != debris.elapsed_ticks:
+		if debris.after_ticks[index] != debris.elapsed_ticks or debris.is_fire(index):
 			continue
 		var losing: int = _ship_losing_route(sim, explored, index)
 		if losing >= 0:
@@ -75,6 +76,8 @@ static func _has_route(sim: Sim, explored: Array[int], ship: ShipState, exit: Ve
 static func _fallen(debris: MeltdownDebris, index: int, with_entry: bool) -> MeltdownDebris:
 	var fallen: MeltdownDebris = MeltdownDebris.new()
 	for other: int in debris.size():
+		if debris.is_fire(other):
+			continue
 		var earlier: bool = debris.after_ticks[other] < debris.elapsed_ticks \
 			or debris.after_ticks[other] == debris.elapsed_ticks and other < index
 		var counted: bool = earlier and not debris.is_skipped(other)

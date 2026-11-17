@@ -5,6 +5,8 @@ extends RefCounted
 ## axis-aligned boxes (blast doors, cave-ins) from the level file that appear at
 ## set times after the reactor dies. Ships bounce off them as off a wall (FLT-3)
 ## and shots of either side stop on them. The shape tests are `DebrisShapes`.
+## An entry of `"kind": "fire"` is never solid and burns ships instead; see
+## `MeltdownFire`.
 ##
 ## Read from one JSON list, in the level file's optional `debris` key and in the
 ## replay's debris line alike, so there is one parser:
@@ -24,7 +26,8 @@ extends RefCounted
 ## unless `DebrisRouteGuard` held it back because it would have closed a ship's
 ## last route to the exit: then it is skipped and never becomes solid.
 
-const KEYS: Array[String] = ["position", "radius", "size", "after_seconds"]
+const KEYS: Array[String] = ["position", "radius", "size", "after_seconds", "kind",
+	"damage_per_second"]
 ## Each side of a box entry is at least this many millimetres.
 const MIN_SIZE_MM: int = 100
 const TICKS_PER_SECOND: int = 60
@@ -37,6 +40,9 @@ var radii_mm: Array[int] = []
 ## builds spheres may leave it short; a missing entry is a sphere.
 var sizes_mm: Array[Vector3i] = []
 var after_ticks: Array[int] = []
+## Per entry: a fire's damage in thousandths of a point per second, or 0 for a
+## solid entry. Code that builds solid entries may leave it short.
+var fire_milli_dps: Array[int] = []
 ## Per entry: held back by `DebrisRouteGuard` when it fell due, so never solid.
 ## Part of the hash only once one is set, so runs with nothing held keep theirs.
 var skipped: Array[bool] = []
@@ -92,8 +98,22 @@ func box_size(index: int) -> Vector3:
 
 
 ## True once entry `index` has appeared, which a skipped entry never does.
-func is_solid(index: int) -> bool:
+func has_fallen(index: int) -> bool:
 	return elapsed_ticks >= after_ticks[index] and not is_skipped(index)
+
+
+## True once a solid entry has appeared: it blocks ships, shots and routes.
+func is_solid(index: int) -> bool:
+	return has_fallen(index) and not is_fire(index)
+
+
+## True once a fire entry has appeared: it burns ships inside it.
+func is_burning(index: int) -> bool:
+	return has_fallen(index) and is_fire(index)
+
+
+func is_fire(index: int) -> bool:
+	return index < fire_milli_dps.size() and fire_milli_dps[index] > 0
 
 
 func is_skipped(index: int) -> bool:
@@ -107,6 +127,7 @@ func fresh_copy() -> MeltdownDebris:
 	copy.radii_mm = radii_mm.duplicate()
 	copy.sizes_mm = sizes_mm.duplicate()
 	copy.after_ticks = after_ticks.duplicate()
+	copy.fire_milli_dps = fire_milli_dps.duplicate()
 	copy.skipped.resize(size())
 	copy.skipped.fill(false)
 	return copy
@@ -126,6 +147,7 @@ func to_json() -> String:
 		else:
 			entry["radius"] = radii_mm[index] / scale
 		entry["after_seconds"] = after_ticks[index] / float(TICKS_PER_SECOND)
+		MeltdownFire.write(self, index, entry)
 		entries.append(entry)
 	return JSON.stringify(entries, "", false, true)
 
@@ -242,10 +264,15 @@ func _read_entry(value: Variant) -> String:
 	var ticks: int = roundi(float(seconds) * TICKS_PER_SECOND)
 	if ticks < 1:
 		return "after_seconds must be at least one tick"
+	var fire: Array[int] = []
+	problem = MeltdownFire.read(data, fire)
+	if problem != "":
+		return problem
 	positions_mm.append(read[0])
 	radii_mm.append(radius_read[0])
 	sizes_mm.append(read[1] if read.size() > 1 else Vector3i.ZERO)
 	after_ticks.append(ticks)
+	fire_milli_dps.append(fire[0])
 	skipped.append(false)
 	return ""
 
