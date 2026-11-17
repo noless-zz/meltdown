@@ -3,7 +3,7 @@ extends RefCounted
 
 ## The acceptance checks that read the state a step's replay ended in (DEV-6):
 ## the final hash, whether every robot is destroyed and whether the ship
-## survived (gate G2, #334). Kept apart from `AcceptanceRunner`, which drives
+## survived (gate G2, #334), and how the run ended (#376). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
 
@@ -21,6 +21,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return robots_cleared(session.sim, measurements)
 		AcceptanceStep.CHECK_SHIP_ALIVE:
 			return ship_alive(session.sim, measurements)
+		AcceptanceStep.CHECK_OUTCOME:
+			return outcome(step, session.sim, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -53,3 +55,18 @@ static func ship_alive(sim: Sim, measurements: Dictionary) -> Array:
 	if hull <= 0.0:
 		return [AcceptanceReport.RESULT_FAIL, "the ship's hull is %.1f" % hull]
 	return [AcceptanceReport.RESULT_PASS, "hull %.1f" % hull]
+
+
+static func outcome(step: AcceptanceStep, sim: Sim, measurements: Dictionary) -> Array:
+	var actual: String = outcome_name(sim.outcome())
+	var expected: String = outcome_name(step.expected_outcome)
+	measurements["outcome"] = actual
+	measurements["expected_outcome"] = expected
+	if actual != expected:
+		return [AcceptanceReport.RESULT_FAIL, "outcome %s, expected %s" % [actual, expected]]
+	return [AcceptanceReport.RESULT_PASS, "outcome %s" % actual]
+
+
+static func outcome_name(value: int) -> String:
+	var key: Variant = ExitRule.Outcome.find_key(value)
+	return str(key) if key != null else "none"

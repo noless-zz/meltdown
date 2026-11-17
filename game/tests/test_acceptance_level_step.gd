@@ -92,7 +92,9 @@ func test_g2_step_passes_in_the_flat_main_scene_with_all_three_checks() -> Strin
 	else:
 		var step: Dictionary = runner.reports[0].steps[0]
 		var message: String = step["message"]
-		for check: String in AcceptanceStep.REPLAY_CHECKS:
+		# The three this step lists; the outcome check (#376) is not one of them.
+		for check: String in [AcceptanceStep.CHECK_FINAL_HASH, AcceptanceStep.CHECK_ROBOTS_CLEARED,
+				AcceptanceStep.CHECK_SHIP_ALIVE]:
 			if not message.contains(check + ": "):
 				problem = "the report does not name %s: '%s'" % [check, message]
 		var measured: Dictionary = step["measurements"]

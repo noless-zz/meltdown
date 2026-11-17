@@ -14,17 +14,23 @@ const CHECK_NO_SCRIPT_ERRORS: String = "no_script_errors"
 const CHECK_ROBOTS_CLEARED: String = "robots_cleared"
 ## The ship's hull is above zero when the replay ends (#334).
 const CHECK_SHIP_ALIVE: String = "ship_alive"
+## The run's outcome (`ExitRule.Outcome`) is `expected_outcome` when the
+## replay ends (#376): a hash alone would pin a run that crashed or ran out
+## of time just as firmly as one that escaped.
+const CHECK_OUTCOME: String = "outcome"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
-	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE]
+	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
-const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE]
+const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
+	CHECK_OUTCOME]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
 const MIN_PRESET: int = 1
 const MAX_PRESET: int = 4
 const NO_HASH: int = -1
+const NO_OUTCOME: int = -1
 
 ## Unique within its suite; names the step in the report.
 var id: String = ""
@@ -39,6 +45,9 @@ var preset: int = NO_PRESET
 var checks: Array[String] = []
 ## State hash the replay must end with, for the final_hash check, or NO_HASH.
 var expected_hash: int = NO_HASH
+## `ExitRule.Outcome` the replay must end on, for the outcome check, or
+## NO_OUTCOME. Written in a suite by name: "RUNNING", "ESCAPED" or "LOST".
+var expected_outcome: int = NO_OUTCOME
 ## A check that cannot run on this device (no OpenXR runtime for xr_session)
 ## is skipped; a required step fails instead, so a headset run cannot pass
 ## without the check it was started for.

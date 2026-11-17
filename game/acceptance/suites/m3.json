@@ -1,0 +1,13 @@
+{
+	"name": "m3",
+	"steps": [
+		{
+			"id": "bot_g2_escape",
+			"level": "g2",
+			"replay": "res://acceptance/replays/bot_g2_escape.replay",
+			"checks": ["final_hash", "robots_cleared", "outcome"],
+			"expected_hash": 4156950278,
+			"expected_outcome": "ESCAPED"
+		}
+	]
+}
