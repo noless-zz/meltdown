@@ -1,21 +1,22 @@
 extends RefCounted
 
-## Loop closing (#396, GEN-5, GEN-2, ARC-2): facing open connectors get a
-## straight tunnel, a bridge never cuts through a module, the same seed gives
-## the same level, and every bridged level stays one piece and passes the
-## validator.
+## Loop closing (#396, #411, GEN-5, GEN-2, ARC-2): facing open connectors get
+## a straight tunnel, near-facing ones a Z, a bridge never cuts through a
+## module, the same seed gives the same level, and every bridged level stays
+## one piece and passes the validator.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const SEEDS: int = 1000
-## Share of seeds 0..999 with a loop on the shipped data: 3 in 1,000. The
-## issue asks for 20% or the rate found; exact facing pairs are rare with the
-## shipped modules, which #411 takes on.
-const MIN_LOOPED: int = 3
+## Share of seeds 0..999 with a loop on the shipped data: 58 in 1,000 with
+## Z bridges up to 40 m sideways (#411), up from 3 with straight ones only.
+## #411 asked for 10%; even with no offset limit the rate stops at 8%, because
+## most open connectors do not face each other at all (see the #411 devlog).
+const MIN_LOOPED: int = 50
 
 
-func _bridges(low: float, high: float, count: int) -> LoopBridges:
+func _bridges(low: float, high: float, count: int, offset: float = 0.0) -> LoopBridges:
 	return LoopBridges.parse_json(JSON.stringify(
-			{"loop_min_m": low, "loop_max_m": high, "loop_max_count": count}))
+			{"loop_min_m": low, "loop_max_m": high, "loop_max_count": count, "loop_max_offset_m": offset}))
 
 
 ## Adds a placement to a hand-built level: one box and its open connectors.
@@ -71,11 +72,13 @@ func test_bad_data_files_are_rejected_naming_every_missing_key() -> String:
 			return "empty file error \"%s\" does not name %s" % [empty.error, key]
 	var cases: Dictionary[String, String] = {
 		"[1]": "top level",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"x\": 1}": "unknown key",
-		"{\"loop_min_m\": 0, \"loop_max_m\": 60, \"loop_max_count\": 2}": "loop_min_m",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 5, \"loop_max_count\": 2}": "loop_max_m",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 1.5}": "loop_max_count",
-		"{\"loop_min_m\": \"6\", \"loop_max_m\": 60, \"loop_max_count\": 2}": "must be a number",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": -1}": "loop_max_offset_m",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": \"4\"}": "must be a number",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"x\": 1}": "unknown key",
+		"{\"loop_min_m\": 0, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4}": "loop_min_m",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 5, \"loop_max_count\": 2, \"loop_max_offset_m\": 4}": "loop_max_m",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 1.5, \"loop_max_offset_m\": 4}": "loop_max_count",
+		"{\"loop_min_m\": \"6\", \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4}": "must be a number",
 	}
 	for text: String in cases:
 		var read: LoopBridges = LoopBridges.parse_json(text)
