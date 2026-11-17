@@ -7,5 +7,9 @@
 	"exit_color": [0.35, 1.0, 0.45],
 	"exit_radius_m": 0.01,
 	"reactor_color": [1.0, 0.25, 0.75],
-	"reactor_radius_m": 0.01
+	"reactor_radius_m": 0.01,
+	"route_color": [0.95, 0.95, 0.95],
+	"route_width_m": 0.0015,
+	"blocked_color": [1.0, 0.1, 0.1],
+	"blocked_size_m": 0.012
 }

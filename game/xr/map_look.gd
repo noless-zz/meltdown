@@ -8,15 +8,20 @@ extends RefCounted
 ##     {"line_color": [r, g, b], "line_energy": 0..8, "size_m": 0.05..0.6,
 ##      "marker_color": [r, g, b], "marker_radius_m": 0.002..0.05,
 ##      "exit_color": [r, g, b], "exit_radius_m": 0.002..0.05,
-##      "reactor_color": [r, g, b], "reactor_radius_m": 0.002..0.05}
+##      "reactor_color": [r, g, b], "reactor_radius_m": 0.002..0.05,
+##      "route_color": [r, g, b], "route_width_m": 0.0005..0.01,
+##      "blocked_color": [r, g, b], "blocked_size_m": 0.002..0.05}
 ##
-## `exit_radius_m` is half the edge of the exit cube. The exit and reactor
-## keys are optional, so a file written before #338 still
+## `exit_radius_m` is half the edge of the exit cube; `blocked_size_m` is the
+## length of each bar of a blocked opening's cross. The exit, reactor, route
+## and blocked keys are optional, so a file written before #338 or #400 still
 ## loads and keeps the built-in values for them.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
-const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m"]
-const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color"]
+const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
+		"route_color", "route_width_m", "blocked_color", "blocked_size_m"]
+const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
+		"blocked_color"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"line_energy": [0.0, 8.0],
@@ -24,10 +29,15 @@ const RANGES: Dictionary[String, Array] = {
 	"marker_radius_m": [0.002, 0.05],
 	"exit_radius_m": [0.002, 0.05],
 	"reactor_radius_m": [0.002, 0.05],
+	# Thinner than half a millimetre vanishes at arm's length on the Quest 3
+	# panel; thicker than a centimetre hides the wireframe under it.
+	"route_width_m": [0.0005, 0.01],
+	"blocked_size_m": [0.002, 0.05],
 }
 ## Look used when the file is missing or rejected, and for optional keys a
 ## file leaves out. The exit is green and the reactor magenta so neither reads
-## as the orange ship marker or the cyan lines.
+## as the orange ship marker or the cyan lines. The route is white, thicker
+## than the wireframe, and the blocked crosses red (MAP-2, #400).
 const FALLBACK: Dictionary = {
 	"line_color": Color(0.3, 0.85, 1.0),
 	"line_energy": 1.5,
@@ -38,6 +48,10 @@ const FALLBACK: Dictionary = {
 	"exit_radius_m": 0.01,
 	"reactor_color": Color(1.0, 0.25, 0.75),
 	"reactor_radius_m": 0.01,
+	"route_color": Color(0.95, 0.95, 0.95),
+	"route_width_m": 0.0015,
+	"blocked_color": Color(1.0, 0.1, 0.1),
+	"blocked_size_m": 0.012,
 }
 
 
