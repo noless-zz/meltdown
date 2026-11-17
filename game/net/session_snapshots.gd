@@ -9,6 +9,8 @@ extends RefCounted
 ## Keys of the `debris` snapshot: metres, metres, and seconds until solid.
 const DEBRIS_POSITIONS: String = "positions_m"
 const DEBRIS_RADII: String = "radii_m"
+## A box entry's full size in metres; `Vector3.ZERO` for a sphere (#459).
+const DEBRIS_SIZES: String = "sizes_m"
 const DEBRIS_SOLID: String = "solid"
 const DEBRIS_HELD: String = "held"
 const DEBRIS_SECONDS: String = "seconds_to_solid"
@@ -72,12 +74,15 @@ static func reactor(source: ReactorState) -> ReactorState:
 ## Plain copies of the simulation's meltdown debris for the view (RUN-4, MP-2):
 ## a Dictionary of parallel arrays under the `DEBRIS_*` keys, every one empty
 ## for null. The view gets values, never the live `MeltdownDebris`.
+## `DEBRIS_SIZES` holds a box's full size and zero for a sphere, so the other
+## keys keep the values they had before boxes (a box's radius is zero).
 ## `DEBRIS_SECONDS` is the time until an entry is solid: zero once it is, and
 ## INF while the reactor lives (the clock has not started) or for a held
 ## entry, which never falls.
 static func debris(source: MeltdownDebris) -> Dictionary:
 	var positions: Array[Vector3] = []
 	var radii: Array[float] = []
+	var sizes: Array[Vector3] = []
 	var solid: Array[bool] = []
 	var held: Array[bool] = []
 	var seconds: Array[float] = []
@@ -85,11 +90,12 @@ static func debris(source: MeltdownDebris) -> Dictionary:
 	for index: int in count:
 		positions.append(source.position(index))
 		radii.append(source.radius(index))
+		sizes.append(source.box_size(index))
 		solid.append(source.is_solid(index))
 		held.append(source.is_skipped(index))
 		seconds.append(_seconds_until_solid(source, index))
-	return {DEBRIS_POSITIONS: positions, DEBRIS_RADII: radii, DEBRIS_SOLID: solid,
-		DEBRIS_HELD: held, DEBRIS_SECONDS: seconds}
+	return {DEBRIS_POSITIONS: positions, DEBRIS_RADII: radii, DEBRIS_SIZES: sizes,
+		DEBRIS_SOLID: solid, DEBRIS_HELD: held, DEBRIS_SECONDS: seconds}
 
 
 static func _seconds_until_solid(source: MeltdownDebris, index: int) -> float:
