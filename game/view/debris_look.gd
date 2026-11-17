@@ -8,17 +8,26 @@ extends RefCounted
 ##     {"solid_color": [r, g, b], "solid_energy": 0..16,
 ##      "warn_color": [r, g, b], "warn_energy": 0..16, "warn_alpha": 0..1,
 ##      "warn_seconds": 0.5..10,
-##      "held_color": [r, g, b], "held_energy": 0..16, "held_alpha": 0..1}
+##      "held_color": [r, g, b], "held_energy": 0..16, "held_alpha": 0..1,
+##      "slab_color": [r, g, b], "slab_energy": 0..16,
+##      "slab_warn_color": [r, g, b], "slab_warn_energy": 0..16,
+##      "slab_warn_alpha": 0..1}
 ##
 ## Energies are emission multipliers. A held entry never became solid, so it
 ## is drawn see-through (`held_alpha`): an opaque rock there would show a
 ## sealed tunnel where the route is open. Debris carries a faint glow of its own
 ## because the mine is dark (LGT-1) and an unlit rock in a tunnel reads as
 ## nothing until the ship hits it.
+##
+## Box entries (blast doors, cave-in slabs, #459) have their own `slab_*`
+## colours: a flat grey-metal slab and a hazard-yellow warning, so a door about
+## to slam reads differently from a rock about to fall. They share
+## `warn_seconds` with spheres, so both warn equally early.
 
 const DEFAULT_FILE: String = "res://view/debris_look.json"
 
-const COLOR_KEYS: Array[String] = ["solid_color", "warn_color", "held_color"]
+const COLOR_KEYS: Array[String] = ["solid_color", "warn_color", "held_color", "slab_color",
+	"slab_warn_color"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"solid_energy": [0.0, 16.0],
@@ -29,6 +38,9 @@ const RANGES: Dictionary[String, Array] = {
 	"warn_seconds": [0.5, 10.0],
 	"held_energy": [0.0, 16.0],
 	"held_alpha": [0.0, 1.0],
+	"slab_energy": [0.0, 16.0],
+	"slab_warn_energy": [0.0, 16.0],
+	"slab_warn_alpha": [0.0, 1.0],
 }
 
 ## Look used when the file is missing or rejected; matches the shipped file.
@@ -42,6 +54,11 @@ const FALLBACK: Dictionary = {
 	"held_color": Color(0.55, 0.5, 0.42),
 	"held_energy": 0.3,
 	"held_alpha": 0.3,
+	"slab_color": Color(0.36, 0.36, 0.38),
+	"slab_energy": 0.15,
+	"slab_warn_color": Color(1.0, 0.8, 0.1),
+	"slab_warn_energy": 1.5,
+	"slab_warn_alpha": 0.3,
 }
 
 
