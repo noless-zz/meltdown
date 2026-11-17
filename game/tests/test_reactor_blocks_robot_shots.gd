@@ -132,7 +132,8 @@ func test_a_replay_with_a_reactor_reproduces_its_hash_from_text() -> String:
 	return ""
 
 
-## Committed replays carry no reactor, so their pinned hashes must stand.
+## Every committed suite replay ends on its pinned hash; since #332 the G2 one
+## carries the level's reactor, the others none.
 func test_the_m1_and_m2_suite_replays_still_end_on_their_hashes() -> String:
 	var flown: int = 0
 	for path: String in SUITES:
@@ -145,8 +146,6 @@ func test_the_m1_and_m2_suite_replays_still_end_on_their_hashes() -> String:
 			var replay: Replay = Replay.load_file(step.replay_path)
 			if replay.error != "":
 				return "%s: %s" % [step.replay_path, replay.error]
-			if replay.reactor != null:
-				return "%s now carries a reactor; re-record it under #332" % step.replay_path
 			var sim: Sim = replay.run()
 			if sim == null:
 				return "%s: %s" % [step.replay_path, replay.run_error]

@@ -124,6 +124,8 @@ func test_no_flank_without_an_intact_reactor() -> String:
 	var level: LevelDef = box_level()
 	var session: LocalSession = LocalSession.for_level(level, 0, null,
 		LocalSession.load_tuning(SHIP_TUNING_PATH))
+	# `for_level` arms the level's reactor (#332); take it away for the first check.
+	session.sim.set_reactor(null)
 	var ship: ShipState = session.sim.ships[0]
 	var drone: RobotState = session.sim.robots[0]
 	var flank: BotFlank = BotFlank.new(session.sim, level.union, LevelRoute.new(level))
