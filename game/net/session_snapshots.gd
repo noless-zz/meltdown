@@ -6,6 +6,13 @@ extends RefCounted
 ## (MP-2). Kept out of `local_session.gd` so that file stays under its size
 ## limit (#296).
 
+## Keys of the `debris` snapshot: metres, metres, and seconds until solid.
+const DEBRIS_POSITIONS: String = "positions_m"
+const DEBRIS_RADII: String = "radii_m"
+const DEBRIS_SOLID: String = "solid"
+const DEBRIS_HELD: String = "held"
+const DEBRIS_SECONDS: String = "seconds_to_solid"
+
 
 ## A copy of `ship`: writing to it changes nothing in the simulation.
 static func ship(source: ShipState) -> ShipState:
@@ -60,6 +67,36 @@ static func reactor(source: ReactorState) -> ReactorState:
 	var copy: ReactorState = ReactorState.new()
 	copy_fields(source, copy)
 	return copy
+
+
+## Plain copies of the simulation's meltdown debris for the view (RUN-4, MP-2):
+## a Dictionary of parallel arrays under the `DEBRIS_*` keys, every one empty
+## for null. The view gets values, never the live `MeltdownDebris`.
+## `DEBRIS_SECONDS` is the time until an entry is solid: zero once it is, and
+## INF while the reactor lives (the clock has not started) or for a held
+## entry, which never falls.
+static func debris(source: MeltdownDebris) -> Dictionary:
+	var positions: Array[Vector3] = []
+	var radii: Array[float] = []
+	var solid: Array[bool] = []
+	var held: Array[bool] = []
+	var seconds: Array[float] = []
+	var count: int = 0 if source == null else source.size()
+	for index: int in count:
+		positions.append(source.position(index))
+		radii.append(source.radius(index))
+		solid.append(source.is_solid(index))
+		held.append(source.is_skipped(index))
+		seconds.append(_seconds_until_solid(source, index))
+	return {DEBRIS_POSITIONS: positions, DEBRIS_RADII: radii, DEBRIS_SOLID: solid,
+		DEBRIS_HELD: held, DEBRIS_SECONDS: seconds}
+
+
+static func _seconds_until_solid(source: MeltdownDebris, index: int) -> float:
+	if source.is_skipped(index) or source.elapsed_ticks == 0:
+		return INF
+	var ticks: int = maxi(source.after_ticks[index] - source.elapsed_ticks, 0)
+	return float(ticks) / float(MeltdownDebris.TICKS_PER_SECOND)
 
 
 ## Copies every script variable, so fields added to `ShipState` or
