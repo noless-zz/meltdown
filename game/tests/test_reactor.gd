@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## The level's reactor in the simulation (#310, RUN-2, ARC-1, ARC-2, ARC-4): ship
-## shots wear its hull down, robot shots do not, its destruction is reported
+## shots wear its hull down, robot shots stop at it without harm (#345), its destruction is reported
 ## once and starts the meltdown countdown on the next tick, and replays carry it.
 
 const G2_LEVEL: String = "res://data/levels/g2_level.json"
@@ -131,7 +131,7 @@ func test_ship_shots_reduce_the_hull_by_their_damage() -> String:
 	return ""
 
 
-func test_robot_shots_pass_through_without_damage() -> String:
+func test_robot_shots_stop_at_it_without_damage() -> String:
 	var sim: Sim = _sim(false)
 	sim.projectiles.append(Projectile.new(Vector3(0, 0, -20), Vector3(0, 0, -120),
 		Projectile.robot_owner(0), 60, 30.0))
@@ -142,8 +142,8 @@ func test_robot_shots_pass_through_without_damage() -> String:
 			crossed = true
 	if sim.reactor.hull != 40.0:
 		return "a robot shot took the hull to %s" % sim.reactor.hull
-	if not crossed:
-		return "the robot shot stopped at the reactor"
+	if crossed:
+		return "the robot shot passed through the intact reactor"
 	return ""
 
 

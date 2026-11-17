@@ -7,8 +7,8 @@ extends RefCounted
 
 
 ## Moves every projectile in `sim.projectiles` one tick and removes those that
-## hit a robot or the reactor (ship shots) or a ship (robot shots, which pass
-## through the reactor), whose lifetime is over or
+## hit a robot or the reactor (ship shots) or a ship or the reactor (robot
+## shots, which do it no harm), whose lifetime is over or
 ## that have left the walls. The hit test runs on the whole segment flown this
 ## tick, before the other two, so a shot on its last tick or leaving through a
 ## wall still hits what it passed on the way. Hit events go to `hit_events`;
@@ -86,8 +86,10 @@ static func _hit_robot(sim: Sim, projectile: Projectile, from: Vector3,
 
 
 ## As `_hit_robot`, for a robot's shot against the live ships (hull above
-## zero, not escaped: an escaped ship has left the level), within each ship's `radius`: the damage goes through
-## `ShipState.apply_damage`, shield first, and a SHIP_HIT event names the ship.
+## zero, not escaped: an escaped ship has left the level), within each ship's
+## `radius`: the damage goes through `ShipState.apply_damage`, shield first,
+## and a SHIP_HIT event names the ship. An intact reactor nearer than every
+## ship absorbs the shot instead; a destroyed one stops nothing.
 static func _hit_ship(sim: Sim, projectile: Projectile, from: Vector3,
 		hit_events: Array[SimEvent]) -> bool:
 	var best: int = -1
@@ -100,6 +102,13 @@ static func _hit_ship(sim: Sim, projectile: Projectile, from: Vector3,
 		if t >= 0.0 and t < best_t:
 			best = i
 			best_t = t
+	# An intact reactor is solid to both sides (#345): a robot shot that meets it
+	# first stops there, unharmed and unreported, since robots never damage
+	# their own reactor. Strictly nearer only, so a ship wins an exact tie.
+	if sim.reactor != null:
+		var reactor_t: float = sim.reactor.segment_entry(from, projectile.position)
+		if reactor_t >= 0.0 and reactor_t < best_t:
+			return true
 	if best < 0:
 		return false
 	sim.ships[best].apply_damage(projectile.damage)
