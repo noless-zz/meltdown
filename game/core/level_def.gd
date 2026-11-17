@@ -16,7 +16,10 @@ extends RefCounted
 ## Corners, positions and facings are metres, read in whole millimetres like
 ## robot spawns, so a level reads the same on every run (ARC-2). `robots` uses
 ## the entry format of `RobotSpawnList`, which parses it. `reactor` is optional
-## (RUN-2) and read by `ReactorState`; a level without one runs as before.
+## (RUN-2) and read by `ReactorState`; a level without one runs as before. Its
+## optional `meltdown_base_seconds`, `meltdown_seconds_per_metre`,
+## `meltdown_min_seconds` and `meltdown_max_seconds` scale the countdown with the
+## escape path (RUN-5, `EscapePath`).
 ## `exit_radius` is optional too: the radius in metres of the exit sphere around
 ## the start (RUN-3). When it is left out the level takes the `LevelDefaults`
 ## handed to `parse_json`, which the loader reads from the data file (ARC-4). It
