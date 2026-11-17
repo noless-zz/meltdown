@@ -1,7 +1,8 @@
-# The bot pilot's escape from generated seed 40 (#460, #438): four robots and the
-# reactor destroyed, debris falling, out through the entrance. Inputs only:
-# the m3 suite builds the level from the seed and the shipped data files.
-# Re-record from the repository root, then copy the printed hashes into m3.json:
+# The bot pilot's escape from the m3 suite's generated seed (#460, #494): robots
+# and the reactor destroyed, debris falling, out through the entrance. Inputs
+# only: the m3 suite builds the level from the seed in m3.json and the shipped
+# data files. Re-record from the repository root; the recorder picks the seed and
+# writes the seed and hashes into m3.json itself:
 #     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
 meltdown-replay 15
 seed 0

@@ -1,47 +1,44 @@
 extends RefCounted
 
-## The m3 suite's generated-level step (#460, GEN-1, GEN-2, RUN-4, RUN-5,
-## DEV-6, decision record 0005): the bot pilot's escape from seed 40, built
-## by `SeedLevel` from the shipped data files as `--seed=40` builds it. The
-## bot destroys the level's four robots and the reactor, and one of its three
-## debris entries comes down before it is out. Seed 205 flew this step until
-## `loop_bias` 0.6 (#438) changed its level and the bot no longer escaped it.
+## The m3 suite's generated-level step (#460, #494, GEN-1, GEN-2, RUN-4,
+## RUN-5, DEV-6, decision record 0005): the bot pilot's escape from a
+## generated seed, built by `SeedLevel` from the shipped data files as
+## `--seed=<n>` builds it. The bot destroys the level's robots and the
+## reactor, and at least one meltdown entry comes down before it is out.
 ##
 ## The replay holds only the inputs. The level is built from the seed each
 ## time the step runs, so changing a shipped generator, robot or debris value
 ## that changes this seed changes the flight and fails the step by name.
 ##
-## Re-recording after an intended change (one command, from the repository
-## root; it re-records the G2 step in `test_m3_suite.gd` too):
+## The seed, the hash and the level hash live only in the step in
+## `acceptance/suites/m3.json`. Re-recording after an intended change (one
+## command, from the repository root; it re-records the G2 step in
+## `test_m3_suite.gd` too):
 ##
 ##     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
 ##
-## It flies the bot on the seed, overwrites `acceptance/replays/bot_seed_40_escape.replay`
-## and prints the new hash and level hash; paste them into `expected_hash` and
-## `expected_level_hash` of the step in `acceptance/suites/m3.json`, and the
-## level hash into `LEVEL_HASH` below. If the bot no longer escapes this seed with
-## debris down, pick another with `bot_escape_sweep.gd --robots --debris`.
+## It keeps the suite's seed if the bot still escapes it with an entry down,
+## otherwise picks the lowest seed that does (`m3_seed_pick.gd`), overwrites
+## the replay and writes the seed and both hashes into `m3.json`.
 
 const SUITE_PATH: String = "res://acceptance/suites/m3.json"
-const STEP_ID: String = "bot_seed_40_escape"
-const SEED: int = 40
-const REPLAY_PATH: String = "res://acceptance/replays/bot_seed_40_escape.replay"
+const STEP_ID: String = "bot_generated_escape"
+const REPLAY_PATH: String = "res://acceptance/replays/bot_generated_escape.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 const ROBOTS_FILE: String = "res://data/gen/robots.json"
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 ## Biased placement (#438) means `generator.json` can change any seed; the
 ## module file is the generator data this test changes.
 const MODULE_FILE: String = "res://data/modules/straight_tunnel.json"
-const LEVEL_HASH: int = 986809221
 ## The escape takes about 3,700 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 12000
-const TICK_LIMIT: int = 36000
-const BotSweep := preload("res://tests/bot_escape_sweep.gd")
+const SeedPick := preload("res://tests/m3_seed_pick.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
-const REPLAY_HEADER: String = """# The bot pilot's escape from generated seed 40 (#460, #438): four robots and the
-# reactor destroyed, debris falling, out through the entrance. Inputs only:
-# the m3 suite builds the level from the seed and the shipped data files.
-# Re-record from the repository root, then copy the printed hashes into m3.json:
+const REPLAY_HEADER: String = """# The bot pilot's escape from the m3 suite's generated seed (#460, #494): robots
+# and the reactor destroyed, debris falling, out through the entrance. Inputs
+# only: the m3 suite builds the level from the seed in m3.json and the shipped
+# data files. Re-record from the repository root; the recorder picks the seed and
+# writes the seed and hashes into m3.json itself:
 #     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
 """
 
@@ -60,33 +57,31 @@ static func step() -> AcceptanceStep:
 func test_record_when_asked() -> String:
 	if OS.get_environment(RECORD_SWITCH) != "1":
 		return ""
-	var level: LevelDef = SeedLevel.load_level(SEED)
-	if level == null:
-		return "seed %d was rejected, nothing recorded" % SEED
-	var source: BotSweep.BotSource = BotSweep.BotSource.new()
-	var session: LocalSession = LocalSession.for_level(level, 0, source,
-		LocalSession.load_tuning(AcceptanceStepLevel.SHIP_FILE))
-	source.bot = BotPilot.new(session.sim, 0, level)
-	var sim: Sim = session.sim
-	while sim.outcome() == ExitRule.Outcome.RUNNING and sim.ships[0].hull > 0.0 and sim.tick < TICK_LIMIT:
-		session.advance(ShipState.TICK_DT)
-	var measured: Dictionary = {}
-	var fell: Array = AcceptanceStateChecks.debris_fallen(sim, measured)
-	if sim.outcome() != ExitRule.Outcome.ESCAPED or fell[0] != AcceptanceReport.RESULT_PASS:
-		return "seed %d: outcome %s at tick %d, %s; nothing recorded" % [SEED,
-			AcceptanceStateChecks.outcome_name(sim.outcome()), sim.tick, fell[1]]
+	var old_seed: int = step().level_seed
+	var chosen: Dictionary = SeedPick.choose(old_seed)
+	if chosen.has("error"):
+		return "%s; nothing recorded" % chosen["error"]
+	var flown: SeedPick.Flown = chosen["flown"]
+	var session: LocalSession = flown.session
 	# Inputs only: the level is the seed's, not the replay's.
 	var inputs: Replay = Replay.new(session.replay.run_seed, 1)
 	inputs.frames = session.replay.frames
-	inputs.expected_hash = sim.state_hash()
-	var file: FileAccess = FileAccess.open(ProjectSettings.globalize_path(REPLAY_PATH), FileAccess.WRITE)
-	if file == null:
-		return "could not write %s: %s" % [REPLAY_PATH, error_string(FileAccess.get_open_error())]
-	file.store_string(REPLAY_HEADER + inputs.to_text())
-	file.close()
-	print("Meltdown: recorded %s: escaped at tick %d, %s, hash %d, level hash %d; put both in %s and %s" % [
-		REPLAY_PATH, sim.tick, fell[1], inputs.expected_hash, AcceptanceStepLevel.level_hash(session.replay),
-		SUITE_PATH, "LEVEL_HASH in tests/test_m3_seed_step.gd"])
+	inputs.expected_hash = session.sim.state_hash()
+	var level_hash: int = AcceptanceStepLevel.level_hash(session.replay)
+	var suite_text: String = SeedLevel.read_text(SUITE_PATH)
+	var rewritten: String = SeedPick.rewrite_step(suite_text, STEP_ID, flown.level_seed,
+		inputs.expected_hash, level_hash)
+	if rewritten == "":
+		return "%s has no step %s with seed and both hashes; nothing recorded" % [SUITE_PATH, STEP_ID]
+	for written: Array in [[REPLAY_PATH, REPLAY_HEADER + inputs.to_text()], [SUITE_PATH, rewritten]]:
+		var file: FileAccess = FileAccess.open(ProjectSettings.globalize_path(written[0]), FileAccess.WRITE)
+		if file == null:
+			return "could not write %s: %s" % [written[0], error_string(FileAccess.get_open_error())]
+		file.store_string(written[1])
+		file.close()
+	print("Meltdown: recorded %s: seed %d (was %d), %s, hash %d, level hash %d; written to %s" % [
+		REPLAY_PATH, flown.level_seed, old_seed, flown.reason, inputs.expected_hash, level_hash,
+		SUITE_PATH])
 	return ""
 
 
@@ -94,7 +89,7 @@ func test_the_step_names_its_seed_and_checks() -> String:
 	var found: AcceptanceStep = step()
 	if found == null:
 		return "m3 has no step %s" % STEP_ID
-	if found.level_seed != SEED or found.level != "" or found.replay_path != REPLAY_PATH:
+	if found.level_seed == AcceptanceStep.NO_SEED or found.level != "" or found.replay_path != REPLAY_PATH:
 		return "the step flies %s on seed %d, level '%s'" % [found.replay_path, found.level_seed, found.level]
 	for check: String in [AcceptanceStep.CHECK_FINAL_HASH, AcceptanceStep.CHECK_OUTCOME,
 			AcceptanceStep.CHECK_DEBRIS_FALLEN, AcceptanceStep.CHECK_LEVEL_HASH]:
@@ -102,8 +97,8 @@ func test_the_step_names_its_seed_and_checks() -> String:
 			return "%s does not check %s: %s" % [STEP_ID, check, found.checks]
 	if found.expected_outcome != ExitRule.Outcome.ESCAPED:
 		return "%s expects outcome %d" % [STEP_ID, found.expected_outcome]
-	if found.expected_level_hash != LEVEL_HASH:
-		return "%s pins level hash %d; this file expects %d" % [STEP_ID, found.expected_level_hash, LEVEL_HASH]
+	if found.expected_level_hash == AcceptanceStep.NO_HASH:
+		return "%s pins no level hash" % STEP_ID
 	return ""
 
 
@@ -164,6 +159,9 @@ func test_a_changed_data_value_fails_the_step_naming_it() -> String:
 			problem = "with %s changed the report says %s" % [path.get_file(), report]
 		elif not str(report.get("message")).contains("level_hash: level hash"):
 			problem = "with %s changed the level hash was not failed: %s" % [path.get_file(), report.get("message")]
+		elif not str(report.get("message")).contains(SeedPick.RECORD_COMMAND):
+			problem = "with %s changed the report does not name the record command: %s" % [
+				path.get_file(), report.get("message")]
 		elif not said.contains("step %s %s" % [STEP_ID, AcceptanceReport.RESULT_FAIL]):
 			problem = "with %s changed the log does not name the step: %s" % [path.get_file(), said]
 		_done(runner)
@@ -211,7 +209,7 @@ func test_expected_level_hash_is_read_and_checked() -> String:
 func test_a_replay_with_a_level_is_refused_for_a_seed_step() -> String:
 	var replay: Replay = Replay.new(0, 1)
 	replay.add_box(Vector3i(-1000, -1000, -1000), Vector3i(1000, 1000, 1000))
-	var problem: String = AcceptanceStepLevel.fly_seed(null, SEED, replay, ReplayInputSource.new(replay))
+	var problem: String = AcceptanceStepLevel.fly_seed(null, step().level_seed, replay, ReplayInputSource.new(replay))
 	if not problem.contains("carries a level of its own"):
 		return "gave '%s'" % problem
 	return ""
