@@ -5,7 +5,8 @@ extends RefCounted
 ## from `data/gen/debris.json`:
 ##
 ##     {"count": [2, 5], "radius": [1.5, 3], "after_seconds": [8, 60],
-##      "min_start_distance": 15, "min_reactor_distance": 6, "min_robot_distance": 2}
+##      "min_start_distance": 15, "min_reactor_distance": 6, "min_robot_distance": 2,
+##      "latest_fall_fraction": 0.8}
 ##
 ## Each range is `[lowest, highest]`, both included. `count` is how many
 ## entries a level gets, `radius` their radius in metres and `after_seconds`
@@ -13,7 +14,11 @@ extends RefCounted
 ## clear space between an entry's surface and the start point, and between an
 ## entry's surface and the reactor's surface; `min_robot_distance` (#436) is
 ## the clear space between an entry's surface and each robot spawn's surface,
-## so no robot starts inside a rock once it falls. Radii and distances are
+## so no robot starts inside a rock once it falls. `latest_fall_fraction`
+## (#437, 0.1..1) caps every fall time at that fraction of the level's meltdown
+## countdown, `ReactorState.meltdown_ticks_for_path` for the `EscapePath` from
+## the reactor to the start, so debris still falls before a short level's
+## countdown ends. Radii and distances are
 ## held as whole millimetres and times as whole ticks, so placement is exact
 ## (ARC-2).
 ## The caller hands over the file's text, because `gen/` never opens files.
@@ -26,13 +31,16 @@ extends RefCounted
 ## it falls due.
 
 const KEYS: Array[String] = ["count", "radius", "after_seconds", "min_start_distance",
-		"min_reactor_distance", "min_robot_distance"]
+		"min_reactor_distance", "min_robot_distance", "latest_fall_fraction"]
 ## Largest radius an entry may have, metres: a cave-in, not a wall of rock.
 const MAX_RADIUS_M: float = 20.0
 ## Latest an entry may fall, seconds after the reactor dies.
 const MAX_AFTER_SECONDS: float = 3600.0
 ## Furthest a distance key may be, metres: far beyond any level.
 const MAX_DISTANCE_M: float = 10000.0
+## Bounds of `latest_fall_fraction`: below a tenth every rock falls at once.
+const MIN_FALL_FRACTION: float = 0.1
+const MAX_FALL_FRACTION: float = 1.0
 ## Draws of a spot for one entry before the placing gives up.
 const TRIES: int = 64
 
@@ -45,6 +53,7 @@ var max_after_ticks: int = 1
 var min_start_distance_mm: int = 0
 var min_reactor_distance_mm: int = 0
 var min_robot_distance_mm: int = 0
+var latest_fall_fraction: float = 1.0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -71,6 +80,10 @@ static func parse_json(text: String) -> DebrisPlan:
 ## each of `level`'s robots by id (a resolved spawn's own type wins); a spot
 ## too close to one is skipped, and an entry that found only such spots is
 ## dropped and counted in the note, while the next entries still get placed.
+## A fall time drawn past `fall_limit_ticks` is drawn again from its own
+## generator between the lowest `after_seconds` and the limit (or set to the
+## limit when even the lowest is later), so the main draws, and with them the
+## spots, stay what they were.
 func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 		robot_plan: RobotPlan = null) -> MeltdownDebris:
 	if level.reactor == null:
@@ -84,6 +97,9 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 	rng.seed = hash([generator.output_hash(), "debris"])
 	var wanted: int = min_count + _pick(rng, max_count - min_count + 1)
 	var robot_radii: Array[int] = robot_radii_mm(level, robot_plan)
+	var limit: int = fall_limit_ticks(level)
+	var fall_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	fall_rng.seed = hash([generator.output_hash(), "debris fall"])
 	var debris: MeltdownDebris = MeltdownDebris.new()
 	var near_robots: int = 0
 	var no_room: bool = false
@@ -110,7 +126,7 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 			break
 		debris.positions_mm.append(spots[spot])
 		debris.radii_mm.append(radius)
-		debris.after_ticks.append(ticks)
+		debris.after_ticks.append(_within(ticks, limit, fall_rng))
 		debris.skipped.append(false)
 		spots.remove_at(spot)
 	if no_room or near_robots > 0:
@@ -122,6 +138,26 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 		generator.debris_note = "placed %d of %d debris entries: %s" \
 				% [debris.size(), wanted, ", ".join(why)]
 	return null if debris.size() == 0 else debris
+
+
+## The latest tick after the reactor dies an entry of `level` may fall on:
+## `latest_fall_fraction` of the countdown for its escape path, at least 1.
+## Without a route the unscaled countdown is used.
+func fall_limit_ticks(level: LevelDef) -> int:
+	var path_mm: int = EscapePath.length_mm(level.union, level.reactor.position(),
+			level.start_position())
+	var countdown: int = level.reactor.meltdown_ticks() if path_mm == EscapePath.UNREACHABLE \
+			else level.reactor.meltdown_ticks_for_path(path_mm)
+	return maxi(1, floori(countdown * latest_fall_fraction))
+
+
+## `ticks`, or when it is past `limit` a fresh draw in `min_after_ticks..limit`.
+func _within(ticks: int, limit: int, fall_rng: RandomNumberGenerator) -> int:
+	if ticks <= limit:
+		return ticks
+	if min_after_ticks >= limit:
+		return limit
+	return min_after_ticks + _pick(fall_rng, limit - min_after_ticks + 1)
 
 
 ## True if an entry of `radius_mm` centred on `point_mm` keeps
@@ -195,6 +231,11 @@ func _read(data: Dictionary) -> String:
 		if not _is_number(value) or float(value) < 0.0 or float(value) > MAX_DISTANCE_M:
 			return "%s must be a number of metres from 0 to %s" % [key, MAX_DISTANCE_M]
 		distances.append(roundi(float(value) * RobotSpawn.SCALE))
+	var fraction: Variant = data["latest_fall_fraction"]
+	if not _is_number(fraction) or float(fraction) < MIN_FALL_FRACTION \
+			or float(fraction) > MAX_FALL_FRACTION:
+		return "latest_fall_fraction must be a number from %s to %s" \
+				% [MIN_FALL_FRACTION, MAX_FALL_FRACTION]
 	min_count = counts[0]
 	max_count = counts[1]
 	min_radius_mm = radii[0]
@@ -204,6 +245,7 @@ func _read(data: Dictionary) -> String:
 	min_start_distance_mm = distances[0]
 	min_reactor_distance_mm = distances[1]
 	min_robot_distance_mm = distances[2]
+	latest_fall_fraction = float(fraction)
 	return ""
 
 

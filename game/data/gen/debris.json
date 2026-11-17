@@ -4,5 +4,6 @@
 	"after_seconds": [8, 60],
 	"min_start_distance": 15,
 	"min_reactor_distance": 6,
-	"min_robot_distance": 2
+	"min_robot_distance": 2,
+	"latest_fall_fraction": 0.8
 }

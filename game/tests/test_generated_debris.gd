@@ -14,7 +14,8 @@ const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 60000
 const VALID: Dictionary = {"count": [1, 3], "radius": [1, 2], "after_seconds": [5, 30],
-		"min_start_distance": 10, "min_reactor_distance": 5, "min_robot_distance": 2}
+		"min_start_distance": 10, "min_reactor_distance": 5, "min_robot_distance": 2,
+		"latest_fall_fraction": 0.8}
 
 
 func _plan() -> DebrisPlan:
@@ -43,7 +44,8 @@ func test_data_file_reads() -> String:
 		return "after %d..%d ticks" % [plan.min_after_ticks, plan.max_after_ticks]
 	var parsed: DebrisPlan = DebrisPlan.parse_json(JSON.stringify(VALID))
 	if parsed.error != "" or parsed.min_radius_mm != 1000 or parsed.max_after_ticks != 1800 \
-			or parsed.min_start_distance_mm != 10000 or parsed.min_reactor_distance_mm != 5000:
+			or parsed.min_start_distance_mm != 10000 or parsed.min_reactor_distance_mm != 5000 \
+			or parsed.latest_fall_fraction != 0.8:
 		return "VALID read as %s, radius %d mm, after %d ticks, distances %d and %d mm" % [parsed.error,
 				parsed.min_radius_mm, parsed.max_after_ticks, parsed.min_start_distance_mm,
 				parsed.min_reactor_distance_mm]
@@ -60,6 +62,9 @@ func test_data_file_is_rejected_naming_the_bad_key() -> String:
 		["min_reactor_distance", "far", "min_reactor_distance"], ["colour", "red", "colour"],
 		["min_robot_distance", -0.5, "min_robot_distance"],
 		["min_robot_distance", [2], "min_robot_distance"],
+		["latest_fall_fraction", 0.05, "latest_fall_fraction"],
+		["latest_fall_fraction", 1.5, "latest_fall_fraction"],
+		["latest_fall_fraction", "late", "latest_fall_fraction"],
 	]
 	for case: Array in cases:
 		var data: Dictionary = VALID.duplicate(true)
@@ -74,7 +79,7 @@ func test_data_file_is_rejected_naming_the_bad_key() -> String:
 		if problem != "":
 			return problem
 	if _rejects({}, ["\"count\"", "\"radius\"", "\"after_seconds\"", "\"min_start_distance\"",
-			"\"min_reactor_distance\"", "\"min_robot_distance\""]) != "":
+			"\"min_reactor_distance\"", "\"min_robot_distance\"", "\"latest_fall_fraction\""]) != "":
 		return "an empty file did not name every missing key: %s" % DebrisPlan.parse_json("{}").error
 	if DebrisPlan.parse_json("[]").error == "":
 		return "a JSON list was accepted"

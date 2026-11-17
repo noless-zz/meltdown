@@ -25,7 +25,8 @@ func test_shipped_distance_is_at_least_a_ship_diameter() -> String:
 		return "min_robot_distance is %d mm, below a ship diameter of %d mm" \
 				% [plan.min_robot_distance_mm, diameter_mm]
 	var zero: DebrisPlan = _plan_text({"count": [1, 1], "radius": [1, 1], "after_seconds": [5, 5],
-			"min_start_distance": 0, "min_reactor_distance": 0, "min_robot_distance": 0})
+			"min_start_distance": 0, "min_reactor_distance": 0, "min_robot_distance": 0,
+			"latest_fall_fraction": 1})
 	return "" if zero.error == "" and zero.min_robot_distance_mm == 0 else "0 m was not accepted: %s" % zero.error
 
 
@@ -43,7 +44,7 @@ func test_a_robot_on_a_route_spot_keeps_debris_off_it() -> String:
 		return "seed %d has only %d escape spots" % [SEED, spots.size()]
 	var plan: DebrisPlan = _plan_text({"count": [spots.size(), spots.size()], "radius": [1, 1],
 			"after_seconds": [5, 5], "min_start_distance": 0, "min_reactor_distance": 0,
-			"min_robot_distance": 2})
+			"min_robot_distance": 2, "latest_fall_fraction": 1})
 	if plan.error != "":
 		return plan.error
 	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
