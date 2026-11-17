@@ -12,7 +12,8 @@ const SHIFT_MM: int = 12000
 
 func _bridges(offset: float) -> LoopBridges:
 	return LoopBridges.parse_json(JSON.stringify(
-			{"loop_min_m": 6, "loop_max_m": 60, "loop_max_count": 2, "loop_max_offset_m": offset}))
+			{"loop_min_m": 6, "loop_max_m": 60, "loop_max_count": 2, "loop_max_offset_m": offset,
+			"dead_end_min_open": 6}))
 
 
 ## Adds a placement to a hand-built level: one box and its open connectors.
