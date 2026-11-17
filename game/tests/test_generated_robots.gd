@@ -8,21 +8,17 @@ extends RefCounted
 ## robots; and without a plan there are none.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
-const ROBOTS_FILE: String = "res://data/gen/robots.json"
-const ROBOTS_DIR: String = "res://data/robots/"
+const ROBOTS_FILE: String = SeedLevel.ROBOTS_FILE
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 20000
 const VALID: Dictionary = {"types": ["drone", "glider"], "min_per_level": 2, "max_per_level": 5,
 		"max_per_module": 2, "min_start_distance": 20, "min_reactor_distance": 8}
 
 
-## Every robot file's text by id.
+## Every robot file's text by id, read by the one loader `--seed` and the
+## sweep use (#441).
 static func _robot_texts() -> Dictionary:
-	var texts: Dictionary = {}
-	for file: String in DirAccess.get_files_at(ROBOTS_DIR):
-		if file.ends_with(".json"):
-			texts[file.trim_suffix(".json")] = FileAccess.get_file_as_string(ROBOTS_DIR + file)
-	return texts
+	return SeedLevel.robot_texts()
 
 
 func _plan() -> RobotPlan:

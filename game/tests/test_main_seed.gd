@@ -5,6 +5,7 @@ extends RefCounted
 ## not run; the tests call `use_level` as `_ready` does with the switch's source.
 
 const SEED: int = 7
+const SeedSweep := preload("res://tests/seed_sweep.gd")
 const G2_FILE: String = "res://data/levels/g2_level.json"
 ## In range, but no opening is 20 ship diameters wide, so seed 7 fails it.
 const STRICT_VALIDATOR: String = "{\"min_passage_ship_diameters\": 20, \"escape_speed_mps\": 10, \"escape_margin\": 0.8}"
@@ -14,13 +15,33 @@ func _main() -> Node:
 	return (load("res://main.tscn") as PackedScene).instantiate()
 
 
-## Seed 7 built straight from `MineGenerator`, as the sweep builds it.
+## A seed built straight from `MineGenerator`, as the sweep builds it, with the
+## plans read here rather than through `SeedLevel`, so a loader that drifts
+## from the data files shows up.
 func _generated(level_seed: int) -> LevelDef:
 	var tuning: ShipTuning = ShipTuning.parse_json(FileAccess.get_file_as_string(SeedLevel.SHIP_FILE))
 	var generator: MineGenerator = MineGenerator.generate(level_seed, SeedLevel.load_modules(),
 			SeedLevel.MODULE_COUNT, LoopBridges.parse_json(FileAccess.get_file_as_string(SeedLevel.GENERATOR_FILE)))
+	var texts: Dictionary = {}
+	for file: String in DirAccess.get_files_at(SeedLevel.ROBOTS_DIR):
+		if file.ends_with(".json"):
+			texts[file.trim_suffix(".json")] = FileAccess.get_file_as_string(SeedLevel.ROBOTS_DIR + file)
 	return generator.to_level_def(ReactorPlan.parse_json(FileAccess.get_file_as_string(SeedLevel.REACTOR_FILE)),
-			tuning.radius)
+			tuning.radius, RobotPlan.parse_json(FileAccess.get_file_as_string(SeedLevel.ROBOTS_FILE), texts),
+			DebrisPlan.parse_json(FileAccess.get_file_as_string(SeedLevel.DEBRIS_FILE)))
+
+
+## Robot ids and positions, and debris positions, radii and fall times, as one
+## comparable string.
+func _contents(robots: Array[RobotSpawn], debris: MeltdownDebris) -> String:
+	var parts: Array[String] = []
+	for spawn: RobotSpawn in robots:
+		parts.append("%s@%s" % [spawn.id, spawn.position_mm])
+	if debris != null:
+		for index: int in debris.size():
+			parts.append("debris@%s r%d t%d" % [debris.positions_mm[index], debris.radii_mm[index],
+					debris.after_ticks[index]])
+	return ", ".join(parts)
 
 
 ## The session's walls as one comparable list of corners.
@@ -117,6 +138,13 @@ func test_the_same_seed_twice_gives_the_same_walls() -> String:
 		return "seed %d gave a different start or reactor twice" % SEED
 	if _corners(first.union.boxes) == _corners(other.union.boxes):
 		return "seeds %d and %d gave the same walls" % [SEED, SEED + 1]
+	var first_contents: String = _contents(first.robots.spawns, first.debris)
+	if first_contents != _contents(second.robots.spawns, second.debris):
+		return "seed %d gave different robots or debris twice" % SEED
+	if first.robots.spawns.is_empty() or first.debris == null or first.debris.size() == 0:
+		return "seed %d has no robots or no debris: %s" % [SEED, first_contents]
+	if first_contents == _contents(other.robots.spawns, other.debris):
+		return "seeds %d and %d gave the same robots and debris" % [SEED, SEED + 1]
 	return ""
 
 
@@ -136,6 +164,65 @@ func test_a_level_that_fails_the_validator_is_not_flown() -> String:
 		return "a level failing the validator was handed over"
 	if SeedLevel.load_level(SEED, LevelSwitch.DEFAULTS_FILE) == null:
 		return "seed %d fails the shipped validator" % SEED
+	return ""
+
+
+func test_seed_7_flies_the_generators_robots_and_debris() -> String:
+	var main: Node = _main()
+	var flown: bool = main.call("use_level", "seed:%d" % SEED)
+	var session: LocalSession = main.get("session")
+	var want: LevelDef = _generated(SEED)
+	var sweep: Dictionary = SeedSweep.run(SEED, 1)
+	var problem: String = ""
+	if not flown:
+		problem = "use_level refused seed %d" % SEED
+	elif want.robots.spawns.is_empty() or want.debris == null or want.debris.size() == 0:
+		problem = "seed %d builds no robots or no debris: %s" % [SEED, _contents(want.robots.spawns, want.debris)]
+	elif sweep["passed"] != 1 or sweep["robots"] != want.robots.spawns.size() \
+			or sweep["debris"] != want.debris.size():
+		problem = "the sweep's seed %d has %d robots and %d debris, the generator %d and %d (%s)" % [SEED,
+				sweep["robots"], sweep["debris"], want.robots.spawns.size(), want.debris.size(),
+				SeedSweep.summary(sweep)]
+	elif session.sim.robots.size() != want.robots.spawns.size():
+		problem = "the session has %d robots, the generator places %d" % [session.sim.robots.size(),
+				want.robots.spawns.size()]
+	elif session.sim.debris == null or session.replay.debris == null:
+		problem = "the session or its replay has no debris"
+	elif _contents([], session.sim.debris) != _contents([], want.debris) \
+			or _contents([], session.replay.debris) != _contents([], want.debris):
+		problem = "session debris %s, generator says %s" % [_contents([], session.sim.debris),
+				_contents([], want.debris)]
+	for index: int in session.sim.robots.size() if problem == "" else 0:
+		var robot: RobotState = session.sim.robots[index]
+		var spawn: RobotSpawn = want.robots.spawns[index]
+		if robot.def.id != spawn.id or not robot.position.is_equal_approx(spawn.position()):
+			problem = "robot %d is %s at %s, generator says %s at %s" % [index, robot.def.id,
+					robot.position, spawn.id, spawn.position()]
+			break
+	main.free()
+	return problem
+
+
+func test_a_broken_robot_or_debris_file_keeps_the_tunnel_and_names_it() -> String:
+	var cases: Array[Array] = [
+		[{SeedLevel.ROBOTS_FILE: "{"}, "robots.json: "],
+		[{SeedLevel.ROBOTS_FILE: "{\"types\": [\"drone\"]}"}, "robots.json: "],
+		[{SeedLevel.ROBOTS_DIR + "drone.json": "[]"}, "robots.json: "],
+		[{SeedLevel.DEBRIS_FILE: "{\"count\": [2, 5]}"}, "debris.json: "],
+		[{SeedLevel.DEBRIS_FILE: ""}, "debris.json: "],
+	]
+	for case: Array in cases:
+		var error: String = SeedLevel.load_inputs("", case[0]).error
+		if not error.begins_with(case[1]):
+			return "%s gave \"%s\", expected it to start %s" % [case[0], error, case[1]]
+		if SeedLevel.load_level(SEED, LevelSwitch.DEFAULTS_FILE, "", case[0]) != null:
+			return "%s still flew seed %d" % [case[0], SEED]
+		# The sweep reads through the same loader, so it fails every seed alike.
+		var sweep: Dictionary = SeedSweep.run(SEED, 2, SeedSweep.MODULE_COUNT, SeedSweep.KEPT_FAILURES, case[0])
+		if sweep["failed"] != 2 or sweep["failures"] != [error]:
+			return "the sweep with %s: %s" % [case[0], sweep["failures"]]
+	if SeedLevel.load_inputs().error != "":
+		return "the shipped files are rejected: %s" % SeedLevel.load_inputs().error
 	return ""
 
 
