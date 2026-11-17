@@ -16,6 +16,9 @@ const FEW_SEEDS: int = 200
 ## levels without bridges are unchanged.
 const PIN_WITH_FILE: int = 2981470496
 const PIN_WITHOUT_SETTINGS: int = 3339467983
+## `generator.json`'s `loop_bias` in thousandths: 0.6 gives 214 looped seeds of
+## 0..999 with every level passing the validator (#438).
+const SHIPPED_BIAS_PERMILLE: int = 600
 
 
 func _shipped_with(key: String, value: Variant) -> LoopBridges:
@@ -41,10 +44,10 @@ func test_shipped_value_reads_and_bad_values_are_named() -> String:
 	var shipped: LoopBridges = SeedSweep.load_loop_bridges()
 	if shipped.error != "":
 		return "generator.json rejected: %s" % shipped.error
-	# Shipped off until #438 sets it; #472 made nonzero values pass the
-	# validator (`test_loop_z_joints.gd`).
-	if shipped.loop_bias_permille != 0:
-		return "shipped loop_bias read as %d thousandths, expected 0" % shipped.loop_bias_permille
+	# #438 ships 0.6 (about 21% looped seeds) now that #472 made nonzero
+	# values pass the validator (`test_loop_z_joints.gd`).
+	if shipped.loop_bias_permille != SHIPPED_BIAS_PERMILLE:
+		return "shipped loop_bias read as %d thousandths, expected %d" % [shipped.loop_bias_permille, SHIPPED_BIAS_PERMILLE]
 	for value: Variant in [0, 0.25, 1]:
 		var read: LoopBridges = _shipped_with("loop_bias", value)
 		if read.error != "" or read.loop_bias_permille != roundi(float(value) * LoopBias.SCALE):

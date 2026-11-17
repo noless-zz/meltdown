@@ -1,10 +1,11 @@
 extends RefCounted
 
 ## The m3 suite's generated-level step (#460, GEN-1, GEN-2, RUN-4, RUN-5,
-## DEV-6, decision record 0005): the bot pilot's escape from seed 205, built
-## by `SeedLevel` from the shipped data files as `--seed=205` builds it. The
-## bot destroys the level's four robots and the reactor, and the first of its
-## five debris entries comes down before it is out.
+## DEV-6, decision record 0005): the bot pilot's escape from seed 40, built
+## by `SeedLevel` from the shipped data files as `--seed=40` builds it. The
+## bot destroys the level's four robots and the reactor, and one of its three
+## debris entries comes down before it is out. Seed 205 flew this step until
+## `loop_bias` 0.6 (#438) changed its level and the bot no longer escaped it.
 ##
 ## The replay holds only the inputs. The level is built from the seed each
 ## time the step runs, so changing a shipped generator, robot or debris value
@@ -15,29 +16,29 @@ extends RefCounted
 ##
 ##     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
 ##
-## It flies the bot on the seed, overwrites `acceptance/replays/bot_seed_205_escape.replay`
+## It flies the bot on the seed, overwrites `acceptance/replays/bot_seed_40_escape.replay`
 ## and prints the new hash and level hash; paste them into `expected_hash` and
 ## `expected_level_hash` of the step in `acceptance/suites/m3.json`, and the
 ## level hash into `LEVEL_HASH` below. If the bot no longer escapes this seed with
 ## debris down, pick another with `bot_escape_sweep.gd --robots --debris`.
 
 const SUITE_PATH: String = "res://acceptance/suites/m3.json"
-const STEP_ID: String = "bot_seed_205_escape"
-const SEED: int = 205
-const REPLAY_PATH: String = "res://acceptance/replays/bot_seed_205_escape.replay"
+const STEP_ID: String = "bot_seed_40_escape"
+const SEED: int = 40
+const REPLAY_PATH: String = "res://acceptance/replays/bot_seed_40_escape.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 const ROBOTS_FILE: String = "res://data/gen/robots.json"
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
-## Seed 205 has no loop, so no `generator.json` value changes it; a module is
-## generator data that does.
+## Biased placement (#438) means `generator.json` can change any seed; the
+## module file is the generator data this test changes.
 const MODULE_FILE: String = "res://data/modules/straight_tunnel.json"
-const LEVEL_HASH: int = 3129314244
-## The escape takes about 5,100 ticks; the runner flies one per frame.
+const LEVEL_HASH: int = 986809221
+## The escape takes about 3,700 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 12000
 const TICK_LIMIT: int = 36000
 const BotSweep := preload("res://tests/bot_escape_sweep.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
-const REPLAY_HEADER: String = """# The bot pilot's escape from generated seed 205 (#460): four robots and the
+const REPLAY_HEADER: String = """# The bot pilot's escape from generated seed 40 (#460, #438): four robots and the
 # reactor destroyed, debris falling, out through the entrance. Inputs only:
 # the m3 suite builds the level from the seed and the shipped data files.
 # Re-record from the repository root, then copy the printed hashes into m3.json:

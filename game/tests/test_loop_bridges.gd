@@ -7,11 +7,11 @@ extends RefCounted
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const SEEDS: int = 1000
-## Share of seeds 0..999 with a loop on the shipped data: 58 in 1,000 with
-## Z bridges up to 40 m sideways (#411), up from 3 with straight ones only.
-## #411 asked for 10%; even with no offset limit the rate stops at 8%, because
-## most open connectors do not face each other at all (see the #411 devlog).
-const MIN_LOOPED: int = 50
+## Share of seeds 0..999 with a loop on the shipped data. Z bridges (#411)
+## took it from 3 to 58; placement biased towards facing connectors with
+## `loop_bias` 0.6 (#438) takes it to 214. The floor keeps a margin under that
+## and stays well above GEN-5's 10%.
+const MIN_LOOPED: int = 190
 
 
 func _bridges(low: float, high: float, count: int, offset: float = 0.0) -> LoopBridges:
