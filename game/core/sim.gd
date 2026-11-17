@@ -25,12 +25,14 @@ var bounds: BoxBounds = null
 ## order of `SimEvent.Kind`. Derived output for haptics, shake and sound
 ## (PLT-6): not part of the hash, replaced by every call to `step`.
 var last_events: Array[SimEvent] = []
-## Where each ship returns on a `reset_to_start` input. Recorded when the ship
-## is created and again just before the first tick, so a caller that places a
-## ship before flying (for example inside the test tunnel) is honoured. Fixed
-## for the run like `bounds`, so not part of the hash.
-var start_positions: Array[Vector3] = []
-var start_orientations: Array[Basis] = []
+## Where each ship returns on a `reset_to_start` input, read-only here; see
+## `ShipReset`. Change them with `set_start_pose`.
+var start_positions: Array[Vector3]:
+	get:
+		return _reset.positions
+var start_orientations: Array[Basis]:
+	get:
+		return _reset.orientations
 ## Every live projectile, oldest first (CMB-1). Part of the hash.
 var projectiles: Array[Projectile] = []
 ## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
@@ -54,6 +56,7 @@ var _hit_events: Array[SimEvent] = []
 var _killers: Dictionary = {}
 ## True only while `step` runs, so a spawn cannot land part-way through a tick.
 var _stepping: bool = false
+var _reset: ShipReset = ShipReset.new()
 
 
 func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null) -> void:
@@ -63,7 +66,7 @@ func _init(p_run_seed: int = 0, ship_count: int = 1, p_bounds: BoxBounds = null)
 		set_walls(BoxUnion.new(one))
 	for i: int in ship_count:
 		ships.append(ShipState.new())
-	_record_start_poses()
+	_reset.record(ships)
 
 
 ## Advances every ship by one tick. `inputs[i]` drives `ships[i]`.
@@ -78,7 +81,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	_killers = {}
 	_stepping = true
 	if tick == 0:
-		_record_start_poses()
+		_reset.record(ships)
 	if reactor != null:
 		reactor.count_down()
 	# Projectiles already in flight move before any new shot, so a shot
@@ -91,8 +94,8 @@ func step(inputs: Array[ShipInput]) -> bool:
 		from.append(ship.position)
 		if ship.escaped:
 			continue
-		if inputs[i].reset_to_start:
-			_reset_to_start(i)
+		# The rest of the input applies even when the meltdown refuses the reset.
+		if inputs[i].reset_to_start and _reset.apply(ship, i, reactor):
 			from[i] = ship.position
 		var was_active: bool = ship.afterburner_active
 		var was_locked: bool = ship.afterburner_locked
@@ -243,28 +246,10 @@ func nearest_live_ship(point: Vector3) -> ShipState:
 ## Sets where ship `index` returns on a reset. Before the first tick it also
 ## moves the ship there, so the run starts where it would reset to.
 func set_start_pose(index: int, position: Vector3, orientation: Basis) -> void:
-	start_positions[index] = position
-	start_orientations[index] = orientation
+	_reset.set_pose(index, position, orientation)
 	if tick == 0:
 		ships[index].position = position
 		ships[index].orientation = orientation
-
-
-func _record_start_poses() -> void:
-	start_positions.clear()
-	start_orientations.clear()
-	for ship: ShipState in ships:
-		start_positions.append(ship.position)
-		start_orientations.append(ship.orientation)
-
-
-## Pose and velocity only: hull, shield and energy are kept, so a reset is a
-## way home and not a free repair.
-func _reset_to_start(index: int) -> void:
-	var ship: ShipState = ships[index]
-	ship.position = start_positions[index]
-	ship.orientation = start_orientations[index]
-	ship.velocity = Vector3.ZERO
 
 
 ## Hash of the whole simulation state. Projectiles, robots, salvage, the part
