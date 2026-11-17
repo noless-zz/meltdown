@@ -13,7 +13,8 @@ extends RefCounted
 ## one box at a time, and boxes that only touch would wall it in).
 ##
 ## A placement whose boxes (and doorway) overlap boxes already placed, other
-## than the doorway inside the module it joins, is rejected and another tried.
+## than the doorway inside the module it joins, is rejected and another tried,
+## as is a dead end while fewer than `DEAD_END_MIN_OPEN` connectors are open.
 ## After `MAX_TRIES` rejections in a row the generator stops short and says so
 ## in `note`.
 ##
@@ -22,6 +23,12 @@ extends RefCounted
 
 ## Rejected placements in a row before the generator stops short.
 const MAX_TRIES: int = 64
+## Open connectors needed before a dead end (a module with one connector) may
+## take one. A dead end closes an opening without adding one, so on the last
+## openings it would end the level early, or with no opening to start in.
+## Below 6, some of seeds 0..9,999 stop short when their few remaining
+## openings are walled in (#395).
+const DEAD_END_MIN_OPEN: int = 6
 ## How far a doorway box reaches into each of the two modules it joins. Above
 ## `LevelDef.MIN_OVERLAP_M`, so the doorway counts as joined to both.
 const DOOR_DEPTH_MM: int = 3000
@@ -131,6 +138,8 @@ func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) 
 		var own: int = _pick(module.connectors.size())
 		var joining: ModuleConnector = module.connectors[own]
 		if joining.size_class != target.size_class:
+			continue
+		if module.connectors.size() == 1 and open_connectors.size() < DEAD_END_MIN_OPEN:
 			continue
 		var turns: Array[int] = ModuleTurns.turns_between(ModuleTurns.outward(joining),
 				-ModuleTurns.outward(target))
