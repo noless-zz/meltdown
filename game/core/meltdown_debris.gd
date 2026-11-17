@@ -16,7 +16,9 @@ extends RefCounted
 ##
 ## Timing follows the meltdown countdown: an entry with `after_ticks` k is solid
 ## from the k-th tick after the one the reactor died on (the tick on which
-## `ReactorState.meltdown_ticks_left` has gone down by k), and stays solid.
+## `ReactorState.meltdown_ticks_left` has gone down by k), and stays solid,
+## unless `DebrisRouteGuard` held it back because it would have closed a ship's
+## last route to the exit: then it is skipped and never becomes solid.
 
 const KEYS: Array[String] = ["position", "radius", "after_seconds"]
 const TICKS_PER_SECOND: int = 60
@@ -26,6 +28,9 @@ const TICKS_PER_SECOND: int = 60
 var positions_mm: Array[Vector3i] = []
 var radii_mm: Array[int] = []
 var after_ticks: Array[int] = []
+## Per entry: held back by `DebrisRouteGuard` when it fell due, so never solid.
+## Part of the hash only once one is set, so runs with nothing held keep theirs.
+var skipped: Array[bool] = []
 ## Ticks since the reactor died: 0 while it is intact, 1 on the tick after the
 ## one it died on. Kept no higher than the latest entry needs. Part of the hash.
 var elapsed_ticks: int = 0
@@ -66,9 +71,13 @@ func radius(index: int) -> float:
 	return radii_mm[index] / float(RobotSpawn.SCALE)
 
 
-## True once entry `index` has appeared.
+## True once entry `index` has appeared, which a skipped entry never does.
 func is_solid(index: int) -> bool:
-	return elapsed_ticks >= after_ticks[index]
+	return elapsed_ticks >= after_ticks[index] and not is_skipped(index)
+
+
+func is_skipped(index: int) -> bool:
+	return index < skipped.size() and skipped[index]
 
 
 ## The same debris as before the first tick: nothing has fallen.
@@ -77,6 +86,8 @@ func fresh_copy() -> MeltdownDebris:
 	copy.positions_mm = positions_mm.duplicate()
 	copy.radii_mm = radii_mm.duplicate()
 	copy.after_ticks = after_ticks.duplicate()
+	copy.skipped.resize(size())
+	copy.skipped.fill(false)
 	return copy
 
 
@@ -147,9 +158,17 @@ func contain_impact(ship: ShipState) -> Vector3:
 	return impact
 
 
-## Which entries are solid, through the clock that decides it.
+## Which entries are solid, through the clock that decides it and the entries
+## held back. The held ones join only when there are any, so every hash pinned
+## before the guard existed stands.
 func state_hash() -> int:
-	return hash(["debris", elapsed_ticks])
+	var held: Array[int] = []
+	for index: int in size():
+		if is_skipped(index):
+			held.append(index)
+	if held.is_empty():
+		return hash(["debris", elapsed_ticks])
+	return hash(["debris", elapsed_ticks, held])
 
 
 ## The most ticks any entry waits; the clock need not count further.
@@ -201,4 +220,5 @@ func _read_entry(value: Variant) -> String:
 	positions_mm.append(read[0])
 	radii_mm.append(radius_read[0])
 	after_ticks.append(ticks)
+	skipped.append(false)
 	return ""

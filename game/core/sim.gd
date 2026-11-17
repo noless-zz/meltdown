@@ -88,7 +88,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	if reactor != null:
 		reactor.count_down()
 	if debris != null:
-		debris.advance(reactor)
+		DebrisRouteGuard.advance(self, last_events)
 	# Projectiles already in flight move before any new shot, so a shot
 	# spawns where its ship is at the end of the tick it was fired on.
 	ProjectileHits.advance(self, _hit_events, _killers)

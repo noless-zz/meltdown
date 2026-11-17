@@ -64,6 +64,13 @@ enum Kind {
 	## its hull is set to zero. Reported once, after every other event of the
 	## tick, in ship order (`ExitRule`).
 	SHIP_LOST_IN_MELTDOWN,
+	## A debris entry fell due during the meltdown but was held back, because
+	## solid it would have closed a live ship's last route to the exit (RUN-4):
+	## a cave-in that "held". `ship` is the first ship, in ship order, that would
+	## have lost its route, `magnitude` the entry's index in the level's debris
+	## and `vector` its centre. Reported before every other event of the tick,
+	## in file order (`DebrisRouteGuard`).
+	DEBRIS_HELD,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
