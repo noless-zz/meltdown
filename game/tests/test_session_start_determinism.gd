@@ -4,11 +4,11 @@ extends RefCounted
 ## MP-2, #381): the 90-tick G2 flight of the #340 devlog hashed differently in
 ## a Builder's sandbox and on CI, which in co-op would be a desync.
 ##
-## The start is the same on both, and so is the ship's flight. What differs is
-## the robots: `Vector3.angle_to` in `RobotState.turn_towards` returned
+## The start was the same on both, and so was the ship's flight. What differed
+## was the robots: `Vector3.angle_to` in `RobotState.turn_towards` returned
 ## 0.06978795 in the sandbox and 0.06978794 on CI for the same inputs on the
-## first tick. That fix belongs to core (#381), so the whole flight's hash is
-## not pinned here yet.
+## first tick. Robots now take the angle from `StableAngle` (#381), so the
+## whole flight's hash is pinned too.
 
 const FLIGHT_TICKS: int = 90
 const G2_FILE: String = "res://data/levels/g2_level.json"
@@ -18,6 +18,10 @@ const WEAPON_DIR: String = "res://data/weapons/"
 ## Godot 4.7.2 and came out the same, so CI checks them on a second machine.
 const G2_START_HASH: int = 4279815811
 const G2_SHIP_HASH: int = 2896393452
+## The whole simulation after the #340 flight, robots included. CI measured it
+## with `angle_to` before #381; with `StableAngle` a Builder's sandbox, whose
+## `atan2f` gave the other value, reaches it too.
+const G2_FLIGHT_HASH: int = 2263984340
 
 
 ## The #340 devlog's input: forward thrust with a slow yaw and pitch.
@@ -37,8 +41,8 @@ func test_g2_session_starts_at_the_pinned_hash() -> String:
 	return ""
 
 
-## The ship alone: its flight uses no robot turn, so it hashes the same on both
-## machines. The whole-sim hash is not pinned; see the header.
+## The ship alone: its flight uses no robot turn, so it hashed the same on both
+## machines even before #381.
 func test_g2_flight_ship_hashes_to_the_pinned_value() -> String:
 	var session: LocalSession = LocalSession.for_level(_g2(), 340, FlySource.new())
 	for i: int in FLIGHT_TICKS:
@@ -48,6 +52,19 @@ func test_g2_flight_ship_hashes_to_the_pinned_value() -> String:
 	var ship_hash: int = session.sim.ships[0].state_hash()
 	if ship_hash != G2_SHIP_HASH:
 		return "G2's ship flew to %d, pinned %d" % [ship_hash, G2_SHIP_HASH]
+	return ""
+
+
+## Robots, projectiles and all: the hash a co-op client and host must agree on.
+func test_g2_flight_whole_sim_hashes_to_the_pinned_value() -> String:
+	var session: LocalSession = LocalSession.for_level(_g2(), 340, FlySource.new())
+	if session.sim.robots.is_empty():
+		return "G2 has no robots to turn"
+	for i: int in FLIGHT_TICKS:
+		session.advance(ShipState.TICK_DT)
+	var sim_hash: int = session.sim.state_hash()
+	if sim_hash != G2_FLIGHT_HASH:
+		return "G2's flight hashed to %d, pinned %d" % [sim_hash, G2_FLIGHT_HASH]
 	return ""
 
 

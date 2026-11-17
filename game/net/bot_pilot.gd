@@ -288,4 +288,4 @@ static func should_fire(ship: ShipState, offset: Vector3) -> bool:
 	if distance == 0.0:
 		return true
 	var nose: Vector3 = -ship.orientation.z.normalized()
-	return nose.angle_to(offset) <= deg_to_rad(FIRE_CONE_HALF_ANGLE_DEG)
+	return StableAngle.between(nose, offset) <= deg_to_rad(FIRE_CONE_HALF_ANGLE_DEG)
