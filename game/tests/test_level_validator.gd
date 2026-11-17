@@ -14,6 +14,12 @@ func _validator() -> LevelValidator:
 	return LevelValidator.new()
 
 
+## These hand-built levels have no reactor; its checks are in
+## `test_level_validator_reactor.gd`.
+func _check(level: LevelDef, radius: float) -> Array[String]:
+	return _validator().validate(level, radius, false)
+
+
 ## A level of the given boxes (corner pairs, metres) starting at `start`.
 func _level(corners: Array[Vector3], start: Vector3) -> LevelDef:
 	var boxes: Array[BoxBounds] = []
@@ -51,8 +57,8 @@ func test_bad_data_files_are_rejected_with_a_reason() -> String:
 	var cases: Dictionary[String, String] = {
 		"{\"min_passage_ship_diameters\": 2.5, \"extra\": 1}": "unknown key \"extra\"",
 		"{}": "missing key \"min_passage_ship_diameters\"",
-		"{\"min_passage_ship_diameters\": \"wide\"}": "must be a number",
-		"{\"min_passage_ship_diameters\": 0.5}": "must be 1.0..20.0",
+		"{\"min_passage_ship_diameters\": \"wide\", \"escape_speed_mps\": 10, \"escape_margin\": 0.8}": "must be a number",
+		"{\"min_passage_ship_diameters\": 0.5, \"escape_speed_mps\": 10, \"escape_margin\": 0.8}": "must be 1.0..20.0",
 		"[1]": "top level",
 	}
 	for text: String in cases:
@@ -94,14 +100,14 @@ func test_level_with_no_open_connector_is_empty_with_an_error() -> String:
 func test_sound_hand_built_level_passes() -> String:
 	var corners: Array[Vector3] = _tunnel()
 	corners.append_array([Vector3(-5, -5, -40), Vector3(25, 5, -28)])
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
 	return "" if failures.is_empty() else "failed: %s" % [failures]
 
 
 func test_gap_fails_the_piece_check_naming_the_box() -> String:
 	var corners: Array[Vector3] = _tunnel()
 	corners.append_array([Vector3(-5, -5, -60), Vector3(5, 5, -31)])
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
 	if not _has(failures, "piece", "box 1"):
 		return "no piece failure naming box 1: %s" % [failures]
 	return "" if _has(failures, "reachable", "box 1") else "box 1 not reported unreachable: %s" % [failures]
@@ -110,7 +116,7 @@ func test_gap_fails_the_piece_check_naming_the_box() -> String:
 func test_boxes_that_only_touch_are_a_gap() -> String:
 	var corners: Array[Vector3] = _tunnel()
 	corners.append_array([Vector3(-5, -5, -60), Vector3(5, 5, -30)])
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
 	return "" if _has(failures, "piece", "box 1") else "touching boxes passed: %s" % [failures]
 
 
@@ -119,7 +125,7 @@ func test_too_narrow_opening_fails_the_passage_check_naming_both_boxes() -> Stri
 	# Crossed along z: 4 m across y, 10 m across x, 10 m deep. A 4 m side
 	# must count as a width even when it is the region's thinnest.
 	corners.append_array([Vector3(-5, -2, -60), Vector3(5, 2, -20)])
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
 	if not _has(failures, "passage", "boxes 0 and 1"):
 		return "no passage failure naming boxes 0 and 1: %s" % [failures]
 	if not failures[0].contains("4.00 x 10.00 m"):
@@ -130,7 +136,7 @@ func test_too_narrow_opening_fails_the_passage_check_naming_both_boxes() -> Stri
 func test_opening_exactly_at_the_minimum_passes() -> String:
 	var corners: Array[Vector3] = _tunnel()
 	corners.append_array([Vector3(-2.5, -2.5, -60), Vector3(2.5, 2.5, -25)])
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
 	return "" if failures.is_empty() else "a 5 x 5 m opening failed: %s" % [failures]
 
 
@@ -139,14 +145,14 @@ func test_box_entered_only_through_a_sliver_is_unreachable() -> String:
 	# Shares a 10 x 10 m face 1 m deep: one piece, wide, but a ship cannot be
 	# held by both boxes at once, so it never crosses (LevelDef.joined).
 	corners.append_array([Vector3(-5, -5, -60), Vector3(5, 5, -29)])
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -3)), SHIP_RADIUS)
 	if not _has(failures, "reachable", "box 1 cannot be reached from start box 0"):
 		return "no reachable failure for box 1: %s" % [failures]
 	return "" if failures.size() == 1 else "expected only the reachable failure: %s" % [failures]
 
 
 func test_start_outside_every_box_fails_the_start_check() -> String:
-	var failures: Array[String] = _validator().validate(_level(_tunnel(), Vector3(0, 0, -0.5)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(_tunnel(), Vector3(0, 0, -0.5)), SHIP_RADIUS)
 	return "" if _has(failures, "start", "not held") else "no start failure: %s" % [failures]
 
 
@@ -154,13 +160,13 @@ func test_reachability_counts_from_the_box_holding_the_start() -> String:
 	var corners: Array[Vector3] = _tunnel()
 	corners.append_array([Vector3(-5, -5, -60), Vector3(5, 5, -29), Vector3(-5, -5, -80), Vector3(5, 5, -50)])
 	# Start in box 2: box 1 is reachable from it, box 0 only through a sliver.
-	var failures: Array[String] = _validator().validate(_level(corners, Vector3(0, 0, -70)), SHIP_RADIUS)
+	var failures: Array[String] = _check(_level(corners, Vector3(0, 0, -70)), SHIP_RADIUS)
 	var expected: Array[String] = ["reachable: box 0 cannot be reached from start box 2"]
 	return "" if failures == expected else "unexpected failures: %s" % [failures]
 
 
 func test_empty_level_fails() -> String:
-	var failures: Array[String] = _validator().validate(LevelDef.new(), SHIP_RADIUS)
+	var failures: Array[String] = _check(LevelDef.new(), SHIP_RADIUS)
 	return "" if _has(failures, "piece", "no boxes") else "empty level passed: %s" % [failures]
 
 
@@ -179,4 +185,9 @@ func test_seeds_1_to_1000_pass_in_under_20_s() -> String:
 func test_summary_line_reads_counts_and_time() -> String:
 	var line: String = SeedSweep.summary({"seeds": 3, "passed": 2, "failed": 1, "short": 0, "ms": 12})
 	var expected: String = "level validator: 3 seeds, 2 passed, 1 failed, 0 stopped short, 12 ms"
+	if line != expected:
+		return "got \"%s\"" % line
+	line = SeedSweep.summary({"seeds": 3, "passed": 2, "failed": 1, "short": 0, "ms": 12,
+			"by_check": {"reactor": 0, "escape": 1}})
+	expected += "; failing seeds by check: reactor 0, escape 1"
 	return "" if line == expected else "got \"%s\"" % line

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Generates and validates N mine levels (seeds 1..N) and prints one summary
-# line (#317, GEN-3). The QA plan asks for 1,000 seeds per pull request (run by
+# Generates and validates N mine levels (seeds 1..N), each with the generator's
+# reactor, and prints one summary line (#317, #357, GEN-3) that ends with how
+# many seeds failed each check, the reactor and escape-time checks included. The QA plan asks for 1,000 seeds per pull request (run by
 # the unit tests) and 10,000 nightly; a nightly job calls this with 10000.
 #
 # Usage: tools/validate_seeds.sh [seeds] [first-seed]
