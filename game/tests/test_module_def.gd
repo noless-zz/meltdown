@@ -11,6 +11,8 @@ const WARDEN_FILE: String = "res://data/robots/warden.json"
 const STARTER_IDS: Array[String] = [
 	"corner_90", "room_four_way", "straight_tunnel", "t_junction", "vertical_shaft",
 ]
+## Modules meant to end a branch, with a single connector (#395).
+const DEAD_END_IDS: Array[String] = ["dead_end_alcove"]
 ## How far the sample points sit off a face and in from an opening's edges.
 const STEP_M: float = 0.01
 
@@ -84,9 +86,12 @@ func test_every_shipped_module_parses() -> String:
 
 func test_starter_connectors_are_on_faces_and_point_outward() -> String:
 	for module: ModuleDef in _shipped():
-		if module.connectors.size() < 2:
+		var needed: int = 1 if DEAD_END_IDS.has(module.id) else 2
+		if module.connectors.size() < needed:
 			return "%s: a module needs at least two connectors to chain, has %d" \
 					% [module.id, module.connectors.size()]
+		if DEAD_END_IDS.has(module.id) and module.connectors.size() != 1:
+			return "%s: a dead end has one connector, has %d" % [module.id, module.connectors.size()]
 		for index: int in module.connectors.size():
 			var connector: ModuleConnector = module.connectors[index]
 			for point: Vector3 in _opening_points(connector):

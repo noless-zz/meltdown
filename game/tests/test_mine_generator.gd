@@ -101,10 +101,12 @@ func test_stops_short_and_says_so() -> String:
 		"boxes": [{"min": [-5, -5, -30], "max": [5, 5, 0]}],
 		"connectors": [{"position": [0, 0, 0], "axis": "+z", "size": "small"}],
 	}))
+	# The first dead end is placed as the start; no second one may take its
+	# only opening (`DEAD_END_MIN_OPEN`), so every try is turned away.
 	var level: MineGenerator = MineGenerator.generate(3, [tunnel], 5)
-	if level.placements.size() != 2:
-		return "%d dead ends placed, expected 2" % level.placements.size()
-	if not level.note.contains("stopped after 2 of 5"):
+	if level.placements.size() != 1:
+		return "%d dead ends placed, expected 1" % level.placements.size()
+	if not level.note.contains("stopped after 1 of 5"):
 		return "note is \"%s\"" % level.note
 	var empty: MineGenerator = MineGenerator.generate(3, [], 5)
 	return "" if empty.placements.is_empty() and empty.note != "" else "an empty module list placed something"
@@ -150,6 +152,29 @@ func test_thousand_seeds_are_whole_exact_and_apart() -> String:
 	if elapsed > TIME_LIMIT_MS:
 		return "%d seeds took %d ms, limit %d" % [SEEDS, elapsed, TIME_LIMIT_MS]
 	return "" if short == 0 else "%d of %d seeds stopped short of %d modules" % [short, SEEDS, MODULE_COUNT]
+
+
+func test_dead_ends_join_only_while_enough_connectors_are_open() -> String:
+	var modules: Array[ModuleDef] = _modules()
+	var catalogue: Dictionary[String, ModuleDef] = _by_id(modules)
+	var dead_ends: int = 0
+	for level_seed: int in 200:
+		var level: MineGenerator = MineGenerator.generate(level_seed, modules, MODULE_COUNT)
+		var open: int = 0
+		for index: int in level.placements.size():
+			var module: ModuleDef = catalogue[level.placements[index].module_id]
+			if index > 0 and module.connectors.size() == 1:
+				dead_ends += 1
+				if open < MineGenerator.DEAD_END_MIN_OPEN:
+					return "seed %d: dead end %d joined with %d connectors open" % [level_seed, index, open]
+			# Each join closes the target and the module's own joining connector.
+			open += module.connectors.size() - (2 if index > 0 else 0)
+		if open != level.open_connectors.size():
+			return "seed %d: counted %d open connectors, generator has %d" \
+					% [level_seed, open, level.open_connectors.size()]
+		if open < 1:
+			return "seed %d: no open connector left to start in" % level_seed
+	return "" if dead_ends > 0 else "no dead end joined in 200 seeds"
 
 
 func _check_level(level: MineGenerator, catalogue: Dictionary[String, ModuleDef]) -> String:

@@ -1,0 +1,14 @@
+{
+	"id": "room_six_way",
+	"boxes": [
+		{"min": [-12.0, -12.0, -12.0], "max": [12.0, 12.0, 12.0]}
+	],
+	"connectors": [
+		{"position": [0.0, 0.0, 12.0], "axis": "+z", "size": "small"},
+		{"position": [12.0, 0.0, 0.0], "axis": "+x", "size": "small"},
+		{"position": [0.0, 0.0, -12.0], "axis": "-z", "size": "small"},
+		{"position": [-12.0, 0.0, 0.0], "axis": "-x", "size": "small"},
+		{"position": [0.0, 12.0, 0.0], "axis": "+y", "size": "small"},
+		{"position": [0.0, -12.0, 0.0], "axis": "-y", "size": "small"}
+	]
+}
