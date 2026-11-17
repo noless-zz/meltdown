@@ -17,7 +17,7 @@ const MIN_LOOPED: int = 50
 func _bridges(low: float, high: float, count: int, offset: float = 0.0) -> LoopBridges:
 	return LoopBridges.parse_json(JSON.stringify(
 			{"loop_min_m": low, "loop_max_m": high, "loop_max_count": count, "loop_max_offset_m": offset,
-			"dead_end_min_open": 6}))
+			"dead_end_min_open": 6, "loop_bias": 0}))
 
 
 ## Adds a placement to a hand-built level: one box and its open connectors.
@@ -73,13 +73,13 @@ func test_bad_data_files_are_rejected_naming_every_missing_key() -> String:
 			return "empty file error \"%s\" does not name %s" % [empty.error, key]
 	var cases: Dictionary[String, String] = {
 		"[1]": "top level",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": -1, \"dead_end_min_open\": 6}": "loop_max_offset_m",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": \"4\", \"dead_end_min_open\": 6}": "must be a number",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6, \"x\": 1}": "unknown key",
-		"{\"loop_min_m\": 0, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6}": "loop_min_m",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 5, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6}": "loop_max_m",
-		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 1.5, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6}": "loop_max_count",
-		"{\"loop_min_m\": \"6\", \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6}": "must be a number",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": -1, \"dead_end_min_open\": 6, \"loop_bias\": 0}": "loop_max_offset_m",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": \"4\", \"dead_end_min_open\": 6, \"loop_bias\": 0}": "must be a number",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6, \"loop_bias\": 0, \"x\": 1}": "unknown key",
+		"{\"loop_min_m\": 0, \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6, \"loop_bias\": 0}": "loop_min_m",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 5, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6, \"loop_bias\": 0}": "loop_max_m",
+		"{\"loop_min_m\": 6, \"loop_max_m\": 60, \"loop_max_count\": 1.5, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6, \"loop_bias\": 0}": "loop_max_count",
+		"{\"loop_min_m\": \"6\", \"loop_max_m\": 60, \"loop_max_count\": 2, \"loop_max_offset_m\": 4, \"dead_end_min_open\": 6, \"loop_bias\": 0}": "must be a number",
 	}
 	for text: String in cases:
 		var read: LoopBridges = LoopBridges.parse_json(text)

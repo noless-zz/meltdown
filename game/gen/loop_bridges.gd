@@ -9,12 +9,15 @@ extends RefCounted
 ## Read from `data/gen/generator.json`:
 ##
 ##     {"loop_min_m": 10, "loop_max_m": 60, "loop_max_count": 2,
-##      "loop_max_offset_m": 20, "dead_end_min_open": 6}
+##      "loop_max_offset_m": 20, "dead_end_min_open": 6, "loop_bias": 0.5}
 ##
 ## `dead_end_min_open` is not about loops but lives in the same file, so this
 ## class reads it too (#421, ARC-4): `MineGenerator.generate` takes it from
 ## here when given bridges, so the owner can tune how branchy levels feel
-## without code.
+## without code. So does `loop_bias` (#438): how often the generator, choosing
+## where to attach the next module, prefers a placement that leaves an open
+## connector facing another (`LoopBias`). Placement, not the tunnel shape, is
+## what limits the loop rate (#411).
 ##
 ## The gap is the distance between the two openings along their axis; the
 ## offset is how far apart their centres are across it. Openings exactly in
@@ -32,6 +35,7 @@ extends RefCounted
 
 const KEYS: Array[String] = [
 	"loop_min_m", "loop_max_m", "loop_max_count", "loop_max_offset_m", "dead_end_min_open",
+	"loop_bias",
 ]
 ## Upper bound on either gap key, metres: longer than any level is wide.
 const MAX_GAP_M: float = 1000.0
@@ -48,6 +52,8 @@ var max_count: int = 0
 var max_offset_mm: int = 0
 ## Open connectors needed before a dead end may join (`MineGenerator`).
 var dead_end_min_open: int = MineGenerator.DEAD_END_MIN_OPEN
+## `loop_bias` in thousandths, so the draw against it is a whole number (GEN-2).
+var loop_bias_permille: int = 0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -172,6 +178,7 @@ func _read(data: Dictionary) -> String:
 	var count: float = float(data["loop_max_count"])
 	var offset: float = float(data["loop_max_offset_m"])
 	var dead_end: float = float(data["dead_end_min_open"])
+	var bias: float = float(data["loop_bias"])
 	if low <= 0.0 or low > MAX_GAP_M:
 		return "key \"loop_min_m\" must be above 0 and at most %s" % MAX_GAP_M
 	if high < low or high > MAX_GAP_M:
@@ -182,9 +189,12 @@ func _read(data: Dictionary) -> String:
 		return "key \"loop_max_offset_m\" must be 0..%s" % MAX_GAP_M
 	if dead_end < 2.0 or dead_end > MAX_DEAD_END_MIN_OPEN or dead_end != floorf(dead_end):
 		return "key \"dead_end_min_open\" must be a whole number, 2..%d" % MAX_DEAD_END_MIN_OPEN
+	if bias < 0.0 or bias > 1.0:
+		return "key \"loop_bias\" must be 0..1"
 	min_gap_mm = roundi(low * RobotSpawn.SCALE)
 	max_gap_mm = roundi(high * RobotSpawn.SCALE)
 	max_count = int(count)
 	max_offset_mm = roundi(offset * RobotSpawn.SCALE)
 	dead_end_min_open = int(dead_end)
+	loop_bias_permille = roundi(bias * LoopBias.SCALE)
 	return ""

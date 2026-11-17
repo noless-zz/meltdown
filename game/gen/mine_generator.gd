@@ -70,6 +70,8 @@ var robot_note: String = ""
 var debris_note: String = ""
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## The bridges given to `generate`, for `loop_bias` (#438), or null.
+var _bridges: LoopBridges = null
 
 
 ## Builds a level of up to `count` modules from `modules` (rejected modules,
@@ -81,6 +83,7 @@ static func generate(level_seed: int, modules: Array[ModuleDef], count: int,
 	var generator: MineGenerator = MineGenerator.new()
 	if bridges != null and bridges.error == "":
 		generator.dead_end_min_open = bridges.dead_end_min_open
+		generator._bridges = bridges
 	generator._run(level_seed, modules, count)
 	if bridges != null and bridges.error == "" and not generator.placements.is_empty():
 		generator.loops = bridges.apply(generator)
@@ -145,33 +148,66 @@ func _run(level_seed: int, modules: Array[ModuleDef], count: int) -> void:
 			return
 
 
-## Tries up to `MAX_TRIES` placements; true when one fits.
+## Tries up to `MAX_TRIES` placements; true when one fits. With a
+## `loop_bias` and the seeded draw under it, keeps looking among up to
+## `LoopBias.CANDIDATES` that fit for one that faces an open connector (#438).
 func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) -> bool:
+	var biased: bool = _bridges != null and _bridges.loop_bias_permille > 0 \
+			and _pick(LoopBias.SCALE) < _bridges.loop_bias_permille
+	var kept: PlacementChoice = null
+	var fitted: int = 0
 	for attempt: int in MAX_TRIES:
 		if open_connectors.is_empty():
 			return false
-		var open_index: int = _pick(open_connectors.size())
-		var target: ModuleConnector = open_connectors[open_index]
-		var module: ModuleDef = usable[_pick(usable.size())]
-		var own: int = _pick(module.connectors.size())
-		var joining: ModuleConnector = module.connectors[own]
-		if joining.size_class != target.size_class:
+		var choice: PlacementChoice = _draw(usable)
+		if choice == null:
 			continue
-		if module.connectors.size() == 1 and open_connectors.size() < dead_end_min_open:
-			continue
-		var turns: Array[int] = ModuleTurns.turns_between(ModuleTurns.outward(joining),
-				-ModuleTurns.outward(target))
-		var turn: int = turns[_pick(turns.size())]
-		var offset: Vector3i = target.position_mm - ModuleTurns.apply(turn, joining.position_mm)
-		var owner: Vector2i = open_owner[open_index]
-		var door: Array[Vector3i] = door_for(target)
-		if not _fits(module, turn, offset, door, owner.x):
-			continue
-		open_connectors.remove_at(open_index)
-		open_owner.remove_at(open_index)
-		_place(module, turn, offset, owner.x, owner.y, own, door)
-		return true
-	return false
+		if not biased:
+			kept = choice
+			break
+		if kept == null:
+			kept = choice
+		if LoopBias.facing(self, _bridges, choice) > 0:
+			kept = choice
+			break
+		fitted += 1
+		if fitted >= LoopBias.CANDIDATES:
+			break
+	if kept == null:
+		return false
+	var owner: Vector2i = open_owner[kept.open_index]
+	open_connectors.remove_at(kept.open_index)
+	open_owner.remove_at(kept.open_index)
+	_place(kept.module, kept.turn, kept.offset_mm, owner.x, owner.y, kept.own, kept.door)
+	return true
+
+
+## One placement drawn from the seeded generator, or null when it does not fit.
+func _draw(usable: Array[ModuleDef]) -> PlacementChoice:
+	var open_index: int = _pick(open_connectors.size())
+	var target: ModuleConnector = open_connectors[open_index]
+	var module: ModuleDef = usable[_pick(usable.size())]
+	var own: int = _pick(module.connectors.size())
+	var joining: ModuleConnector = module.connectors[own]
+	if joining.size_class != target.size_class:
+		return null
+	if module.connectors.size() == 1 and open_connectors.size() < dead_end_min_open:
+		return null
+	var turns: Array[int] = ModuleTurns.turns_between(ModuleTurns.outward(joining),
+			-ModuleTurns.outward(target))
+	var turn: int = turns[_pick(turns.size())]
+	var offset: Vector3i = target.position_mm - ModuleTurns.apply(turn, joining.position_mm)
+	var door: Array[Vector3i] = door_for(target)
+	if not _fits(module, turn, offset, door, open_owner[open_index].x):
+		return null
+	var choice: PlacementChoice = PlacementChoice.new()
+	choice.module = module
+	choice.turn = turn
+	choice.offset_mm = offset
+	choice.open_index = open_index
+	choice.own = own
+	choice.door = door
+	return choice
 
 
 func _place(module: ModuleDef, turn: int, offset: Vector3i, parent: int, parent_connector: int,

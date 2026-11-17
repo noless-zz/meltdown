@@ -26,9 +26,12 @@ func test_shipped_value_is_six() -> String:
 
 func test_shipped_file_changes_no_level() -> String:
 	var modules: Array[ModuleDef] = SeedSweep.load_modules()
-	# Loops off, so the only thing the file can change is the threshold: every
-	# tree must match the one built with the code default.
-	var settings: LoopBridges = _shipped_with("loop_max_count", 0)
+	# Loops and the loop bias (#438) off, so the only thing the file can change
+	# is the threshold: every tree must match the one built with the code default.
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SeedSweep.GENERATOR_FILE))
+	data["loop_max_count"] = 0
+	data["loop_bias"] = 0
+	var settings: LoopBridges = LoopBridges.parse_json(JSON.stringify(data))
 	if settings.error != "":
 		return "generator.json rejected: %s" % settings.error
 	for level_seed: int in SEEDS:
