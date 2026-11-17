@@ -10,7 +10,15 @@ extends RefCounted
 const CHECK_XR_SESSION: String = "xr_session"
 const CHECK_FINAL_HASH: String = "final_hash"
 const CHECK_NO_SCRIPT_ERRORS: String = "no_script_errors"
-const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS]
+## No live robot is left when the replay ends (gate G2, #334).
+const CHECK_ROBOTS_CLEARED: String = "robots_cleared"
+## The ship's hull is above zero when the replay ends (#334).
+const CHECK_SHIP_ALIVE: String = "ship_alive"
+const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
+	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE]
+## Checks that read the state the replay ended in, so a step listing one must
+## fly a replay.
+const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
@@ -22,6 +30,9 @@ const NO_HASH: int = -1
 var id: String = ""
 ## Path of a replay file in the format `Replay` reads, or "" for none.
 var replay_path: String = ""
+## Level name the main scene switches to before the replay flies, as
+## `--level=<name>` would (#291), or "" to fly the test tunnel.
+var level: String = ""
 ## Comfort preset to fly under, or NO_PRESET.
 var preset: int = NO_PRESET
 ## Names from KNOWN_CHECKS, in the order the suite lists them.

@@ -103,7 +103,8 @@ func test_every_preset_ships_the_acceptance_files() -> String:
 	if config == null:
 		return "could not read %s" % PRESETS_PATH
 	for data_file: String in ["acceptance/replays/basic_flight.replay", "acceptance/suites/m1.json",
-			"acceptance/replays/bot_test_tunnel.replay", "acceptance/suites/m2.json"]:
+			"acceptance/replays/bot_test_tunnel.replay", "acceptance/suites/m2.json",
+			"acceptance/replays/bot_g2_level.replay"]:
 		var missing: String = _preset_missing(config, data_file)
 		if missing != "":
 			return "preset %s does not include %s" % [missing, data_file]

@@ -6,6 +6,13 @@
 			"replay": "res://acceptance/replays/bot_test_tunnel.replay",
 			"checks": ["final_hash"],
 			"expected_hash": 734254736
+		},
+		{
+			"id": "bot_clears_g2_level",
+			"level": "g2",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": ["final_hash", "robots_cleared", "ship_alive"],
+			"expected_hash": 2319032124
 		}
 	]
 }
