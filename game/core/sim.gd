@@ -94,8 +94,8 @@ func step(inputs: Array[ShipInput]) -> bool:
 		from.append(ship.position)
 		if ship.escaped:
 			continue
-		if inputs[i].reset_to_start:
-			_reset.apply(ship, i)
+		# The rest of the input applies even when the meltdown refuses the reset.
+		if inputs[i].reset_to_start and _reset.apply(ship, i, reactor):
 			from[i] = ship.position
 		var was_active: bool = ship.afterburner_active
 		var was_locked: bool = ship.afterburner_locked

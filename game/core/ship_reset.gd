@@ -30,10 +30,19 @@ func set_pose(index: int, position: Vector3, orientation: Basis) -> void:
 	orientations[index] = orientation
 
 
-## Moves `ship` (index `index`) to its start at rest. Pose and velocity only:
-## hull, shield and energy are kept, so a reset is a way home and not a free
-## repair.
-func apply(ship: ShipState, index: int) -> void:
+## False only while the meltdown countdown runs: the start is then the exit, so
+## a reset would be an instant escape instead of the flight back RUN-3 asks for.
+static func allowed(reactor: ReactorState) -> bool:
+	return reactor == null or not reactor.destroyed or reactor.meltdown_ticks_left <= 0
+
+
+## Moves `ship` (index `index`) to its start at rest, unless `reactor` is in its
+## meltdown. Pose and velocity only: hull, shield and energy are kept, so a
+## reset is a way home and not a free repair. Returns whether the ship moved.
+func apply(ship: ShipState, index: int, reactor: ReactorState) -> bool:
+	if not allowed(reactor):
+		return false
 	ship.position = positions[index]
 	ship.orientation = orientations[index]
 	ship.velocity = Vector3.ZERO
+	return true
