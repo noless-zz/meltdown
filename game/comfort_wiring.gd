@@ -47,11 +47,13 @@ var _mapping: ThumbstickMapping
 var _preset_button_held: bool = false
 ## Seconds on a steady clock; `read_label_button` times a click with it. Tests
 ## replace it so a hold can be timed without waiting.
-var clock: Callable = _seconds_now
+var clock: Callable = ClickHold.steady_seconds
+## Click or hold of the label button, fed by `read_label_button` with `clock`
+## each frame. The map reads it too while the label button also shows the map
+## (`shared_click_hold`), so both answers come from one timer (#335).
+var click_hold: ClickHold = ClickHold.new()
 ## The label toggle, likewise, flips once per click.
 var _label_button_held: bool = false
-## `clock` when the label button last went down.
-var _label_down_at: float = 0.0
 ## True while the pending one-tick input is a snap whose roll came from the
 ## auto-level, so that roll is not flown again before the next sample.
 var _roll_snap_pending: bool = false
@@ -124,23 +126,28 @@ func label_button() -> String:
 
 ## True on the one frame a click should flip the labels. When the label
 ## button also shows the map (`show_map`, #314), that is the release of a
-## click shorter than `MapHologram.HOLD_SECONDS`, so holding for the map
-## never flips them; otherwise it is the frame the button goes down.
+## click shorter than `MapHologram.HOLD_SECONDS`, as `click_hold` decides, so
+## holding for the map never flips them; otherwise it is the frame the button
+## goes down. Call once per frame, before the map reads `shared_click_hold`.
 func read_label_button(buttons: Dictionary) -> bool:
 	var pressed: bool = bool(buttons.get(label_button(), false))
 	var went_down: bool = pressed and not _label_button_held
-	var went_up: bool = _label_button_held and not pressed
 	_label_button_held = pressed
-	if not _mapping.physical_controls("show_map").has(label_button()):
+	if not label_button_shows_map():
 		return went_down
-	if went_down:
-		_label_down_at = float(clock.call())
-		return false
-	return went_up and float(clock.call()) - _label_down_at < MapHologram.HOLD_SECONDS
+	click_hold.feed(pressed, float(clock.call()))
+	return click_hold.short_click_released()
 
 
-static func _seconds_now() -> float:
-	return Time.get_ticks_usec() / 1000000.0
+## True while `show_map` is bound to the label button.
+func label_button_shows_map() -> bool:
+	return _mapping.physical_controls("show_map").has(label_button())
+
+
+## The `ClickHold` the map must read while it shares the label button, null
+## when `show_map` is on another control and the map times its own hold.
+func shared_click_hold() -> ClickHold:
+	return click_hold if label_button_shows_map() else null
 
 
 ## Hands this frame's mapped `input` to the session's input source.
