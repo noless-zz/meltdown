@@ -232,3 +232,41 @@ func test_reads_no_layer_above_core() -> String:
 					if found.search(source) != null:
 						return "%s references %s from %s" % [script_path, class_id, root]
 	return ""
+
+
+func test_frozen_defaults_to_false() -> String:
+	var view: ReactorView = ReactorView.new()
+	var result: String = "" if not view.frozen else "a new reactor view starts frozen"
+	view.free()
+	return result
+
+
+func test_frozen_view_holds_its_pulse_and_resumes_from_it() -> String:
+	var view: ReactorView = ReactorView.new()
+	view.show_state(Vector3.ZERO, 2.5, 0.0, true, 60.0)
+	view._process(view.pulse_period() * 0.3)
+	var held: float = view.pulse_level()
+	var held_light: float = view.light().light_energy
+	var held_emission: float = view.material().emission_energy_multiplier
+	view.frozen = true
+	for frame: int in 144:
+		view._process(1.0 / 72.0)
+	var result: String = ""
+	if absf(view.pulse_level() - held) > EPSILON:
+		result = "pulse level %s after 2 s frozen, expected %s" % [view.pulse_level(), held]
+	elif absf(view.light().light_energy - held_light) > EPSILON:
+		result = "light energy %s after 2 s frozen, expected %s" % [view.light().light_energy, held_light]
+	elif absf(view.material().emission_energy_multiplier - held_emission) > EPSILON:
+		result = "core emission %s after 2 s frozen, expected %s" % [view.material().emission_energy_multiplier, held_emission]
+	if result == "":
+		view.frozen = false
+		var step: float = view.pulse_period() * 0.05
+		var phase: float = view.pulse_phase
+		view._process(step)
+		var expected: float = fposmod(phase + step / view.pulse_period(), 1.0)
+		if absf(view.pulse_level() - held) <= EPSILON:
+			result = "the pulse did not move after unfreezing"
+		elif absf(view.pulse_phase - expected) > EPSILON:
+			result = "unfrozen phase %s, expected %s: it jumped instead of resuming" % [view.pulse_phase, expected]
+	view.free()
+	return result
