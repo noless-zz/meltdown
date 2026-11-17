@@ -2,79 +2,57 @@ extends RefCounted
 
 ## Generates and validates a run of seeds and sums up the result (#317, GEN-3):
 ## shared by `test_level_validator.gd` (1,000 seeds per pull request) and
-## `validate_seeds.gd`, which a nightly job can call with 10,000. Files are
-## read here, not in `gen/`, which never opens files.
+## `validate_seeds.gd`, which a nightly job can call with 10,000. The data
+## files are read, and each level built and validated, by `SeedLevel`, the
+## loader `--seed` flies with (#441), not in `gen/`, which never opens files.
 
-const MODULES_DIR: String = "res://data/modules/"
-const VALIDATOR_FILE: String = "res://data/gen/validator.json"
-const REACTOR_FILE: String = "res://data/gen/reactor.json"
-const GENERATOR_FILE: String = "res://data/gen/generator.json"
-const ROBOTS_FILE: String = "res://data/gen/robots.json"
-const DEBRIS_FILE: String = "res://data/gen/debris.json"
-const ROBOTS_DIR: String = "res://data/robots/"
-const SHIP_FILE: String = "res://data/ships/default_ship.json"
-## Modules per level, as in the generator's own 1,000-seed test.
-const MODULE_COUNT: int = 10
+## Modules per level, as in the generator's own 1,000-seed test and `--seed`.
+const MODULE_COUNT: int = SeedLevel.MODULE_COUNT
+const MODULES_DIR: String = SeedLevel.MODULES_DIR
+const GENERATOR_FILE: String = SeedLevel.GENERATOR_FILE
 ## The `by_check` key for levels whose debris closed the way out (#440, RUN-4).
 const DEBRIS_ROUTE: String = "debris_route"
 ## Failure messages kept in a result, so 10,000 bad seeds do not flood a log.
 const KEPT_FAILURES: int = 10
 
 
-## Every module file in `MODULES_DIR`, in file name order.
+# The loaders below hand on `SeedLevel`'s (#441), so the sweep and `--seed`
+# read the data files one way; they stay for the tests that call them.
+
 static func load_modules() -> Array[ModuleDef]:
-	var modules: Array[ModuleDef] = []
-	var files: PackedStringArray = DirAccess.get_files_at(MODULES_DIR)
-	files.sort()
-	for file: String in files:
-		if file.ends_with(".json"):
-			modules.append(ModuleDef.parse_json(FileAccess.get_file_as_string(MODULES_DIR + file)))
-	return modules
+	return SeedLevel.load_modules()
 
 
 static func load_validator() -> LevelValidator:
-	return LevelValidator.parse_json(FileAccess.get_file_as_string(VALIDATOR_FILE))
+	return LevelValidator.parse_json(SeedLevel.read_text(SeedLevel.VALIDATOR_FILE))
 
 
 static func load_reactor_plan() -> ReactorPlan:
-	return ReactorPlan.parse_json(FileAccess.get_file_as_string(REACTOR_FILE))
+	return ReactorPlan.parse_json(SeedLevel.read_text(SeedLevel.REACTOR_FILE))
 
 
 static func load_loop_bridges() -> LoopBridges:
-	return LoopBridges.parse_json(FileAccess.get_file_as_string(GENERATOR_FILE))
+	return LoopBridges.parse_json(SeedLevel.read_text(SeedLevel.GENERATOR_FILE))
 
 
-## Every robot file's text by id, for `RobotPlan.parse_json`.
 static func robot_texts() -> Dictionary:
-	var texts: Dictionary = {}
-	for file: String in DirAccess.get_files_at(ROBOTS_DIR):
-		if file.ends_with(".json"):
-			texts[file.trim_suffix(".json")] = FileAccess.get_file_as_string(ROBOTS_DIR + file)
-	return texts
+	return SeedLevel.robot_texts()
 
 
 static func load_robot_plan() -> RobotPlan:
-	return RobotPlan.parse_json(FileAccess.get_file_as_string(ROBOTS_FILE), robot_texts())
+	return RobotPlan.parse_json(SeedLevel.read_text(SeedLevel.ROBOTS_FILE), robot_texts())
 
 
 static func load_debris_plan() -> DebrisPlan:
-	return DebrisPlan.parse_json(FileAccess.get_file_as_string(DEBRIS_FILE))
+	return DebrisPlan.parse_json(SeedLevel.read_text(SeedLevel.DEBRIS_FILE))
 
 
-## The boxes of the module the generated level starts in.
 static func start_module_boxes(generator: MineGenerator) -> Array[int]:
-	var boxes: Array[int] = []
-	if generator.open_owner.is_empty():
-		return boxes
-	var start: int = GeneratedLevel.start_placement(generator)
-	var placement: ModulePlacement = generator.placements[start]
-	for box: int in range(placement.first_box, placement.end_box):
-		boxes.append(box)
-	return boxes
+	return SeedLevel.start_module_boxes(generator)
 
 
 static func ship_radius() -> float:
-	return ShipTuning.parse_json(FileAccess.get_file_as_string(SHIP_FILE)).radius
+	return ShipTuning.parse_json(SeedLevel.read_text(SeedLevel.SHIP_FILE)).radius
 
 
 ## Seeds `first_seed` up to `first_seed + count - 1`, each level with the
@@ -89,16 +67,14 @@ static func ship_radius() -> float:
 ## out, see `debris_route`), and "failures": the first
 ## `kept_failures` messages, each prefixed with its seed. A `kept_failures` of 0
 ## keeps every message, so the nightly job can list every failing seed (#358).
+## `overrides` maps a data file's `res://` path to text used in its place, as
+## `SeedLevel.load_inputs` takes it, so a test can break one file.
 static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
-		kept_failures: int = KEPT_FAILURES) -> Dictionary:
+		kept_failures: int = KEPT_FAILURES, overrides: Dictionary = {}) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
-	var modules: Array[ModuleDef] = load_modules()
-	var validator: LevelValidator = load_validator()
-	var plan: ReactorPlan = load_reactor_plan()
-	var bridges: LoopBridges = load_loop_bridges()
-	var robot_plan: RobotPlan = load_robot_plan()
-	var debris_plan: DebrisPlan = load_debris_plan()
-	var radius: float = ship_radius()
+	# The same inputs, generator, level and checks `--seed` flies (#441).
+	var inputs: SeedLevel = SeedLevel.load_inputs("", overrides)
+	var radius: float = inputs.tuning.radius
 	var by_check: Dictionary[String, int] = {"level": 0}
 	for check: String in LevelValidator.CHECKS:
 		by_check[check] = 0
@@ -106,36 +82,24 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0, "looped": 0, "robots": 0,
 			"debris": 0, "debris_held": 0, "by_check": by_check, "failures": [] as Array[String]}
 	# A broken data file must not pass every seed on the defaults.
-	var broken: String = ""
-	if validator.error != "":
-		broken = "validator.json: %s" % validator.error
-	elif plan.error != "":
-		broken = "reactor.json: %s" % plan.error
-	elif bridges.error != "":
-		broken = "generator.json: %s" % bridges.error
-	elif robot_plan.error != "":
-		broken = "robots.json: %s" % robot_plan.error
-	elif debris_plan.error != "":
-		broken = "debris.json: %s" % debris_plan.error
-	var robot_radii: Dictionary[String, int] = robot_plan.radii_by_id()
-	if broken != "":
+	if inputs.error != "":
 		result["failed"] = count
-		result["failures"].append(broken)
+		result["failures"].append(inputs.error)
 		result["ms"] = Time.get_ticks_msec() - started
 		return result
 	for level_seed: int in range(first_seed, first_seed + count):
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules, module_count, bridges)
+		var generator: MineGenerator = inputs.generate(level_seed, module_count)
 		if generator.note != "":
 			result["short"] += 1
 		if generator.loops > 0:
 			result["looped"] += 1
-		var level: LevelDef = generator.to_level_def(plan, radius, robot_plan, debris_plan)
+		var level: LevelDef = inputs.level_of(generator)
 		result["robots"] += level.robots.spawns.size()
 		var found: Array[String] = []
 		if level.error != "":
 			found.append("level: %s" % level.error)
 		else:
-			found = validator.validate(level, radius, true, robot_radii, start_module_boxes(generator))
+			found = inputs.validate(level, generator)
 			if level.debris != null:
 				result["debris"] += level.debris.size()
 				var held: Array[int] = []
