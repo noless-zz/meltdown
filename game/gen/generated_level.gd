@@ -31,7 +31,8 @@ extends RefCounted
 ##
 ## With a `DebrisPlan` (#398) meltdown debris follows the robots, placed by
 ## `DebrisPlan.place` on the escape route from its own seeded draws, so the
-## robots and `output_hash` are the same with or without it. Without a plan the
+## robots and `output_hash` are the same with or without it, and kept
+## `min_robot_distance` clear of the robots placed (#436). Without a plan the
 ## level has no debris.
 
 ## Draws for one robot before the placing gives up.
@@ -67,7 +68,7 @@ static func build(generator: MineGenerator, plan: ReactorPlan, ship_radius: floa
 	if robot_plan != null:
 		_place_robots(generator, robot_plan, ship_radius, level)
 	if debris_plan != null:
-		level.debris = debris_plan.place(generator, level, ship_radius)
+		level.debris = debris_plan.place(generator, level, ship_radius, robot_plan)
 	return level
 
 

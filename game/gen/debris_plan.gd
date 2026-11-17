@@ -5,24 +5,28 @@ extends RefCounted
 ## from `data/gen/debris.json`:
 ##
 ##     {"count": [2, 5], "radius": [1.5, 3], "after_seconds": [8, 60],
-##      "min_start_distance": 15, "min_reactor_distance": 6}
+##      "min_start_distance": 15, "min_reactor_distance": 6, "min_robot_distance": 2}
 ##
 ## Each range is `[lowest, highest]`, both included. `count` is how many
 ## entries a level gets, `radius` their radius in metres and `after_seconds`
 ## how long after the reactor dies each falls. The two distances are metres of
 ## clear space between an entry's surface and the start point, and between an
-## entry's surface and the reactor's surface. Radii and distances are held as
-## whole millimetres and times as whole ticks, so placement is exact (ARC-2).
+## entry's surface and the reactor's surface; `min_robot_distance` (#436) is
+## the clear space between an entry's surface and each robot spawn's surface,
+## so no robot starts inside a rock once it falls. Radii and distances are
+## held as whole millimetres and times as whole ticks, so placement is exact
+## (ARC-2).
 ## The caller hands over the file's text, because `gen/` never opens files.
 ##
-## `place` puts entries where the escape runs: in the modules holding the
-## shortest route from the reactor to the start, each centred in one of those
-## modules' boxes or in an opening between two of them. Whether an entry may
-## really fall is not decided here: `DebrisRouteGuard` holds back any that
-## would close the last route out when it falls due.
+## `place` puts entries where the escape runs, on `DebrisSpots.escape_spots`:
+## in the modules holding the shortest route from the reactor to the start,
+## each centred in one of those modules' boxes or in an opening between two of
+## them. Whether an entry may really fall is not decided here:
+## `DebrisRouteGuard` holds back any that would close the last route out when
+## it falls due.
 
 const KEYS: Array[String] = ["count", "radius", "after_seconds", "min_start_distance",
-		"min_reactor_distance"]
+		"min_reactor_distance", "min_robot_distance"]
 ## Largest radius an entry may have, metres: a cave-in, not a wall of rock.
 const MAX_RADIUS_M: float = 20.0
 ## Latest an entry may fall, seconds after the reactor dies.
@@ -40,6 +44,7 @@ var min_after_ticks: int = 1
 var max_after_ticks: int = 1
 var min_start_distance_mm: int = 0
 var min_reactor_distance_mm: int = 0
+var min_robot_distance_mm: int = 0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -62,40 +67,88 @@ static func parse_json(text: String) -> DebrisPlan:
 ## Every draw comes from a generator seeded from `output_hash` and "debris", so
 ## the same seed gives the same debris, and the reactor, the robots and the
 ## generator itself are left as they were. Why fewer entries than drawn were
-## placed goes to `generator.debris_note`.
-func place(generator: MineGenerator, level: LevelDef, ship_radius: float) -> MeltdownDebris:
+## placed goes to `generator.debris_note`. `robot_plan` gives the radius of
+## each of `level`'s robots by id (a resolved spawn's own type wins); a spot
+## too close to one is skipped, and an entry that found only such spots is
+## dropped and counted in the note, while the next entries still get placed.
+func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
+		robot_plan: RobotPlan = null) -> MeltdownDebris:
 	if level.reactor == null:
 		generator.debris_note = "no debris: the level has no reactor"
 		return null
-	var spots: Array[Vector3i] = escape_spots(generator, level, ship_radius)
+	var spots: Array[Vector3i] = DebrisSpots.escape_spots(generator, level, ship_radius)
 	if spots.is_empty():
 		generator.debris_note = "no debris: no route from the reactor to the start"
 		return null
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = hash([generator.output_hash(), "debris"])
 	var wanted: int = min_count + _pick(rng, max_count - min_count + 1)
+	var robot_radii: Array[int] = robot_radii_mm(level, robot_plan)
 	var debris: MeltdownDebris = MeltdownDebris.new()
+	var near_robots: int = 0
+	var no_room: bool = false
 	for count: int in wanted:
 		var radius: int = min_radius_mm + _pick(rng, max_radius_mm - min_radius_mm + 1)
 		var ticks: int = min_after_ticks + _pick(rng, max_after_ticks - min_after_ticks + 1)
 		var spot: int = -1
+		var robot_blocked: bool = false
 		for attempt: int in TRIES:
 			if spots.is_empty():
 				break
 			var drawn: int = _pick(rng, spots.size())
-			if fits(spots[drawn], radius, level):
+			if not fits(spots[drawn], radius, level):
+				continue
+			if clear_of_robots(spots[drawn], radius, level, robot_radii):
 				spot = drawn
 				break
+			robot_blocked = true
+		if spot < 0 and robot_blocked:
+			near_robots += 1
+			continue
 		if spot < 0:
-			generator.debris_note = "placed %d of %d debris entries: no room found in %d tries" \
-					% [count, wanted, TRIES]
+			no_room = true
 			break
 		debris.positions_mm.append(spots[spot])
 		debris.radii_mm.append(radius)
 		debris.after_ticks.append(ticks)
 		debris.skipped.append(false)
 		spots.remove_at(spot)
+	if no_room or near_robots > 0:
+		var why: Array[String] = []
+		if no_room:
+			why.append("no room found in %d tries" % TRIES)
+		if near_robots > 0:
+			why.append("%d dropped for min_robot_distance" % near_robots)
+		generator.debris_note = "placed %d of %d debris entries: %s" \
+				% [debris.size(), wanted, ", ".join(why)]
 	return null if debris.size() == 0 else debris
+
+
+## True if an entry of `radius_mm` centred on `point_mm` keeps
+## `min_robot_distance` from every robot of `level`, whose radii in millimetres
+## `robot_radii_mm` gives in spawn order.
+func clear_of_robots(point_mm: Vector3i, radius_mm: int, level: LevelDef,
+		robot_radii_mm: Array[int]) -> bool:
+	for index: int in level.robots.spawns.size():
+		var gap: int = radius_mm + min_robot_distance_mm + robot_radii_mm[index]
+		if _distance_squared(point_mm, level.robots.spawns[index].position_mm) < _squared(gap):
+			return false
+	return true
+
+
+## Each of `level`'s robots' radius in millimetres, in spawn order: the
+## resolved type's, else `robot_plan`'s for its id, else 0.
+static func robot_radii_mm(level: LevelDef, robot_plan: RobotPlan) -> Array[int]:
+	var by_id: Dictionary[String, int] = {}
+	if robot_plan != null:
+		by_id = robot_plan.radii_by_id()
+	var radii: Array[int] = []
+	for spawn: RobotSpawn in level.robots.spawns:
+		if spawn.def != null:
+			radii.append(roundi(spawn.def.radius * RobotSpawn.SCALE))
+		else:
+			radii.append(by_id.get(spawn.id, 0))
+	return radii
 
 
 ## True if an entry of `radius_mm` centred on `point_mm` keeps the file's
@@ -108,63 +161,6 @@ func fits(point_mm: Vector3i, radius_mm: int, level: LevelDef) -> bool:
 			< _squared(radius_mm + min_reactor_distance_mm + level.reactor.radius_mm):
 		return false
 	return true
-
-
-## The spots an entry may be centred on: the centre of every box of every module
-## the shortest route from the reactor to the start passes through, then the
-## centre of every opening between two such boxes, each in box order and each
-## spot once. Empty without a reactor or a route.
-static func escape_spots(generator: MineGenerator, level: LevelDef,
-		ship_radius: float) -> Array[Vector3i]:
-	var spots: Array[Vector3i] = []
-	if level.reactor == null:
-		return spots
-	var all: Array[int] = []
-	for box: int in generator.min_mm.size():
-		all.append(box)
-	var route: KnownRoute = KnownRoute.find(level.union, all, level.reactor.position(),
-		level.start_position(), null, ship_radius)
-	if route.length_mm == EscapePath.UNREACHABLE:
-		return spots
-	var on_route: Array[bool] = route_boxes(generator, route.points_mm)
-	var seen: Dictionary[Vector3i, bool] = {}
-	for box: int in on_route.size():
-		if on_route[box]:
-			_add(spots, seen, (generator.min_mm[box] + generator.max_mm[box]) / 2)
-	for i: int in on_route.size():
-		for j: int in range(i + 1, on_route.size()):
-			if not on_route[i] or not on_route[j]:
-				continue
-			var low: Vector3i = generator.min_mm[i].max(generator.min_mm[j])
-			var high: Vector3i = generator.max_mm[i].min(generator.max_mm[j])
-			if low.x < high.x and low.y < high.y and low.z < high.z:
-				_add(spots, seen, (low + high) / 2)
-	return spots
-
-
-## Per box: true if it belongs (as one of its boxes or its doorway) to a module
-## holding one of `corners_mm`. Loop bridges belong to no module.
-static func route_boxes(generator: MineGenerator, corners_mm: Array[Vector3i]) -> Array[bool]:
-	var owner: Array[int] = []
-	owner.resize(generator.min_mm.size())
-	owner.fill(-1)
-	for index: int in generator.placements.size():
-		var placement: ModulePlacement = generator.placements[index]
-		for box: int in range(placement.first_box, placement.end_box):
-			owner[box] = index
-		if placement.door_box >= 0:
-			owner[placement.door_box] = index
-	var modules: Array[bool] = []
-	modules.resize(generator.placements.size())
-	modules.fill(false)
-	for corner: Vector3i in corners_mm:
-		for box: int in owner.size():
-			if owner[box] >= 0 and _holds(generator, box, corner):
-				modules[owner[box]] = true
-	var boxes: Array[bool] = []
-	for box: int in owner.size():
-		boxes.append(owner[box] >= 0 and modules[owner[box]])
-	return boxes
 
 
 func _read(data: Dictionary) -> String:
@@ -194,7 +190,7 @@ func _read(data: Dictionary) -> String:
 	if problem != "":
 		return problem
 	var distances: Array[int] = []
-	for key: String in ["min_start_distance", "min_reactor_distance"]:
+	for key: String in ["min_start_distance", "min_reactor_distance", "min_robot_distance"]:
 		var value: Variant = data[key]
 		if not _is_number(value) or float(value) < 0.0 or float(value) > MAX_DISTANCE_M:
 			return "%s must be a number of metres from 0 to %s" % [key, MAX_DISTANCE_M]
@@ -207,6 +203,7 @@ func _read(data: Dictionary) -> String:
 	max_after_ticks = ticks[1]
 	min_start_distance_mm = distances[0]
 	min_reactor_distance_mm = distances[1]
+	min_robot_distance_mm = distances[2]
 	return ""
 
 
@@ -230,19 +227,6 @@ static func _read_range(value: Variant, key: String, scale: float, least: float,
 
 static func _is_number(value: Variant) -> bool:
 	return (typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT) and is_finite(float(value))
-
-
-static func _add(spots: Array[Vector3i], seen: Dictionary[Vector3i, bool], spot: Vector3i) -> void:
-	if not seen.has(spot):
-		seen[spot] = true
-		spots.append(spot)
-
-
-static func _holds(generator: MineGenerator, box: int, point: Vector3i) -> bool:
-	for axis: int in 3:
-		if point[axis] < generator.min_mm[box][axis] or point[axis] > generator.max_mm[box][axis]:
-			return false
-	return true
 
 
 static func _distance_squared(a: Vector3i, b: Vector3i) -> int:

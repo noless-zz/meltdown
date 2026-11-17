@@ -3,7 +3,7 @@ extends RefCounted
 ## Generated levels place meltdown debris from a data file (#398, RUN-4, GEN-1,
 ## GEN-3, ARC-4, ARC-2): the file is checked key by key, naming every missing
 ## key; over seeds 0..999 the same seed gives the same debris, every entry keeps
-## the file's distances and sits on the escape route, every level still passes
+## the file's distances (robots' too, #436) and sits on the escape route, every level still passes
 ## `LevelValidator`, and with every entry let fall or held back by
 ## `DebrisRouteGuard` the start stays reachable from the reactor. Without a
 ## plan there is no debris, and the plan changes neither `output_hash` nor the
@@ -14,7 +14,7 @@ const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 60000
 const VALID: Dictionary = {"count": [1, 3], "radius": [1, 2], "after_seconds": [5, 30],
-		"min_start_distance": 10, "min_reactor_distance": 5}
+		"min_start_distance": 10, "min_reactor_distance": 5, "min_robot_distance": 2}
 
 
 func _plan() -> DebrisPlan:
@@ -58,6 +58,8 @@ func test_data_file_is_rejected_naming_the_bad_key() -> String:
 		["after_seconds", [0, 10], "after_seconds"], ["after_seconds", [20, 10], "after_seconds"],
 		["min_start_distance", -1, "min_start_distance"],
 		["min_reactor_distance", "far", "min_reactor_distance"], ["colour", "red", "colour"],
+		["min_robot_distance", -0.5, "min_robot_distance"],
+		["min_robot_distance", [2], "min_robot_distance"],
 	]
 	for case: Array in cases:
 		var data: Dictionary = VALID.duplicate(true)
@@ -72,7 +74,7 @@ func test_data_file_is_rejected_naming_the_bad_key() -> String:
 		if problem != "":
 			return problem
 	if _rejects({}, ["\"count\"", "\"radius\"", "\"after_seconds\"", "\"min_start_distance\"",
-			"\"min_reactor_distance\""]) != "":
+			"\"min_reactor_distance\"", "\"min_robot_distance\""]) != "":
 		return "an empty file did not name every missing key: %s" % DebrisPlan.parse_json("{}").error
 	if DebrisPlan.parse_json("[]").error == "":
 		return "a JSON list was accepted"
@@ -126,6 +128,8 @@ func test_seeds_get_debris_that_never_closes_the_escape() -> String:
 		if problem == "":
 			problem = _check(generator, level, plan, radius)
 		if problem == "":
+			problem = _robots_clear(level, plan, robot_plan.radii_by_id())
+		if problem == "":
 			var found: Array[String] = validator.validate(level, radius, true,
 					robot_plan.radii_by_id(), SeedSweep.start_module_boxes(generator))
 			problem = "" if found.is_empty() else "validator: %s" % found[0]
@@ -161,7 +165,7 @@ func _check(generator: MineGenerator, level: LevelDef, plan: DebrisPlan, radius:
 	var count: int = 0 if level.debris == null else level.debris.size()
 	if (count < plan.min_count or count > plan.max_count) and generator.debris_note == "":
 		return "%d entries, plan allows %d..%d, and no note" % [count, plan.min_count, plan.max_count]
-	var spots: Array[Vector3i] = DebrisPlan.escape_spots(generator, level, radius)
+	var spots: Array[Vector3i] = DebrisSpots.escape_spots(generator, level, radius)
 	for index: int in count:
 		var debris: MeltdownDebris = level.debris
 		var r: int = debris.radii_mm[index]
@@ -182,6 +186,21 @@ func _check(generator: MineGenerator, level: LevelDef, plan: DebrisPlan, radius:
 			return "entry %d at %s is not on the escape route" % [index, at]
 		if not level.union.holds(at, 0.0):
 			return "entry %d at %s is outside the level" % [index, at]
+	return ""
+
+
+## Every entry keeps `min_robot_distance` from every robot, worked out apart
+## from `DebrisPlan.clear_of_robots`.
+func _robots_clear(level: LevelDef, plan: DebrisPlan, robot_radii: Dictionary[String, int]) -> String:
+	if level.debris == null:
+		return ""
+	for index: int in level.debris.size():
+		for robot: int in level.robots.spawns.size():
+			var gap: float = level.debris.position(index).distance_to(
+					level.robots.spawns[robot].position()) - level.debris.radius(index) \
+					- robot_radii[level.robots.spawns[robot].id] / 1000.0
+			if gap < plan.min_robot_distance_mm / 1000.0 - 0.001:
+				return "entry %d is %s m from robot %d" % [index, gap, robot]
 	return ""
 
 
