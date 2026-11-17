@@ -14,6 +14,10 @@ extends RefCounted
 ##
 ## Only reads the level; no randomness, and boxes are visited in index order,
 ## so the same inputs give the same route (ARC-1, ARC-2).
+##
+## During the meltdown `close_blocked` shuts the openings that solid debris
+## blocks (RUN-4, #443), by `OpeningClearance.blocked`, the test `KnownRoute`
+## uses, and a straight segment then also has to pass the solid debris.
 
 ## Slack on the segment test, as a fraction of the segment, so that legs
 ## ending exactly on a shrunk wall still count as held.
@@ -22,6 +26,12 @@ const EPSILON: float = 0.000001
 var _union: BoxUnion = null
 ## `_neighbours[i]` lists the boxes joined to box i, lowest first.
 var _neighbours: Array = []
+## Openings shut by debris, as `_pair_key(i, j)` for joined boxes i < j.
+var _closed: Dictionary[int, bool] = {}
+## The debris last passed to `close_blocked`; null until then.
+var _debris: MeltdownDebris = null
+## Ship radius last passed to `close_blocked`, metres.
+var _debris_radius: float = 0.0
 
 
 func _init(level: LevelDef) -> void:
@@ -57,12 +67,39 @@ static func opening_centre(a: BoxBounds, b: BoxBounds) -> Vector3:
 	return (low + high) * 0.5
 
 
+## Shuts every opening between joined boxes that the solid entries of `debris`
+## block for a ship of `ship_radius`, and opens again any they no longer block.
+## Held entries are never solid, so they block nothing. Call it again when more
+## entries turn solid; the route reads `debris` live for straight segments.
+func close_blocked(debris: MeltdownDebris, ship_radius: float) -> void:
+	_closed.clear()
+	_debris = debris
+	_debris_radius = ship_radius
+	if debris == null:
+		return
+	var radius_mm: int = roundi(ship_radius * RobotSpawn.SCALE)
+	for i: int in _union.boxes.size():
+		var a: BoxBounds = _union.boxes[i]
+		for j: int in _neighbours[i]:
+			if j <= i:
+				continue
+			var b: BoxBounds = _union.boxes[j]
+			if OpeningClearance.blocked(EscapePath.to_mm(a.min_corner), EscapePath.to_mm(a.max_corner),
+					EscapePath.to_mm(b.min_corner), EscapePath.to_mm(b.max_corner), debris, radius_mm):
+				_closed[_pair_key(i, j)] = true
+
+
+## Whether `close_blocked` shut the opening between boxes `a` and `b`.
+func is_closed(a: int, b: int) -> bool:
+	return _closed.has(_pair_key(mini(a, b), maxi(a, b)))
+
+
 ## The points to fly through from `from` to `to`, ending with `to`. Just
 ## `[to]` when the straight segment is held, or when no chain joins the two
 ## ends (the caller then flies straight, as without a level).
 func waypoints(from: Vector3, to: Vector3, radius: float) -> Array[Vector3]:
 	var points: Array[Vector3] = []
-	if not segment_held(_union, from, to, radius):
+	if not segment_held(_union, from, to, radius) or _meets_debris(from, to, radius):
 		var boxes: Array[int] = chain(from, to, radius)
 		for i: int in boxes.size() - 1:
 			points.append(opening_centre(_union.boxes[boxes[i]], _union.boxes[boxes[i + 1]]))
@@ -97,7 +134,7 @@ func chain(from: Vector3, to: Vector3, radius: float) -> Array[int]:
 			found = index
 			break
 		for other: int in _neighbours[index]:
-			if previous[other] == -2:
+			if previous[other] == -2 and not is_closed(index, other):
 				previous[other] = index
 				queue.append(other)
 	var boxes: Array[int] = []
@@ -105,6 +142,23 @@ func chain(from: Vector3, to: Vector3, radius: float) -> Array[int]:
 		boxes.push_front(found)
 		found = previous[found]
 	return boxes
+
+
+## Whether a sphere of `radius` flying from `from` to `to` would touch solid
+## debris given to `close_blocked`. Always false before that is called, so
+## routes before the meltdown, and on levels without debris, are unchanged.
+func _meets_debris(from: Vector3, to: Vector3, radius: float) -> bool:
+	if _debris == null:
+		return false
+	for index: int in _debris.size():
+		if _debris.is_solid(index) and Projectile.segment_entry(from, to, _debris.position(index),
+				_debris.radius(index) + radius) >= 0.0:
+			return true
+	return false
+
+
+func _pair_key(low: int, high: int) -> int:
+	return low * _union.boxes.size() + high
 
 
 ## Boxes holding a sphere of `radius` at `point`, lowest first; when none

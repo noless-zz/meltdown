@@ -11,6 +11,10 @@ extends RefCounted
 ## randomness and no clock, so the same flight gives the same inputs (ARC-1,
 ## ARC-2). Without a reactor it never takes over, so earlier flights keep
 ## their hashes.
+##
+## On the way out the route treats openings that solid meltdown debris blocks
+## as closed (RUN-4, #443), and is planned again each time another entry turns
+## solid. Before the reactor dies, and on levels without debris, nothing changes.
 
 ## Fastest the bot asks for on the way out, metres per second: the
 ## afterburner's cap with the shipped tuning. The ship's own cap applies.
@@ -31,6 +35,8 @@ var _sim: Sim = null
 var _ship_index: int = 0
 var _walls: BoxUnion = null
 var _route: LevelRoute = null
+## Solid debris entries the route was last planned around.
+var _solid_seen: int = 0
 
 
 func _init(sim: Sim, ship_index: int, walls: BoxUnion, route: LevelRoute) -> void:
@@ -63,6 +69,7 @@ func next_input(ship: ShipState, target: RobotState, in_sight: bool) -> ShipInpu
 	if ship.escaped or ship.hull <= 0.0:
 		return ShipInput.new()
 	if _sim.reactor.destroyed:
+		_plan_around_debris(ship)
 		return _escape_input(ship, target, in_sight)
 	return _reactor_input(ship)
 
@@ -118,6 +125,21 @@ func _escape_input(ship: ShipState, target: RobotState, in_sight: bool) -> ShipI
 		BotPilot.turn_towards(basis_inverse * look), along < speed - BOOST_MARGIN)
 	input.fire_primary = in_sight and BotPilot.should_fire(ship, look)
 	return input
+
+
+## Plans the route again around the debris once more entries are solid than
+## last time. Held entries never turn solid, so they leave the route open.
+func _plan_around_debris(ship: ShipState) -> void:
+	var debris: MeltdownDebris = _sim.debris
+	if debris == null:
+		return
+	var solid: int = 0
+	for index: int in debris.size():
+		if debris.is_solid(index):
+			solid += 1
+	if solid > _solid_seen:
+		_solid_seen = solid
+		_route.close_blocked(debris, ship.radius)
 
 
 ## The exit: this ship's start position (`ExitRule`).
