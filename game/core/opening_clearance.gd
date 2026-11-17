@@ -23,6 +23,17 @@ extends RefCounted
 ## millimetres from whole-millimetre inputs, with basic arithmetic and square
 ## roots only, so the answer is the same on every device (ARC-1, ARC-2).
 ##
+## A box entry (blast door, cave-in) is handled the same way (#458): the points
+## the ship's line must stay out of are the box's cross-section grown by the
+## ship's radius, shrunk for the box's distance along the crossing axis as a
+## sphere's reach is, which is a rectangle with rounded corners. That is kept as
+## two rectangles (one grown across u, one across v) and four corner discs. A
+## point that is left then also lies where a rectangle's edge meets a side, a
+## disc's edge or another rectangle's edge; the sides and the rectangles' edges
+## are all lines of fixed u or fixed v, so every crossing of one such line with
+## another, or with a disc's edge, is tested. With spheres only that is exactly
+## the points tested before, so every sphere answer stands.
+##
 ## An opening already narrower than a ship without any debris is not called
 ## blocked: debris did not close it, and `EscapePath.length_mm` still counts it.
 
@@ -51,24 +62,57 @@ static func blocked(first_min: Vector3i, first_max: Vector3i, second_min: Vector
 	var rect: PackedFloat64Array = [low[u] + r, low[v] + r, high[u] - r, high[v] - r]
 	if rect[0] > rect[2] or rect[1] > rect[3]:
 		return false
-	# Discs as flat triples: centre u, centre v, squared reach.
+	# Discs as flat triples: centre u, centre v, squared reach. Rectangles the
+	# line may not pass strictly inside as flat quadruples: low u, low v, high u,
+	# high v.
 	var discs: PackedFloat64Array = []
+	var boxes: PackedFloat64Array = []
 	for index: int in debris.size():
 		if not debris.is_solid(index):
 			continue
 		var at: Vector3i = debris.positions_mm[index]
+		if debris.is_box(index):
+			_add_box(at, debris.sizes_mm[index], low, high, depth, r, discs, boxes)
+			continue
 		var gap: float = float(maxi(0, maxi(low[depth] - at[depth], at[depth] - high[depth])))
 		var reach: float = float(debris.radii_mm[index]) + r
 		if gap >= reach:
 			continue
 		discs.append_array([float(at[u]), float(at[v]), reach * reach - gap * gap])
-	if discs.is_empty():
+	if discs.is_empty() and boxes.is_empty():
 		return false
-	var points: PackedFloat64Array = _candidates(rect, discs)
+	var points: PackedFloat64Array = _candidates(rect, discs, boxes)
 	for index: int in range(0, points.size(), 2):
-		if _free(points[index], points[index + 1], rect, discs):
+		if _free(points[index], points[index + 1], rect, discs, boxes):
 			return false
 	return true
+
+
+## Adds what a box entry centred on `at` with full size `extent` (mm) keeps the
+## ship's line out of, for the opening `low`..`high` crossed along `depth`: its
+## cross-section grown by the reach left after its distance along `depth`, as
+## two rectangles and four corner discs. Nothing when it is a ship's radius or
+## more away along `depth`.
+static func _add_box(at: Vector3i, extent: Vector3i, low: Vector3i, high: Vector3i, depth: int,
+		r: float, discs: PackedFloat64Array, boxes: PackedFloat64Array) -> void:
+	var u: int = (depth + 1) % 3
+	var v: int = (depth + 2) % 3
+	# Box faces in mm; a half millimetre is exact in a 64-bit float.
+	var near: float = float(at[depth]) - float(extent[depth]) * 0.5
+	var far: float = float(at[depth]) + float(extent[depth]) * 0.5
+	var gap: float = maxf(0.0, maxf(float(low[depth]) - far, near - float(high[depth])))
+	if gap >= r:
+		return
+	var reach_squared: float = r * r - gap * gap
+	var reach: float = sqrt(reach_squared)
+	var u0: float = float(at[u]) - float(extent[u]) * 0.5
+	var u1: float = float(at[u]) + float(extent[u]) * 0.5
+	var v0: float = float(at[v]) - float(extent[v]) * 0.5
+	var v1: float = float(at[v]) + float(extent[v]) * 0.5
+	boxes.append_array([u0 - reach, v0, u1 + reach, v1, u0, v0 - reach, u1, v1 + reach])
+	for corner_u: float in [u0, u1]:
+		for corner_v: float in [v0, v1]:
+			discs.append_array([corner_u, corner_v, reach_squared])
 
 
 ## The axis a ship crosses the shared region of two boxes along (see the class
@@ -92,20 +136,31 @@ static func crossing_axis(first_min: Vector3i, first_max: Vector3i, second_min: 
 	return depth
 
 
-## Candidate points as flat pairs (u, v). Godot's vectors are single precision,
-## too coarse for squared millimetres, so plain 64-bit floats are used throughout.
-static func _candidates(rect: PackedFloat64Array, discs: PackedFloat64Array) -> PackedFloat64Array:
-	var points: PackedFloat64Array = [rect[0], rect[1], rect[2], rect[1], rect[0], rect[3],
-		rect[2], rect[3]]
+## Candidate points as flat pairs (u, v): every crossing of two lines of fixed
+## u and fixed v (the rectangle's sides and the box rectangles' edges), every
+## crossing of such a line with a disc's edge, and every crossing of two discs'
+## edges. Godot's vectors are single precision, too coarse for squared
+## millimetres, so plain 64-bit floats are used throughout.
+static func _candidates(rect: PackedFloat64Array, discs: PackedFloat64Array,
+		boxes: PackedFloat64Array) -> PackedFloat64Array:
+	var at_u: PackedFloat64Array = [rect[0], rect[2]]
+	var at_v: PackedFloat64Array = [rect[1], rect[3]]
+	for first: int in range(0, boxes.size(), 4):
+		at_u.append_array([boxes[first], boxes[first + 2]])
+		at_v.append_array([boxes[first + 1], boxes[first + 3]])
+	var points: PackedFloat64Array = []
+	for pv: float in at_v:
+		for pu: float in at_u:
+			points.append_array([pu, pv])
 	for first: int in range(0, discs.size(), 3):
 		var cu: float = discs[first]
 		var cv: float = discs[first + 1]
 		var reach_squared: float = discs[first + 2]
-		for side: float in [rect[0], rect[2]]:
+		for side: float in at_u:
 			var across: float = reach_squared - (side - cu) * (side - cu)
 			if across >= 0.0:
 				points.append_array([side, cv - sqrt(across), side, cv + sqrt(across)])
-		for side: float in [rect[1], rect[3]]:
+		for side: float in at_v:
 			var across: float = reach_squared - (side - cv) * (side - cv)
 			if across >= 0.0:
 				points.append_array([cu - sqrt(across), side, cu + sqrt(across), side])
@@ -138,7 +193,8 @@ static func _circle_meets(discs: PackedFloat64Array, first: int, second: int) ->
 	return meets
 
 
-static func _free(pu: float, pv: float, rect: PackedFloat64Array, discs: PackedFloat64Array) -> bool:
+static func _free(pu: float, pv: float, rect: PackedFloat64Array, discs: PackedFloat64Array,
+		boxes: PackedFloat64Array) -> bool:
 	if pu < rect[0] - EDGE_SLACK_MM or pu > rect[2] + EDGE_SLACK_MM \
 			or pv < rect[1] - EDGE_SLACK_MM or pv > rect[3] + EDGE_SLACK_MM:
 		return false
@@ -146,5 +202,9 @@ static func _free(pu: float, pv: float, rect: PackedFloat64Array, discs: PackedF
 		var du: float = pu - discs[index]
 		var dv: float = pv - discs[index + 1]
 		if du * du + dv * dv < discs[index + 2] - SLACK_MM2:
+			return false
+	for index: int in range(0, boxes.size(), 4):
+		if pu > boxes[index] + EDGE_SLACK_MM and pu < boxes[index + 2] - EDGE_SLACK_MM \
+				and pv > boxes[index + 1] + EDGE_SLACK_MM and pv < boxes[index + 3] - EDGE_SLACK_MM:
 			return false
 	return true

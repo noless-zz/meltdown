@@ -81,6 +81,8 @@ static func _fallen(debris: MeltdownDebris, index: int, with_entry: bool) -> Mel
 		if counted or with_entry and other == index:
 			fallen.positions_mm.append(debris.positions_mm[other])
 			fallen.radii_mm.append(debris.radii_mm[other])
+			# A box keeps its size, so a door is tested as a door, not a point.
+			fallen.sizes_mm.append(debris.sizes_mm[other] if debris.is_box(other) else Vector3i.ZERO)
 			fallen.after_ticks.append(1)
 			fallen.skipped.append(false)
 	fallen.elapsed_ticks = 1
