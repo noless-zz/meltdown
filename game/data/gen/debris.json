@@ -1,0 +1,7 @@
+{
+	"count": [2, 5],
+	"radius": [1.5, 3],
+	"after_seconds": [8, 60],
+	"min_start_distance": 15,
+	"min_reactor_distance": 6
+}

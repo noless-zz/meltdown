@@ -28,6 +28,11 @@ extends RefCounted
 ## same robots however often the level is built, and the generator is left as
 ## it was (ARC-2). A robot that finds no room in `ROBOT_TRIES` draws ends the
 ## placing, with `MineGenerator.robot_note` saying how many were placed.
+##
+## With a `DebrisPlan` (#398) meltdown debris follows the robots, placed by
+## `DebrisPlan.place` on the escape route from its own seeded draws, so the
+## robots and `output_hash` are the same with or without it. Without a plan the
+## level has no debris.
 
 ## Draws for one robot before the placing gives up.
 const ROBOT_TRIES: int = 64
@@ -43,11 +48,12 @@ const FACINGS: Array[Vector3i] = [
 ## `error` says so, as `LevelDef.parse_json` leaves it. Not checked here:
 ## `LevelValidator` does that.
 static func build(generator: MineGenerator, plan: ReactorPlan, ship_radius: float,
-		robot_plan: RobotPlan = null) -> LevelDef:
+		robot_plan: RobotPlan = null, debris_plan: DebrisPlan = null) -> LevelDef:
 	var level: LevelDef = LevelDef.new()
 	generator.reactor_note = ""
 	generator.reactor_placement = -1
 	generator.robot_note = ""
+	generator.debris_note = ""
 	if generator.open_connectors.is_empty():
 		level.error = "no open connector to start at"
 		return level
@@ -60,6 +66,8 @@ static func build(generator: MineGenerator, plan: ReactorPlan, ship_radius: floa
 		_place_reactor(generator, plan, ship_radius, level)
 	if robot_plan != null:
 		_place_robots(generator, robot_plan, ship_radius, level)
+	if debris_plan != null:
+		level.debris = debris_plan.place(generator, level, ship_radius)
 	return level
 
 
