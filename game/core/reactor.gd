@@ -19,10 +19,20 @@ extends RefCounted
 ## too. A level file sets it with its top-level `exit_radius` key (`LevelDef`); the
 ## optional `exit_radius` key here exists for the replay line, and is missing in
 ## replays written before #311, which then get `LevelDefaults.FALLBACK_EXIT_RADIUS_MM`.
+##
+## The countdown may instead scale with the way out (RUN-5): with all four
+## `SCALING_KEYS` set, it starts at clamp(base + per_metre * metres, min, max)
+## seconds, where metres is the longest live ship's `EscapePath` on the tick the
+## reactor dies. `meltdown_seconds` is still required but then unused. Without the
+## keys nothing changes, so older levels and replays keep their hashes.
 
 const KEYS: Array[String] = ["position", "radius", "hull", "meltdown_seconds"]
 ## Keys the JSON may leave out.
-const OPTIONAL_KEYS: Array[String] = ["exit_radius"]
+const OPTIONAL_KEYS: Array[String] = ["exit_radius", "meltdown_base_seconds",
+	"meltdown_seconds_per_metre", "meltdown_min_seconds", "meltdown_max_seconds"]
+## Optional keys that scale the countdown with the escape path; all or none.
+const SCALING_KEYS: Array[String] = ["meltdown_base_seconds", "meltdown_seconds_per_metre",
+	"meltdown_min_seconds", "meltdown_max_seconds"]
 const TICKS_PER_SECOND: int = 60
 ## Large enough for any room; a typo of a few orders of magnitude is caught.
 const MAX_RADIUS_M: float = 100.0
@@ -32,6 +42,12 @@ var radius_mm: int = 1000
 ## Hull the reactor starts with.
 var max_hull: float = 1.0
 var meltdown_seconds: float = 1.0
+## True when the level set `SCALING_KEYS`; the four values below are then used.
+var scales_with_path: bool = false
+var meltdown_base_seconds: float = 0.0
+var meltdown_seconds_per_metre: float = 0.0
+var meltdown_min_seconds: float = 1.0
+var meltdown_max_seconds: float = 1.0
 ## Current hull; part of the hash.
 var hull: float = 1.0
 ## Set on the tick the hull reaches zero; part of the hash.
@@ -72,6 +88,11 @@ func fresh_copy() -> ReactorState:
 	copy.radius_mm = radius_mm
 	copy.max_hull = max_hull
 	copy.meltdown_seconds = meltdown_seconds
+	copy.scales_with_path = scales_with_path
+	copy.meltdown_base_seconds = meltdown_base_seconds
+	copy.meltdown_seconds_per_metre = meltdown_seconds_per_metre
+	copy.meltdown_min_seconds = meltdown_min_seconds
+	copy.meltdown_max_seconds = meltdown_max_seconds
 	copy.exit_radius_mm = exit_radius_mm
 	copy.hull = max_hull
 	return copy
@@ -82,9 +103,16 @@ func to_json() -> String:
 	var scale: float = float(RobotSpawn.SCALE)
 	var position: Array[float] = [position_mm.x / scale, position_mm.y / scale,
 		position_mm.z / scale]
-	return JSON.stringify({"position": position, "radius": radius_mm / scale,
+	var data: Dictionary = {"position": position, "radius": radius_mm / scale,
 		"hull": max_hull, "meltdown_seconds": meltdown_seconds,
-		"exit_radius": exit_radius_mm / scale}, "", false, true)
+		"exit_radius": exit_radius_mm / scale}
+	# Only when set, so a reactor line without scaling reads as it always did.
+	if scales_with_path:
+		data["meltdown_base_seconds"] = meltdown_base_seconds
+		data["meltdown_seconds_per_metre"] = meltdown_seconds_per_metre
+		data["meltdown_min_seconds"] = meltdown_min_seconds
+		data["meltdown_max_seconds"] = meltdown_max_seconds
+	return JSON.stringify(data, "", false, true)
 
 
 func position() -> Vector3:
@@ -117,6 +145,17 @@ static func read_radius_mm(value: Variant, key: String, read: Array[int]) -> Str
 ## Ticks the countdown starts from when the reactor dies.
 func meltdown_ticks() -> int:
 	return roundi(meltdown_seconds * TICKS_PER_SECOND)
+
+
+## Ticks the countdown starts from when the reactor dies with the longest
+## escape path `path_mm` millimetres long. Without scaling, `meltdown_ticks`.
+func meltdown_ticks_for_path(path_mm: int) -> int:
+	if not scales_with_path:
+		return meltdown_ticks()
+	var seconds: float = meltdown_base_seconds \
+		+ meltdown_seconds_per_metre * path_mm / float(RobotSpawn.SCALE)
+	seconds = clampf(seconds, meltdown_min_seconds, meltdown_max_seconds)
+	return roundi(seconds * TICKS_PER_SECOND)
 
 
 ## Where the segment `from`..`to` first enters the reactor sphere, as a
@@ -189,4 +228,32 @@ func _read(value: Variant) -> String:
 		if problem != "":
 			return problem
 		exit_radius_mm = read_exit[0]
+	return _read_scaling(data)
+
+
+func _read_scaling(data: Dictionary) -> String:
+	var present: int = 0
+	for key: String in SCALING_KEYS:
+		if data.has(key):
+			present += 1
+	if present == 0:
+		return ""
+	if present < SCALING_KEYS.size():
+		return "%s must be given together" % ", ".join(SCALING_KEYS)
+	var numbers: Dictionary = {}
+	for key: String in SCALING_KEYS:
+		var number: Variant = data[key]
+		if typeof(number) != TYPE_FLOAT and typeof(number) != TYPE_INT \
+				or not is_finite(float(number)) or float(number) < 0.0:
+			return "%s must be a number of at least zero" % key
+		numbers[key] = float(number)
+	meltdown_base_seconds = numbers["meltdown_base_seconds"]
+	meltdown_seconds_per_metre = numbers["meltdown_seconds_per_metre"]
+	meltdown_min_seconds = numbers["meltdown_min_seconds"]
+	meltdown_max_seconds = numbers["meltdown_max_seconds"]
+	if roundi(meltdown_min_seconds * TICKS_PER_SECOND) < 1:
+		return "meltdown_min_seconds must be at least one tick"
+	if meltdown_max_seconds < meltdown_min_seconds:
+		return "meltdown_max_seconds must be at least meltdown_min_seconds"
+	scales_with_path = true
 	return ""

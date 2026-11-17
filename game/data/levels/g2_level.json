@@ -16,6 +16,7 @@
 		{"id": "hauler", "position": [1.0, -39.0, -95.0], "facing": [0.0, 0.0, 1.0]},
 		{"id": "warden", "position": [0.0, -39.0, -124.0], "facing": [0.0, 0.0, 1.0]}
 	],
-	"reactor": {"position": [0.0, -39.0, -116.0], "radius": 2.5, "hull": 400.0, "meltdown_seconds": 90.0},
+	"reactor": {"position": [0.0, -39.0, -116.0], "radius": 2.5, "hull": 400.0, "meltdown_seconds": 90.0,
+		"meltdown_base_seconds": 30.0, "meltdown_seconds_per_metre": 0.4, "meltdown_min_seconds": 45.0, "meltdown_max_seconds": 120.0},
 	"exit_radius": 4.0
 }

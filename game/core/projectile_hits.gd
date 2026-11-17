@@ -66,6 +66,9 @@ static func _hit_robot(sim: Sim, projectile: Projectile, from: Vector3,
 		var reactor_t: float = sim.reactor.segment_entry(from, projectile.position)
 		if reactor_t >= 0.0 and reactor_t < best_t:
 			if sim.reactor.apply_damage(projectile.damage):
+				if sim.reactor.scales_with_path:
+					sim.reactor.meltdown_ticks_left = sim.reactor.meltdown_ticks_for_path(
+						EscapePath.longest_for_ships(sim))
 				hit_events.append(SimEvent.new(SimEvent.Kind.REACTOR_DESTROYED,
 					projectile.owner_index, 0.0, sim.reactor.position()))
 			return true
