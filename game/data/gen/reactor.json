@@ -1,0 +1,6 @@
+{
+	"radius": 2.5,
+	"hull": 400,
+	"meltdown_seconds": 90,
+	"min_hops": 2
+}
