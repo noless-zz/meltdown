@@ -4,16 +4,20 @@ extends SceneTree
 ## escapes (#377): gate G3's automated half wants bots to escape 95% of cleared
 ## levels (DEV-6, GEN-3, RUN-3, RUN-5), and G2 alone says nothing about the
 ## generator's levels. Each level is built as `seed_sweep.gd` builds it, with
-## the reactor plan, and flown through `LocalSession.for_level` as the main
-## scene would fly it:
+## the reactor plan and the shipped loop bridges (#420), so both sweeps fly the
+## levels the player will fly, and flown through `LocalSession.for_level` as
+## the main scene would fly it:
 ##
 ##     godot --headless --path game -s res://tests/bot_escape_sweep.gd -- --seeds=1000 --first=1
 ##
-## Options: `--seeds=N` (default 1000), `--first=S` (first seed, default 1).
-## Prints one line per failing seed, then the summary line
-## `MELTDOWN_BOT_ESCAPE {"seeds":N,"cleared":C,"escaped":E,"rate":r}`, where a
-## level is cleared once the bot destroyed its reactor and the rate is escaped
-## over cleared. Seeds with no reactor are counted apart, so a generator that
+## Options: `--seeds=N` (default 1000), `--first=S` (first seed, default 1),
+## `--robots` (place robots from `robots.json` too; the bot must fight through
+## them to the reactor). Prints one line per failing seed, then the summary line
+## `MELTDOWN_BOT_ESCAPE {"seeds":N,"cleared":C,"escaped":E,"looped":L,"rate":r}`,
+## with `,"robots_destroyed":D,"robots":true` before the closing brace when
+## robots were placed. A level is cleared once the bot destroyed its reactor,
+## the rate is escaped over cleared and `looped` counts seeds with at least one
+## loop. Without `--robots` the rate is G3's number. Seeds with no reactor are counted apart, so a generator that
 ## drops reactors cannot raise the rate. Exit code 0 only when the rate is at
 ## least `REQUIRED_RATE`. The functions are static so the unit test can call
 ## them without starting a second SceneTree.
@@ -47,16 +51,25 @@ class SeedResult extends RefCounted:
 	var reason: String = ""
 	## `Sim.state_hash` where the flight stopped; 0 for a seed never flown.
 	var state_hash: int = 0
+	## Robots the level spawned that were no longer alive where the flight stopped.
+	var robots_destroyed: int = 0
 
 	func line() -> String:
 		return "seed %d: %s at tick %d: %s" % [level_seed, outcome, tick, reason]
 
 
-## The level for `level_seed`, built as the validator sweep builds it.
+## The generator for `level_seed`, with `bridges` closing loops as the
+## validator sweep's levels do; null bridges give a tree.
+static func generate(level_seed: int, modules: Array[ModuleDef],
+		bridges: LoopBridges = null) -> MineGenerator:
+	return MineGenerator.generate(level_seed, modules, SeedSweep.MODULE_COUNT, bridges)
+
+
+## The level for `level_seed`, built as the validator sweep builds it. Robots
+## only with a `robot_plan`.
 static func build_level(level_seed: int, modules: Array[ModuleDef], plan: ReactorPlan,
-		radius: float) -> LevelDef:
-	var generator: MineGenerator = MineGenerator.generate(level_seed, modules, SeedSweep.MODULE_COUNT)
-	return generator.to_level_def(plan, radius)
+		radius: float, bridges: LoopBridges = null, robot_plan: RobotPlan = null) -> LevelDef:
+	return generate(level_seed, modules, bridges).to_level_def(plan, radius, robot_plan)
 
 
 ## The bot flies `level` until the run ends, its ship is destroyed, or
@@ -76,6 +89,7 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 	var session: LocalSession = LocalSession.for_level(level, 0, source, tuning)
 	source.bot = BotPilot.new(session.sim, 0, level)
 	var sim: Sim = session.sim
+	var spawned: int = sim.robots.size()
 	while sim.outcome() == ExitRule.Outcome.RUNNING and sim.ships[0].hull > 0.0 \
 			and sim.tick < TICK_LIMIT:
 		session.advance(ShipState.TICK_DT)
@@ -84,6 +98,11 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 	result.tick = sim.tick
 	result.state_hash = sim.state_hash()
 	result.cleared = sim.reactor.destroyed
+	var alive: int = 0
+	for robot: RobotState in sim.robots:
+		if robot.is_alive():
+			alive += 1
+	result.robots_destroyed = spawned - alive
 	result.escaped = outcome == ExitRule.Outcome.ESCAPED
 	if result.escaped:
 		return result
@@ -98,24 +117,42 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 	return result
 
 
-## Seeds `first_seed` up to `first_seed + count - 1`. The result holds
-## "seeds", "cleared", "escaped", "no_reactor", "rate", "ms" and "failures":
-## a `SeedResult` line for every seed that did not escape, in seed order.
-static func run(first_seed: int, count: int) -> Dictionary:
+## Seeds `first_seed` up to `first_seed + count - 1`, on looped levels, with
+## robots when `with_robots`. The result holds "seeds", "cleared", "escaped",
+## "looped", "no_reactor", "robots" (whether robots were placed),
+## "robots_destroyed", "rate", "ms" and "failures": a `SeedResult` line for
+## every seed that did not escape, in seed order.
+static func run(first_seed: int, count: int, with_robots: bool = false) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
 	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var plan: ReactorPlan = SeedSweep.load_reactor_plan()
+	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
+	var robot_plan: RobotPlan = SeedSweep.load_robot_plan() if with_robots else null
 	var radius: float = SeedSweep.ship_radius()
 	var tuning: ShipTuning = LocalSession.load_tuning(SHIP_TUNING_PATH)
-	var result: Dictionary = {"seeds": count, "cleared": 0, "escaped": 0, "no_reactor": 0,
-			"rate": 0.0, "failures": [] as Array[String]}
-	# A broken plan would give levels with no reactor and an empty, meaningless rate.
+	var result: Dictionary = {"seeds": count, "cleared": 0, "escaped": 0, "looped": 0,
+			"no_reactor": 0, "robots": with_robots, "robots_destroyed": 0, "rate": 0.0,
+			"failures": [] as Array[String]}
+	# A broken file would give levels with no reactor, no loops or no robots,
+	# and a rate that measures something other than the levels the player flies.
+	var broken: String = ""
 	if plan.error != "":
-		result["failures"].append("reactor.json: %s" % plan.error)
+		broken = "reactor.json: %s" % plan.error
+	elif bridges.error != "":
+		broken = "generator.json: %s" % bridges.error
+	elif robot_plan != null and robot_plan.error != "":
+		broken = "robots.json: %s" % robot_plan.error
+	if broken != "":
+		result["failures"].append(broken)
 		result["ms"] = Time.get_ticks_msec() - started
 		return result
 	for level_seed: int in range(first_seed, first_seed + count):
-		var flown: SeedResult = fly(level_seed, build_level(level_seed, modules, plan, radius), tuning)
+		var generator: MineGenerator = generate(level_seed, modules, bridges)
+		if generator.loops > 0:
+			result["looped"] += 1
+		var level: LevelDef = generator.to_level_def(plan, radius, robot_plan)
+		var flown: SeedResult = fly(level_seed, level, tuning)
+		result["robots_destroyed"] += flown.robots_destroyed
 		if flown.outcome == "NO_REACTOR":
 			result["no_reactor"] += 1
 		if flown.cleared:
@@ -130,11 +167,17 @@ static func run(first_seed: int, count: int) -> Dictionary:
 	return result
 
 
-## `MELTDOWN_BOT_ESCAPE {"seeds":N,"cleared":C,"escaped":E,"rate":r}`, the rate
-## to four places so the line is the same on every machine.
+## `MELTDOWN_BOT_ESCAPE {"seeds":N,"cleared":C,"escaped":E,"looped":L,"rate":r}`,
+## the rate to four places so the line is the same on every machine. With
+## robots, `,"robots_destroyed":D,"robots":true` follows the rate, so a robot
+## run's line can never be read as the G3 number.
 static func summary(result: Dictionary) -> String:
-	return '%s {"seeds":%d,"cleared":%d,"escaped":%d,"rate":%.4f}' % [SUMMARY_TAG,
-			result["seeds"], result["cleared"], result["escaped"], result["rate"]]
+	var line: String = '%s {"seeds":%d,"cleared":%d,"escaped":%d,"looped":%d,"rate":%.4f' % [
+			SUMMARY_TAG, result["seeds"], result["cleared"], result["escaped"],
+			result.get("looped", 0), result["rate"]]
+	if result.get("robots", false):
+		line += ',"robots_destroyed":%d,"robots":true' % result.get("robots_destroyed", 0)
+	return line + "}"
 
 
 ## The run's extras, which do not belong in the machine-read summary line.
@@ -145,10 +188,14 @@ static func details(result: Dictionary) -> String:
 
 func _init() -> void:
 	var options: Dictionary[String, int] = {"seeds": 1000, "first": 1}
+	var with_robots: bool = false
 	for argument: String in OS.get_cmdline_user_args():
+		if argument == "--robots":
+			with_robots = true
+			continue
 		var parts: PackedStringArray = argument.trim_prefix("--").split("=")
 		if parts.size() != 2 or not options.has(parts[0]) or not parts[1].is_valid_int():
-			printerr("unknown option ", argument, "; expected --seeds=N or --first=S")
+			printerr("unknown option ", argument, "; expected --seeds=N, --first=S or --robots")
 			quit(2)
 			return
 		options[parts[0]] = parts[1].to_int()
@@ -156,7 +203,7 @@ func _init() -> void:
 		printerr("--seeds must be at least 1")
 		quit(2)
 		return
-	var result: Dictionary = run(options["first"], options["seeds"])
+	var result: Dictionary = run(options["first"], options["seeds"], with_robots)
 	for line: String in result["failures"]:
 		print(line)
 	print(details(result))
