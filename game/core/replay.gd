@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 13       format name and version
+##     meltdown-replay 14       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -17,6 +17,12 @@ extends RefCounted
 ##     reactor {"position":[0,-39,-114],...}
 ##                              optional (version 13): the level's reactor
 ##                              before the first tick (`ReactorState`)
+##     start 0 3000 -2000 10000 1000 0 0
+##                              optional (version 14), at most one per ship:
+##                              ship index, start position in millimetres and
+##                              facing as a unit vector in thousandths; without
+##                              it the ship starts at the origin facing -z
+##                              (`ReplayStartLine`)
 ##     tuning {"max_speed":20.0,...}
 ##                              optional (version 5): every ship's feel values,
 ##                              as a one-line ship data file (`ShipTuning`)
@@ -50,7 +56,8 @@ extends RefCounted
 ## 1 to 10 have no slot column and are read with it off. Versions
 ## 1 and 2 have no box line, versions 3 to 11 at most one, versions 1 to 4 no
 ## tuning line, versions 1 to 6 no weapon lines, versions 1 to 7 no robot
-## lines, versions 1 to 9 no part lines, versions 1 to 12 no reactor line. Version 8 robot lines hold the robot's
+## lines, versions 1 to 9 no part lines, versions 1 to 12 no reactor line,
+## versions 1 to 13 no start line. Version 8 robot lines hold the robot's
 ## data file alone, with no "robot" or "weapon" key, and read as unarmed. Files
 ## are always written as the current version.
 ##
@@ -58,7 +65,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 13
+const FORMAT_VERSION: int = 14
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -78,6 +85,10 @@ var box_max_mm: Vector3i = Vector3i.ZERO
 ## `add_box` or `set_boxes`.
 var box_mins_mm: Array[Vector3i] = []
 var box_maxs_mm: Array[Vector3i] = []
+## Start pose of each ship with a start line, by ship index: position in
+## millimetres and facing in thousandths. Change them with `set_start_pose`.
+var start_positions_mm: Dictionary[int, Vector3i] = {}
+var start_facings_mm: Dictionary[int, Vector3i] = {}
 ## The level's reactor before the first tick, or null. Each run gets a copy.
 var reactor: ReactorState = null
 ## Feel values of every ship from the first tick, or null for the defaults.
@@ -120,6 +131,7 @@ func add_tick(inputs: Array[ShipInput]) -> bool:
 func run() -> Sim:
 	run_error = ""
 	var sim: Sim = Sim.new(run_seed, ship_count, null)
+	ReplayStartLine.apply(self, sim)
 	# A one-box union is exactly what the constructor builds from one box.
 	sim.set_walls(walls())
 	sim.set_reactor(null if reactor == null else reactor.fresh_copy())
@@ -171,6 +183,20 @@ func set_boxes(mins_mm: Array[Vector3i], maxs_mm: Array[Vector3i]) -> bool:
 	return true
 
 
+## Records where ship `ship_index` starts and resets to: `position` in metres,
+## kept to the millimetre, and `facing` of any non-zero length, kept as a unit
+## vector in thousandths. Returns false, changing nothing, for an index
+## outside the ships or a zero facing. A live run that is to replay exactly
+## must be given the pose read back by `ReplayStartLine.position` and
+## `ReplayStartLine.orientation`.
+func set_start_pose(ship_index: int, position: Vector3, facing: Vector3) -> bool:
+	if ship_index < 0 or ship_index >= ship_count or facing.is_zero_approx():
+		return false
+	start_positions_mm[ship_index] = ReplayStartLine.position_mm(position)
+	start_facings_mm[ship_index] = ReplayStartLine.facing_mm(facing)
+	return true
+
+
 ## Gives every ship of `sim` this run's tuning, if it has one. Call it before
 ## the first tick: it refills energy, hull and shield.
 func apply_tuning(sim: Sim) -> void:
@@ -184,22 +210,14 @@ func apply_tuning(sim: Sim) -> void:
 func bounds() -> BoxBounds:
 	if not has_box:
 		return null
-	return _box(0)
+	return ReplayBoxLine.box(box_mins_mm[0], box_maxs_mm[0])
 
 
 ## Every box of the walls, in order, or null without a box line.
 func walls() -> BoxUnion:
 	if not has_box:
 		return null
-	var list: Array[BoxBounds] = []
-	for index: int in box_mins_mm.size():
-		list.append(_box(index))
-	return BoxUnion.new(list)
-
-
-func _box(index: int) -> BoxBounds:
-	return BoxBounds.new(Vector3(box_mins_mm[index]) / float(BOX_SCALE),
-		Vector3(box_maxs_mm[index]) / float(BOX_SCALE))
+	return ReplayBoxLine.union(box_mins_mm, box_maxs_mm)
 
 
 func to_text() -> String:
@@ -210,9 +228,10 @@ func to_text() -> String:
 	if expected_hash != NO_HASH:
 		lines.append("hash %d" % expected_hash)
 	for index: int in box_mins_mm.size():
-		lines.append(ReplayLines.box_text(box_mins_mm[index], box_maxs_mm[index]))
+		lines.append(ReplayBoxLine.text(box_mins_mm[index], box_maxs_mm[index]))
 	if reactor != null:
 		lines.append(ReplayReactorLine.text(reactor))
+	lines.append_array(ReplayStartLine.lines(self))
 	if tuning != null:
 		lines.append(ReplayLines.tuning_text(tuning))
 	if loadout != null:

@@ -3,8 +3,8 @@ extends RefCounted
 
 ## Reads one header line of a replay (everything before `inputs`) into the
 ## replay. Split out of `Replay` to keep it short; the format is documented
-## there. Data lines go to `ReplayLines`, `ReplayPartLines` and
-## `ReplayReactorLine`.
+## there. Data lines go to `ReplayLines`, `ReplayBoxLine`, `ReplayPartLines`,
+## `ReplayReactorLine` and `ReplayStartLine`.
 
 
 ## Returns "" with the value stored on `replay`, or a problem without the line
@@ -22,7 +22,9 @@ static func parse_line(replay: Replay, line: String, seen: Dictionary[String, bo
 		return ReplayPartLines.parse_part_line(replay, line, seen, replay.parse_version)
 	var words: PackedStringArray = line.split(" ", false)
 	if words.size() > 0 and words[0] == "box":
-		return ReplayLines.parse_box_line(replay, words, seen, replay.parse_version)
+		return ReplayBoxLine.parse(replay, words, seen, replay.parse_version)
+	if words.size() > 0 and words[0] == "start":
+		return ReplayStartLine.parse(replay, words, seen, replay.parse_version)
 	if words.size() != 2 or not words[1].is_valid_int():
 		return "expected a name and one whole number"
 	var key: String = words[0]

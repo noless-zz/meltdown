@@ -47,7 +47,14 @@ func position() -> Vector3:
 ## facing, with up as near world up as it can be. Straight up or down uses
 ## world back as the up hint, since world up is then undefined.
 func orientation() -> Basis:
-	var direction: Vector3 = Vector3(facing_mm).normalized()
+	return facing_basis(facing_mm)
+
+
+## The orientation whose local -z points along `p_facing_mm` (any non-zero
+## length), rolled as `orientation` describes. Shared with the replay's start
+## line (#328), so a ship and a robot facing the same way get the same basis.
+static func facing_basis(p_facing_mm: Vector3i) -> Basis:
+	var direction: Vector3 = Vector3(p_facing_mm).normalized()
 	var up: Vector3 = Vector3.UP
 	if absf(direction.dot(Vector3.UP)) > 0.999:
 		up = Vector3.BACK
