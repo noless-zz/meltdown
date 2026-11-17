@@ -22,6 +22,11 @@ const G2_SHIP_HASH: int = 2896393452
 ## with `angle_to` before #381; with `StableAngle` a Builder's sandbox, whose
 ## `atan2f` gave the other value, reaches it too.
 const G2_FLIGHT_HASH: int = 2263984340
+## The three values above are for G2 with its `debris` key taken out. Since
+## #439 a session carries the level's debris, which joins the state hash, so G2
+## as shipped starts and flies to these instead; only the debris term differs.
+const G2_DEBRIS_START_HASH: int = 3715211062
+const G2_DEBRIS_FLIGHT_HASH: int = 1112183472
 
 
 ## The #340 devlog's input: forward thrust with a slow yaw and pitch.
@@ -34,10 +39,23 @@ func _g2() -> LevelDef:
 	return LevelDef.parse_json(FileAccess.get_file_as_string(G2_FILE))
 
 
+## G2 without its debris, which the pins from before #439 were taken on.
+func _g2_without_debris() -> LevelDef:
+	var level: LevelDef = _g2()
+	level.debris = null
+	return level
+
+
 func test_g2_session_starts_at_the_pinned_hash() -> String:
-	var session: LocalSession = LocalSession.for_level(_g2(), 340, FlySource.new())
+	var session: LocalSession = LocalSession.for_level(_g2_without_debris(), 340, FlySource.new())
 	if session.sim.state_hash() != G2_START_HASH:
 		return "G2's session starts at %d, pinned %d" % [session.sim.state_hash(), G2_START_HASH]
+	var with_debris: LocalSession = LocalSession.for_level(_g2(), 340, FlySource.new())
+	if with_debris.sim.debris == null:
+		return "G2's session has no debris"
+	if with_debris.sim.state_hash() != G2_DEBRIS_START_HASH:
+		return "G2 with its debris starts at %d, pinned %d" % [with_debris.sim.state_hash(),
+			G2_DEBRIS_START_HASH]
 	return ""
 
 
@@ -57,14 +75,18 @@ func test_g2_flight_ship_hashes_to_the_pinned_value() -> String:
 
 ## Robots, projectiles and all: the hash a co-op client and host must agree on.
 func test_g2_flight_whole_sim_hashes_to_the_pinned_value() -> String:
-	var session: LocalSession = LocalSession.for_level(_g2(), 340, FlySource.new())
-	if session.sim.robots.is_empty():
-		return "G2 has no robots to turn"
-	for i: int in FLIGHT_TICKS:
-		session.advance(ShipState.TICK_DT)
-	var sim_hash: int = session.sim.state_hash()
-	if sim_hash != G2_FLIGHT_HASH:
-		return "G2's flight hashed to %d, pinned %d" % [sim_hash, G2_FLIGHT_HASH]
+	var pins: Array[int] = [G2_FLIGHT_HASH, G2_DEBRIS_FLIGHT_HASH]
+	var levels: Array[LevelDef] = [_g2_without_debris(), _g2()]
+	for index: int in levels.size():
+		var session: LocalSession = LocalSession.for_level(levels[index], 340, FlySource.new())
+		if session.sim.robots.is_empty():
+			return "G2 has no robots to turn"
+		for i: int in FLIGHT_TICKS:
+			session.advance(ShipState.TICK_DT)
+		var sim_hash: int = session.sim.state_hash()
+		if sim_hash != pins[index]:
+			return "G2's flight (debris %s) hashed to %d, pinned %d" % [index == 1, sim_hash,
+				pins[index]]
 	return ""
 
 
