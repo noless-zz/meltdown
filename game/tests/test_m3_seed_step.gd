@@ -1,0 +1,268 @@
+extends RefCounted
+
+## The m3 suite's generated-level step (#460, GEN-1, GEN-2, RUN-4, RUN-5,
+## DEV-6, decision record 0005): the bot pilot's escape from seed 205, built
+## by `SeedLevel` from the shipped data files as `--seed=205` builds it. The
+## bot destroys the level's four robots and the reactor, and the first of its
+## five debris entries comes down before it is out.
+##
+## The replay holds only the inputs. The level is built from the seed each
+## time the step runs, so changing a shipped generator, robot or debris value
+## that changes this seed changes the flight and fails the step by name.
+##
+## Re-recording after an intended change (one command, from the repository
+## root; it re-records the G2 step in `test_m3_suite.gd` too):
+##
+##     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+##
+## It flies the bot on the seed, overwrites `acceptance/replays/bot_seed_205_escape.replay`
+## and prints the new hash and level hash; paste them into `expected_hash` and
+## `expected_level_hash` of the step in `acceptance/suites/m3.json`, and the
+## level hash into `LEVEL_HASH` below. If the bot no longer escapes this seed with
+## debris down, pick another with `bot_escape_sweep.gd --robots --debris`.
+
+const SUITE_PATH: String = "res://acceptance/suites/m3.json"
+const STEP_ID: String = "bot_seed_205_escape"
+const SEED: int = 205
+const REPLAY_PATH: String = "res://acceptance/replays/bot_seed_205_escape.replay"
+const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
+const ROBOTS_FILE: String = "res://data/gen/robots.json"
+const DEBRIS_FILE: String = "res://data/gen/debris.json"
+## Seed 205 has no loop, so no `generator.json` value changes it; a module is
+## generator data that does.
+const MODULE_FILE: String = "res://data/modules/straight_tunnel.json"
+const LEVEL_HASH: int = 3129314244
+## The escape takes about 5,100 ticks; the runner flies one per frame.
+const FRAME_LIMIT: int = 12000
+const TICK_LIMIT: int = 36000
+const BotSweep := preload("res://tests/bot_escape_sweep.gd")
+## Written above the recording; `Replay` skips lines starting with `#`.
+const REPLAY_HEADER: String = """# The bot pilot's escape from generated seed 205 (#460): four robots and the
+# reactor destroyed, debris falling, out through the entrance. Inputs only:
+# the m3 suite builds the level from the seed and the shipped data files.
+# Re-record from the repository root, then copy the printed hashes into m3.json:
+#     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+"""
+
+var _quit_codes: Array[int] = []
+
+
+static func step() -> AcceptanceStep:
+	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
+	for found: AcceptanceStep in suite.steps:
+		if found.id == STEP_ID:
+			return found
+	return null
+
+
+## Off unless RECORD_SWITCH is set; see the top of this file.
+func test_record_when_asked() -> String:
+	if OS.get_environment(RECORD_SWITCH) != "1":
+		return ""
+	var level: LevelDef = SeedLevel.load_level(SEED)
+	if level == null:
+		return "seed %d was rejected, nothing recorded" % SEED
+	var source: BotSweep.BotSource = BotSweep.BotSource.new()
+	var session: LocalSession = LocalSession.for_level(level, 0, source,
+		LocalSession.load_tuning(AcceptanceStepLevel.SHIP_FILE))
+	source.bot = BotPilot.new(session.sim, 0, level)
+	var sim: Sim = session.sim
+	while sim.outcome() == ExitRule.Outcome.RUNNING and sim.ships[0].hull > 0.0 and sim.tick < TICK_LIMIT:
+		session.advance(ShipState.TICK_DT)
+	var measured: Dictionary = {}
+	var fell: Array = AcceptanceStateChecks.debris_fallen(sim, measured)
+	if sim.outcome() != ExitRule.Outcome.ESCAPED or fell[0] != AcceptanceReport.RESULT_PASS:
+		return "seed %d: outcome %s at tick %d, %s; nothing recorded" % [SEED,
+			AcceptanceStateChecks.outcome_name(sim.outcome()), sim.tick, fell[1]]
+	# Inputs only: the level is the seed's, not the replay's.
+	var inputs: Replay = Replay.new(session.replay.run_seed, 1)
+	inputs.frames = session.replay.frames
+	inputs.expected_hash = sim.state_hash()
+	var file: FileAccess = FileAccess.open(ProjectSettings.globalize_path(REPLAY_PATH), FileAccess.WRITE)
+	if file == null:
+		return "could not write %s: %s" % [REPLAY_PATH, error_string(FileAccess.get_open_error())]
+	file.store_string(REPLAY_HEADER + inputs.to_text())
+	file.close()
+	print("Meltdown: recorded %s: escaped at tick %d, %s, hash %d, level hash %d; put both in %s and %s" % [
+		REPLAY_PATH, sim.tick, fell[1], inputs.expected_hash, AcceptanceStepLevel.level_hash(session.replay),
+		SUITE_PATH, "LEVEL_HASH in tests/test_m3_seed_step.gd"])
+	return ""
+
+
+func test_the_step_names_its_seed_and_checks() -> String:
+	var found: AcceptanceStep = step()
+	if found == null:
+		return "m3 has no step %s" % STEP_ID
+	if found.level_seed != SEED or found.level != "" or found.replay_path != REPLAY_PATH:
+		return "the step flies %s on seed %d, level '%s'" % [found.replay_path, found.level_seed, found.level]
+	for check: String in [AcceptanceStep.CHECK_FINAL_HASH, AcceptanceStep.CHECK_OUTCOME,
+			AcceptanceStep.CHECK_DEBRIS_FALLEN, AcceptanceStep.CHECK_LEVEL_HASH]:
+		if not found.has_check(check):
+			return "%s does not check %s: %s" % [STEP_ID, check, found.checks]
+	if found.expected_outcome != ExitRule.Outcome.ESCAPED:
+		return "%s expects outcome %d" % [STEP_ID, found.expected_outcome]
+	if found.expected_level_hash != LEVEL_HASH:
+		return "%s pins level hash %d; this file expects %d" % [STEP_ID, found.expected_level_hash, LEVEL_HASH]
+	return ""
+
+
+## The level must come from the seed: a replay carrying walls, a reactor,
+## robots, debris or tuning would hide a data change.
+func test_the_replay_holds_only_inputs() -> String:
+	var replay: Replay = Replay.load_file(REPLAY_PATH)
+	if replay.error != "":
+		return replay.error
+	if replay.box_mins_mm.size() > 0 or replay.reactor != null or not replay.robots.is_empty() \
+			or replay.debris != null or replay.tuning != null or replay.loadout != null \
+			or not replay.parts.is_empty() or not replay.start_positions_mm.is_empty():
+		return "%s carries more than its inputs" % REPLAY_PATH
+	if replay.ship_count != 1 or replay.frames.is_empty() or replay.expected_hash != step().expected_hash:
+		return "%s: %d ships, %d ticks, hash %d" % [REPLAY_PATH, replay.ship_count,
+			replay.frames.size(), replay.expected_hash]
+	return ""
+
+
+## The step alone, as the headset flies it: every check passes, the bot
+## escapes with all four robots gone and at least one rock down.
+func test_the_runner_passes_the_step() -> String:
+	var runner: AcceptanceRunner = _run({})
+	var problem: String = ""
+	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
+		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
+	else:
+		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
+		if measured.get("outcome") != "ESCAPED" or int(measured.get("debris_fallen", 0)) < 1 \
+				or int(measured.get("robots_alive", -1)) != 0:
+			problem = "measured %s" % measured
+	_done(runner)
+	return problem
+
+
+## A changed shipped value that changes the seed's level fails the step, and
+## the report and the log name it, and the level hash says the level changed
+## even where the flight might not show it (a rock's radius). One change each
+## to robot, debris and generator data.
+func test_a_changed_data_value_fails_the_step_naming_it() -> String:
+	var changes: Dictionary = {
+		ROBOTS_FILE: ["\"min_per_level\": 4", "\"min_per_level\": 5"],
+		DEBRIS_FILE: ["\"radius\": [1.5, 3]", "\"radius\": [1.5, 2.5]"],
+		MODULE_FILE: ["\"min\": [-5.0, -5.0, -30.0]", "\"min\": [-6.0, -5.0, -30.0]"],
+	}
+	for path: String in changes:
+		var text: String = SeedLevel.read_text(path)
+		var pair: Array = changes[path]
+		if not text.contains(pair[0]):
+			return "%s no longer has %s; pick another change" % [path, pair[0]]
+		var runner: AcceptanceRunner = _run({path: text.replace(pair[0], pair[1])})
+		var report: Dictionary = runner.reports[0].steps[0] if not runner.reports.is_empty() else {}
+		var said: String = "\n".join(runner.messages)
+		var problem: String = ""
+		if runner.exit_code != AcceptanceRunner.EXIT_FAIL:
+			problem = "with %s changed the step still passed" % path.get_file()
+		elif report.get("id") != STEP_ID or report.get("result") != AcceptanceReport.RESULT_FAIL:
+			problem = "with %s changed the report says %s" % [path.get_file(), report]
+		elif not str(report.get("message")).contains("level_hash: level hash"):
+			problem = "with %s changed the level hash was not failed: %s" % [path.get_file(), report.get("message")]
+		elif not said.contains("step %s %s" % [STEP_ID, AcceptanceReport.RESULT_FAIL]):
+			problem = "with %s changed the log does not name the step: %s" % [path.get_file(), said]
+		_done(runner)
+		if problem != "":
+			return problem
+	return ""
+
+
+func test_seed_is_read_and_checked() -> String:
+	var cases: Dictionary[String, String] = {
+		"\"seed\": -1, \"replay\": \"r\"": "steps[0].seed: must be a whole number",
+		"\"seed\": 1.5, \"replay\": \"r\"": "steps[0].seed: must be a whole number",
+		"\"seed\": \"205\", \"replay\": \"r\"": "steps[0].seed: must be a whole number",
+		"\"seed\": 5": "steps[0].seed: only used with a replay",
+		"\"seed\": 5, \"replay\": \"r\", \"level\": \"g2\"": "steps[0].seed: a step flies a level file or a seed",
+	}
+	for fields: String in cases:
+		var suite: AcceptanceSuite = AcceptanceSuite.parse_json(
+			"{\"name\": \"t\", \"steps\": [{\"id\": \"a\", \"checks\": [\"no_script_errors\"], %s}]}" % fields)
+		if not suite.error.contains(cases[fields]):
+			return "%s gave '%s', expected it to say %s" % [fields, suite.error, cases[fields]]
+	var read: AcceptanceSuite = AcceptanceSuite.parse_json(
+		"{\"name\": \"t\", \"steps\": [{\"id\": \"a\", \"replay\": \"r\", \"seed\": 0, \"checks\": [\"debris_fallen\"]}]}")
+	if read.error != "" or read.steps[0].level_seed != 0:
+		return "seed 0 read as %s" % (read.error if read.error != "" else str(read.steps[0].level_seed))
+	return ""
+
+
+func test_expected_level_hash_is_read_and_checked() -> String:
+	var cases: Dictionary[String, String] = {
+		"\"checks\": [\"level_hash\"]": "steps[0].expected_level_hash: needed",
+		"\"checks\": [\"outcome\"], \"expected_outcome\": \"LOST\", \"expected_level_hash\": 1":
+			"steps[0].expected_level_hash: only used",
+		"\"checks\": [\"level_hash\"], \"expected_level_hash\": -3": "must be a whole number",
+	}
+	for fields: String in cases:
+		var suite: AcceptanceSuite = AcceptanceSuite.parse_json(
+			"{\"name\": \"t\", \"steps\": [{\"id\": \"a\", \"replay\": \"r\", %s}]}" % fields)
+		if not suite.error.contains(cases[fields]):
+			return "%s gave '%s', expected it to say %s" % [fields, suite.error, cases[fields]]
+	return ""
+
+
+## A seed step whose replay brings its own level is refused, not flown.
+func test_a_replay_with_a_level_is_refused_for_a_seed_step() -> String:
+	var replay: Replay = Replay.new(0, 1)
+	replay.add_box(Vector3i(-1000, -1000, -1000), Vector3i(1000, 1000, 1000))
+	var problem: String = AcceptanceStepLevel.fly_seed(null, SEED, replay, ReplayInputSource.new(replay))
+	if not problem.contains("carries a level of its own"):
+		return "gave '%s'" % problem
+	return ""
+
+
+## The debris check fails a run where nothing fell and passes one where a rock did.
+func test_debris_fallen_check() -> String:
+	var sim: Sim = Sim.new(0, 1)
+	var measured: Dictionary = {}
+	var none: Array = AcceptanceStateChecks.debris_fallen(sim, measured)
+	if none[0] != AcceptanceReport.RESULT_FAIL or measured.get("debris") != 0:
+		return "no debris gave %s, %s" % [none, measured]
+	var debris: MeltdownDebris = MeltdownDebris.parse_json(
+		"[{\"position\": [0, 0, -10], \"radius\": 1, \"after_seconds\": 1}]")
+	sim.set_debris(debris)
+	if AcceptanceStateChecks.debris_fallen(sim, measured)[0] != AcceptanceReport.RESULT_FAIL:
+		return "debris before the meltdown counted as fallen"
+	debris.elapsed_ticks = debris.after_ticks[0]
+	var fell: Array = AcceptanceStateChecks.debris_fallen(sim, measured)
+	if fell[0] != AcceptanceReport.RESULT_PASS or measured.get("debris_fallen") != 1:
+		return "a solid entry gave %s, %s" % [fell, measured]
+	return ""
+
+
+func _on_quit(code: int) -> void:
+	_quit_codes.append(code)
+
+
+## Flies a suite holding only this step, with `overrides` in place of data files.
+func _run(overrides: Dictionary) -> AcceptanceRunner:
+	_quit_codes.clear()
+	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
+	var only: AcceptanceSuite = AcceptanceSuite.new()
+	only.name = suite.name
+	only.error = suite.error
+	only.steps.append(step())
+	var suites: Array[AcceptanceSuite] = [only]
+	var runner: AcceptanceRunner = AcceptanceRunner.new()
+	runner.quit_callback = _on_quit
+	runner.seed_overrides = overrides
+	var scene: PackedScene = load("res://main.tscn") as PackedScene
+	runner.setup(scene.instantiate(), suites, null)
+	var frames: int = 0
+	while not runner.finished and frames < FRAME_LIMIT:
+		runner.process_frame()
+		frames += 1
+	return runner
+
+
+func _done(runner: AcceptanceRunner) -> void:
+	for path: String in runner.report_paths:
+		DirAccess.remove_absolute(path)
+	if runner.main != null:
+		runner.main.free()
+	runner.free()
