@@ -2,9 +2,8 @@ extends RefCounted
 
 ## The bot pilot destroys the reactor and escapes through the entrance (#360,
 ## RUN-2, RUN-3, GEN-3, DEV-6): gate G3 needs a bot that escapes. The G2
-## session is built like the main scene's, with the level's reactor set on
-## the sim and the replay here, as #332 may not have merged. The flight must
-## replay to its hash (ARC-1, ARC-2).
+## session is built like the main scene's; `LocalSession.for_level` arms the
+## level's reactor (#332). The flight must replay to its hash (ARC-1, ARC-2).
 
 const G2Level := preload("res://tests/test_m2_g2_level.gd")
 const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
@@ -35,8 +34,9 @@ class Flight extends RefCounted:
 	var meltdown_ticks: int = -1
 
 
-## G2 with `reactor` armed on the sim and in the replay, flown by the bot
-## until the run ends, the ship is destroyed, or TICK_LIMIT.
+## G2 flown by the bot until the run ends, the ship is destroyed, or
+## TICK_LIMIT. `for_level` arms the level's own reactor; `reactor` replaces it
+## on the sim and in the replay so a test can shorten the countdown.
 static func fly(reactor: ReactorState) -> Flight:
 	var level: LevelDef = G2Level.level()
 	var source: BotSource = BotSource.new()
@@ -131,11 +131,13 @@ func test_the_escape_replays_to_its_hash_from_text() -> String:
 
 
 ## Without a reactor the escape steps never take over: with every robot gone
-## and no goal the bot holds still, as before.
+## and no goal the bot holds still, as before. `for_level` arms the G2
+## reactor, so the test removes it.
 func test_without_a_reactor_the_bot_does_not_escape() -> String:
 	var level: LevelDef = G2Level.level()
 	var session: LocalSession = LocalSession.for_level(level, 0, null,
 		LocalSession.load_tuning(SHIP_TUNING_PATH))
+	session.sim.set_reactor(null)
 	for robot: RobotState in session.sim.robots:
 		robot.hull = 0.0
 	var input: ShipInput = BotPilot.new(session.sim, 0, level).next_input(0)
