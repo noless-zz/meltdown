@@ -64,6 +64,8 @@ var _has_goal: bool = false
 var _last_safe: Vector3 = Vector3.ZERO
 var _has_safe: bool = false
 var _retreating: bool = false
+## Firing points round an intact reactor (#375); null without a level.
+var _flank: BotFlank = null
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -74,6 +76,7 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 	if level != null and level.error == "" and not level.union.boxes.is_empty():
 		_route = LevelRoute.new(level)
 		_walls = level.union
+		_flank = BotFlank.new(sim, _walls, _route)
 
 
 ## A point to fly to and stop at once no robot is left, such as a level's exit.
@@ -129,10 +132,14 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	elif _has_safe and ship.shield < RETREAT_SHIELD:
 		_retreating = true
 	var in_sight: bool = target != null and shot_reaches(ship, target.position)
+	var flank_point: Vector3 = _flank.point_for(ship, target, in_sight)
+	var flanking: bool = flank_point != Vector3.INF
 	var aim: Vector3 = _goal
 	var hold: float = 0.0
 	if _retreating:
 		aim = _last_safe
+	elif flanking:
+		aim = flank_point
 	elif target != null:
 		aim = target.position
 		# Out of reach (behind the reactor, say), holding off would only
@@ -148,7 +155,7 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var offset: Vector3 = waypoint - ship.position
 	var distance: float = offset.length()
 	var wanted: Vector3 = Vector3.ZERO
-	var waiting: bool = target != null and not in_sight and not threatened \
+	var waiting: bool = target != null and not in_sight and not threatened and not flanking \
 		and (robots_closing(ship) or ship.shield < ship.max_shield)
 	if not waiting and distance > 0.0:
 		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
@@ -156,6 +163,9 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var push: Vector3 = ((wanted - ship.velocity) * THRUST_GAIN).limit_length(1.0)
 	var basis_inverse: Basis = ship.orientation.transposed()
 	var lead: Vector3 = lead_point(ship, target) - ship.position if in_sight else offset
+	if flanking:
+		# Nose on the robot, so the first tick the line opens is a shot.
+		lead = target.position - ship.position
 	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, _turn_towards(basis_inverse * lead))
 	# Only when a shot gets there: one at a robot behind rock would hit the rock.
 	input.fire_primary = in_sight and should_fire(ship, lead)
@@ -174,10 +184,12 @@ static func lead_point(ship: ShipState, target: RobotState) -> Vector3:
 
 ## Whether any live, armed robot could hit `ship` now: in its weapon's range
 ## with a clear line. Robots turn to their target, so facing is not counted.
+## An intact reactor stops robot shots too (#345), so one behind it is no threat.
 func under_fire(ship: ShipState) -> bool:
 	for robot: RobotState in _sim.robots:
 		if robot.is_alive() and robot.weapon != null \
 				and robot.position.distance_to(ship.position) <= robot.weapon_range() \
+				and (_sim.reactor == null or _sim.reactor.segment_entry(robot.position, ship.position) < 0.0) \
 				and _reaches(robot.position, ship.position, robot.weapon.projectile_speed):
 			return true
 	return false
@@ -224,17 +236,7 @@ func shot_reaches(ship: ShipState, point: Vector3) -> bool:
 ## Whether a shot at `speed` from `from` straight at `point` stays inside the
 ## walls at the end of every tick of its flight.
 func _reaches(from: Vector3, point: Vector3, speed: float) -> bool:
-	var offset: Vector3 = point - from
-	var distance: float = offset.length()
-	var step: float = speed * ShipState.TICK_DT
-	if _walls == null or distance == 0.0 or step <= 0.0:
-		return true
-	var travelled: float = step
-	while travelled < distance:
-		if not _walls.holds(from + offset * (travelled / distance), 0.0):
-			return false
-		travelled += step
-	return true
+	return BotFlank.reaches_walls(_walls, from, point, speed)
 
 
 ## Turn rates that bring the nose to `local`, a direction in ship space,
