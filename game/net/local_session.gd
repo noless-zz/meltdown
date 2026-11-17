@@ -166,10 +166,10 @@ static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
 ## pose, and the level's robots are resolved and armed from `robot_dir` and
 ## `weapon_dir` as `load_spawns` does (CMB-3, #269, #291). Its part catalogue
 ## is every weapon in `weapon_dir`, so parts the robots drop can be slotted
-## (SLV-1, #320). `level` must have
-## parsed without an error. The replay does not record a start pose yet, so
-## a replay of a level whose start is not the origin facing -z would start
-## elsewhere; G2 starts there.
+## (SLV-1, #320). The level's start pose is written to the replay's start
+## line and the ship is placed from what the line reads back, so a level that
+## does not start at the origin facing -z replays to the same hash (#340).
+## `level` must have parsed without an error.
 static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInputSource = null,
 		tuning: ShipTuning = null, robot_dir: String = ROBOT_DIR,
 		weapon_dir: String = WEAPON_DIR) -> LocalSession:
@@ -185,10 +185,10 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 	session.replay.set_boxes(mins, maxs)
 	# Taken back from the replay, rounded like the single-box walls in `_init`.
 	session.sim.set_walls(session.replay.walls())
-	var facing: Vector3 = level.start_facing()
-	# Straight up or down has no world-up to roll against; `RobotSpawn` does the same.
-	var up: Vector3 = Vector3.BACK if absf(facing.dot(Vector3.UP)) > 0.999 else Vector3.UP
-	session.sim.set_start_pose(0, level.start_position(), Basis.looking_at(facing, up))
+	# Taken back from the replay too: its millimetres and thousandths are what a
+	# replay starts from, and an unrounded live pose would drift away from it.
+	session.replay.set_start_pose(0, level.start_position(), level.start_facing())
+	ReplayStartLine.apply(session.replay, session.sim)
 	session._current_ship = SessionSnapshots.ship(session.sim.ships[0])
 	session._previous_ship = SessionSnapshots.ship(session.sim.ships[0])
 	return session
