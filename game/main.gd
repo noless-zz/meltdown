@@ -201,54 +201,43 @@ func place_tunnel() -> void:
 		tunnel.position = TUNNEL_OFFSET
 
 
-## Puts the active preset's cockpit frame under the rig's camera, as the fade
-## quad is; every preset change rebuilds it there (`ComfortWiring.set_preset`).
+## Puts the active preset's cockpit frame under the rig origin, at the head
+## point with the status panel, so the head turns inside it (#478); every
+## preset change rebuilds it there (`ComfortWiring.set_preset`).
 func attach_cockpit_frame() -> void:
-	var camera: Node3D = get_node_or_null("XRRig/Camera") as Node3D
-	if camera != null:
-		comfort.attach_cockpit_frame(camera)
+	var rig: Node3D = get_node_or_null("XRRig") as Node3D
+	if rig != null:
+		comfort.attach_cockpit_frame(rig)
+		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
 ## Puts the fade quad under the rig's camera; the rig scene stays as it is.
 func attach_fade_overlay() -> void:
-	var camera: Node3D = get_node_or_null("XRRig/Camera") as Node3D
-	if camera != null and fade_overlay == null:
-		fade_overlay = FadeOverlay.new()
-		camera.add_child(fade_overlay)
+	if fade_overlay == null:
+		fade_overlay = RigViews.add_fade_overlay(get_node_or_null("XRRig") as Node3D)
 
 
 ## Puts the status panel under the rig origin, not the camera, so it stays in
-## the cockpit while the head turns; `update_status_panel` places it.
+## the cockpit while the head turns; `place_rig` places it.
 func attach_status_panel() -> void:
-	var rig: Node3D = get_node_or_null("XRRig") as Node3D
-	if rig != null and status_panel == null:
-		status_panel = StatusPanel.new()
-		rig.add_child(status_panel)
+	if status_panel == null:
+		status_panel = RigViews.add_status_panel(get_node_or_null("XRRig") as Node3D)
+		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
 ## Hands the panel this frame's values, read from copies of the latest ship
 ## state; the panel never sees the session itself (ARC-3).
 func update_status_panel(delta_seconds: float) -> void:
-	if status_panel == null:
-		return
-	# The ship's centre sits at the recentred head point in the rig's space.
-	status_panel.transform = StatusPanel.rig_transform(head_recentre.offset.affine_inverse())
-	var ship: ShipState = session.current_ship()
-	var boost: String = ""
-	if ship.afterburner_active:
-		boost = StatusPanel.BOOST_ON
-	elif ship.afterburner_locked:
-		boost = StatusPanel.BOOST_RECHARGING
-	var energy_fraction: float = ship.energy / ship.max_energy if ship.max_energy > 0.0 else 0.0
-	status_panel.show_values(comfort.number, comfort.preset.display_name, ship.velocity.length(),
-		energy_fraction, boost, build_info.describe())
-	status_panel.advance(delta_seconds)
+	if status_panel != null:
+		RigViews.show_ship(status_panel, session.current_ship(), comfort.number,
+			comfort.preset.display_name, build_info.describe(), delta_seconds)
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
 ## the ship's centre. The headset camera and controllers are tracked relative
 ## to the rig, so they ride along. A requested recentre takes the head pose here.
-## The hit shake goes on after the pose, in the cockpit's own frame.
+## The hit shake goes on after the pose, in the cockpit's own frame. The
+## cockpit frame and panel follow the head point, so a recentre moves both.
 func place_rig() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig == null:
@@ -259,6 +248,7 @@ func place_rig() -> void:
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped)
 	rig.transform = head_recentre.rig_transform(pose * comfort.shake_offset)
+	RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:
