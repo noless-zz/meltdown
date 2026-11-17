@@ -9,6 +9,8 @@ const MODULES_DIR: String = "res://data/modules/"
 const VALIDATOR_FILE: String = "res://data/gen/validator.json"
 const REACTOR_FILE: String = "res://data/gen/reactor.json"
 const GENERATOR_FILE: String = "res://data/gen/generator.json"
+const ROBOTS_FILE: String = "res://data/gen/robots.json"
+const ROBOTS_DIR: String = "res://data/robots/"
 const SHIP_FILE: String = "res://data/ships/default_ship.json"
 ## Modules per level, as in the generator's own 1,000-seed test.
 const MODULE_COUNT: int = 10
@@ -39,14 +41,40 @@ static func load_loop_bridges() -> LoopBridges:
 	return LoopBridges.parse_json(FileAccess.get_file_as_string(GENERATOR_FILE))
 
 
+## Every robot file's text by id, for `RobotPlan.parse_json`.
+static func robot_texts() -> Dictionary:
+	var texts: Dictionary = {}
+	for file: String in DirAccess.get_files_at(ROBOTS_DIR):
+		if file.ends_with(".json"):
+			texts[file.trim_suffix(".json")] = FileAccess.get_file_as_string(ROBOTS_DIR + file)
+	return texts
+
+
+static func load_robot_plan() -> RobotPlan:
+	return RobotPlan.parse_json(FileAccess.get_file_as_string(ROBOTS_FILE), robot_texts())
+
+
+## The boxes of the module the generated level starts in.
+static func start_module_boxes(generator: MineGenerator) -> Array[int]:
+	var boxes: Array[int] = []
+	if generator.open_owner.is_empty():
+		return boxes
+	var start: int = GeneratedLevel.start_placement(generator)
+	var placement: ModulePlacement = generator.placements[start]
+	for box: int in range(placement.first_box, placement.end_box):
+		boxes.append(box)
+	return boxes
+
+
 static func ship_radius() -> float:
 	return ShipTuning.parse_json(FileAccess.get_file_as_string(SHIP_FILE)).radius
 
 
 ## Seeds `first_seed` up to `first_seed + count - 1`, each level with the
-## generator's reactor (#356, #357) and loops (#396). The result holds "seeds",
+## generator's reactor (#356, #357), loops (#396) and robots (#378, #399). The result holds "seeds",
 ## "passed", "failed", "short" (levels the generator stopped short, which are
-## still validated), "looped" (levels with at least one loop), "ms", "by_check" (seeds failing each of `LevelValidator.CHECKS`,
+## still validated), "looped" (levels with at least one loop), "robots" (robots
+## placed over all levels), "ms", "by_check" (seeds failing each of `LevelValidator.CHECKS`,
 ## plus "level" for levels that did not build), and "failures": the first
 ## `kept_failures` messages, each prefixed with its seed. A `kept_failures` of 0
 ## keeps every message, so the nightly job can list every failing seed (#358).
@@ -57,11 +85,12 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 	var validator: LevelValidator = load_validator()
 	var plan: ReactorPlan = load_reactor_plan()
 	var bridges: LoopBridges = load_loop_bridges()
+	var robot_plan: RobotPlan = load_robot_plan()
 	var radius: float = ship_radius()
 	var by_check: Dictionary[String, int] = {"level": 0}
 	for check: String in LevelValidator.CHECKS:
 		by_check[check] = 0
-	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0, "looped": 0,
+	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0, "looped": 0, "robots": 0,
 			"by_check": by_check, "failures": [] as Array[String]}
 	# A broken data file must not pass every seed on the defaults.
 	var broken: String = ""
@@ -71,6 +100,9 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		broken = "reactor.json: %s" % plan.error
 	elif bridges.error != "":
 		broken = "generator.json: %s" % bridges.error
+	elif robot_plan.error != "":
+		broken = "robots.json: %s" % robot_plan.error
+	var robot_radii: Dictionary[String, int] = robot_plan.radii_by_id()
 	if broken != "":
 		result["failed"] = count
 		result["failures"].append(broken)
@@ -82,12 +114,13 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 			result["short"] += 1
 		if generator.loops > 0:
 			result["looped"] += 1
-		var level: LevelDef = generator.to_level_def(plan, radius)
+		var level: LevelDef = generator.to_level_def(plan, radius, robot_plan)
+		result["robots"] += level.robots.spawns.size()
 		var found: Array[String] = []
 		if level.error != "":
 			found.append("level: %s" % level.error)
 		else:
-			found = validator.validate(level, radius)
+			found = validator.validate(level, radius, true, robot_radii, start_module_boxes(generator))
 		if found.is_empty():
 			result["passed"] += 1
 			continue
