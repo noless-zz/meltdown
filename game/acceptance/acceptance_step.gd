@@ -18,12 +18,22 @@ const CHECK_SHIP_ALIVE: String = "ship_alive"
 ## replay ends (#376): a hash alone would pin a run that crashed or ran out
 ## of time just as firmly as one that escaped.
 const CHECK_OUTCOME: String = "outcome"
+## At least one meltdown debris entry is solid, or was held back by
+## `DebrisRouteGuard`, when the replay ends (RUN-4, #460): an escape that
+## outran every rock says nothing about flying out through falling debris.
+const CHECK_DEBRIS_FALLEN: String = "debris_fallen"
+## The level the replay flew in, as its session recorded it before the first
+## tick (walls, start, reactor, debris, robots, tuning and weapons), hashes to
+## `expected_level_hash` (#460). A seed step's level is rebuilt from the data
+## files every run; a changed value that the flight happens not to feel (a
+## rock's radius it never touched) still changes the level.
+const CHECK_LEVEL_HASH: String = "level_hash"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
-	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME]
+	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
-	CHECK_OUTCOME]
+	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
@@ -31,6 +41,7 @@ const MIN_PRESET: int = 1
 const MAX_PRESET: int = 4
 const NO_HASH: int = -1
 const NO_OUTCOME: int = -1
+const NO_SEED: int = -1
 
 ## Unique within its suite; names the step in the report.
 var id: String = ""
@@ -39,12 +50,19 @@ var replay_path: String = ""
 ## Level name the main scene switches to before the replay flies, as
 ## `--level=<name>` would (#291), or "" to fly the test tunnel.
 var level: String = ""
+## Generated level the replay flies (#460, GEN-1, GEN-2), or NO_SEED. The
+## level is built from this seed and the shipped data files by `SeedLevel`, as
+## `--seed=<n>` builds it, so the replay holds only inputs and a change to the
+## generator, robot or debris data shows up as a changed flight.
+var level_seed: int = NO_SEED
 ## Comfort preset to fly under, or NO_PRESET.
 var preset: int = NO_PRESET
 ## Names from KNOWN_CHECKS, in the order the suite lists them.
 var checks: Array[String] = []
 ## State hash the replay must end with, for the final_hash check, or NO_HASH.
 var expected_hash: int = NO_HASH
+## Level hash the step's level must have, for the level_hash check, or NO_HASH.
+var expected_level_hash: int = NO_HASH
 ## `ExitRule.Outcome` the replay must end on, for the outcome check, or
 ## NO_OUTCOME. Written in a suite by name: "RUNNING", "ESCAPED" or "LOST".
 var expected_outcome: int = NO_OUTCOME

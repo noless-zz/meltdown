@@ -3,7 +3,8 @@ extends RefCounted
 
 ## The acceptance checks that read the state a step's replay ended in (DEV-6):
 ## the final hash, whether every robot is destroyed and whether the ship
-## survived (gate G2, #334), and how the run ended (#376). Kept apart from `AcceptanceRunner`, which drives
+## survived (gate G2, #334), how the run ended (#376) and whether any debris
+## came down and the level was the pinned one (#460). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
 
@@ -23,6 +24,10 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return ship_alive(session.sim, measurements)
 		AcceptanceStep.CHECK_OUTCOME:
 			return outcome(step, session.sim, measurements)
+		AcceptanceStep.CHECK_DEBRIS_FALLEN:
+			return debris_fallen(session.sim, measurements)
+		AcceptanceStep.CHECK_LEVEL_HASH:
+			return level_hash(step, session.replay, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -70,3 +75,28 @@ static func outcome(step: AcceptanceStep, sim: Sim, measurements: Dictionary) ->
 static func outcome_name(value: int) -> String:
 	var key: Variant = ExitRule.Outcome.find_key(value)
 	return str(key) if key != null else "none"
+
+
+## Counts entries that fell or were held back: a held entry did come due, the
+## guard only kept it from closing the last way out.
+static func debris_fallen(sim: Sim, measurements: Dictionary) -> Array:
+	var total: int = sim.debris.size() if sim.debris != null else 0
+	var fallen: int = 0
+	for index: int in total:
+		if sim.debris.is_solid(index) or sim.debris.is_skipped(index):
+			fallen += 1
+	measurements["debris"] = total
+	measurements["debris_fallen"] = fallen
+	if fallen == 0:
+		return [AcceptanceReport.RESULT_FAIL, "none of %d debris entries fell" % total]
+	return [AcceptanceReport.RESULT_PASS, "%d of %d debris entries fell" % [fallen, total]]
+
+
+static func level_hash(step: AcceptanceStep, replay: Replay, measurements: Dictionary) -> Array:
+	var actual: int = AcceptanceStepLevel.level_hash(replay)
+	measurements["level_hash"] = actual
+	measurements["expected_level_hash"] = step.expected_level_hash
+	if actual != step.expected_level_hash:
+		return [AcceptanceReport.RESULT_FAIL, "level hash %d, expected %d: the level's data changed" % [
+			actual, step.expected_level_hash]]
+	return [AcceptanceReport.RESULT_PASS, "level hash %d" % actual]

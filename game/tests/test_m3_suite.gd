@@ -1,9 +1,10 @@
 extends RefCounted
 
 ## The m3 acceptance suite (DEV-6, RUN-2, RUN-3, RUN-5, decision record 0005,
-## #376): one step flies a replay of the bot pilot's G2 escape (#360), clearing
+## #376): its first step flies a replay of the bot pilot's G2 escape (#360), clearing
 ## the robots, destroying the reactor and flying out through the entrance, and
-## must end on the pinned hash with the outcome ESCAPED.
+## must end on the pinned hash with the outcome ESCAPED. The second step, a
+## generated seed's escape (#460), is tested in `test_m3_seed_step.gd`.
 ##
 ## Re-recording after an intended change to the simulation, the bot, the ship
 ## or robot data, or the level (one command, from the repository root):
@@ -69,7 +70,8 @@ func test_m3_suite_loads_with_the_escape_step() -> String:
 	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
 	if suite.error != "":
 		return suite.error
-	if suite.name != SUITE_NAME or suite.steps.size() != 1:
+	# The G2 escape stays first; the generated seed's step follows it (#460).
+	if suite.name != SUITE_NAME or suite.steps.size() != 2:
 		return "suite %s has %d steps" % [suite.name, suite.steps.size()]
 	var escape: AcceptanceStep = suite.steps[0]
 	if escape.id != STEP_ID or escape.replay_path != REPLAY_PATH or escape.level != LEVEL:
@@ -125,7 +127,7 @@ func test_replay_ends_on_its_hash_escaped() -> String:
 
 
 ## The suite as `--acceptance=m3` runs it, in the flat main scene: every
-## check passes and the report measures the outcome.
+## check of both steps passes and the report measures the outcome.
 func test_the_runner_passes_m3() -> String:
 	var runner: AcceptanceRunner = _run(AcceptanceSuite.load_named(SUITE_NAME))
 	var problem: String = ""

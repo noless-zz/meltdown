@@ -6,9 +6,9 @@ extends Node
 ## is set, so a normal start never sees it.
 ##
 ## Each step sets its comfort preset, switches the scene to its level (#334),
-## flies its replay through the scene's own
-## `advance_frame` (one tick per frame, the replay's inputs in place of the
-## controllers), runs its checks and records them in an `AcceptanceReport`.
+## or builds the generated level its seed names (#460), flies its replay
+## through the scene's own `advance_frame` (one tick per frame, the replay's
+## inputs in place of the controllers), runs its checks and records them in an `AcceptanceReport`.
 ## At the end every report is written to `user://acceptance/` and echoed to the
 ## log, and the game quits with 0 if every suite passed and 1 otherwise.
 
@@ -36,6 +36,9 @@ var reports: Array[AcceptanceReport] = []
 var report_paths: Array[String] = []
 ## Every line this runner printed, so tests can read them.
 var messages: PackedStringArray = PackedStringArray()
+## Data file text by `res://` path, used in place of the file when a step
+## builds its level from a seed (`SeedLevel.load_level`); tests change one.
+var seed_overrides: Dictionary = {}
 var finished: bool = false
 var exit_code: int = -1
 
@@ -156,9 +159,15 @@ func _start_step(step: AcceptanceStep) -> void:
 		return
 	var replay: Replay = Replay.load_file(step.replay_path)
 	if replay.error != "" or replay.ship_count != 1:
-		return  # `_replay_problem` reports it when the step is recorded.
+		return  # `replay_problem` reports it when the step is recorded.
 	_source = ReplayInputSource.new(replay)
-	main.set("session", _source.new_session())
+	if step.level_seed == AcceptanceStep.NO_SEED:
+		main.set("session", _source.new_session())
+	else:
+		_level_problem = AcceptanceStepLevel.fly_seed(main, step.level_seed, replay, _source, seed_overrides)
+		if _level_problem != "":
+			_source = null
+			return
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
@@ -182,7 +191,8 @@ func _record_step(step: AcceptanceStep) -> void:
 	var outcomes: Array[String] = []
 	var notes: PackedStringArray = PackedStringArray()
 	var measurements: Dictionary = {}
-	var problem: String = _level_problem if _level_problem != "" else _replay_problem(step)
+	var problem: String = _level_problem if _level_problem != "" \
+		else AcceptanceStepLevel.replay_problem(step, _source)
 	if problem != "":
 		outcomes.append(AcceptanceReport.RESULT_FAIL)
 		notes.append(problem)
@@ -197,20 +207,6 @@ func _record_step(step: AcceptanceStep) -> void:
 		result = AcceptanceReport.RESULT_PASS
 	reports[_suite_index].add_step(step.id, result, "; ".join(notes), measurements)
 	_say("%s: step %s %s" % [LOG_PREFIX, step.id, result])
-
-
-## Why the step's replay could not be flown, or "".
-func _replay_problem(step: AcceptanceStep) -> String:
-	if step.replay_path == "":
-		return ""
-	if _source == null:
-		var replay: Replay = Replay.load_file(step.replay_path)
-		if replay.error != "":
-			return "replay %s: %s" % [step.replay_path, replay.error]
-		return "replay %s: has %d ships; the scene flies one" % [step.replay_path, replay.ship_count]
-	if _source.overrun_ticks > 0:
-		return "replay %s: flew %d ticks past its end" % [step.replay_path, _source.overrun_ticks]
-	return ""
 
 
 ## [result, message] for one check, adding its measurements.

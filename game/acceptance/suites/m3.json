@@ -8,6 +8,15 @@
 			"checks": ["final_hash", "robots_cleared", "outcome"],
 			"expected_hash": 4156950278,
 			"expected_outcome": "ESCAPED"
+		},
+		{
+			"id": "bot_seed_205_escape",
+			"seed": 205,
+			"replay": "res://acceptance/replays/bot_seed_205_escape.replay",
+			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "debris_fallen"],
+			"expected_hash": 87499908,
+			"expected_level_hash": 3129314244,
+			"expected_outcome": "ESCAPED"
 		}
 	]
 }
