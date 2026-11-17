@@ -3,5 +3,9 @@
 	"line_energy": 1.5,
 	"size_m": 0.25,
 	"marker_color": [1.0, 0.6, 0.15],
-	"marker_radius_m": 0.008
+	"marker_radius_m": 0.008,
+	"exit_color": [0.35, 1.0, 0.45],
+	"exit_radius_m": 0.01,
+	"reactor_color": [1.0, 0.25, 0.75],
+	"reactor_radius_m": 0.01
 }
