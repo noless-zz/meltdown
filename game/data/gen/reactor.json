@@ -2,5 +2,9 @@
 	"radius": 2.5,
 	"hull": 400,
 	"meltdown_seconds": 90,
+	"meltdown_base_seconds": 30,
+	"meltdown_seconds_per_metre": 0.2,
+	"meltdown_min_seconds": 45,
+	"meltdown_max_seconds": 180,
 	"min_hops": 2
 }
