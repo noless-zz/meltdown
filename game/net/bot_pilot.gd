@@ -66,6 +66,8 @@ var _has_safe: bool = false
 var _retreating: bool = false
 ## Firing points round an intact reactor (#375); null without a level.
 var _flank: BotFlank = null
+## Reactor and exit steps (#360); null without a level.
+var _escape: BotEscape = null
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -77,6 +79,7 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 		_route = LevelRoute.new(level)
 		_walls = level.union
 		_flank = BotFlank.new(sim, _walls, _route)
+		_escape = BotEscape.new(sim, ship_index, _walls, _route)
 
 
 ## A point to fly to and stop at once no robot is left, such as a level's exit.
@@ -100,7 +103,7 @@ func next_input(_tick: int) -> ShipInput:
 	# Ship space: x right, y up, forward is -z. The basis is orthonormal, so
 	# its transpose is its inverse.
 	var local: Vector3 = ship.orientation.transposed() * offset
-	var turn: Vector3 = _turn_towards(local)
+	var turn: Vector3 = turn_towards(local)
 	var thrust: Vector3 = Vector3.ZERO
 	if distance > 0.0:
 		var to_target: Vector3 = offset / distance
@@ -132,6 +135,8 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	elif _has_safe and ship.shield < RETREAT_SHIELD:
 		_retreating = true
 	var in_sight: bool = target != null and shot_reaches(ship, target.position)
+	if _escape.takes_over(self, ship):
+		return _escape.next_input(ship, target, in_sight)
 	var flank_point: Vector3 = _flank.point_for(ship, target, in_sight)
 	var flanking: bool = flank_point != Vector3.INF
 	var aim: Vector3 = _goal
@@ -166,7 +171,7 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	if flanking:
 		# Nose on the robot, so the first tick the line opens is a shot.
 		lead = target.position - ship.position
-	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, _turn_towards(basis_inverse * lead))
+	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, turn_towards(basis_inverse * lead))
 	# Only when a shot gets there: one at a robot behind rock would hit the rock.
 	input.fire_primary = in_sight and should_fire(ship, lead)
 	return input
@@ -241,7 +246,7 @@ func _reaches(from: Vector3, point: Vector3, speed: float) -> bool:
 
 ## Turn rates that bring the nose to `local`, a direction in ship space,
 ## within the caps.
-static func _turn_towards(local: Vector3) -> Vector3:
+static func turn_towards(local: Vector3) -> Vector3:
 	# Positive pitch raises the nose and positive yaw turns it left (see
 	# `ShipState.step`). Straight behind, atan2 gives a full half turn, so
 	# the bot turns at its full rate rather than stalling.
