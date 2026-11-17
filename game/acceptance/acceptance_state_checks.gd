@@ -7,6 +7,11 @@ extends RefCounted
 ## came down and the level was the pinned one (#460). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
+## Re-records the seed step after an intended data change, picking a new seed
+## if needed and writing the hashes into the suite (#494). Only the m3 suite
+## has a seed step, so its command is the one a changed level hash names.
+const RECORD_COMMAND: String = "MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd"
+
 
 ## [result, message] for `check`, one of `AcceptanceStep.REPLAY_CHECKS`, on
 ## `session` after the replay flew, adding its measurements. `flown` is false
@@ -97,6 +102,6 @@ static func level_hash(step: AcceptanceStep, replay: Replay, measurements: Dicti
 	measurements["level_hash"] = actual
 	measurements["expected_level_hash"] = step.expected_level_hash
 	if actual != step.expected_level_hash:
-		return [AcceptanceReport.RESULT_FAIL, "level hash %d, expected %d: the level's data changed" % [
-			actual, step.expected_level_hash]]
+		return [AcceptanceReport.RESULT_FAIL, "level hash %d, expected %d: the level's data changed; if intended, re-record from the repository root with %s" % [
+			actual, step.expected_level_hash, RECORD_COMMAND]]
 	return [AcceptanceReport.RESULT_PASS, "level hash %d" % actual]
