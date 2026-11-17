@@ -196,9 +196,16 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 	if level.reactor != null:
 		session.replay.reactor = level.reactor.fresh_copy()
 		session.sim.set_reactor(level.reactor.fresh_copy())
-	session._current_ship = SessionSnapshots.ship(session.sim.ships[0])
-	session._previous_ship = SessionSnapshots.ship(session.sim.ships[0])
+	session.reset_ship_snapshots()
 	return session
+
+
+## Takes the ship's snapshots again from the sim. Call it after moving the ship
+## before the first tick (a start pose), so the view does not draw it gliding
+## from where it was built.
+func reset_ship_snapshots() -> void:
+	_current_ship = SessionSnapshots.ship(sim.ships[0])
+	_previous_ship = SessionSnapshots.ship(sim.ships[0])
 
 
 ## The `SimEvent`s of every tick run by the latest `advance`, in order; empty
