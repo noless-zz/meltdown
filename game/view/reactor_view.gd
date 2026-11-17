@@ -30,6 +30,10 @@ var look_error: String = ""
 var mesh_builds: int = 0
 ## Where in the current pulse the view is, 0..1. View state only.
 var pulse_phase: float = 0.0
+## While true the view's own clock stops: `_process` leaves the pulse where
+## it is, so a paused session holds the reactor still with everything else
+## (CMF-8, PLT-7). Clearing it resumes from the same phase, with no jump.
+var frozen: bool = false
 
 var _look: Dictionary = ReactorLook.FALLBACK
 var _core: MeshInstance3D
@@ -59,6 +63,8 @@ func _init() -> void:
 
 
 func _process(delta: float) -> void:
+	if frozen:
+		return
 	advance(delta)
 
 
