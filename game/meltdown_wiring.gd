@@ -3,7 +3,9 @@ extends RefCounted
 
 ## Joins the level's reactor and the run's outcome to what the main scene shows
 ## (RUN-2, RUN-5, LGT-1, #359): the reactor view in the level, the meltdown
-## countdown and the outcome row on the status panel.
+## countdown and the outcome row on the status panel. It also draws the
+## level's meltdown debris (RUN-4) and holds the reactor's flicker still while
+## the session is paused (CMF-8, PLT-7, #422).
 ##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
@@ -13,6 +15,8 @@ extends RefCounted
 
 ## The reactor, under the world node while the session has one, null otherwise.
 var reactor_view: ReactorView = null
+## The debris, under the world node while the session has some, null otherwise.
+var debris_view: DebrisView = null
 
 ## The node whose space is the simulation's; set by `attach`.
 var _world: Node3D = null
@@ -34,6 +38,9 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 		return
 	var reactor: ReactorState = SessionSnapshots.reactor(session.sim.reactor)
 	_follow(reactor)
+	if reactor_view != null:
+		reactor_view.frozen = session.paused
+	_follow_debris(SessionSnapshots.debris(session.sim.debris))
 	if panel != null:
 		panel.show_meltdown(seconds_left(reactor) if reactor != null and reactor.destroyed else -1.0)
 		panel.show_outcome(session.sim.outcome())
@@ -65,3 +72,23 @@ func _follow(reactor: ReactorState) -> void:
 		_world.add_child(reactor_view)
 	reactor_view.show_state(reactor.position(), reactor.radius(), hull_fraction(reactor),
 		reactor.destroyed, seconds_left(reactor))
+
+
+## Creates, feeds or removes the debris view so it matches `snapshot`, a
+## `SessionSnapshots.debris` copy. A level without debris gets no view.
+func _follow_debris(snapshot: Dictionary) -> void:
+	var positions: Array[Vector3] = snapshot[SessionSnapshots.DEBRIS_POSITIONS]
+	if positions.is_empty():
+		if debris_view != null:
+			debris_view.get_parent().remove_child(debris_view)
+			debris_view.queue_free()
+			debris_view = null
+		return
+	if debris_view == null:
+		if _world == null:
+			return
+		debris_view = DebrisView.new()
+		_world.add_child(debris_view)
+	debris_view.show_debris(positions, snapshot[SessionSnapshots.DEBRIS_RADII],
+		snapshot[SessionSnapshots.DEBRIS_SOLID], snapshot[SessionSnapshots.DEBRIS_HELD],
+		snapshot[SessionSnapshots.DEBRIS_SECONDS])
