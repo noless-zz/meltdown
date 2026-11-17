@@ -75,11 +75,11 @@ func test_offset_within_limit_gets_a_z_that_clears_a_ship_at_every_joint() -> St
 	var leg_a: int = before
 	var cross: int = before + 1
 	var leg_b: int = before + 2
-	if generator.min_mm[leg_a] != Vector3i(-4000, -4000, 0) or generator.max_mm[leg_a] != Vector3i(4000, 4000, 14000):
+	if generator.min_mm[leg_a] != Vector3i(-4000, -4000, 0) or generator.max_mm[leg_a] != Vector3i(4000, 4000, 9000):
 		return "first leg is %s..%s" % [generator.min_mm[leg_a], generator.max_mm[leg_a]]
 	if generator.min_mm[cross] != Vector3i(-4000, -4000, 6000) or generator.max_mm[cross] != Vector3i(16000, 4000, 14000):
 		return "cross box is %s..%s" % [generator.min_mm[cross], generator.max_mm[cross]]
-	if generator.min_mm[leg_b] != Vector3i(8000, -4000, 6000) or generator.max_mm[leg_b] != Vector3i(16000, 4000, 20000):
+	if generator.min_mm[leg_b] != Vector3i(8000, -4000, 11000) or generator.max_mm[leg_b] != Vector3i(16000, 4000, 20000):
 		return "second leg is %s..%s" % [generator.min_mm[leg_b], generator.max_mm[leg_b]]
 	var diameter_mm: int = roundi(2.0 * SeedSweep.ship_radius() * RobotSpawn.SCALE)
 	# Door at a, first leg, cross, second leg, door at b: the path a ship flies.
@@ -89,10 +89,13 @@ func test_offset_within_limit_gets_a_z_that_clears_a_ship_at_every_joint() -> St
 		for axis: int in 3:
 			if overlap[axis] < diameter_mm:
 				return "joint %d overlaps %s mm, under a ship's %d mm" % [step, overlap, diameter_mm]
+	# Each leg meets the cross box through its whole square (#472).
 	for joint: Array in [[leg_a, cross], [cross, leg_b]]:
 		var overlap: Vector3i = _overlap(generator, joint[0], joint[1])
-		if overlap.x < 8000 or overlap.y < 8000 or overlap.z < 8000:
-			return "a bend overlaps %s mm, narrower than the 8 m connector" % overlap
+		if overlap.x < 8000 or overlap.y < 8000 or overlap.z != LoopShapes.LEG_INTO_CROSS_MM:
+			return "a bend overlaps %s mm, not the 8 m square %d mm deep" % [overlap, LoopShapes.LEG_INTO_CROSS_MM]
+	if _overlap(generator, leg_a, leg_b).z >= 0:
+		return "the two legs meet each other"
 	return "" if generator.open_connectors.size() == 1 else "%d connectors left open" % generator.open_connectors.size()
 
 

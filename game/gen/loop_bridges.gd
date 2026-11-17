@@ -26,8 +26,9 @@ extends RefCounted
 ## the tunnel boxes plus a doorway box at each end, as `MineGenerator` adds for
 ## a join, so the level stays one piece under `LevelDef.joined`. It is made
 ## only when no tunnel box overlaps a placed box and each doorway overlaps no
-## placed box but those of the module it opens into. One open connector is
-## always left for the start.
+## placed box but those of the module it opens into, and when every two of its
+## boxes that meet share at least the connector's square (`LoopShapes`, #472).
+## One open connector is always left for the start.
 ##
 ## Pairs are tried lowest open-connector index first, then lowest partner, so
 ## the same seed gives the same level (GEN-2, ARC-2); nothing here is random.
@@ -138,6 +139,10 @@ func _bridge(generator: MineGenerator, a: int, b: int) -> Array[Vector3i]:
 		return []
 	boxes.append_array(door_a)
 	boxes.append_array(door_b)
+	# The shapes keep this by construction; the check makes a broken shape a
+	# missing loop rather than a narrow joint in a level (#472).
+	if not LoopShapes.joints_clear(boxes, from.size_mm()):
+		return []
 	return boxes
 
 
