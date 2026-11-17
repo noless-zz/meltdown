@@ -147,12 +147,19 @@ func chain(from: Vector3, to: Vector3, radius: float) -> Array[int]:
 ## Whether a sphere of `radius` flying from `from` to `to` would touch solid
 ## debris given to `close_blocked`. Always false before that is called, so
 ## routes before the meltdown, and on levels without debris, are unchanged.
+## A box entry is grown by `radius` on every side with square corners, a little
+## more than the sphere sweeps past its edges, so the bot never takes a straight
+## line that would graze a door; at worst it flies through the openings instead.
 func _meets_debris(from: Vector3, to: Vector3, radius: float) -> bool:
 	if _debris == null:
 		return false
 	for index: int in _debris.size():
-		if _debris.is_solid(index) and Projectile.segment_entry(from, to, _debris.position(index),
-				_debris.radius(index) + radius) >= 0.0:
+		if not _debris.is_solid(index):
+			continue
+		var entry: float = DebrisShapes.box_entry(from, to, _debris.position(index),
+			_debris.box_size(index) * 0.5 + Vector3.ONE * radius) if _debris.is_box(index) \
+			else Projectile.segment_entry(from, to, _debris.position(index), _debris.radius(index) + radius)
+		if entry >= 0.0:
 			return true
 	return false
 
