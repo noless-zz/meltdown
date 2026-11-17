@@ -7,7 +7,9 @@ extends Node3D
 ##
 ## It hangs under a controller, so it turns with the hand. It shows only while
 ## the `show_map` action has been held for `HOLD_SECONDS`; a shorter click of
-## the same button stays the label toggle, timed by the label wiring.
+## the same button stays the label toggle. When both share that button, the
+## map takes its answer from the label wiring's `ClickHold` (#335), so one
+## press can never both show the map and flip the labels.
 ##
 ## It is handed copies (the union, the explored indices, the ship position) and
 ## keeps no reference to the session, so it can never write simulation state
@@ -185,8 +187,16 @@ func hold(held: bool, delta: float) -> void:
 
 
 ## Reads `show_map` through `mapping` from sampled `buttons` and calls `hold`.
-func read(mapping: ThumbstickMapping, buttons: Dictionary, delta: float) -> void:
-	hold(mapping.action_held("show_map", buttons), delta)
+## With `shared` (the label button's `ClickHold`, given only while that button
+## also shows the map), the map shows exactly while `shared` reports a long
+## hold instead; call this after `shared` was fed for the frame.
+func read(mapping: ThumbstickMapping, buttons: Dictionary, delta: float,
+		shared: ClickHold = null) -> void:
+	if shared == null:
+		hold(mapping.action_held("show_map", buttons), delta)
+		return
+	held_seconds = held_seconds + delta if shared.is_held() else 0.0
+	visible = shared.is_long_hold()
 
 
 ## The hand that clicks `show_map`, so the map sits in the hand that holds it:
