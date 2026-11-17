@@ -28,8 +28,9 @@ var one_tick_pending: bool = false
 ## tick rather than from how far it turned: an auto-level roll snap can be
 ## smaller than any yaw or pitch snap.
 var latest_tick_snapped: bool = false
-## The active preset's cockpit frame, under the rig's camera once
-## `attach_cockpit_frame` has run, null before. `set_preset` rebuilds this
+## The active preset's cockpit frame, under the rig origin once
+## `attach_cockpit_frame` has run, null before; the owner places it at the
+## head point, so the head turns inside it (#478). `set_preset` rebuilds this
 ## one node, so the scene never holds two frames or none (CMF-1, #160). It
 ## only reads the preset; it never writes `ShipState` or `Sim` (ARC-3).
 var cockpit_frame: CockpitFrame = null
@@ -82,15 +83,16 @@ func set_preset(p_number: int) -> void:
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
 
 
-## Builds the active preset's cockpit frame under `camera`, its origin at the
-## eye. Does nothing once a frame exists; `set_preset` keeps it current.
+## Builds the active preset's cockpit frame under `rig`, the rig origin, not
+## its camera: the frame is fixed to the ship and the head looks around inside
+## it (#478). Does nothing once a frame exists; `set_preset` rebuilds it in place.
 ## Created here rather than with the wiring, so a wiring that never reaches
 ## a scene owns no node.
-func attach_cockpit_frame(camera: Node3D) -> void:
+func attach_cockpit_frame(rig: Node3D) -> void:
 	if cockpit_frame != null:
 		return
 	cockpit_frame = CockpitFrame.new(cockpit_spec())
-	camera.add_child(cockpit_frame)
+	rig.add_child(cockpit_frame)
 
 
 ## The cockpit named by the active preset. A rejected file still gives a frame
