@@ -73,8 +73,8 @@ func test_the_level_reads_its_exit_radius_and_hands_it_to_the_reactor() -> Strin
 	return ""
 
 
-func test_a_missing_exit_radius_takes_the_default() -> String:
-	var default_mm: int = roundi(ExitRule.DEFAULT_RADIUS_M * 1000.0)
+func test_a_missing_exit_radius_takes_the_fallback_without_defaults() -> String:
+	var default_mm: int = LevelDefaults.FALLBACK_EXIT_RADIUS_MM
 	var level: LevelDef = LevelDef.parse_json(LEVEL_WITHOUT + ', "reactor": ' + REACTOR_NO_EXIT + "}")
 	if level.error != "":
 		return level.error

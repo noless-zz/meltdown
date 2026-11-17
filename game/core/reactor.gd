@@ -18,7 +18,7 @@ extends RefCounted
 ## matters once the reactor is dead, and so the replay's reactor line holds it
 ## too. A level file sets it with its top-level `exit_radius` key (`LevelDef`); the
 ## optional `exit_radius` key here exists for the replay line, and is missing in
-## replays written before #311, which then get `ExitRule.DEFAULT_RADIUS_M`.
+## replays written before #311, which then get `LevelDefaults.FALLBACK_EXIT_RADIUS_MM`.
 
 const KEYS: Array[String] = ["position", "radius", "hull", "meltdown_seconds"]
 ## Keys the JSON may leave out.
@@ -40,7 +40,7 @@ var destroyed: bool = false
 var meltdown_ticks_left: int = 0
 ## Radius of the exit sphere at the start (RUN-3). Fixed for the run, so not
 ## part of the hash.
-var exit_radius_mm: int = roundi(ExitRule.DEFAULT_RADIUS_M * RobotSpawn.SCALE)
+var exit_radius_mm: int = LevelDefaults.FALLBACK_EXIT_RADIUS_MM
 ## Set by `parse` when the data was rejected; empty otherwise.
 var error: String = ""
 

@@ -18,8 +18,9 @@ extends RefCounted
 ## the entry format of `RobotSpawnList`, which parses it. `reactor` is optional
 ## (RUN-2) and read by `ReactorState`; a level without one runs as before.
 ## `exit_radius` is optional too: the radius in metres of the exit sphere around
-## the start (RUN-3), `ExitRule.DEFAULT_RADIUS_M` when left out. It is handed to
-## the reactor, which carries it into the simulation and the replay.
+## the start (RUN-3). When it is left out the level takes the `LevelDefaults`
+## handed to `parse_json`, which the loader reads from the data file (ARC-4). It
+## is handed to the reactor, which carries it into the simulation and the replay.
 ##
 ## A level is rejected, with a message naming the problem, when a box's min is
 ## not below its max, a box cannot be reached from box 0, the start or a robot
@@ -48,14 +49,15 @@ var start_facing_mm: Vector3i = Vector3i(0, 0, -RobotSpawn.SCALE)
 ## The level's reactor before the first tick, or null for a level without one.
 var reactor: ReactorState = null
 ## Radius of the exit sphere around the start (RUN-3), also set on `reactor`.
-var exit_radius_mm: int = roundi(ExitRule.DEFAULT_RADIUS_M * RobotSpawn.SCALE)
+var exit_radius_mm: int = LevelDefaults.FALLBACK_EXIT_RADIUS_MM
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
 
 ## Parses the text of a level file. On failure `error` is set and the level is
-## empty, so nothing half-read is ever flown.
-static func parse_json(text: String) -> LevelDef:
+## empty, so nothing half-read is ever flown. `defaults` fills in what the file
+## leaves out; the loader reads them from `res://data/level_defaults.json`.
+static func parse_json(text: String, defaults: LevelDefaults = null) -> LevelDef:
 	var json: JSON = JSON.new()
 	if json.parse(text) != OK:
 		return _failed("invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()])
@@ -66,6 +68,8 @@ static func parse_json(text: String) -> LevelDef:
 	if problem != "":
 		return _failed(problem)
 	var level: LevelDef = LevelDef.new()
+	if defaults != null:
+		level.exit_radius_mm = defaults.exit_radius_mm
 	problem = level._read_boxes(data["boxes"])
 	if problem == "":
 		problem = level._read_start(data["start"])
@@ -176,6 +180,8 @@ func _read_reactor(value: Variant) -> String:
 	if read.error != "":
 		return read.error
 	reactor = read
+	# The default exit until a top-level `exit_radius` replaces it.
+	reactor.exit_radius_mm = exit_radius_mm
 	return ""
 
 

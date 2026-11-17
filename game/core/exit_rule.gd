@@ -21,12 +21,6 @@ enum Outcome {
 	LOST,
 }
 
-## Exit radius for a level file without `exit_radius`: the ship is 1 m across
-## the centre, and the start must be held with 1 m to spare (`LevelDef`), so
-## this is a sphere a pilot cannot miss in a tunnel mouth.
-const DEFAULT_RADIUS_M: float = 4.0
-
-
 ## Called once at the end of `Sim.step`, after everything has moved, so "ends a
 ## tick inside" means what the ship's final position for the tick says.
 ## Appends SHIP_ESCAPED and SHIP_LOST_IN_MELTDOWN events in ship order.
