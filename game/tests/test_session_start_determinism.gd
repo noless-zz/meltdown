@@ -9,7 +9,7 @@ const G2_FILE: String = "res://data/levels/g2_level.json"
 const WEAPON_DIR: String = "res://data/weapons/"
 ## The #340 flight's hash, measured locally on Godot 4.7.2 and pinned so CI
 ## checks it on a second machine.
-const G2_FLIGHT_HASH: int = 818969652
+const G2_FLIGHT_HASH: int = 1
 
 
 ## The #340 devlog's input: forward thrust with a slow yaw and pitch.
@@ -26,6 +26,8 @@ func _g2() -> LevelDef:
 func _breakdown(session: LocalSession, trail: PackedStringArray) -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	lines.append("listing %s" % DirAccess.get_files_at(WEAPON_DIR))
+	lines.append("math sin %s cos %s rot %s" % [var_to_str(sin(0.0416666679)),
+		var_to_str(cos(0.0416666679)), var_to_str(Basis().rotated(Vector3(0.6, 0.8, 0), 0.0416666679))])
 	for id: String in session.sim.part_ids():
 		lines.append("part %s %d" % [id, session.sim.part(id).values_hash()])
 	for robot: RobotState in session.sim.robots:
@@ -41,6 +43,21 @@ func test_g2_flight_hashes_to_the_pinned_value() -> String:
 		session.sim.ships[0].state_hash()])
 	for i: int in FLIGHT_TICKS:
 		session.advance(ShipState.TICK_DT)
+		var ship: ShipState = session.sim.ships[0]
+		if session.sim.tick <= 3:
+			trail.append("tick %d basis %s pos %s vel %s" % [session.sim.tick,
+				var_to_str(ship.orientation), var_to_str(ship.position), var_to_str(ship.velocity)])
+		if session.sim.tick <= 15:
+			var robot_hashes: Array[int] = []
+			for robot: RobotState in session.sim.robots:
+				robot_hashes.append(robot.state_hash())
+			trail.append("t%d ship %d robots %s projectiles %d" % [session.sim.tick,
+				ship.state_hash(), robot_hashes, session.sim.projectiles.size()])
+			if not session.sim.robots.is_empty():
+				var first: RobotState = session.sim.robots[0]
+				trail.append("r0 awake %s basis %s pos %s vel %s" % [first.awake,
+					var_to_str(first.orientation), var_to_str(first.position),
+					var_to_str(first.velocity)])
 		if session.sim.tick % 15 == 0:
 			trail.append("tick %d %d ship %d" % [session.sim.tick, session.sim.state_hash(),
 				session.sim.ships[0].state_hash()])
