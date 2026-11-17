@@ -158,16 +158,18 @@ func test_seeds_get_debris_that_never_closes_the_escape() -> String:
 func _same(a: MeltdownDebris, b: MeltdownDebris) -> String:
 	if a == null or b == null:
 		return "" if a == b else "debris once, none the other time"
-	if a.positions_mm != b.positions_mm or a.radii_mm != b.radii_mm or a.after_ticks != b.after_ticks:
+	if a.positions_mm != b.positions_mm or a.radii_mm != b.radii_mm or a.after_ticks != b.after_ticks \
+			or a.sizes_mm != b.sizes_mm:
 		return "the same seed gave different debris: %s then %s" % [a.to_json(), b.to_json()]
 	return ""
 
 
-## Counts, ranges, distances and spots, checked apart from `DebrisPlan.fits`.
+## Counts, ranges, distances and spots of the spheres, checked apart from
+## `DebrisPlan.fits`. Doors follow them and `test_generated_doors.gd` checks them.
 func _check(generator: MineGenerator, level: LevelDef, plan: DebrisPlan, radius: float) -> String:
 	if level.reactor == null:
 		return "" if level.debris == null else "debris without a reactor"
-	var count: int = 0 if level.debris == null else level.debris.size()
+	var count: int = _spheres(level.debris)
 	if (count < plan.min_count or count > plan.max_count) and generator.debris_note == "":
 		return "%d entries, plan allows %d..%d, and no note" % [count, plan.min_count, plan.max_count]
 	var spots: Array[Vector3i] = DebrisSpots.escape_spots(generator, level, radius)
@@ -197,9 +199,7 @@ func _check(generator: MineGenerator, level: LevelDef, plan: DebrisPlan, radius:
 ## Every entry keeps `min_robot_distance` from every robot, worked out apart
 ## from `DebrisPlan.clear_of_robots`.
 func _robots_clear(level: LevelDef, plan: DebrisPlan, robot_radii: Dictionary[String, int]) -> String:
-	if level.debris == null:
-		return ""
-	for index: int in level.debris.size():
+	for index: int in _spheres(level.debris):
 		for robot: int in level.robots.spawns.size():
 			var gap: float = level.debris.position(index).distance_to(
 					level.robots.spawns[robot].position()) - level.debris.radius(index) \
@@ -207,6 +207,16 @@ func _robots_clear(level: LevelDef, plan: DebrisPlan, robot_radii: Dictionary[St
 			if gap < plan.min_robot_distance_mm / 1000.0 - 0.001:
 				return "entry %d is %s m from robot %d" % [index, gap, robot]
 	return ""
+
+
+## How many entries come before the first door (#462): the spheres.
+func _spheres(debris: MeltdownDebris) -> int:
+	if debris == null:
+		return 0
+	for index: int in debris.size():
+		if debris.is_box(index):
+			return index
+	return debris.size()
 
 
 ## The meltdown with a ship at the reactor: each tick an entry falls due on is
