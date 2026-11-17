@@ -15,6 +15,8 @@ const ARG_PREFIX: String = "--level="
 const INTENT_EXTRA: String = "meltdown_level"
 const LEVEL_DIR: String = "res://data/levels/"
 const LEVEL_SUFFIX: String = "_level.json"
+## What a level file may leave out, such as its exit radius (ARC-4, #311).
+const DEFAULTS_FILE: String = "res://data/level_defaults.json"
 ## The drawn test tunnel, removed when a level replaces it.
 const TUNNEL_NODE: String = "TestTunnel"
 
@@ -54,19 +56,37 @@ static func requested_path() -> String:
 
 
 ## The level in the file at `path`, or null after printing why when the file
-## is missing or rejected, so the caller keeps the test tunnel.
-static func load_level(path: String) -> LevelDef:
+## is missing or rejected, so the caller keeps the test tunnel. What the level
+## leaves out comes from `defaults_path`.
+static func load_level(path: String, defaults_path: String = DEFAULTS_FILE) -> LevelDef:
 	var problem: String = ""
 	var level: LevelDef = null
-	if not FileAccess.file_exists(path):
+	var defaults: LevelDefaults = load_defaults(defaults_path)
+	if defaults == null:
+		problem = "level defaults %s rejected" % defaults_path
+	elif not FileAccess.file_exists(path):
 		problem = "file not found"
 	else:
-		level = LevelDef.parse_json(FileAccess.get_file_as_string(path))
+		level = LevelDef.parse_json(FileAccess.get_file_as_string(path), defaults)
 		problem = level.error
 	if problem != "":
 		print("Meltdown: level %s rejected (%s); flying the test tunnel" % [path, problem])
 		return null
 	return level
+
+
+## The defaults in the file at `path`, or null after printing why when the
+## file is missing or rejected. A level is not flown with a guessed default:
+## the data file is where the default lives (ARC-4).
+static func load_defaults(path: String = DEFAULTS_FILE) -> LevelDefaults:
+	if not FileAccess.file_exists(path):
+		print("Meltdown: level defaults %s rejected (file not found)" % path)
+		return null
+	var defaults: LevelDefaults = LevelDefaults.parse_json(FileAccess.get_file_as_string(path))
+	if defaults.error != "":
+		print("Meltdown: level defaults %s rejected (%s)" % [path, defaults.error])
+		return null
+	return defaults
 
 
 ## Takes the test tunnel out of `world` and draws `level`'s walls there in its

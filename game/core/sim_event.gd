@@ -55,6 +55,15 @@ enum Kind {
 	## projectile hits. `ship` is the ship that fired it and `vector` the
 	## reactor's position.
 	REACTOR_DESTROYED,
+	## During the meltdown a ship ended a tick inside the exit sphere at its
+	## start (RUN-3) and is out of the level: from now on it takes no input, no
+	## damage and does not move. `vector` is where it ended the tick. Reported
+	## after every other event of the tick, in ship order (`ExitRule`).
+	SHIP_ESCAPED,
+	## The meltdown countdown ran out with the ship still in the level (RUN-7):
+	## its hull is set to zero. Reported once, after every other event of the
+	## tick, in ship order (`ExitRule`).
+	SHIP_LOST_IN_MELTDOWN,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
