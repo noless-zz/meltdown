@@ -25,6 +25,10 @@ const MAX_TRIES: int = 64
 ## How far a doorway box reaches into each of the two modules it joins. Above
 ## `LevelDef.MIN_OVERLAP_M`, so the doorway counts as joined to both.
 const DOOR_DEPTH_MM: int = 3000
+## How far inside its opening `to_level_def` puts the start: a ship's radius
+## clear of the face for any ship up to 3 m across, while every shipped module
+## is deeper than that at each opening.
+const START_INSET_MM: int = 3000
 
 ## The placed modules, in placement order.
 var placements: Array[ModulePlacement] = []
@@ -65,6 +69,25 @@ func output_hash() -> int:
 	for connector: ModuleConnector in open_connectors:
 		parts.append_array([connector.position_mm, hash(connector.axis_name), hash(connector.size_class)])
 	return hash(parts)
+
+
+## The level as a `LevelDef` the game can fly (#317): these boxes, no robots,
+## no reactor, and the start `START_INSET_MM` inside the oldest open connector,
+## facing in. Open connectors are kept oldest first, so that is the first
+## module's lowest open one whenever the first module has one left. Not
+## checked here: `LevelValidator` does that. With no open connector at all the
+## level is empty and `error` says so, as `LevelDef.parse_json` leaves it.
+func to_level_def() -> LevelDef:
+	var level: LevelDef = LevelDef.new()
+	if open_connectors.is_empty():
+		level.error = "no open connector to start at"
+		return level
+	var opening: ModuleConnector = open_connectors[0]
+	var inward: Vector3i = -ModuleTurns.outward(opening)
+	level.union = BoxUnion.new(union.boxes.duplicate())
+	level.start_position_mm = opening.position_mm + inward * START_INSET_MM
+	level.start_facing_mm = inward * RobotSpawn.SCALE
+	return level
 
 
 ## A module's connector `index`, turned by `turn` and moved by `offset_mm`.
