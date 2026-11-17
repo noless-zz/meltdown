@@ -7,11 +7,23 @@ extends RefCounted
 ##
 ## A straight tunnel is the opening's square, face to face. A Z is for openings
 ## whose centres are offset across the axis: a leg straight out of each doorway
-## to the middle of the gap and a cross box joining the two legs there. Each
-## leg runs half a tunnel width past the middle and the cross box is a tunnel
-## width deep along the axis and covers both legs' squares across it, so every
-## joint overlaps by at least the tunnel's width on every axis and the passage
-## is nowhere narrower than the connector.
+## towards the middle of the gap and a cross box joining the two legs there.
+## The cross box is a tunnel width deep along the axis and covers both legs'
+## squares across it, so each leg meets it through its whole square.
+##
+## Each leg reaches only `LEG_INTO_CROSS_MM` into the cross box, short of the
+## middle (#472). Legs that ran half a tunnel width past the middle overlapped
+## each other by a diagonal sliver when the offset was under a tunnel width on
+## both axes, and in a short gap a leg reached into the far doorway box beside
+## the far leg. Stopping short keeps the legs apart from each other and from
+## the far doorway for every gap of at least a tunnel width, so every pair of
+## boxes that meet does so through at least the connector's square.
+## `joints_clear` checks that for a whole bridge.
+
+## How far a leg reaches into the cross box along the axis. At least
+## `LevelDef.MIN_OVERLAP_M`, so the two count as joined, and under half the
+## smallest connector (4 m), so the two legs never meet each other.
+const LEG_INTO_CROSS_MM: int = 3000
 
 
 ## The straight tunnel between two openings exactly in line: one box.
@@ -32,8 +44,9 @@ static func z_shape(from: ModuleConnector, to: ModuleConnector) -> Array[Vector3
 	if gap < width:
 		return []
 	var middle: int = from.position_mm[axis] + outward * (gap / 2)
-	var leg_from: Array[Vector3i] = _leg(from.position_mm, half, axis, middle + outward * half)
-	var leg_to: Array[Vector3i] = _leg(to.position_mm, half, axis, middle - outward * half)
+	var reach: int = half - LEG_INTO_CROSS_MM
+	var leg_from: Array[Vector3i] = _leg(from.position_mm, half, axis, middle - outward * reach)
+	var leg_to: Array[Vector3i] = _leg(to.position_mm, half, axis, middle + outward * reach)
 	var cross_low: Vector3i = Vector3i(
 			mini(leg_from[0].x, leg_to[0].x), mini(leg_from[0].y, leg_to[0].y), mini(leg_from[0].z, leg_to[0].z))
 	var cross_high: Vector3i = Vector3i(
@@ -45,6 +58,24 @@ static func z_shape(from: ModuleConnector, to: ModuleConnector) -> Array[Vector3
 	boxes.append_array([cross_low, cross_high])
 	boxes.append_array(leg_to)
 	return boxes
+
+
+## True if every two of `boxes` (corner pairs) that touch or overlap share an
+## opening at least `width` mm on both axes across it: the two larger of the
+## three overlaps. Boxes apart on any axis are skipped. Whole millimetres
+## (GEN-2), and no ship radius, so `gen/` keeps its own promise (#472).
+static func joints_clear(boxes: Array[Vector3i], width: int) -> bool:
+	for a: int in range(0, boxes.size(), 2):
+		for b: int in range(a + 2, boxes.size(), 2):
+			var overlap: Array[int] = []
+			for axis: int in 3:
+				overlap.append(mini(boxes[a + 1][axis], boxes[b + 1][axis]) - maxi(boxes[a][axis], boxes[b][axis]))
+			overlap.sort()
+			if overlap[0] < 0:
+				continue
+			if overlap[1] < width:
+				return false
+	return true
 
 
 ## A leg: the opening's square at `centre`, from its face to `end` along `axis`.

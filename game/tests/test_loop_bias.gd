@@ -11,8 +11,10 @@ const SEEDS: int = 1000
 const FEW_SEEDS: int = 200
 ## `hash()` of the 1,000 `output_hash` values of seeds 0..999 on `main` before
 ## #438, with the shipped `generator.json` of the time (bias did not exist,
-## so it is the file with `loop_bias` 0) and with no settings at all.
-const PIN_WITH_FILE: int = 3783710171
+## so it is the file with `loop_bias` 0) and with no settings at all. #472
+## reshaped the Z bridges, so the pin with the file moved from 3783710171;
+## levels without bridges are unchanged.
+const PIN_WITH_FILE: int = 2981470496
 const PIN_WITHOUT_SETTINGS: int = 3339467983
 
 
@@ -39,8 +41,8 @@ func test_shipped_value_reads_and_bad_values_are_named() -> String:
 	var shipped: LoopBridges = SeedSweep.load_loop_bridges()
 	if shipped.error != "":
 		return "generator.json rejected: %s" % shipped.error
-	# Shipped off: with any bias above 0 some Z bridges open onto slivers the
-	# validator rejects (see the #438 pull request), so levels stay as before.
+	# Shipped off until #438 sets it; #472 made nonzero values pass the
+	# validator (`test_loop_z_joints.gd`).
 	if shipped.loop_bias_permille != 0:
 		return "shipped loop_bias read as %d thousandths, expected 0" % shipped.loop_bias_permille
 	for value: Variant in [0, 0.25, 1]:
