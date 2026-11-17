@@ -87,7 +87,7 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	use_level(LevelSwitch.requested_path())  # Only with --level=<name> (#291).
+	use_level(LevelSwitch.requested_path())  # Only with --level=<name> (#291) or --seed=<n> (#382).
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
