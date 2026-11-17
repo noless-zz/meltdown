@@ -5,7 +5,7 @@ extends Node3D
 ## shows at a glance what the owner could not tell in the headset (#146): the
 ## active comfort preset, the ship's speed, the energy pool, the shield and
 ## hull (#227), whether the afterburner is boosting or locked out, the part in
-## the hold (#290), and which build is running.
+## the hold (#290), the meltdown countdown (#315), and which build is running.
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
 ## the session, so it can never read more than it is handed or write
@@ -28,6 +28,7 @@ const HULL_LABEL_NAME: String = "HullLabel"
 const HULL_BAR_NAME: String = "HullBar"
 const HULL_TRACK_NAME: String = "HullTrack"
 const HOLD_NAME: String = "Hold"
+const MELTDOWN_NAME: String = "Meltdown"
 ## The hold line reads "Hold <part>" or this, so an empty hold is said, not
 ## left blank: a blank line looks the same as an unwired panel.
 const HOLD_EMPTY: String = "Hold empty"
@@ -61,8 +62,14 @@ const HULL_COLOR: Color = Color(1.0, 0.72, 0.3)
 ## At or below this hull fraction the hull label turns `HULL_WARNING_COLOR`.
 const HULL_WARNING_FRACTION: float = 0.25
 const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
+## Under this many seconds the meltdown row turns `HULL_WARNING_COLOR`: the
+## same red as a failing hull, so red on the panel always means "act now".
+const MELTDOWN_WARNING_SECONDS: float = 30.0
 ## Rows, top to bottom, 3 cm apart: the bars sit under the energy bar, the
 ## hold line under the hull bar (#290), and the build line moves down below it.
+## The meltdown row sits above them all, so it is the first line read (RUN-2),
+## and still clear of the large preset label centred at 0.11.
+const MELTDOWN_Y: float = 0.075
 const PRESET_Y: float = 0.045
 const SPEED_Y: float = 0.015
 const ENERGY_Y: float = -0.015
@@ -85,6 +92,8 @@ const RENDER_PRIORITY_TOP: int = RENDER_PRIORITY + 1
 ## How many times the hold label's text was replaced. Only tests read it: it
 ## shows that a per-frame call with the same part leaves the glyphs alone.
 var hold_text_changes: int = 0
+## How many times the meltdown label's text was replaced; read by tests only.
+var meltdown_text_changes: int = 0
 ## Seconds the large preset label has left; 0 when it is hidden.
 var large_seconds_left: float = 0.0
 
@@ -97,6 +106,7 @@ var _speed: Label3D
 var _boost: Label3D
 var _build: Label3D
 var _hold: Label3D
+var _meltdown: Label3D
 var _hull_label: Label3D
 var _energy_bar: PanelBar
 var _shield_bar: PanelBar
@@ -114,6 +124,9 @@ func _init() -> void:
 	_boost = _label(BOOST_NAME, Vector3(0.04, SPEED_Y, 0.0), SMALL_FONT)
 	_hold = _label(HOLD_NAME, Vector3(LABEL_X, HOLD_Y, 0.0), SMALL_FONT)
 	_hold.text = HOLD_EMPTY
+	_meltdown = _label(MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT)
+	# Hidden until a meltdown starts: most of a run has no countdown.
+	_meltdown.visible = false
 	_build = _label(BUILD_NAME, Vector3(LABEL_X, BUILD_Y, 0.0), SMALL_FONT)
 	_build.font_size = SMALL_FONT * 3 / 4
 	_preset_large = _label(PRESET_LARGE_NAME, Vector3(0.0, 0.11, 0.0), LARGE_FONT)
@@ -160,6 +173,30 @@ func show_defence(shield_fraction: float, hull_fraction: float) -> void:
 func show_hold(part_name: String) -> void:
 	if _set_text(_hold, HOLD_EMPTY if part_name.is_empty() else "Hold %s" % part_name):
 		hold_text_changes += 1
+
+
+## Shows the meltdown countdown as "Meltdown m:ss"; a negative value hides the
+## row (no meltdown). Whole seconds are floored, so the row reads 0:00 only in
+## the last second. Safe to call every frame: the glyphs are rebuilt only when
+## the shown second changes.
+func show_meltdown(seconds_left: float) -> void:
+	if seconds_left < 0.0:
+		_meltdown.visible = false
+		return
+	_meltdown.visible = true
+	var whole: int = floori(seconds_left)
+	if _set_text(_meltdown, "Meltdown %d:%02d" % [floori(whole / 60.0), whole % 60]):
+		meltdown_text_changes += 1
+	_meltdown.modulate = HULL_WARNING_COLOR if seconds_left < MELTDOWN_WARNING_SECONDS else TEXT_COLOR
+
+
+func meltdown_visible() -> bool:
+	return _meltdown.visible
+
+
+## Whether the meltdown row shows the warning colour.
+func meltdown_warning_shown() -> bool:
+	return _meltdown.modulate == HULL_WARNING_COLOR
 
 
 ## Runs the large preset label's timer by `delta` seconds.
