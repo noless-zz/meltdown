@@ -16,7 +16,8 @@ extends RefCounted
 ## than the doorway inside the module it joins, is rejected and another tried,
 ## as is a dead end while fewer than `DEAD_END_MIN_OPEN` connectors are open.
 ## After `MAX_TRIES` rejections in a row the generator stops short and says so
-## in `note`.
+## in `note`. With `LoopBridges` (#396), facing open connectors are then
+## bridged, and `loops` counts the bridges.
 ##
 ## Randomness comes only from a `RandomNumberGenerator` seeded with the given
 ## seed, read through `randi()` (ARC-2): no time, no global random calls.
@@ -51,6 +52,8 @@ var open_connectors: Array[ModuleConnector] = []
 var open_owner: Array[Vector2i] = []
 ## Empty when every requested module was placed; otherwise why it stopped.
 var note: String = ""
+## Tunnels `LoopBridges` added between facing open connectors: each closes a loop.
+var loops: int = 0
 ## Set by `to_level_def`: why a requested reactor was left out, else empty.
 var reactor_note: String = ""
 ## Set by `to_level_def`: the placement holding the reactor, or -1.
@@ -63,10 +66,14 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 ## Builds a level of up to `count` modules from `modules` (rejected modules,
-## those with an `error`, are left out) for `level_seed`.
-static func generate(level_seed: int, modules: Array[ModuleDef], count: int) -> MineGenerator:
+## those with an `error`, are left out) for `level_seed`, then, with `bridges`
+## (one without an `error`), closes loops. Without it the level is a tree.
+static func generate(level_seed: int, modules: Array[ModuleDef], count: int,
+		bridges: LoopBridges = null) -> MineGenerator:
 	var generator: MineGenerator = MineGenerator.new()
 	generator._run(level_seed, modules, count)
+	if bridges != null and bridges.error == "" and not generator.placements.is_empty():
+		generator.loops = bridges.apply(generator)
 	return generator
 
 
@@ -146,7 +153,7 @@ func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) 
 		var turn: int = turns[_pick(turns.size())]
 		var offset: Vector3i = target.position_mm - ModuleTurns.apply(turn, joining.position_mm)
 		var owner: Vector2i = open_owner[open_index]
-		var door: Array[Vector3i] = _door(target)
+		var door: Array[Vector3i] = door_for(target)
 		if not _fits(module, turn, offset, door, owner.x):
 			continue
 		open_connectors.remove_at(open_index)
@@ -165,11 +172,11 @@ func _place(module: ModuleDef, turn: int, offset: Vector3i, parent: int, parent_
 	placement.first_box = min_mm.size()
 	for box: BoxBounds in module.boxes:
 		var corners: Array[Vector3i] = _turned_box(box, turn, offset)
-		_add_box(corners[0], corners[1])
+		add_box(corners[0], corners[1])
 	placement.end_box = min_mm.size()
 	if not door.is_empty():
 		placement.door_box = min_mm.size()
-		_add_box(door[0], door[1])
+		add_box(door[0], door[1])
 	var index: int = placements.size()
 	placements.append(placement)
 	for connector_index: int in module.connectors.size():
@@ -205,7 +212,7 @@ static func overlaps(a_min: Vector3i, a_max: Vector3i, b_min: Vector3i, b_max: V
 
 ## The doorway box for an opening: its square across the axis, `DOOR_DEPTH_MM`
 ## either side of the face along it.
-static func _door(connector: ModuleConnector) -> Array[Vector3i]:
+static func door_for(connector: ModuleConnector) -> Array[Vector3i]:
 	var half: int = connector.size_mm() / 2
 	var low: Vector3i = connector.position_mm - Vector3i(half, half, half)
 	var high: Vector3i = connector.position_mm + Vector3i(half, half, half)
@@ -223,7 +230,8 @@ static func _turned_box(box: BoxBounds, turn: int, offset: Vector3i) -> Array[Ve
 			Vector3i(maxi(a.x, b.x), maxi(a.y, b.y), maxi(a.z, b.z))]
 
 
-func _add_box(low: Vector3i, high: Vector3i) -> void:
+## Appends a box to the level, in millimetres and in `union`.
+func add_box(low: Vector3i, high: Vector3i) -> void:
 	min_mm.append(low)
 	max_mm.append(high)
 	var scale: float = float(RobotSpawn.SCALE)

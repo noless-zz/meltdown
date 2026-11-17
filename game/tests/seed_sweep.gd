@@ -8,6 +8,7 @@ extends RefCounted
 const MODULES_DIR: String = "res://data/modules/"
 const VALIDATOR_FILE: String = "res://data/gen/validator.json"
 const REACTOR_FILE: String = "res://data/gen/reactor.json"
+const GENERATOR_FILE: String = "res://data/gen/generator.json"
 const SHIP_FILE: String = "res://data/ships/default_ship.json"
 ## Modules per level, as in the generator's own 1,000-seed test.
 const MODULE_COUNT: int = 10
@@ -34,14 +35,18 @@ static func load_reactor_plan() -> ReactorPlan:
 	return ReactorPlan.parse_json(FileAccess.get_file_as_string(REACTOR_FILE))
 
 
+static func load_loop_bridges() -> LoopBridges:
+	return LoopBridges.parse_json(FileAccess.get_file_as_string(GENERATOR_FILE))
+
+
 static func ship_radius() -> float:
 	return ShipTuning.parse_json(FileAccess.get_file_as_string(SHIP_FILE)).radius
 
 
 ## Seeds `first_seed` up to `first_seed + count - 1`, each level with the
-## generator's reactor (#356, #357). The result holds "seeds", "passed",
-## "failed", "short" (levels the generator stopped short, which are still
-## validated), "ms", "by_check" (seeds failing each of `LevelValidator.CHECKS`,
+## generator's reactor (#356, #357) and loops (#396). The result holds "seeds",
+## "passed", "failed", "short" (levels the generator stopped short, which are
+## still validated), "looped" (levels with at least one loop), "ms", "by_check" (seeds failing each of `LevelValidator.CHECKS`,
 ## plus "level" for levels that did not build), and "failures": the first
 ## `kept_failures` messages, each prefixed with its seed. A `kept_failures` of 0
 ## keeps every message, so the nightly job can list every failing seed (#358).
@@ -51,11 +56,12 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 	var modules: Array[ModuleDef] = load_modules()
 	var validator: LevelValidator = load_validator()
 	var plan: ReactorPlan = load_reactor_plan()
+	var bridges: LoopBridges = load_loop_bridges()
 	var radius: float = ship_radius()
 	var by_check: Dictionary[String, int] = {"level": 0}
 	for check: String in LevelValidator.CHECKS:
 		by_check[check] = 0
-	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0,
+	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0, "looped": 0,
 			"by_check": by_check, "failures": [] as Array[String]}
 	# A broken data file must not pass every seed on the defaults.
 	var broken: String = ""
@@ -63,15 +69,19 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		broken = "validator.json: %s" % validator.error
 	elif plan.error != "":
 		broken = "reactor.json: %s" % plan.error
+	elif bridges.error != "":
+		broken = "generator.json: %s" % bridges.error
 	if broken != "":
 		result["failed"] = count
 		result["failures"].append(broken)
 		result["ms"] = Time.get_ticks_msec() - started
 		return result
 	for level_seed: int in range(first_seed, first_seed + count):
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules, module_count)
+		var generator: MineGenerator = MineGenerator.generate(level_seed, modules, module_count, bridges)
 		if generator.note != "":
 			result["short"] += 1
+		if generator.loops > 0:
+			result["looped"] += 1
 		var level: LevelDef = generator.to_level_def(plan, radius)
 		var found: Array[String] = []
 		if level.error != "":
