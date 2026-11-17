@@ -1,16 +1,20 @@
 class_name MeltdownDebris
 extends RefCounted
 
-## Falling debris during the meltdown (RUN-4, first slice): solid spheres from the
-## level file that appear at set times after the reactor dies. Ships bounce off
-## them as off a wall (FLT-3) and shots of either side stop on them.
+## Falling debris during the meltdown (RUN-4): solid spheres (rocks) and
+## axis-aligned boxes (blast doors, cave-ins) from the level file that appear at
+## set times after the reactor dies. Ships bounce off them as off a wall (FLT-3)
+## and shots of either side stop on them. The shape tests are `DebrisShapes`.
 ##
 ## Read from one JSON list, in the level file's optional `debris` key and in the
 ## replay's debris line alike, so there is one parser:
 ##
-##     [{"position": [0, -15, -45], "radius": 1.5, "after_seconds": 10}, ...]
+##     [{"position": [0, -15, -45], "radius": 1.5, "after_seconds": 10},
+##      {"position": [0, 0, -80], "size": [6, 6, 0.5], "after_seconds": 20}, ...]
 ##
-## Positions and radii are metres held as whole millimetres, and times are held
+## An entry gives exactly one of `radius` (a sphere) and `size` (a box's full
+## extent on x, y and z, each at least 0.1, centred on `position`). Positions,
+## radii and sizes are metres held as whole millimetres, and times are held
 ## as whole ticks, so debris is the same on every device (ARC-1, ARC-2). What
 ## falls, how big and when is data (ARC-4).
 ##
@@ -20,13 +24,18 @@ extends RefCounted
 ## unless `DebrisRouteGuard` held it back because it would have closed a ship's
 ## last route to the exit: then it is skipped and never becomes solid.
 
-const KEYS: Array[String] = ["position", "radius", "after_seconds"]
+const KEYS: Array[String] = ["position", "radius", "size", "after_seconds"]
+## Each side of a box entry is at least this many millimetres.
+const MIN_SIZE_MM: int = 100
 const TICKS_PER_SECOND: int = 60
 
-## Per entry, in file order: centre in millimetres, radius in millimetres and
-## ticks after the reactor's death until it is solid (at least 1).
+## Per entry, in file order: centre in millimetres, radius in millimetres (0
+## for a box) and ticks after the reactor's death until it is solid (at least 1).
 var positions_mm: Array[Vector3i] = []
 var radii_mm: Array[int] = []
+## Per entry: a box's full size in millimetres, or zero for a sphere. Code that
+## builds spheres may leave it short; a missing entry is a sphere.
+var sizes_mm: Array[Vector3i] = []
 var after_ticks: Array[int] = []
 ## Per entry: held back by `DebrisRouteGuard` when it fell due, so never solid.
 ## Part of the hash only once one is set, so runs with nothing held keep theirs.
@@ -71,6 +80,17 @@ func radius(index: int) -> float:
 	return radii_mm[index] / float(RobotSpawn.SCALE)
 
 
+func is_box(index: int) -> bool:
+	return index < sizes_mm.size() and sizes_mm[index] != Vector3i.ZERO
+
+
+## A box entry's full size in metres; zero for a sphere.
+func box_size(index: int) -> Vector3:
+	if not is_box(index):
+		return Vector3.ZERO
+	return Vector3(sizes_mm[index]) / float(RobotSpawn.SCALE)
+
+
 ## True once entry `index` has appeared, which a skipped entry never does.
 func is_solid(index: int) -> bool:
 	return elapsed_ticks >= after_ticks[index] and not is_skipped(index)
@@ -85,6 +105,7 @@ func fresh_copy() -> MeltdownDebris:
 	var copy: MeltdownDebris = MeltdownDebris.new()
 	copy.positions_mm = positions_mm.duplicate()
 	copy.radii_mm = radii_mm.duplicate()
+	copy.sizes_mm = sizes_mm.duplicate()
 	copy.after_ticks = after_ticks.duplicate()
 	copy.skipped.resize(size())
 	copy.skipped.fill(false)
@@ -97,9 +118,15 @@ func to_json() -> String:
 	var entries: Array = []
 	for index: int in size():
 		var at: Vector3i = positions_mm[index]
-		entries.append({"position": [at.x / scale, at.y / scale, at.z / scale],
-			"radius": radii_mm[index] / scale,
-			"after_seconds": after_ticks[index] / float(TICKS_PER_SECOND)})
+		# Keys in this order, so sphere-only lists write exactly as before boxes.
+		var entry: Dictionary = {"position": [at.x / scale, at.y / scale, at.z / scale]}
+		if is_box(index):
+			var extent: Vector3i = sizes_mm[index]
+			entry["size"] = [extent.x / scale, extent.y / scale, extent.z / scale]
+		else:
+			entry["radius"] = radii_mm[index] / scale
+		entry["after_seconds"] = after_ticks[index] / float(TICKS_PER_SECOND)
+		entries.append(entry)
 	return JSON.stringify(entries, "", false, true)
 
 
@@ -121,16 +148,17 @@ func segment_entry(from: Vector3, to: Vector3) -> float:
 	for index: int in size():
 		if not is_solid(index):
 			continue
-		var t: float = Projectile.segment_entry(from, to, position(index), radius(index))
+		var t: float = DebrisShapes.box_entry(from, to, position(index), box_size(index) * 0.5) \
+			if is_box(index) else DebrisShapes.sphere_entry(from, to, position(index), radius(index))
 		if t >= 0.0 and (best < 0.0 or t < best):
 			best = t
 	return best
 
 
 ## Pushes `ship` out of every solid entry it overlaps, in order, exactly as a
-## wall does (`BoxBounds.contain_impact`): the overshoot along the line between
-## centres is mirrored back out, the velocity into the sphere is reflected and
-## scaled by the ship's restitution, and the wall damage applies. A ship caught
+## wall does (`BoxBounds.contain_impact`): the overshoot is mirrored back out,
+## the velocity into the entry is reflected and scaled by the ship's
+## restitution, and the wall damage applies once for all of them. A ship caught
 ## inside when an entry appears is pushed out the same way. Returns the velocity
 ## carried into the debris, or Vector3.ZERO when nothing was hit.
 func contain_impact(ship: ShipState) -> Vector3:
@@ -139,19 +167,10 @@ func contain_impact(ship: ShipState) -> Vector3:
 	for index: int in size():
 		if not is_solid(index):
 			continue
-		var offset: Vector3 = ship.position - position(index)
-		var reach: float = ship.radius + radius(index)
-		var distance: float = offset.length()
-		if distance >= reach:
-			continue
-		# A ship exactly at the centre has no line out; up is as good as any
-		# and the same on every device.
-		var normal: Vector3 = Vector3.UP if distance == 0.0 else offset / distance
-		ship.position = position(index) + normal * (reach + (reach - distance) * bounce)
-		var into: float = ship.velocity.dot(normal)
-		if into < 0.0:
-			impact += normal * into
-			ship.velocity -= normal * into * (1.0 + bounce)
+		if is_box(index):
+			impact += DebrisShapes.push_out_of_box(ship, position(index), box_size(index) * 0.5, bounce)
+		else:
+			impact += DebrisShapes.push_out_of_sphere(ship, position(index), radius(index), bounce)
 	var impact_speed: float = impact.length()
 	if impact_speed > 0.0:
 		ship.take_wall_hit(impact_speed)
@@ -199,15 +218,21 @@ func _read_entry(value: Variant) -> String:
 	for key: Variant in data:
 		if not KEYS.has(key):
 			return "unknown key \"%s\"" % str(key)
-	for key: String in KEYS:
+	for key: String in ["position", "after_seconds"]:
 		if not data.has(key):
 			return "missing key \"%s\"" % key
+	if data.has("radius") == data.has("size"):
+		return "needs exactly one of \"radius\" and \"size\""
 	var read: Array[Vector3i] = []
 	var problem: String = RobotSpawn.read_mm(data["position"], "position", read)
 	if problem != "":
 		return problem
 	var radius_read: Array[int] = []
-	problem = ReactorState.read_radius_mm(data["radius"], "radius", radius_read)
+	if data.has("radius"):
+		problem = ReactorState.read_radius_mm(data["radius"], "radius", radius_read)
+	else:
+		radius_read.append(0)
+		problem = _read_size(data["size"], read)
 	if problem != "":
 		return problem
 	var seconds: Variant = data["after_seconds"]
@@ -219,6 +244,18 @@ func _read_entry(value: Variant) -> String:
 		return "after_seconds must be at least one tick"
 	positions_mm.append(read[0])
 	radii_mm.append(radius_read[0])
+	sizes_mm.append(read[1] if read.size() > 1 else Vector3i.ZERO)
 	after_ticks.append(ticks)
 	skipped.append(false)
+	return ""
+
+
+## Appends the size to `read` after the position.
+func _read_size(value: Variant, read: Array[Vector3i]) -> String:
+	var problem: String = RobotSpawn.read_mm(value, "size", read)
+	if problem != "":
+		return problem
+	var extent: Vector3i = read[1]
+	if mini(extent.x, mini(extent.y, extent.z)) < MIN_SIZE_MM:
+		return "size must be at least 0.1 m on every axis"
 	return ""
