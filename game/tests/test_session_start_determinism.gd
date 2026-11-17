@@ -40,24 +40,29 @@ func test_g2_flight_hashes_to_the_pinned_value() -> String:
 	var session: LocalSession = LocalSession.for_level(_g2(), 340, FlySource.new())
 	var trail: PackedStringArray = PackedStringArray()
 	var r0: RobotState = session.sim.robots[0]
-	var facing: Vector3 = r0.forward()
-	var direction: Vector3 = (session.sim.ships[0].position - r0.position).normalized()
-	var angle: float = facing.angle_to(direction)
-	var axis: Vector3 = facing.cross(direction)
-	var turn: float = minf(angle, r0.max_turn_per_tick())
-	var turned: Basis = Basis(axis.normalized(), turn) * r0.orientation
-	trail.append("probe facing %s dir %s angle %s axis %s turn %s turned %s ortho %s" % [
-		var_to_str(facing), var_to_str(direction), var_to_str(angle), var_to_str(axis),
-		var_to_str(turn), var_to_str(turned), var_to_str(turned.orthonormalized())])
-	trail.append("probe atan2 %s %s %s cross_len %s dot %s sin %s cos %s" % [
-		var_to_str(atan2(0.0623, 0.998)), var_to_str(atan2(axis.length(), facing.dot(direction))),
-		var_to_str(atan2(0.3, -0.7)), var_to_str(axis.length()), var_to_str(facing.dot(direction)),
-		var_to_str(sin(turn)), var_to_str(cos(turn))])
-	trail.append("probe basis_axis %s quat %s" % [var_to_str(Basis(Vector3(0.6, 0, 0.8), turn)),
-		var_to_str(Quaternion(Vector3(0.6, 0, 0.8), turn))])
-	trail.append("tick 0 %d ship %d" % [session.sim.state_hash(),
-		session.sim.ships[0].state_hash()])
-	for i: int in FLIGHT_TICKS:
+	var copy: RobotState = RobotState.new(r0.def, r0.position, r0.orientation)
+	session.advance(ShipState.TICK_DT)
+	var target: Vector3 = session.sim.ships[0].position
+	var offset: Vector3 = target - copy.position
+	var distance: float = offset.length()
+	var to_target: Vector3 = offset / distance
+	var facing: Vector3 = copy.forward()
+	var angle: float = facing.angle_to(to_target)
+	var axis: Vector3 = facing.cross(to_target)
+	var turn: float = minf(angle, copy.max_turn_per_tick())
+	var rot: Basis = Basis(axis.normalized(), turn)
+	var turned: Basis = rot * copy.orientation
+	copy.turn_towards(to_target)
+	trail.append("probe target %s offset %s distance %s to_target %s facing %s angle %s axis %s naxis %s turn %s rot %s turned %s ortho %s real %s live %s" % [
+		var_to_str(target), var_to_str(offset), var_to_str(distance), var_to_str(to_target),
+		var_to_str(facing), var_to_str(angle), var_to_str(axis), var_to_str(axis.normalized()),
+		var_to_str(turn), var_to_str(rot), var_to_str(turned),
+		var_to_str(turned.orthonormalized()), var_to_str(copy.orientation),
+		var_to_str(r0.orientation)])
+	trail.append("probe atan2 %s sin %s cos %s" % [
+		var_to_str(atan2(axis.length(), facing.dot(to_target))), var_to_str(sin(turn)),
+		var_to_str(cos(turn))])
+	for i: int in FLIGHT_TICKS - 1:
 		session.advance(ShipState.TICK_DT)
 		var ship: ShipState = session.sim.ships[0]
 		if session.sim.tick <= 3:
