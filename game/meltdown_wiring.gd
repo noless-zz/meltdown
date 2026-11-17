@@ -4,8 +4,9 @@ extends RefCounted
 ## Joins the level's reactor and the run's outcome to what the main scene shows
 ## (RUN-2, RUN-5, LGT-1, #359): the reactor view in the level, the meltdown
 ## countdown and the outcome row on the status panel. It also draws the
-## level's meltdown debris (RUN-4) and holds the reactor's flicker still while
-## the session is paused (CMF-8, PLT-7, #422).
+## level's meltdown debris (RUN-4), spheres and box slabs alike (#479), and
+## holds the reactor's flicker still while the session is paused (CMF-8, PLT-7,
+## #422).
 ##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
@@ -91,4 +92,4 @@ func _follow_debris(snapshot: Dictionary) -> void:
 		_world.add_child(debris_view)
 	debris_view.show_debris(positions, snapshot[SessionSnapshots.DEBRIS_RADII],
 		snapshot[SessionSnapshots.DEBRIS_SOLID], snapshot[SessionSnapshots.DEBRIS_HELD],
-		snapshot[SessionSnapshots.DEBRIS_SECONDS])
+		snapshot[SessionSnapshots.DEBRIS_SECONDS], snapshot[SessionSnapshots.DEBRIS_SIZES])
