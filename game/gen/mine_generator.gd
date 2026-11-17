@@ -1,0 +1,204 @@
+class_name MineGenerator
+extends RefCounted
+
+## A first seeded mine generator (GEN-1, GEN-2, GEN-5): chains modules one by
+## one, each joined to an open connector of a module already placed, connector
+## to connector (same size class, outward axes opposite), turned in 90° steps
+## (`ModuleTurns`), in whole millimetres.
+##
+## Joined connectors meet exactly, so the two modules only touch across the
+## opening. Each join therefore adds a doorway box: the opening's square,
+## reaching `DOOR_DEPTH_MM` into each module, so the level is one piece under
+## `LevelDef.joined` and a ship can fly through (`BoxUnion` keeps a ship in
+## one box at a time, and boxes that only touch would wall it in).
+##
+## A placement whose boxes (and doorway) overlap boxes already placed, other
+## than the doorway inside the module it joins, is rejected and another tried.
+## After `MAX_TRIES` rejections in a row the generator stops short and says so
+## in `note`.
+##
+## Randomness comes only from a `RandomNumberGenerator` seeded with the given
+## seed, read through `randi()` (ARC-2): no time, no global random calls.
+
+## Rejected placements in a row before the generator stops short.
+const MAX_TRIES: int = 64
+## How far a doorway box reaches into each of the two modules it joins. Above
+## `LevelDef.MIN_OVERLAP_M`, so the doorway counts as joined to both.
+const DOOR_DEPTH_MM: int = 3000
+
+## The placed modules, in placement order.
+var placements: Array[ModulePlacement] = []
+## The level's boxes in metres, in placement order: each module's boxes, then
+## its doorway.
+var union: BoxUnion = BoxUnion.new()
+## The same boxes' corners in millimetres, for exact checks.
+var min_mm: Array[Vector3i] = []
+var max_mm: Array[Vector3i] = []
+## Connectors no module has been joined to, in level space, oldest first.
+var open_connectors: Array[ModuleConnector] = []
+## Which placement each open connector belongs to, and its index there.
+var open_owner: Array[Vector2i] = []
+## Empty when every requested module was placed; otherwise why it stopped.
+var note: String = ""
+
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+
+## Builds a level of up to `count` modules from `modules` (rejected modules,
+## those with an `error`, are left out) for `level_seed`.
+static func generate(level_seed: int, modules: Array[ModuleDef], count: int) -> MineGenerator:
+	var generator: MineGenerator = MineGenerator.new()
+	generator._run(level_seed, modules, count)
+	return generator
+
+
+## One number for the whole output: placements, boxes and open connectors.
+func output_hash() -> int:
+	var parts: Array = []
+	for placement: ModulePlacement in placements:
+		parts.append_array([hash(placement.module_id), placement.turn, placement.offset_mm,
+				placement.parent, placement.parent_connector, placement.connector])
+	parts.append(hash("boxes"))
+	for index: int in min_mm.size():
+		parts.append_array([min_mm[index], max_mm[index]])
+	parts.append(hash("open"))
+	for connector: ModuleConnector in open_connectors:
+		parts.append_array([connector.position_mm, hash(connector.axis_name), hash(connector.size_class)])
+	return hash(parts)
+
+
+## A module's connector `index`, turned by `turn` and moved by `offset_mm`.
+static func placed_connector(module: ModuleDef, index: int, turn: int, offset_mm: Vector3i) -> ModuleConnector:
+	var source: ModuleConnector = module.connectors[index]
+	return ModuleConnector.new(
+			ModuleTurns.apply(turn, source.position_mm) + offset_mm,
+			ModuleTurns.axis_name(ModuleTurns.apply(turn, ModuleTurns.outward(source))),
+			source.size_class)
+
+
+func _run(level_seed: int, modules: Array[ModuleDef], count: int) -> void:
+	_rng.seed = level_seed
+	var usable: Array[ModuleDef] = []
+	for module: ModuleDef in modules:
+		if module.error == "" and not module.connectors.is_empty():
+			usable.append(module)
+	if usable.is_empty() or count < 1:
+		note = "nothing to place: %d usable modules, %d requested" % [usable.size(), count]
+		return
+	var first: ModuleDef = usable[_pick(usable.size())]
+	_place(first, 0, Vector3i.ZERO, -1, -1, -1, [])
+	var by_id: Dictionary[String, ModuleDef] = {}
+	for module: ModuleDef in usable:
+		by_id[module.id] = module
+	while placements.size() < count:
+		if not _place_one(usable, by_id):
+			note = "stopped after %d of %d modules: %s" % [placements.size(), count,
+					"no open connector left" if open_connectors.is_empty()
+					else "no placement fit in %d tries" % MAX_TRIES]
+			return
+
+
+## Tries up to `MAX_TRIES` placements; true when one fits.
+func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) -> bool:
+	for attempt: int in MAX_TRIES:
+		if open_connectors.is_empty():
+			return false
+		var open_index: int = _pick(open_connectors.size())
+		var target: ModuleConnector = open_connectors[open_index]
+		var module: ModuleDef = usable[_pick(usable.size())]
+		var own: int = _pick(module.connectors.size())
+		var joining: ModuleConnector = module.connectors[own]
+		if joining.size_class != target.size_class:
+			continue
+		var turns: Array[int] = ModuleTurns.turns_between(ModuleTurns.outward(joining),
+				-ModuleTurns.outward(target))
+		var turn: int = turns[_pick(turns.size())]
+		var offset: Vector3i = target.position_mm - ModuleTurns.apply(turn, joining.position_mm)
+		var owner: Vector2i = open_owner[open_index]
+		var door: Array[Vector3i] = _door(target)
+		if not _fits(module, turn, offset, door, owner.x):
+			continue
+		open_connectors.remove_at(open_index)
+		open_owner.remove_at(open_index)
+		_place(module, turn, offset, owner.x, owner.y, own, door)
+		return true
+	return false
+
+
+func _place(module: ModuleDef, turn: int, offset: Vector3i, parent: int, parent_connector: int,
+		own: int, door: Array[Vector3i]) -> void:
+	var placement: ModulePlacement = ModulePlacement.new(module.id, turn, offset)
+	placement.parent = parent
+	placement.parent_connector = parent_connector
+	placement.connector = own
+	placement.first_box = min_mm.size()
+	for box: BoxBounds in module.boxes:
+		var corners: Array[Vector3i] = _turned_box(box, turn, offset)
+		_add_box(corners[0], corners[1])
+	placement.end_box = min_mm.size()
+	if not door.is_empty():
+		placement.door_box = min_mm.size()
+		_add_box(door[0], door[1])
+	var index: int = placements.size()
+	placements.append(placement)
+	for connector_index: int in module.connectors.size():
+		if connector_index != own:
+			open_connectors.append(placed_connector(module, connector_index, turn, offset))
+			open_owner.append(Vector2i(index, connector_index))
+
+
+## True if the module's turned boxes and its doorway overlap nothing placed,
+## apart from the doorway reaching into the parent module.
+func _fits(module: ModuleDef, turn: int, offset: Vector3i, door: Array[Vector3i], parent: int) -> bool:
+	var parent_placement: ModulePlacement = placements[parent]
+	for index: int in min_mm.size():
+		if index >= parent_placement.first_box and index < parent_placement.end_box:
+			pass
+		elif MineGenerator.overlaps(door[0], door[1], min_mm[index], max_mm[index]):
+			return false
+	for box: BoxBounds in module.boxes:
+		var corners: Array[Vector3i] = _turned_box(box, turn, offset)
+		for index: int in min_mm.size():
+			if MineGenerator.overlaps(corners[0], corners[1], min_mm[index], max_mm[index]):
+				return false
+	return true
+
+
+## True if two boxes share some volume; boxes that only touch do not.
+static func overlaps(a_min: Vector3i, a_max: Vector3i, b_min: Vector3i, b_max: Vector3i) -> bool:
+	for axis: int in 3:
+		if mini(a_max[axis], b_max[axis]) <= maxi(a_min[axis], b_min[axis]):
+			return false
+	return true
+
+
+## The doorway box for an opening: its square across the axis, `DOOR_DEPTH_MM`
+## either side of the face along it.
+static func _door(connector: ModuleConnector) -> Array[Vector3i]:
+	var half: int = connector.size_mm() / 2
+	var low: Vector3i = connector.position_mm - Vector3i(half, half, half)
+	var high: Vector3i = connector.position_mm + Vector3i(half, half, half)
+	low[connector.axis()] = connector.position_mm[connector.axis()] - DOOR_DEPTH_MM
+	high[connector.axis()] = connector.position_mm[connector.axis()] + DOOR_DEPTH_MM
+	return [low, high]
+
+
+## A module box turned and moved, as millimetre corners [min, max].
+static func _turned_box(box: BoxBounds, turn: int, offset: Vector3i) -> Array[Vector3i]:
+	var scale: float = float(RobotSpawn.SCALE)
+	var a: Vector3i = ModuleTurns.apply(turn, Vector3i((box.min_corner * scale).round())) + offset
+	var b: Vector3i = ModuleTurns.apply(turn, Vector3i((box.max_corner * scale).round())) + offset
+	return [Vector3i(mini(a.x, b.x), mini(a.y, b.y), mini(a.z, b.z)),
+			Vector3i(maxi(a.x, b.x), maxi(a.y, b.y), maxi(a.z, b.z))]
+
+
+func _add_box(low: Vector3i, high: Vector3i) -> void:
+	min_mm.append(low)
+	max_mm.append(high)
+	var scale: float = float(RobotSpawn.SCALE)
+	union.boxes.append(BoxBounds.new(Vector3(low) / scale, Vector3(high) / scale))
+
+
+## A whole number from 0 up to, not including, `size`, from the seeded generator.
+func _pick(size: int) -> int:
+	return int(_rng.randi() % size)

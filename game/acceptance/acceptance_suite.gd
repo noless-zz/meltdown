@@ -12,7 +12,7 @@ extends RefCounted
 ##         "steps": [
 ##             {"id": "fly", "replay": "res://acceptance/replays/x.replay",
 ##              "preset": 2, "checks": ["final_hash"], "expected_hash": 123,
-##              "required": false}
+##              "required": false, "level": "g2"}
 ##         ]
 ##     }
 ##
@@ -26,7 +26,8 @@ const SUITE_EXTENSION: String = ".json"
 const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
-const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required"]
+const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
+	"level"]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -125,6 +126,12 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 		if step.preset < AcceptanceStep.MIN_PRESET or step.preset > AcceptanceStep.MAX_PRESET:
 			return "%s.preset: %d is outside %d..%d" % [
 				field, step.preset, AcceptanceStep.MIN_PRESET, AcceptanceStep.MAX_PRESET]
+	if data.has("level"):
+		if typeof(data["level"]) != TYPE_STRING or LevelSwitch.path_for(str(data["level"])) == "":
+			return "%s.level: must be a level name of a-z, 0-9 and '_'" % field
+		if not data.has("replay"):
+			return "%s.level: only used with a replay, which the step does not list" % field
+		step.level = data["level"]
 	if data.has("required"):
 		if typeof(data["required"]) != TYPE_BOOL:
 			return "%s.required: must be true or false" % field
@@ -132,6 +139,9 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 	problem = _parse_checks(data.get("checks"), field + ".checks", step)
 	if problem != "":
 		return problem
+	for check: String in step.checks:
+		if AcceptanceStep.REPLAY_CHECKS.has(check) and step.replay_path == "":
+			return "%s.replay: needed by the %s check" % [field, check]
 	return _parse_expected_hash(data, field, step)
 
 

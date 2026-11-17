@@ -8,8 +8,9 @@ extends ShipInputSource
 ##
 ## It only reads the simulation and answers with a `ShipInput`, exactly what a
 ## pilot's controllers would give, so the server stays the only writer of
-## state (MP-2). No randomness and no clock: the same sim gives the same input
-## (ARC-1, ARC-2).
+## state (MP-2). No randomness and no clock: the same flight gives the same
+## inputs (ARC-1, ARC-2). In a level it remembers only where it last stood out
+## of every robot's line of fire, to fall back there.
 
 ## Distance to the target the bot tries to hold, metres. Far enough that a
 ## robot's shots take a moment to arrive, close enough that every shipped
@@ -37,13 +38,32 @@ const THRUST_GAIN: float = 0.25
 ## Well under the ship's cap, so it can stop within an opening's width at full
 ## thrust when it turns a corner.
 const ROUTE_SPEED: float = 10.0
+## Slowest the bot flies towards an opening on its way to somewhere else,
+## metres per second. Without it the bot slows ever more as it nears the
+## opening's centre and hangs at the corner under fire (#334). Below the
+## ship's wall damage threshold, so brushing a wall past the corner is free.
+const CORNER_SPEED: float = 3.0
+## In a level, the bot falls back out of fire once its shield drops below
+## this many points, and comes on again only with the shield full, so hull
+## damage comes in short exchanges rather than one long one (#334). In the
+## G2 level every robot is awake from the start, so a straight fight is lost.
+const RETREAT_SHIELD: float = 20.0
+## A robot out of sight that closes on the ship faster than this, metres per
+## second, is waited for where the bot stands rather than met round a corner.
+const CLOSING_ROBOT_SPEED: float = 0.5
 
 var _sim: Sim = null
 var _ship_index: int = 0
 ## Null without a level: the bot then flies straight at its target.
 var _route: LevelRoute = null
+## The level's walls, for the line of sight to a robot; null without a level.
+var _walls: BoxUnion = null
 var _goal: Vector3 = Vector3.ZERO
 var _has_goal: bool = false
+## Where the ship last stood with no robot able to shoot it, while routed.
+var _last_safe: Vector3 = Vector3.ZERO
+var _has_safe: bool = false
+var _retreating: bool = false
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -53,6 +73,7 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 	_ship_index = ship_index
 	if level != null and level.error == "" and not level.union.boxes.is_empty():
 		_route = LevelRoute.new(level)
+		_walls = level.union
 
 
 ## A point to fly to and stop at once no robot is left, such as a level's exit.
@@ -68,7 +89,7 @@ func next_input(_tick: int) -> ShipInput:
 	var ship: ShipState = _sim.ships[_ship_index]
 	var target: RobotState = nearest_robot(ship.position)
 	if _route != null:
-		return _routed_input(ship, target)
+		return _routed_input(ship, _target_in_level(ship, target))
 	if target == null:
 		return ShipInput.new()
 	var offset: Vector3 = target.position - ship.position
@@ -92,32 +113,128 @@ func next_input(_tick: int) -> ShipInput:
 ## Flying in a level: towards the robot, or the goal when none is left, by
 ## way of the next waypoint when the straight way is not clear. Thrust aims at
 ## the velocity wanted, not only the closing speed, so drift across the route
-## is cancelled and the ship stays off the walls at corners.
+## is cancelled and the ship stays off the walls at corners. While the robot is
+## in sight the nose stays on it and the bot fires on the way, so a robot that
+## sees the ship round a corner is shot back at rather than given free shots
+## (#334); thrust is in ship space, so the route is flown whichever way the
+## nose points. With no robot in sight and none firing, the bot waits while
+## robots close on it or its shield recharges; with its shield low under fire
+## it falls back to where it last stood safe.
 func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
+	var threatened: bool = under_fire(ship)
+	if not threatened:
+		_last_safe = ship.position
+		_has_safe = true
+		_retreating = false
+	elif _has_safe and ship.shield < RETREAT_SHIELD:
+		_retreating = true
+	var in_sight: bool = target != null and shot_reaches(ship, target.position)
 	var aim: Vector3 = _goal
 	var hold: float = 0.0
-	if target != null:
+	if _retreating:
+		aim = _last_safe
+	elif target != null:
 		aim = target.position
-		hold = ENGAGE_DISTANCE
+		# Out of reach (behind the reactor, say), holding off would only
+		# trade shots one way: close in until a shot gets through.
+		hold = ENGAGE_DISTANCE if in_sight else 0.0
 	elif not _has_goal:
 		return ShipInput.new()
 	var waypoint: Vector3 = _route.next_waypoint(ship.position, aim, ship.radius)
+	var min_speed: float = -ROUTE_SPEED
 	if waypoint != aim:
 		hold = 0.0
+		min_speed = CORNER_SPEED
 	var offset: Vector3 = waypoint - ship.position
 	var distance: float = offset.length()
 	var wanted: Vector3 = Vector3.ZERO
-	if distance > 0.0:
-		var speed: float = clampf((distance - hold) * CLOSING_GAIN, -ROUTE_SPEED, ROUTE_SPEED)
+	var waiting: bool = target != null and not in_sight and not threatened \
+		and (robots_closing(ship) or ship.shield < ship.max_shield)
+	if not waiting and distance > 0.0:
+		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
 		wanted = offset / distance * speed
 	var push: Vector3 = ((wanted - ship.velocity) * THRUST_GAIN).limit_length(1.0)
 	var basis_inverse: Basis = ship.orientation.transposed()
-	var input: ShipInput = ShipInput.from_floats(basis_inverse * push,
-		_turn_towards(basis_inverse * offset))
-	# Only at the robot itself: a shot at a waypoint would hit rock.
-	input.fire_primary = target != null and waypoint == aim \
-		and should_fire(ship, target.position - ship.position)
+	var lead: Vector3 = lead_point(ship, target) - ship.position if in_sight else offset
+	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, _turn_towards(basis_inverse * lead))
+	# Only when a shot gets there: one at a robot behind rock would hit the rock.
+	input.fire_primary = in_sight and should_fire(ship, lead)
 	return input
+
+
+## Where `target` will be when a shot fired now reaches it, if it keeps its
+## velocity: the shot's flight time is taken over the present distance.
+static func lead_point(ship: ShipState, target: RobotState) -> Vector3:
+	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	if weapon == null or weapon.projectile_speed <= 0.0:
+		return target.position
+	var flight: float = ship.position.distance_to(target.position) / weapon.projectile_speed
+	return target.position + target.velocity * flight
+
+
+## Whether any live, armed robot could hit `ship` now: in its weapon's range
+## with a clear line. Robots turn to their target, so facing is not counted.
+func under_fire(ship: ShipState) -> bool:
+	for robot: RobotState in _sim.robots:
+		if robot.is_alive() and robot.weapon != null \
+				and robot.position.distance_to(ship.position) <= robot.weapon_range() \
+				and _reaches(robot.position, ship.position, robot.weapon.projectile_speed):
+			return true
+	return false
+
+
+## Whether any live robot is closing on `ship` faster than CLOSING_ROBOT_SPEED.
+func robots_closing(ship: ShipState) -> bool:
+	for robot: RobotState in _sim.robots:
+		if robot.is_alive() and robot.position != ship.position \
+				and robot.velocity.dot((ship.position - robot.position).normalized()) > CLOSING_ROBOT_SPEED:
+			return true
+	return false
+
+
+## In a level, the nearest robot a shot can reach, or `nearest` when none can:
+## the robot that can shoot back is the one to answer first.
+func _target_in_level(ship: ShipState, nearest: RobotState) -> RobotState:
+	var best: RobotState = null
+	var best_distance: float = INF
+	for robot: RobotState in _sim.robots:
+		if not robot.is_alive() or not shot_reaches(ship, robot.position):
+			continue
+		var d: float = ship.position.distance_squared_to(robot.position)
+		if d < best_distance:
+			best = robot
+			best_distance = d
+	return best if best != null else nearest
+
+
+## Whether a shot from `ship`'s selected primary weapon, fired straight at
+## `point`, would reach it inside the walls. A shot is dropped once it ends a
+## tick outside every box (`ProjectileHits`), so this checks the same points:
+## one per tick of flight. An intact reactor in the way takes the shot, so
+## a robot behind it is out of reach too. An empty slot never reaches anything.
+func shot_reaches(ship: ShipState, point: Vector3) -> bool:
+	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	if weapon == null:
+		return false
+	if _sim.reactor != null and _sim.reactor.segment_entry(ship.position, point) >= 0.0:
+		return false
+	return _reaches(ship.position, point, weapon.projectile_speed)
+
+
+## Whether a shot at `speed` from `from` straight at `point` stays inside the
+## walls at the end of every tick of its flight.
+func _reaches(from: Vector3, point: Vector3, speed: float) -> bool:
+	var offset: Vector3 = point - from
+	var distance: float = offset.length()
+	var step: float = speed * ShipState.TICK_DT
+	if _walls == null or distance == 0.0 or step <= 0.0:
+		return true
+	var travelled: float = step
+	while travelled < distance:
+		if not _walls.holds(from + offset * (travelled / distance), 0.0):
+			return false
+		travelled += step
+	return true
 
 
 ## Turn rates that bring the nose to `local`, a direction in ship space,
