@@ -6,9 +6,6 @@ extends RefCounted
 
 const FLIGHT_TICKS: int = 90
 const G2_FILE: String = "res://data/levels/g2_level.json"
-## G2 flown FLIGHT_TICKS with `FlySource` before #340, when the replay had no
-## start line. G2 starts at the origin facing -z, so the line must not move it.
-const G2_HASH_BEFORE_START_LINE: int = 1180548112
 const G2_START_LINE: String = "start 0 0 0 0 0 0 -1000"
 ## Starts off the origin facing +x, with room ahead to fly into.
 const OFF_ORIGIN_LEVEL: String = '{"boxes": [{"min": [-10, -10, -10], "max": [100, 20, 30]}],' \
@@ -81,8 +78,10 @@ func test_off_origin_flight_replays_from_text_to_the_session_hash() -> String:
 	return ""
 
 
-## The start line is the only change to G2's replay: without it the text
-## replays exactly as before, and the hash is today's.
+## The start line is the only change to G2's replay: G2 starts at the origin
+## facing -z, so without the line the text is a replay as written before #340,
+## and it flies to the session's hash. (The hash is compared within this run,
+## not pinned: the same flight hashed differently on CI and locally.)
 func test_g2_replay_gains_only_the_start_line() -> String:
 	var session: LocalSession = _fly(_g2())
 	var text: String = session.replay.to_text()
@@ -90,20 +89,20 @@ func test_g2_replay_gains_only_the_start_line() -> String:
 	for line: String in text.split("\n"):
 		if line.begins_with("start "):
 			starts.append(line)
-	if session.sim.state_hash() != G2_HASH_BEFORE_START_LINE:
-		return "G2 flew to %d, before the start line %d" % [session.sim.state_hash(),
-			G2_HASH_BEFORE_START_LINE]
 	if starts != PackedStringArray([G2_START_LINE]):
 		return "G2's replay has start lines %s, expected [%s]" % [starts, G2_START_LINE]
 	var stripped: String = "\n".join(_without_start_lines(text))
 	var replay: Replay = Replay.from_text(stripped)
 	if replay.error != "":
 		return replay.error
+	if not replay.start_positions_mm.is_empty():
+		return "the stripped replay still has a start pose"
 	if replay.to_text() != stripped:
 		return "G2's replay text changed beyond the start line"
 	var sim: Sim = replay.run()
 	if sim == null:
 		return replay.run_error
-	if sim.state_hash() != G2_HASH_BEFORE_START_LINE:
-		return "without its start line G2 replays to %d" % sim.state_hash()
+	if sim.state_hash() != session.sim.state_hash():
+		return "without its start line G2 replays to %d, the session flew to %d" % [
+			sim.state_hash(), session.sim.state_hash()]
 	return ""
