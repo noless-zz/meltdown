@@ -9,6 +9,12 @@ extends RefCounted
 ## the walls come back from the replay as a new union and the ship's position
 ## from the session's ship copies, so it never writes simulation state (MP-2).
 ## The view follows the simulated ship only (CMF-8); nothing here moves the rig.
+##
+## It also marks the exit and the reactor (#380, RUN-2, RUN-3). The exit is
+## where ship 0 starts, read from the replay's start line, because the exit is
+## the entrance. The reactor is marked only once the ship has been in a box
+## that holds the reactor's centre (Planner decision, 2026-11-17), so the map
+## does not give the level away before the player has found it.
 
 ## The map, under a hand of the rig once `attach` has run, null before. A
 ## wiring that was never attached does nothing, so a scene can go without it.
@@ -27,6 +33,10 @@ var _session: LocalSession = null
 var _union: BoxUnion = null
 var _drawn: Array[int] = []
 var _hand: String = ""
+## Boxes holding the reactor's centre; empty without a reactor.
+var _reactor_boxes: Array[int] = []
+## The last `reactor_known` handed to `set_markers`.
+var _reactor_known: bool = false
 
 
 ## Creates the hologram and hangs it in the hand that clicks `show_map` under
@@ -59,6 +69,10 @@ func update(session: LocalSession, delta_seconds: float, shared: ClickHold = nul
 		_drawn = now
 		hologram.build(_union, _drawn)
 		rebuilds += 1
+	var known: bool = _reactor_found(now)
+	if known != _reactor_known:
+		_reactor_known = known
+		_mark(session)
 	hologram.set_ship_position(session.previous_ship().position.lerp(
 		session.current_ship().position, session.interpolation_fraction))
 	_follow_hand()
@@ -75,6 +89,37 @@ func _start(session: LocalSession) -> void:
 	_drawn = []
 	hologram.build(_union, _drawn)
 	rebuilds += 1
+	_reactor_boxes = []
+	var reactor: ReactorState = session.replay.reactor
+	if reactor != null:
+		var centre: Vector3 = _centre(reactor)
+		for index: int in _union.boxes.size():
+			if _union.boxes[index].holds(centre, 0.0):
+				_reactor_boxes.append(index)
+	_reactor_known = false
+	_mark(session)
+
+
+## Hands the exit, the reactor and whether it is known to the hologram. Both
+## positions are read from the replay, which the run only copies from.
+func _mark(session: LocalSession) -> void:
+	var exit_at: Vector3 = ReplayStartLine.position(session.replay, 0)
+	var reactor: ReactorState = session.replay.reactor
+	var reactor_at: Vector3 = Vector3.ZERO if reactor == null else _centre(reactor)
+	hologram.set_markers(exit_at, reactor_at, _reactor_known)
+
+
+## The reactor's centre in metres.
+static func _centre(reactor: ReactorState) -> Vector3:
+	return Vector3(reactor.position_mm) / float(RobotSpawn.SCALE)
+
+
+## Whether any box holding the reactor's centre is among `explored`.
+func _reactor_found(explored: Array[int]) -> bool:
+	for index: int in _reactor_boxes:
+		if explored.has(index):
+			return true
+	return false
 
 
 ## Moves the map to the other hand when left-handed mode or a remap moved the
