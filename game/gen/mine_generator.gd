@@ -44,6 +44,10 @@ var open_connectors: Array[ModuleConnector] = []
 var open_owner: Array[Vector2i] = []
 ## Empty when every requested module was placed; otherwise why it stopped.
 var note: String = ""
+## Set by `to_level_def`: why a requested reactor was left out, else empty.
+var reactor_note: String = ""
+## Set by `to_level_def`: the placement holding the reactor, or -1.
+var reactor_placement: int = -1
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -72,22 +76,12 @@ func output_hash() -> int:
 
 
 ## The level as a `LevelDef` the game can fly (#317): these boxes, no robots,
-## no reactor, and the start `START_INSET_MM` inside the oldest open connector,
-## facing in. Open connectors are kept oldest first, so that is the first
-## module's lowest open one whenever the first module has one left. Not
-## checked here: `LevelValidator` does that. With no open connector at all the
-## level is empty and `error` says so, as `LevelDef.parse_json` leaves it.
-func to_level_def() -> LevelDef:
-	var level: LevelDef = LevelDef.new()
-	if open_connectors.is_empty():
-		level.error = "no open connector to start at"
-		return level
-	var opening: ModuleConnector = open_connectors[0]
-	var inward: Vector3i = -ModuleTurns.outward(opening)
-	level.union = BoxUnion.new(union.boxes.duplicate())
-	level.start_position_mm = opening.position_mm + inward * START_INSET_MM
-	level.start_facing_mm = inward * RobotSpawn.SCALE
-	return level
+## and the start inside the oldest open connector. With `reactor_plan` (#356)
+## it also gets a reactor in the module furthest from the first, or none and a
+## `reactor_note`; `ship_radius` sets the clearance around it. See
+## `GeneratedLevel`. Not part of `output_hash`, which covers placements only.
+func to_level_def(reactor_plan: ReactorPlan = null, ship_radius: float = 1.0) -> LevelDef:
+	return GeneratedLevel.build(self, reactor_plan, ship_radius)
 
 
 ## A module's connector `index`, turned by `turn` and moved by `offset_mm`.
