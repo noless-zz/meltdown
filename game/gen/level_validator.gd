@@ -3,18 +3,24 @@ extends RefCounted
 
 ## Automatic checks every generated level must pass before it is flown (GEN-3,
 ## GEN-5): one connected piece, every opening wide enough, every box reachable
-## from the start, and the start held inside a box. `validate` returns one
-## message per failure, each starting with the check's name and naming the box
-## or boxes; an empty list means the level passes. Reactor and escape-time
-## checks follow once the generator places a reactor.
+## from the start, the start held inside a box, a reactor with room around it in
+## a reachable box, and an escape from the reactor to the exit that fits the
+## meltdown countdown. `validate` returns one message per failure, each starting
+## with the check's name (`CHECKS`) and naming the box or boxes; an empty list
+## means the level passes.
 ##
-## Its setting is data (ARC-4), read from `data/gen/validator.json`:
+## Its settings are data (ARC-4), read from `data/gen/validator.json`:
 ##
-##     {"min_passage_ship_diameters": 2.5}
+##     {"min_passage_ship_diameters": 2.5, "escape_speed_mps": 10, "escape_margin": 0.8}
 ##
 ## The narrowest opening allowed is that many ship collision diameters. The
-## caller hands over the file's text and the ship's radius, because `gen/`
-## never opens files.
+## escape is flown at `escape_speed_mps` along `EscapePath` from the reactor to
+## the exit, which is the start (RUN-3), and must take no more than
+## `escape_margin` of the countdown the level would start for that path (RUN-5:
+## `ReactorState.meltdown_ticks_for_path`, so `meltdown_seconds` when the level
+## does not scale the timer). The margin leaves time for the fight on the way
+## out and for a pilot slower than the assumed speed. The caller hands over the
+## file's text and the ship's radius, because `gen/` never opens files.
 ##
 ## Two boxes that share volume meet at an opening: the region they share. A
 ## ship crosses it along an axis where the boxes lie on opposite sides (one
@@ -27,13 +33,23 @@ extends RefCounted
 ## joined and wide enough. Boxes are visited in index order, so the same level
 ## always gives the same messages in the same order (ARC-2).
 
-const KEYS: Array[String] = ["min_passage_ship_diameters"]
-## Accepted range for `min_passage_ship_diameters`.
-const MIN_DIAMETERS: float = 1.0
-const MAX_DIAMETERS: float = 20.0
+const KEYS: Array[String] = ["min_passage_ship_diameters", "escape_speed_mps", "escape_margin"]
+## Accepted range of each key, inclusive, as [lowest, highest]. Plain floats,
+## not a Vector2, whose single precision would move 0.1.
+const RANGES: Dictionary[String, Array] = {
+	"min_passage_ship_diameters": [1.0, 20.0],
+	"escape_speed_mps": [1.0, 100.0],
+	"escape_margin": [0.1, 1.0],
+}
+## Every check's name, in the order `validate` reports them.
+const CHECKS: Array[String] = ["piece", "passage", "start", "reachable", "reactor", "escape"]
 
 ## Narrowest opening allowed, in ship collision diameters.
 var min_passage_ship_diameters: float = 2.5
+## Speed the escape is assumed to be flown at, metres a second.
+var escape_speed_mps: float = 10.0
+## Share of the countdown the escape may take.
+var escape_margin: float = 0.8
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -50,17 +66,37 @@ static func parse_json(text: String) -> LevelValidator:
 		validator.error = "top level must be a JSON object"
 		return validator
 	var data: Dictionary = json.data
-	validator.error = LevelDef._check_keys(data, KEYS)
+	validator.error = LevelValidator._check_keys(data)
 	if validator.error != "":
 		return validator
-	var value: Variant = data["min_passage_ship_diameters"]
-	if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
-		validator.error = "key \"min_passage_ship_diameters\" must be a number"
-	elif float(value) < MIN_DIAMETERS or float(value) > MAX_DIAMETERS:
-		validator.error = "key \"min_passage_ship_diameters\" must be %s..%s" % [MIN_DIAMETERS, MAX_DIAMETERS]
-	else:
-		validator.min_passage_ship_diameters = float(value)
+	var read: Dictionary[String, float] = {}
+	for key: String in KEYS:
+		var value: Variant = data[key]
+		var allowed: Array = RANGES[key]
+		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT or not is_finite(float(value)):
+			validator.error = "key \"%s\" must be a number" % key
+			return validator
+		if float(value) < float(allowed[0]) or float(value) > float(allowed[1]):
+			validator.error = "key \"%s\" must be %s..%s" % [key, allowed[0], allowed[1]]
+			return validator
+		read[key] = float(value)
+	validator.min_passage_ship_diameters = read["min_passage_ship_diameters"]
+	validator.escape_speed_mps = read["escape_speed_mps"]
+	validator.escape_margin = read["escape_margin"]
 	return validator
+
+
+## "" or the first unknown key, else every missing key, so a file from before
+## a key was added names all it lacks at once.
+static func _check_keys(data: Dictionary) -> String:
+	for key: Variant in data:
+		if not KEYS.has(key):
+			return "unknown key \"%s\"" % str(key)
+	var missing: Array[String] = []
+	for key: String in KEYS:
+		if not data.has(key):
+			missing.append("missing key \"%s\"" % key)
+	return ", ".join(missing)
 
 
 ## Narrowest opening allowed for a ship of `ship_radius`, metres.
@@ -69,7 +105,9 @@ func min_passage(ship_radius: float) -> float:
 
 
 ## The level's failures for a ship of `ship_radius`; empty when it passes.
-func validate(level: LevelDef, ship_radius: float) -> Array[String]:
+## `check_reactor` false leaves out the `reactor` and `escape` checks, for
+## hand-built test levels that have no reactor.
+func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true) -> Array[String]:
 	var failures: Array[String] = []
 	var boxes: Array[BoxBounds] = level.union.boxes
 	if boxes.is_empty():
@@ -107,8 +145,54 @@ func validate(level: LevelDef, ship_radius: float) -> Array[String]:
 		failures.append("start: position %s is not held by any box with %s m to spare"
 				% [level.start_position(), ship_radius])
 		return failures
-	for index: int in LevelValidator._unreached(start_box, passable):
+	var unreached: Array[int] = LevelValidator._unreached(start_box, passable)
+	for index: int in unreached:
 		failures.append("reachable: box %d cannot be reached from start box %d" % [index, start_box])
+	if check_reactor:
+		failures.append_array(_reactor_failures(level, ship_radius, start_box, unreached))
+	return failures
+
+
+## The `reactor` and `escape` failures. The reactor must sit in one box with a
+## ship's diameter clear around its sphere, so a ship can fly past it, and in a
+## box the start reaches; only then is the escape timed.
+func _reactor_failures(level: LevelDef, ship_radius: float, start_box: int,
+		unreached: Array[int]) -> Array[String]:
+	var failures: Array[String] = []
+	var reactor: ReactorState = level.reactor
+	if reactor == null:
+		failures.append("reactor: the level has no reactor")
+		return failures
+	var boxes: Array[BoxBounds] = level.union.boxes
+	var clear: float = reactor.radius() + 2.0 * ship_radius
+	var holding: Array[int] = []
+	for index: int in boxes.size():
+		if boxes[index].holds(reactor.position(), clear):
+			holding.append(index)
+	if holding.is_empty():
+		failures.append("reactor: position %s is not held by any box with %.2f m clear (radius plus a ship's diameter)"
+				% [reactor.position(), clear])
+		return failures
+	var reached: Array[int] = []
+	for index: int in holding:
+		if not unreached.has(index):
+			reached.append(index)
+	if reached.is_empty():
+		failures.append("reactor: box %d holds it but cannot be reached from start box %d" % [holding[0], start_box])
+		return failures
+	var path_mm: int = EscapePath.length_mm(level.union, reactor.position(), level.start_position())
+	if path_mm == EscapePath.UNREACHABLE:
+		failures.append("escape: no path from the reactor in box %d to the exit" % reached[0])
+		return failures
+	var metres: float = path_mm / float(RobotSpawn.SCALE)
+	var seconds: float = metres / escape_speed_mps
+	var countdown: float = reactor.meltdown_ticks_for_path(path_mm) / float(ReactorState.TICKS_PER_SECOND)
+	var allowed: float = countdown * escape_margin
+	# The approximate test lets an escape that takes exactly the margin pass,
+	# whatever the last bit of the division.
+	if seconds > allowed and not is_equal_approx(seconds, allowed):
+		failures.append("escape: %.1f m from the reactor in box %d to the exit takes %.1f s at %.1f m/s, over %.1f s (%d%% of the %.1f s countdown)"
+				% [metres, reached[0], seconds, escape_speed_mps, allowed, roundi(escape_margin * 100.0), countdown])
 	return failures
 
 
