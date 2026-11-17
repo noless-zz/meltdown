@@ -15,6 +15,10 @@ extends RefCounted
 ## the entrance. The reactor is marked only once the ship has been in a box
 ## that holds the reactor's centre (Planner decision, 2026-11-17), so the map
 ## does not give the level away before the player has found it.
+##
+## While the meltdown runs, `MapRouteWiring` hands the map the escape route the
+## player knows (#402, MAP-2). It lives in its own file because it must read the
+## meltdown from the simulation, which this file never names.
 
 ## The map, under a hand of the rig once `attach` has run, null before. A
 ## wiring that was never attached does nothing, so a scene can go without it.
@@ -37,6 +41,8 @@ var _hand: String = ""
 var _reactor_boxes: Array[int] = []
 ## The last `reactor_known` handed to `set_markers`.
 var _reactor_known: bool = false
+## The known escape route on the map during the meltdown (#402).
+var route_wiring: MapRouteWiring = MapRouteWiring.new()
 
 
 ## Creates the hologram and hangs it in the hand that clicks `show_map` under
@@ -65,7 +71,8 @@ func update(session: LocalSession, delta_seconds: float, shared: ClickHold = nul
 		_start(session)
 	explored.visit(session.current_ship().position)
 	var now: Array[int] = explored.explored()
-	if now != _drawn:
+	var grew: bool = now != _drawn
+	if grew:
 		_drawn = now
 		hologram.build(_union, _drawn)
 		rebuilds += 1
@@ -73,6 +80,7 @@ func update(session: LocalSession, delta_seconds: float, shared: ClickHold = nul
 	if known != _reactor_known:
 		_reactor_known = known
 		_mark(session)
+	route_wiring.update(session, _union, _drawn, grew, hologram)
 	hologram.set_ship_position(session.previous_ship().position.lerp(
 		session.current_ship().position, session.interpolation_fraction))
 	_follow_hand()
@@ -98,6 +106,7 @@ func _start(session: LocalSession) -> void:
 				_reactor_boxes.append(index)
 	_reactor_known = false
 	_mark(session)
+	route_wiring.clear(hologram)
 
 
 ## Hands the exit, the reactor and whether it is known to the hologram. Both
