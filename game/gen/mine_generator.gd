@@ -14,7 +14,7 @@ extends RefCounted
 ##
 ## A placement whose boxes (and doorway) overlap boxes already placed, other
 ## than the doorway inside the module it joins, is rejected and another tried,
-## as is a dead end while fewer than `DEAD_END_MIN_OPEN` connectors are open.
+## as is a dead end while fewer than `dead_end_min_open` connectors are open.
 ## After `MAX_TRIES` rejections in a row the generator stops short and says so
 ## in `note`. With `LoopBridges` (#396), facing open connectors are then
 ## bridged, and `loops` counts the bridges.
@@ -28,7 +28,8 @@ const MAX_TRIES: int = 64
 ## take one. A dead end closes an opening without adding one, so on the last
 ## openings it would end the level early, or with no opening to start in.
 ## Below 6, some of seeds 0..9,999 stop short when their few remaining
-## openings are walled in (#395).
+## openings are walled in (#395). The default; `generator.json` sets the value
+## used with bridges (#421).
 const DEAD_END_MIN_OPEN: int = 6
 ## How far a doorway box reaches into each of the two modules it joins. Above
 ## `LevelDef.MIN_OVERLAP_M`, so the doorway counts as joined to both.
@@ -54,6 +55,9 @@ var open_owner: Array[Vector2i] = []
 var note: String = ""
 ## Tunnels `LoopBridges` added between facing open connectors: each closes a loop.
 var loops: int = 0
+## Open connectors needed before a dead end may join: from `bridges` when
+## given one without an `error`, else `DEAD_END_MIN_OPEN`.
+var dead_end_min_open: int = DEAD_END_MIN_OPEN
 ## Set by `to_level_def`: why a requested reactor was left out, else empty.
 var reactor_note: String = ""
 ## Set by `to_level_def`: the placement holding the reactor, or -1.
@@ -70,10 +74,13 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 ## Builds a level of up to `count` modules from `modules` (rejected modules,
 ## those with an `error`, are left out) for `level_seed`, then, with `bridges`
-## (one without an `error`), closes loops. Without it the level is a tree.
+## (one without an `error`), closes loops and takes its `dead_end_min_open`.
+## Without it the level is a tree.
 static func generate(level_seed: int, modules: Array[ModuleDef], count: int,
 		bridges: LoopBridges = null) -> MineGenerator:
 	var generator: MineGenerator = MineGenerator.new()
+	if bridges != null and bridges.error == "":
+		generator.dead_end_min_open = bridges.dead_end_min_open
 	generator._run(level_seed, modules, count)
 	if bridges != null and bridges.error == "" and not generator.placements.is_empty():
 		generator.loops = bridges.apply(generator)
@@ -150,7 +157,7 @@ func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) 
 		var joining: ModuleConnector = module.connectors[own]
 		if joining.size_class != target.size_class:
 			continue
-		if module.connectors.size() == 1 and open_connectors.size() < DEAD_END_MIN_OPEN:
+		if module.connectors.size() == 1 and open_connectors.size() < dead_end_min_open:
 			continue
 		var turns: Array[int] = ModuleTurns.turns_between(ModuleTurns.outward(joining),
 				-ModuleTurns.outward(target))

@@ -9,7 +9,12 @@ extends RefCounted
 ## Read from `data/gen/generator.json`:
 ##
 ##     {"loop_min_m": 10, "loop_max_m": 60, "loop_max_count": 2,
-##      "loop_max_offset_m": 20}
+##      "loop_max_offset_m": 20, "dead_end_min_open": 6}
+##
+## `dead_end_min_open` is not about loops but lives in the same file, so this
+## class reads it too (#421, ARC-4): `MineGenerator.generate` takes it from
+## here when given bridges, so the owner can tune how branchy levels feel
+## without code.
 ##
 ## The gap is the distance between the two openings along their axis; the
 ## offset is how far apart their centres are across it. Openings exactly in
@@ -25,9 +30,14 @@ extends RefCounted
 ## the same seed gives the same level (GEN-2, ARC-2); nothing here is random.
 ## The caller hands over the file's text, because `gen/` never opens files.
 
-const KEYS: Array[String] = ["loop_min_m", "loop_max_m", "loop_max_count", "loop_max_offset_m"]
+const KEYS: Array[String] = [
+	"loop_min_m", "loop_max_m", "loop_max_count", "loop_max_offset_m", "dead_end_min_open",
+]
 ## Upper bound on either gap key, metres: longer than any level is wide.
 const MAX_GAP_M: float = 1000.0
+## Upper bound on `dead_end_min_open`: far above any level's open connectors,
+## so it only keeps the number a plain int.
+const MAX_DEAD_END_MIN_OPEN: int = 1000
 
 ## Shortest and longest gap bridged, whole millimetres.
 var min_gap_mm: int = 0
@@ -36,6 +46,8 @@ var max_gap_mm: int = 0
 var max_count: int = 0
 ## Furthest apart, across their axis, two bridged openings' centres may be, mm.
 var max_offset_mm: int = 0
+## Open connectors needed before a dead end may join (`MineGenerator`).
+var dead_end_min_open: int = MineGenerator.DEAD_END_MIN_OPEN
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -159,6 +171,7 @@ func _read(data: Dictionary) -> String:
 	var high: float = float(data["loop_max_m"])
 	var count: float = float(data["loop_max_count"])
 	var offset: float = float(data["loop_max_offset_m"])
+	var dead_end: float = float(data["dead_end_min_open"])
 	if low <= 0.0 or low > MAX_GAP_M:
 		return "key \"loop_min_m\" must be above 0 and at most %s" % MAX_GAP_M
 	if high < low or high > MAX_GAP_M:
@@ -167,8 +180,11 @@ func _read(data: Dictionary) -> String:
 		return "key \"loop_max_count\" must be a whole number, at least 0"
 	if offset < 0.0 or offset > MAX_GAP_M:
 		return "key \"loop_max_offset_m\" must be 0..%s" % MAX_GAP_M
+	if dead_end < 2.0 or dead_end > MAX_DEAD_END_MIN_OPEN or dead_end != floorf(dead_end):
+		return "key \"dead_end_min_open\" must be a whole number, 2..%d" % MAX_DEAD_END_MIN_OPEN
 	min_gap_mm = roundi(low * RobotSpawn.SCALE)
 	max_gap_mm = roundi(high * RobotSpawn.SCALE)
 	max_count = int(count)
 	max_offset_mm = roundi(offset * RobotSpawn.SCALE)
+	dead_end_min_open = int(dead_end)
 	return ""
