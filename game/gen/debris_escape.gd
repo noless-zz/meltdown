@@ -15,15 +15,16 @@ extends RefCounted
 ##
 ## Which entries the guard lets fall is found as `SeedSweep.debris_route` finds
 ## them: one ship at the reactor, every box explored, the entries in fall order
-## (`held_by_guard`). Held entries stay up, and fire
-## never closes an opening, so neither lengthens the route. Every entry is then
-## counted as fallen at once, the harshest moment of the meltdown. When even
-## every solid entry fallen, the guard aside, leaves the escape in time, the
-## guard is not run: holding entries back only ever shortens the route.
+## (`held_by_guard`). Held entries stay up, and fire never closes an opening, so
+## neither lengthens the route. Every entry is then counted as fallen at once,
+## the harshest moment of the meltdown.
 ##
-## Lengths are whole millimetres from `KnownRoute`, which with no debris agrees
-## with `EscapePath.length_mm`, so the result is the same on every device
-## (ARC-2).
+## This runs twice for every generated level (placing, then validating), so the
+## guard and the "is anything blocked" question use `OpeningGraph`, and a full
+## `KnownRoute` search runs only when fallen debris blocks an opening. Lengths
+## are whole millimetres from `KnownRoute`, which agrees with
+## `EscapePath.length_mm` when nothing is blocked, so the result is the same on
+## every device (ARC-2).
 
 ## The check's name, as `LevelValidator.CHECKS` lists it.
 const CHECK: String = "debris_escape"
@@ -96,6 +97,13 @@ static func _evaluate(level: LevelDef, debris: MeltdownDebris, ship_radius: floa
 		escape_speed_mps: float, escape_margin: float) -> Dictionary:
 	if level.reactor == null or debris == null or debris.size() == 0:
 		return {}
+	var falling: Array[int] = []
+	var closed: Array[bool] = []
+	_held(OpeningGraph.new(level, ship_radius), debris, falling, closed)
+	# With no opening blocked the route is the clear one, which the `escape`
+	# check times.
+	if not closed.has(true):
+		return {}
 	var clear_mm: int = EscapePath.length_mm(level.union, level.reactor.position(),
 			level.start_position())
 	if clear_mm == EscapePath.UNREACHABLE:
@@ -107,19 +115,7 @@ static func _evaluate(level: LevelDef, debris: MeltdownDebris, ship_radius: floa
 	# and no debris dropped could help it.
 	if not _fits(clear_mm, escape_speed_mps, allowed):
 		return {}
-	var falling: Array[int] = []
-	for index: int in debris.size():
-		if not debris.is_fire(index):
-			falling.append(index)
-	if _fits(_route_mm(level, debris, falling, -1, ship_radius), escape_speed_mps, allowed):
-		return {}
-	var route: Array[int] = []
-	var held: Array[bool] = held_by_guard(level, debris, ship_radius, route)
-	falling.clear()
-	for index: int in debris.size():
-		if not debris.is_fire(index) and not held[index]:
-			falling.append(index)
-	var route_mm: int = route[0]
+	var route_mm: int = _route_mm(level, debris, falling, -1, ship_radius)
 	if _fits(route_mm, escape_speed_mps, allowed):
 		return {}
 	var entries: Array[int] = []
@@ -135,19 +131,31 @@ static func _evaluate(level: LevelDef, debris: MeltdownDebris, ship_radius: floa
 
 
 ## For each entry of `debris`, whether `DebrisRouteGuard` would hold it back in
-## a meltdown with one ship of `ship_radius` waiting at the reactor. The guard's
-## rule without its `Sim`, about half the work, since this runs for every
+## a meltdown with one ship of `ship_radius` waiting at the reactor. This is
+## the guard's rule without its `Sim` or a route search, since it runs for every
 ## generated level: entries go in fall order, those due on one tick in index
 ## order; fire is never held; a solid entry is held when, with the ones before
-## it that fell, it would leave no route from the reactor to the start. The one
+## it that fell, it would leave the start unreachable from the reactor. The one
 ## ship always keeps its route, so the guard's "has a route now" never fails.
-## `test_debris_escape.gd` checks this against the guard itself. `route`, when
-## given, gets the route's length with every entry that fell solid.
-static func held_by_guard(level: LevelDef, debris: MeltdownDebris, ship_radius: float,
-		route: Array[int] = []) -> Array[bool]:
+## `test_debris_escape.gd` checks this against the guard itself.
+static func held_by_guard(level: LevelDef, debris: MeltdownDebris, ship_radius: float) -> Array[bool]:
+	var falling: Array[int] = []
+	var closed: Array[bool] = []
+	return _held(OpeningGraph.new(level, ship_radius), debris, falling, closed)
+
+
+## `held_by_guard` on `graph`. `falling` gets the entries that fall and could
+## block an opening, lowest first; `closed` one flag per opening, set when those
+## entries block it. Debris only ever closes more as more falls, so each entry
+## re-tests only the openings it is near, and the route is looked for only when
+## one of them closes.
+static func _held(graph: OpeningGraph, debris: MeltdownDebris, falling: Array[int],
+		closed: Array[bool]) -> Array[bool]:
 	var held: Array[bool] = []
 	held.resize(debris.size())
 	held.fill(false)
+	closed.resize(graph.opening_count())
+	closed.fill(false)
 	var order: Array[int] = []
 	for index: int in debris.size():
 		if not debris.is_fire(index):
@@ -155,26 +163,29 @@ static func held_by_guard(level: LevelDef, debris: MeltdownDebris, ship_radius: 
 	order.sort_custom(func(a: int, b: int) -> bool:
 		return debris.after_ticks[a] < debris.after_ticks[b] \
 				or debris.after_ticks[a] == debris.after_ticks[b] and a < b)
-	var fallen: Array[int] = []
-	var length: int = EscapePath.UNREACHABLE
 	for index: int in order:
-		fallen.append(index)
-		var with_entry: int = _route_mm(level, debris, fallen, -1, ship_radius)
-		if with_entry == EscapePath.UNREACHABLE:
-			fallen.pop_back()
-			held[index] = true
-		else:
-			length = with_entry
-	if fallen.is_empty():
-		length = _route_mm(level, debris, fallen, -1, ship_radius)
-	route.append(length)
+		var near: Array[int] = graph.openings_near(debris, index)
+		if near.is_empty():
+			continue
+		falling.append(index)
+		var solid: MeltdownDebris = _solid(debris, falling, -1)
+		var newly: Array[int] = []
+		for k: int in near:
+			if not closed[k] and graph.blocks(k, solid):
+				newly.append(k)
+				closed[k] = true
+		if newly.is_empty() or graph.connected(closed):
+			continue
+		for k: int in newly:
+			closed[k] = false
+		falling.pop_back()
+		held[index] = true
+	falling.sort()
 	return held
 
 
-## Length of the route from the reactor to the start with the entries of
-## `debris` listed in `falling` solid, `leave_out` excepted.
-static func _route_mm(level: LevelDef, debris: MeltdownDebris, falling: Array[int],
-		leave_out: int, ship_radius: float) -> int:
+## The entries of `debris` listed in `falling`, `leave_out` excepted, all solid.
+static func _solid(debris: MeltdownDebris, falling: Array[int], leave_out: int) -> MeltdownDebris:
 	var solid: MeltdownDebris = MeltdownDebris.new()
 	for index: int in falling:
 		if index == leave_out:
@@ -185,11 +196,18 @@ static func _route_mm(level: LevelDef, debris: MeltdownDebris, falling: Array[in
 		solid.after_ticks.append(1)
 		solid.skipped.append(false)
 	solid.elapsed_ticks = 1
+	return solid
+
+
+## Length of the route from the reactor to the start with the entries of
+## `debris` listed in `falling` solid, `leave_out` excepted.
+static func _route_mm(level: LevelDef, debris: MeltdownDebris, falling: Array[int],
+		leave_out: int, ship_radius: float) -> int:
 	var all: Array[int] = []
 	for box: int in level.union.boxes.size():
 		all.append(box)
 	return KnownRoute.find(level.union, all, level.reactor.position(), level.start_position(),
-			solid, ship_radius).length_mm
+			_solid(debris, falling, leave_out), ship_radius).length_mm
 
 
 ## True when `route_mm` flown at `speed` takes no more than `allowed` seconds;
