@@ -51,6 +51,17 @@ static func salvage(source: Array[SalvageItem]) -> Array[SalvageItem]:
 	return copies
 
 
+## A copy of the level's reactor, or null when there is none. The view reads
+## its position, hull and countdown from this, never from the simulation's own
+## reactor (MP-2).
+static func reactor(source: ReactorState) -> ReactorState:
+	if source == null:
+		return null
+	var copy: ReactorState = ReactorState.new()
+	copy_fields(source, copy)
+	return copy
+
+
 ## Copies every script variable, so fields added to `ShipState` or
 ## `Projectile` later are carried along without changing this file.
 static func copy_fields(from: Object, to: Object) -> void:
