@@ -1,0 +1,16 @@
+{
+	"core_color": [1.0, 0.55, 0.15],
+	"core_energy": 3.0,
+	"wreck_color": [0.35, 0.08, 0.05],
+	"wreck_energy": 0.8,
+	"light_color": [1.0, 0.6, 0.25],
+	"meltdown_light_color": [1.0, 0.2, 0.1],
+	"light_energy": 2.0,
+	"light_range": 14.0,
+	"pulse_depth": 0.5,
+	"pulse_period_full_hull": 3.0,
+	"pulse_period_no_hull": 0.8,
+	"flicker_period_slow": 1.2,
+	"flicker_period_fast": 0.4,
+	"flicker_ramp_seconds": 60.0
+}
