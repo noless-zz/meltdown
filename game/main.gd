@@ -56,6 +56,8 @@ var boost_haptics: BoostHaptics = BoostHaptics.new()
 var combat: CombatWiring = CombatWiring.new()
 ## The hologram map in the hand, filled in as the ship explores (#339, MAP-1).
 var map: MapWiring = MapWiring.new()
+## The reactor, the meltdown countdown and the outcome row (#359, RUN-2, RUN-5).
+var meltdown: MeltdownWiring = MeltdownWiring.new()
 
 
 func _ready() -> void:
@@ -92,6 +94,7 @@ func _ready() -> void:
 	attach_status_panel()
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping)
+	meltdown.attach(self, session)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
@@ -154,10 +157,12 @@ func advance_frame(delta_seconds: float) -> void:
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
 	if fade_overlay != null:
 		fade_overlay.set_alpha(reset_hold.alpha)
-	log_afterburner()
+	# Logs afterburner starts and stops and pulses the boosting hand (#146, #170).
+	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 	place_rig()
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
 	map.update(session, delta_seconds, comfort.shared_click_hold())
+	meltdown.update(session, status_panel)
 	update_status_panel(delta_seconds)
 
 
@@ -238,13 +243,6 @@ func update_status_panel(delta_seconds: float) -> void:
 	status_panel.show_values(comfort.number, comfort.preset.display_name, ship.velocity.length(),
 		energy_fraction, boost, build_info.describe())
 	status_panel.advance(delta_seconds)
-
-
-## Logs each afterburner start and stop, so a device log shows whether the button
-## reaches the simulation (#146), and pulses the boosting hand then (#170). Read once
-## per frame from the latest state: `Sim.last_events` holds only a frame's last tick.
-func log_afterburner() -> void:
-	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
