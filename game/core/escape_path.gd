@@ -18,7 +18,7 @@ const UNREACHABLE: int = -1
 ## Shortest path length in millimetres from `from` to `to` through `walls`, or
 ## UNREACHABLE when either point lies outside every box or no opening joins them.
 static func length_mm(walls: BoxUnion, from: Vector3, to: Vector3) -> int:
-	var points: Array[Vector3i] = [_to_mm(from), _to_mm(to)]
+	var points: Array[Vector3i] = [to_mm(from), to_mm(to)]
 	var members: Array[Array] = [_boxes_holding(walls, points[0]), _boxes_holding(walls, points[1])]
 	if members[0].is_empty() or members[1].is_empty():
 		return UNREACHABLE
@@ -26,8 +26,8 @@ static func length_mm(walls: BoxUnion, from: Vector3, to: Vector3) -> int:
 	var mins: Array[Vector3i] = []
 	var maxs: Array[Vector3i] = []
 	for box: BoxBounds in walls.boxes:
-		mins.append(_to_mm(box.min_corner))
-		maxs.append(_to_mm(box.max_corner))
+		mins.append(to_mm(box.min_corner))
+		maxs.append(to_mm(box.max_corner))
 	for i: int in count:
 		points.append((mins[i] + maxs[i]) / 2)
 		members.append([i])
@@ -53,14 +53,24 @@ static func longest_for_ships(sim: Sim) -> int:
 			continue
 		var length: int = UNREACHABLE
 		if sim.walls == null:
-			length = _edge(_to_mm(ship.position), _to_mm(sim.start_positions[i]))
+			length = edge_mm(to_mm(ship.position), to_mm(sim.start_positions[i]))
 		else:
 			length = length_mm(sim.walls, ship.position, sim.start_positions[i])
 		longest = maxi(longest, length)
 	return longest
 
 
-static func _to_mm(point: Vector3) -> Vector3i:
+## The shortest route the player knows from `from` to the exit `to` during the
+## meltdown (MAP-2): only through the boxes in `explored` (box indices, as the
+## map's `ExploredBoxes.explored` lists them) and only through openings that
+## solid `debris` leaves a ship of `ship_radius` room to cross. See `KnownRoute`.
+static func known_route(walls: BoxUnion, explored: Array[int], from: Vector3, to: Vector3,
+		debris: MeltdownDebris, ship_radius: float) -> KnownRoute:
+	return KnownRoute.find(walls, explored, from, to, debris, ship_radius)
+
+
+## A point in metres as whole millimetres, the unit every path is measured in.
+static func to_mm(point: Vector3) -> Vector3i:
 	return Vector3i(roundi(point.x * RobotSpawn.SCALE), roundi(point.y * RobotSpawn.SCALE),
 		roundi(point.z * RobotSpawn.SCALE))
 
@@ -76,7 +86,8 @@ static func _boxes_holding(walls: BoxUnion, point_mm: Vector3i) -> Array:
 	return held
 
 
-static func _edge(a: Vector3i, b: Vector3i) -> int:
+## One straight edge of a path, rounded to whole millimetres.
+static func edge_mm(a: Vector3i, b: Vector3i) -> int:
 	return roundi(Vector3(b - a).length())
 
 
@@ -113,7 +124,7 @@ static func _dijkstra(points: Array[Vector3i], members: Array[Array]) -> int:
 		for n: int in size:
 			if settled[n] or not _share_a_box(members[current], members[n]):
 				continue
-			var through: int = distance[current] + _edge(points[current], points[n])
+			var through: int = distance[current] + edge_mm(points[current], points[n])
 			if distance[n] < 0 or through < distance[n]:
 				distance[n] = through
 	return UNREACHABLE
