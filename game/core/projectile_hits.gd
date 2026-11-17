@@ -8,8 +8,8 @@ extends RefCounted
 
 ## Moves every projectile in `sim.projectiles` one tick and removes those that
 ## hit a robot or the reactor (ship shots) or a ship or the reactor (robot
-## shots, which do it no harm), whose lifetime is over or
-## that have left the walls. The hit test runs on the whole segment flown this
+## shots, which do it no harm), that meet solid debris, whose lifetime is over
+## or that have left the walls. The hit test runs on the whole segment flown this
 ## tick, before the other two, so a shot on its last tick or leaving through a
 ## wall still hits what it passed on the way. Hit events go to `hit_events`;
 ## each robot destroyed is recorded in `killers` as robot index to the ship
@@ -19,10 +19,16 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 	for projectile: Projectile in sim.projectiles:
 		var from: Vector3 = projectile.position
 		var alive: bool = projectile.advance()
+		# Solid debris (RUN-4) ends the segment where the shot meets it, so only
+		# what lies before it can be hit; then the shot is gone.
+		var stopped: float = -1.0 if sim.debris == null \
+			else sim.debris.segment_entry(from, projectile.position)
+		if stopped >= 0.0:
+			projectile.position = from.lerp(projectile.position, stopped)
 		var hit: bool = (_hit_ship(sim, projectile, from, hit_events)
 			if projectile.is_robot_owned()
 			else _hit_robot(sim, projectile, from, hit_events, killers))
-		if hit:
+		if hit or stopped >= 0.0:
 			continue
 		if not alive:
 			continue
