@@ -108,12 +108,22 @@ static func arm(spawns: Array[RobotSpawn], weapon_dir: String) -> void:
 
 ## The part catalogue: every weapon data file in `weapon_dir`, keyed by its
 ## file name without `.json`, the id robots drop it under (`RobotDef.salvage`)
-## and a loadout names it by (SLV-1, ARC-4, #320). A file that is rejected, or
-## whose name is not a valid id, is left out after printing why: one broken
-## weapon should not stop every other part from slotting.
+## and a loadout names it by (SLV-1, ARC-4, #320). See `parts_from_files`.
 static func load_parts(weapon_dir: String = WEAPON_DIR) -> Dictionary[String, WeaponDef]:
+	return parts_from_files(weapon_dir, DirAccess.get_files_at(weapon_dir))
+
+
+## The part catalogue from the files `names` in `weapon_dir`. The names are
+## sorted first: directory listing order is not promised to match from one
+## machine to the next, and the catalogue's order must not depend on it, or
+## two machines would start the same session differently (ARC-1, MP-2, #381).
+## A file that is rejected, or whose name is not a valid id, is left out after
+## printing why: one broken weapon should not stop every other part from
+## slotting.
+static func parts_from_files(weapon_dir: String, names: PackedStringArray) -> Dictionary[String, WeaponDef]:
 	var parts: Dictionary[String, WeaponDef] = {}
-	var files: PackedStringArray = DirAccess.get_files_at(weapon_dir)
+	var files: PackedStringArray = names.duplicate()
+	files.sort()
 	for file: String in files:
 		if file.get_extension() != "json":
 			continue
