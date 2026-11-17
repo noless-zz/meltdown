@@ -17,7 +17,9 @@ extends Node3D
 ##
 ## An exit marker (a cube) and a reactor marker (a ball) show where to leave
 ## the mine and what to destroy (#338, MAP-2, RUN-3); they are fitted like the
-## lines, so they move with the map when more boxes are explored.
+## lines, so they move with the map when more boxes are explored. The
+## suggested route and blocked openings (MAP-2, #400) are drawn by a `MapRoute`
+## child, fitted the same way.
 ##
 ## The look lives in `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
 
@@ -48,6 +50,10 @@ var _lines: MeshInstance3D = MeshInstance3D.new()
 var _marker: MeshInstance3D = MeshInstance3D.new()
 var _exit: MeshInstance3D = MeshInstance3D.new()
 var _reactor: MeshInstance3D = MeshInstance3D.new()
+var _route: MapRoute = MapRoute.new()
+## The route's level-space points and blocked centres, kept so `build` can re-fit them.
+var _route_at: PackedVector3Array = PackedVector3Array()
+var _blocked_at: PackedVector3Array = PackedVector3Array()
 ## The markers' level-space positions, kept so `build` can re-fit them.
 var _exit_at: Vector3 = Vector3.ZERO
 var _reactor_at: Vector3 = Vector3.ZERO
@@ -65,6 +71,7 @@ func _init() -> void:
 	for child: MeshInstance3D in [_lines, _marker, _exit, _reactor]:
 		child.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(child)
+	add_child(_route)
 	_exit.visible = false
 	_reactor.visible = false
 	load_look()
@@ -121,6 +128,7 @@ func build(union: BoxUnion, explored: Array[int]) -> void:
 	_exit.mesh = cube
 	_reactor.mesh = _ball(_look["reactor_color"], float(_look["reactor_radius_m"]), energy)
 	_place_markers()
+	_place_route()
 
 
 ## Number of line segments drawn by the last `build`.
@@ -161,6 +169,25 @@ func exit_marker_position() -> Vector3:
 ## The reactor marker's position in the hologram.
 func reactor_marker_position() -> Vector3:
 	return _reactor.position
+
+
+## Draws the suggested route through `points_m` and a cross at each of
+## `blocked_m` (level-space copies, as `KnownRoute` gives them), fitted like
+## the lines. Empty arrays draw nothing.
+func show_route(points_m: PackedVector3Array, blocked_m: PackedVector3Array) -> void:
+	_route_at = points_m.duplicate()
+	_blocked_at = blocked_m.duplicate()
+	_place_route()
+
+
+## Removes the route and the blocked markers.
+func clear_route() -> void:
+	show_route(PackedVector3Array(), PackedVector3Array())
+
+
+## The node drawing the route, for reading what it drew.
+func route() -> MapRoute:
+	return _route
 
 
 ## Whether the exit marker is drawn: once `set_markers` was called.
@@ -254,6 +281,10 @@ func _place_markers() -> void:
 	_reactor.visible = _markers_set and _reactor_known
 	_exit.position = _fit * _exit_at
 	_reactor.position = _fit * _reactor_at
+
+
+func _place_route() -> void:
+	_route.draw_fitted(_fit, _route_at, _blocked_at, _look)
 
 
 ## A small glowing ball; a dot this small needs few triangles (PRF-2).
