@@ -1,0 +1,8 @@
+{
+	"types": ["drone", "glider", "needler", "skimmer", "hauler"],
+	"min_per_level": 4,
+	"max_per_level": 8,
+	"max_per_module": 2,
+	"min_start_distance": 20,
+	"min_reactor_distance": 8
+}
