@@ -43,8 +43,10 @@ static func ship_radius() -> float:
 ## "failed", "short" (levels the generator stopped short, which are still
 ## validated), "ms", "by_check" (seeds failing each of `LevelValidator.CHECKS`,
 ## plus "level" for levels that did not build), and "failures": the first
-## `KEPT_FAILURES` messages, each prefixed with its seed.
-static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT) -> Dictionary:
+## `kept_failures` messages, each prefixed with its seed. A `kept_failures` of 0
+## keeps every message, so the nightly job can list every failing seed (#358).
+static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
+		kept_failures: int = KEPT_FAILURES) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
 	var modules: Array[ModuleDef] = load_modules()
 	var validator: LevelValidator = load_validator()
@@ -86,7 +88,7 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT) -
 			if by_check.has(check) and not counted.has(check):
 				counted.append(check)
 				by_check[check] += 1
-			if result["failures"].size() < KEPT_FAILURES:
+			if kept_failures == 0 or result["failures"].size() < kept_failures:
 				result["failures"].append("seed %d: %s" % [level_seed, message])
 	result["ms"] = Time.get_ticks_msec() - started
 	return result

@@ -1,0 +1,92 @@
+name: Nightly seeds
+
+# Requirements section 8 and gate G3: the level validators on 10,000 seeds every
+# night (GEN-3, #358). G3's "10,000 seeds pass validators" points at the latest
+# run of this workflow. The per-pull-request 1,000 seeds stay in the unit tests.
+
+on:
+  schedule:
+    # 23:17 UTC: night in Israel, mid-afternoon Pacific, off the hour.
+    - cron: '17 23 * * *'
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: Number of seeds, starting at seed 1
+        required: false
+        default: '10000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-seeds-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in step with ci.yml.
+  GODOT_VERSION: 4.7.2-stable
+
+jobs:
+  seeds:
+    name: Level validators on every seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot
+        run: |
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        run: godot --headless --path game --import
+
+      - name: Validate seeds
+        env:
+          SEEDS: ${{ inputs.seeds || '10000' }}
+        run: |
+          if ! [[ "$SEEDS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "seeds must be a positive whole number, got '$SEEDS'" >&2
+            exit 2
+          fi
+          status=0
+          tools/validate_seeds.sh --all-failures "$SEEDS" > out.txt 2> err.txt || status=$?
+          cat out.txt
+          cat err.txt >&2
+          summary_line="$(grep '^level validator:' out.txt || true)"
+          # Godot also writes engine noise (OpenXR without a headset) to stderr;
+          # the sweep's own messages start with "seed N:" or a data file name.
+          grep -E '^(seed [0-9]+|[a-z_]+\.json): ' err.txt > failures.txt || true
+          {
+            echo "## Level validators on $SEEDS seeds"
+            echo
+            echo '```'
+            echo "${summary_line:-no summary line: the run stopped with exit code $status}"
+            echo '```'
+            if [ "$status" -ne 0 ]; then
+              echo
+              if [ -s failures.txt ]; then
+                echo "### Failure messages ($(wc -l < failures.txt))"
+              else
+                echo "### Last lines of the error output"
+                tail -n 40 err.txt > failures.txt
+              fi
+              echo
+              echo '```'
+              # The job summary holds at most 1 MiB; the step log has every line.
+              if [ "$(wc -c < failures.txt)" -gt 900000 ]; then
+                head -c 900000 failures.txt
+                echo
+                echo '```'
+                echo
+                echo "Cut at 900 kB; the step log has every message."
+              else
+                cat failures.txt
+                echo '```'
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
