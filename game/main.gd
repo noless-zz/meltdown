@@ -10,10 +10,8 @@ extends Node3D
 ## simulation state (MP-2, ARC-3).
 
 const TARGET_REFRESH_RATE: float = 90.0
-## Where the test tunnel sits relative to the simulation origin, where the ship
-## starts. The ship's collision sphere has a 1 m radius, so the floor goes 1 m
-## below the start; otherwise the first tick would push the ship up off the
-## floor with a jolt.
+## Where the test tunnel sits relative to the simulation origin, where the ship starts:
+## 1 m below, the ship's radius, so the first tick does not push it off the floor.
 const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
 ## The ship's feel values, tuned after headset sessions without code changes.
 const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
@@ -56,6 +54,8 @@ var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
 var boost_haptics: BoostHaptics = BoostHaptics.new()
 ## The bolts, robots, shield and hull, shown from session copies (#189, #228, MP-2).
 var combat: CombatWiring = CombatWiring.new()
+## The hologram map in the hand, filled in as the ship explores (#339, MAP-1).
+var map: MapWiring = MapWiring.new()
 
 
 func _ready() -> void:
@@ -91,6 +91,7 @@ func _ready() -> void:
 	attach_fade_overlay()
 	attach_status_panel()
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
+	map.attach($XRRig, mapping)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
@@ -125,6 +126,7 @@ func apply_controls(values: Dictionary) -> void:
 	comfort.read_preset_button(values.get("buttons", {}))
 	if comfort.read_label_button(values.get("buttons", {})):
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
+	map.buttons = values.get("buttons", {})
 	reset_hold.press(ResetHold.is_held(values))
 	comfort.hand_input(ControllerSampler.map_values(mapping, values),
 		session.current_ship().orientation, reset_hold.reset_due())
@@ -155,6 +157,7 @@ func advance_frame(delta_seconds: float) -> void:
 	log_afterburner()
 	place_rig()
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
+	map.update(session, delta_seconds, comfort.shared_click_hold())
 	update_status_panel(delta_seconds)
 
 
@@ -237,10 +240,9 @@ func update_status_panel(delta_seconds: float) -> void:
 	status_panel.advance(delta_seconds)
 
 
-## Logs each afterburner start and stop, so a device log shows whether the
-## button reaches the simulation (#146), and pulses the boosting hand at the
-## same moment (#170). Read from the latest state once per frame:
-## `Sim.last_events` only holds the last tick of a frame.
+## Logs each afterburner start and stop, so a device log shows whether the button
+## reaches the simulation (#146), and pulses the boosting hand then (#170). Read once
+## per frame from the latest state: `Sim.last_events` holds only a frame's last tick.
 func log_afterburner() -> void:
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 
@@ -272,10 +274,9 @@ func _on_session_begun(openxr: OpenXRInterface) -> void:
 	print("Meltdown: refresh rate ", openxr.display_refresh_rate, " Hz, available ", rates)
 
 
-## The app is shown but has lost input focus: the headset was taken off or
-## the system menu is up. Solo play holds still until focus returns (PLT-7).
-## The runtime also passes through this state on the way to focus at start,
-## which is harmless: nothing has been flown yet.
+## The app is shown but has lost input focus: the headset was taken off or the
+## system menu is up. Solo play holds still until focus returns (PLT-7). The
+## runtime passes through here on the way to focus at start; nothing has flown yet.
 func on_session_visible() -> void:
 	session.paused = true
 
