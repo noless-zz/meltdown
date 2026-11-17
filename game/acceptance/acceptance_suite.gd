@@ -12,7 +12,8 @@ extends RefCounted
 ##         "steps": [
 ##             {"id": "fly", "replay": "res://acceptance/replays/x.replay",
 ##              "preset": 2, "checks": ["final_hash"], "expected_hash": 123,
-##              "required": false, "level": "g2"}
+##              "required": false, "level": "g2",
+##              "expected_outcome": "ESCAPED"}
 ##         ]
 ##     }
 ##
@@ -27,7 +28,7 @@ const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
 const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
-	"level"]
+	"level", "expected_outcome"]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -142,7 +143,8 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 	for check: String in step.checks:
 		if AcceptanceStep.REPLAY_CHECKS.has(check) and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
-	return _parse_expected_hash(data, field, step)
+	problem = _parse_expected_hash(data, field, step)
+	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 
 static func _parse_checks(raw: Variant, field: String, step: AcceptanceStep) -> String:
@@ -174,6 +176,21 @@ static func _parse_expected_hash(data: Dictionary, field: String, step: Acceptan
 	if step.replay_path == "":
 		return "%s.replay: needed by the final_hash check" % field
 	step.expected_hash = int(value)
+	return ""
+
+
+## Like the hash: the outcome check and `expected_outcome` come together, and
+## the outcome is named, so a suite reads "ESCAPED" rather than an enum number.
+static func _parse_expected_outcome(data: Dictionary, field: String, step: AcceptanceStep) -> String:
+	var wants_outcome: bool = step.has_check(AcceptanceStep.CHECK_OUTCOME)
+	if not data.has("expected_outcome"):
+		return "%s.expected_outcome: needed by the outcome check" % field if wants_outcome else ""
+	if not wants_outcome:
+		return "%s.expected_outcome: only used by the outcome check, which the step does not list" % field
+	var value: Variant = data["expected_outcome"]
+	if typeof(value) != TYPE_STRING or not ExitRule.Outcome.has(str(value)):
+		return "%s.expected_outcome: must be one of %s" % [field, ", ".join(ExitRule.Outcome.keys())]
+	step.expected_outcome = ExitRule.Outcome[str(value)]
 	return ""
 
 
