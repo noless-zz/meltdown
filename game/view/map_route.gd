@@ -13,6 +13,13 @@ extends Node3D
 ##
 ## The look (colours, width, cross size) is handed in by the owner, which reads
 ## it from its look file (ARC-4); nothing here is tuned in code.
+##
+## Next to the ship's end of the route a label gives the route's length in
+## whole metres (#442, MAP-2): during the countdown a number reads at a glance
+## where judging distance off a scaled hologram does not. The label is placed
+## by the fit but never scaled by it, so its size stays the same in the
+## hologram however large the explored mine is, and it is billboarded like the
+## controller labels so the hand can turn the map any way.
 
 const LINE_NAME: String = "RouteLine"
 const BLOCKED_PREFIX: String = "Blocked"
@@ -20,10 +27,21 @@ const BLOCKED_PREFIX: String = "Blocked"
 const VERTICES_PER_BAR: int = 36
 ## Segments shorter than this are dropped; a repeated point is not a segment.
 const MIN_SEGMENT_M: float = 1e-6
+const DISTANCE_NAME: String = "RouteDistance"
+## Pixels of the label's glyph texture; `distance_height_m` sets the size in
+## the hologram through the pixel size. 32 px stays sharp after filtering.
+const DISTANCE_FONT_SIZE: int = 32
+## A thin dark outline keeps the text readable over the bright wireframe.
+const DISTANCE_OUTLINE_SIZE: int = 4
+const DISTANCE_OUTLINE_COLOR: Color = Color(0.0, 0.0, 0.0)
+## The route comes from whole millimetres; snapping to them first stops float
+## noise such as 84.0000001 m from reading as 85 m.
+const DISTANCE_SNAP_M: float = 0.001
 
 var _line: MeshInstance3D = MeshInstance3D.new()
 var _blocked: Array[MeshInstance3D] = []
 var _ends: PackedVector3Array = PackedVector3Array()
+var _distance: Label3D = Label3D.new()
 
 
 func _init() -> void:
@@ -31,6 +49,17 @@ func _init() -> void:
 	_line.name = LINE_NAME
 	_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_line)
+	_distance.name = DISTANCE_NAME
+	_distance.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_distance.font_size = DISTANCE_FONT_SIZE
+	_distance.outline_size = DISTANCE_OUTLINE_SIZE
+	_distance.outline_modulate = DISTANCE_OUTLINE_COLOR
+	_distance.shaded = false
+	# Readable even when the hologram's own lines or the hand are in front.
+	_distance.no_depth_test = true
+	_distance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_distance.visible = false
+	add_child(_distance)
 
 
 ## Draws the route through `points` and a cross at each of `blocked`, both in
@@ -64,16 +93,27 @@ func draw(points: PackedVector3Array, blocked: PackedVector3Array, route_color: 
 
 ## `draw` with level-space `points_m` and `blocked_m` moved by `fit` into this
 ## node's space, and the look read from `look` (the map look's `route_color`,
-## `blocked_color`, `line_energy`, `route_width_m` and `blocked_size_m`).
+## `blocked_color`, `line_energy`, `route_width_m`, `blocked_size_m` and the
+## `distance_*` keys). When a route is drawn, the distance label shows the
+## level-space length of `points_m` above its first point, the ship's end.
 func draw_fitted(fit: Transform3D, points_m: PackedVector3Array, blocked_m: PackedVector3Array,
 		look: Dictionary) -> void:
 	draw(fit * points_m, fit * blocked_m, look["route_color"], look["blocked_color"],
 			float(look["line_energy"]), float(look["route_width_m"]), float(look["blocked_size_m"]))
+	if _ends.is_empty():
+		return
+	_distance.text = distance_text(route_length_m(points_m))
+	_distance.modulate = look["distance_color"]
+	_distance.pixel_size = float(look["distance_height_m"]) / float(DISTANCE_FONT_SIZE)
+	_distance.position = fit * points_m[0] + Vector3.UP * float(look["distance_offset_m"])
+	_distance.visible = true
 
 
 ## Removes the route and every blocked marker.
 func clear() -> void:
 	_line.mesh = null
+	_distance.visible = false
+	_distance.text = ""
 	_ends = PackedVector3Array()
 	for marker: MeshInstance3D in _blocked:
 		remove_child(marker)
@@ -92,6 +132,29 @@ func segment_count() -> int:
 ## The drawn segments' endpoints as pairs (from, to, from, to, ...).
 func segment_ends() -> PackedVector3Array:
 	return _ends.duplicate()
+
+
+## The distance label's text, or empty when no label is shown.
+func distance_shown() -> String:
+	return _distance.text if _distance.visible else ""
+
+
+## The label node, for reading where and how large it is drawn.
+func distance_label() -> Label3D:
+	return _distance
+
+
+## Sum of the lengths of the segments between consecutive `points`.
+static func route_length_m(points: PackedVector3Array) -> float:
+	var total: float = 0.0
+	for i: int in range(1, points.size()):
+		total += points[i - 1].distance_to(points[i])
+	return total
+
+
+## `length_m` in whole metres, rounded up, as the label shows it: `84 m`.
+static func distance_text(length_m: float) -> String:
+	return "%d m" % ceili(snappedf(length_m, DISTANCE_SNAP_M))
 
 
 ## The blocked markers' positions, in the order they were given.
