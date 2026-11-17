@@ -4,7 +4,7 @@ extends RefCounted
 ## Reads one header line of a replay (everything before `inputs`) into the
 ## replay. Split out of `Replay` to keep it short; the format is documented
 ## there. Data lines go to `ReplayLines`, `ReplayBoxLine`, `ReplayPartLines`,
-## `ReplayReactorLine` and `ReplayStartLine`.
+## `ReplayReactorLine`, `ReplayDebrisLine` and `ReplayStartLine`.
 
 
 ## Returns "" with the value stored on `replay`, or a problem without the line
@@ -18,6 +18,8 @@ static func parse_line(replay: Replay, line: String, seen: Dictionary[String, bo
 		return ReplayLines.parse_robot_line(replay, line, seen, replay.parse_version)
 	if line.begins_with("reactor "):
 		return ReplayReactorLine.parse(replay, line.substr(8), seen, replay.parse_version)
+	if line.begins_with("debris "):
+		return ReplayDebrisLine.parse(replay, line.substr(7), seen, replay.parse_version)
 	if line.begins_with("part "):
 		return ReplayPartLines.parse_part_line(replay, line, seen, replay.parse_version)
 	var words: PackedStringArray = line.split(" ", false)

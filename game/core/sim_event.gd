@@ -17,7 +17,7 @@ enum Kind {
 	## The energy pool ran dry and locked the afterburner this tick. The boost
 	## still ran on this tick, so AFTERBURNER_STOPPED follows on the next.
 	ENERGY_DEPLETED,
-	## The ship hit a wall. `magnitude` is the impact speed into the wall in
+	## The ship hit a wall, or solid debris (RUN-4) as one. `magnitude` is the impact speed into the wall in
 	## metres per second; `vector` is the unit wall normal, pointing back into
 	## the open space. A corner hit is one event whose normal is the average.
 	WALL_IMPACT,

@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 14       format name and version
+##     meltdown-replay 15       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -17,6 +17,8 @@ extends RefCounted
 ##     reactor {"position":[0,-39,-114],...}
 ##                              optional (version 13): the level's reactor
 ##                              before the first tick (`ReactorState`)
+##     debris [{"position":[0,-15,-45],...}]
+##                              optional (version 15): `ReplayDebrisLine`
 ##     start 0 3000 -2000 10000 1000 0 0
 ##                              optional (version 14), at most one per ship:
 ##                              ship index, start position in millimetres and
@@ -57,7 +59,7 @@ extends RefCounted
 ## 1 and 2 have no box line, versions 3 to 11 at most one, versions 1 to 4 no
 ## tuning line, versions 1 to 6 no weapon lines, versions 1 to 7 no robot
 ## lines, versions 1 to 9 no part lines, versions 1 to 12 no reactor line,
-## versions 1 to 13 no start line. Version 8 robot lines hold the robot's
+## versions 1 to 13 no start line, versions 1 to 14 no debris line. Version 8 robot lines hold the robot's
 ## data file alone, with no "robot" or "weapon" key, and read as unarmed. Files
 ## are always written as the current version.
 ##
@@ -65,7 +67,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 14
+const FORMAT_VERSION: int = 15
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -91,6 +93,8 @@ var start_positions_mm: Dictionary[int, Vector3i] = {}
 var start_facings_mm: Dictionary[int, Vector3i] = {}
 ## The level's reactor before the first tick, or null. Each run gets a copy.
 var reactor: ReactorState = null
+## The level's falling debris (RUN-4), or null. Each run gets a copy.
+var debris: MeltdownDebris = null
 ## Feel values of every ship from the first tick, or null for the defaults.
 var tuning: ShipTuning = null
 ## Weapons every ship starts with, already resolved, or null for none.
@@ -135,6 +139,7 @@ func run() -> Sim:
 	# A one-box union is exactly what the constructor builds from one box.
 	sim.set_walls(walls())
 	sim.set_reactor(null if reactor == null else reactor.fresh_copy())
+	sim.set_debris(null if debris == null else debris.fresh_copy())
 	apply_tuning(sim)
 	if loadout != null:
 		sim.equip(loadout)
@@ -231,6 +236,8 @@ func to_text() -> String:
 		lines.append(ReplayBoxLine.text(box_mins_mm[index], box_maxs_mm[index]))
 	if reactor != null:
 		lines.append(ReplayReactorLine.text(reactor))
+	if debris != null and debris.size() > 0:
+		lines.append(ReplayDebrisLine.text(debris))
 	lines.append_array(ReplayStartLine.lines(self))
 	if tuning != null:
 		lines.append(ReplayLines.tuning_text(tuning))

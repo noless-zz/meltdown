@@ -11,7 +11,8 @@ extends RefCounted
 ##      "start": {"position": [0, 0, 0], "facing": [0, 0, -1]},
 ##      "robots": [{"id": "drone", "position": [0, -20, -42], "facing": [0, 1, 0]}],
 ##      "reactor": {"position": [0, -39, -114], "radius": 2.5, "hull": 400, "meltdown_seconds": 90},
-##      "exit_radius": 4}
+##      "exit_radius": 4,
+##      "debris": [{"position": [-3, -15, -45], "radius": 1, "after_seconds": 10}]}
 ##
 ## Corners, positions and facings are metres, read in whole millimetres like
 ## robot spawns, so a level reads the same on every run (ARC-2). `robots` uses
@@ -24,6 +25,8 @@ extends RefCounted
 ## the start (RUN-3). When it is left out the level takes the `LevelDefaults`
 ## handed to `parse_json`, which the loader reads from the data file (ARC-4). It
 ## is handed to the reactor, which carries it into the simulation and the replay.
+## `debris` is optional too: spheres that fall during the meltdown (RUN-4), read
+## by `MeltdownDebris`. Whether they leave a way out is the level validator's job.
 ##
 ## A level is rejected, with a message naming the problem, when a box's min is
 ## not below its max, a box cannot be reached from box 0, the start or a robot
@@ -33,7 +36,7 @@ extends RefCounted
 
 const TOP_KEYS: Array[String] = ["boxes", "start", "robots"]
 ## Top-level keys a level may leave out.
-const OPTIONAL_KEYS: Array[String] = ["reactor", "exit_radius"]
+const OPTIONAL_KEYS: Array[String] = ["reactor", "exit_radius", "debris"]
 const BOX_KEYS: Array[String] = ["min", "max"]
 const START_KEYS: Array[String] = ["position", "facing"]
 ## Two boxes are joined when they overlap by at least this much on every axis:
@@ -51,6 +54,8 @@ var start_position_mm: Vector3i = Vector3i.ZERO
 var start_facing_mm: Vector3i = Vector3i(0, 0, -RobotSpawn.SCALE)
 ## The level's reactor before the first tick, or null for a level without one.
 var reactor: ReactorState = null
+## The level's falling debris before the first tick, or null without a `debris` key.
+var debris: MeltdownDebris = null
 ## Radius of the exit sphere around the start (RUN-3), also set on `reactor`.
 var exit_radius_mm: int = LevelDefaults.FALLBACK_EXIT_RADIUS_MM
 ## Set by `parse_json` when the text was rejected; empty otherwise.
@@ -82,6 +87,10 @@ static func parse_json(text: String, defaults: LevelDefaults = null) -> LevelDef
 		problem = level._read_reactor(data["reactor"])
 	if problem == "" and data.has("exit_radius"):
 		problem = level._read_exit_radius(data["exit_radius"])
+	if problem == "" and data.has("debris"):
+		var read: MeltdownDebris = MeltdownDebris.parse(data["debris"])
+		problem = read.error
+		level.debris = read
 	if problem == "":
 		problem = level._check_connected()
 	if problem == "":

@@ -44,6 +44,9 @@ var salvage: Array[SalvageItem] = []
 ## The level's reactor (RUN-2), or null. Set before the first tick by
 ## `set_reactor`. Part of the hash only when there is one.
 var reactor: ReactorState = null
+## Debris that falls once the reactor dies (RUN-4), or null. Set before the
+## first tick by `set_debris`. Part of the hash only when there is some.
+var debris: MeltdownDebris = null
 ## The part catalogue: part id to the weapon that part is, each resolved by the
 ## caller since core opens no files (SLV-1, ARC-4). Set before the first tick
 ## by `set_parts` and read-only afterwards, through `part`. Part of the hash
@@ -84,6 +87,8 @@ func step(inputs: Array[ShipInput]) -> bool:
 		_reset.record(ships)
 	if reactor != null:
 		reactor.count_down()
+	if debris != null:
+		debris.advance(reactor)
 	# Projectiles already in flight move before any new shot, so a shot
 	# spawns where its ship is at the end of the tick it was fired on.
 	ProjectileHits.advance(self, _hit_events, _killers)
@@ -106,11 +111,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 			last_events.append(SimEvent.new(SimEvent.Kind.AFTERBURNER_STOPPED, i))
 		if ship.afterburner_locked and not was_locked:
 			last_events.append(SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, i))
-		if walls != null:
-			var impact: Vector3 = walls.contain_impact(ship)
-			if impact != Vector3.ZERO:
-				last_events.append(SimEvent.new(
-					SimEvent.Kind.WALL_IMPACT, i, impact.length(), -impact.normalized()))
+		ShipContact.apply(self, i, last_events)
 		if inputs[i].slot_held:
 			PartSlotting.slot_held(self, i, slot_drops)
 		ProjectileHits.fire(self, i, inputs[i].fire_primary)
@@ -172,6 +173,15 @@ func set_reactor(p_reactor: ReactorState) -> bool:
 	if tick != 0 or _stepping:
 		return false
 	reactor = p_reactor
+	return true
+
+
+## Gives the run `p_debris`, or none for null or an empty list. Only before the
+## first tick, like the reactor. Returns false, changing nothing, once started.
+func set_debris(p_debris: MeltdownDebris) -> bool:
+	if tick != 0 or _stepping:
+		return false
+	debris = null if p_debris == null or p_debris.size() == 0 else p_debris
 	return true
 
 
@@ -253,8 +263,8 @@ func set_start_pose(index: int, position: Vector3, orientation: Basis) -> void:
 
 
 ## Hash of the whole simulation state. Projectiles, robots, salvage, the part
-## catalogue and the reactor, with the run's outcome, join only while there are
-## any, so runs recorded before them keep their hashes.
+## catalogue, the reactor, with the run's outcome, and debris join only while
+## there are any, so runs recorded before them keep their hashes.
 func state_hash() -> int:
 	var parts: Array[int] = [run_seed, tick]
 	for ship: ShipState in ships:
@@ -280,4 +290,6 @@ func state_hash() -> int:
 		parts.append(hash("reactor"))
 		parts.append(reactor.state_hash())
 		parts.append(ExitRule.state_hash(self))
+	if debris != null:
+		parts.append(debris.state_hash())
 	return hash(parts)
