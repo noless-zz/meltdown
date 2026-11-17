@@ -169,6 +169,8 @@ static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
 ## (SLV-1, #320). The level's start pose is written to the replay's start
 ## line and the ship is placed from what the line reads back, so a level that
 ## does not start at the origin facing -z replays to the same hash (#340).
+## The level's reactor, if any, is armed on the sim and recorded in the replay
+## before the first tick, so the main scene flies with it (RUN-2, #332).
 ## `level` must have parsed without an error.
 static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInputSource = null,
 		tuning: ShipTuning = null, robot_dir: String = ROBOT_DIR,
@@ -189,6 +191,11 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 	# replay starts from, and an unrounded live pose would drift away from it.
 	session.replay.set_start_pose(0, level.start_position(), level.start_facing())
 	ReplayStartLine.apply(session.replay, session.sim)
+	# Separate copies, so the live run's damage never reaches the copy a
+	# replay starts from (RUN-2, ARC-2, #332).
+	if level.reactor != null:
+		session.replay.reactor = level.reactor.fresh_copy()
+		session.sim.set_reactor(level.reactor.fresh_copy())
 	session._current_ship = SessionSnapshots.ship(session.sim.ships[0])
 	session._previous_ship = SessionSnapshots.ship(session.sim.ships[0])
 	return session

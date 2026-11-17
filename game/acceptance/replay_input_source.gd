@@ -16,14 +16,19 @@ func _init(replay: Replay) -> void:
 
 ## A fresh session fed by this source, from the replay's own seed, walls,
 ## tuning, weapons, robots and part catalogue, so it flies exactly the run the replay
-## recorded. Every box of a level's walls is taken over, as
-## `LocalSession.for_level` does (#334).
+## recorded. Every box of a level's walls and its reactor are taken over, as
+## `LocalSession.for_level` does (#334, #332).
 func new_session() -> LocalSession:
 	var session: LocalSession = LocalSession.new(_replay.run_seed, self, _replay.bounds(), _replay.tuning,
 		_replay.robots, _replay.loadout, _replay.parts)
 	if _replay.box_mins_mm.size() > 1:
 		session.replay.set_boxes(_replay.box_mins_mm, _replay.box_maxs_mm)
 		session.sim.set_walls(session.replay.walls())
+	# A level's reactor stops shots and counts down, so a replay recorded with
+	# one flies differently without it (#332).
+	if _replay.reactor != null:
+		session.replay.reactor = _replay.reactor.fresh_copy()
+		session.sim.set_reactor(_replay.reactor.fresh_copy())
 	return session
 
 
