@@ -5,5 +5,13 @@
 	"min_start_distance": 15,
 	"min_reactor_distance": 6,
 	"min_robot_distance": 2,
-	"latest_fall_fraction": 0.8
+	"latest_fall_fraction": 0.8,
+	"doors": {
+		"count": [0, 2],
+		"thickness": 0.5,
+		"after_seconds": [10, 60],
+		"min_start_distance": 15,
+		"min_reactor_distance": 6,
+		"min_robot_distance": 2
+	}
 }

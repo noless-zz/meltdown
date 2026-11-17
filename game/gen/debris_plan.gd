@@ -32,6 +32,8 @@ extends RefCounted
 
 const KEYS: Array[String] = ["count", "radius", "after_seconds", "min_start_distance",
 		"min_reactor_distance", "min_robot_distance", "latest_fall_fraction"]
+## The optional `doors` section (#462), read by `DebrisDoors`; without it no doors.
+const DOORS_KEY: String = "doors"
 ## Largest radius an entry may have, metres: a cave-in, not a wall of rock.
 const MAX_RADIUS_M: float = 20.0
 ## Latest an entry may fall, seconds after the reactor dies.
@@ -54,6 +56,8 @@ var min_start_distance_mm: int = 0
 var min_reactor_distance_mm: int = 0
 var min_robot_distance_mm: int = 0
 var latest_fall_fraction: float = 1.0
+## Blast doors to place after the spheres (#462), or null without a section.
+var doors: DebrisDoors = null
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -129,14 +133,18 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 		debris.after_ticks.append(_within(ticks, limit, fall_rng))
 		debris.skipped.append(false)
 		spots.remove_at(spot)
+	var notes: Array[String] = []
 	if no_room or near_robots > 0:
 		var why: Array[String] = []
 		if no_room:
 			why.append("no room found in %d tries" % TRIES)
 		if near_robots > 0:
 			why.append("%d dropped for min_robot_distance" % near_robots)
-		generator.debris_note = "placed %d of %d debris entries: %s" \
-				% [debris.size(), wanted, ", ".join(why)]
+		notes.append("placed %d of %d debris entries: %s" % [debris.size(), wanted, ", ".join(why)])
+	var door_note: String = "" if doors == null else doors.place(generator, level, debris, robot_radii, limit)
+	if door_note != "":
+		notes.append(door_note)
+	generator.debris_note = "; ".join(notes)
 	return null if debris.size() == 0 else debris
 
 
@@ -202,7 +210,7 @@ func fits(point_mm: Vector3i, radius_mm: int, level: LevelDef) -> bool:
 func _read(data: Dictionary) -> String:
 	var unknown: Array[String] = []
 	for key: Variant in data:
-		if not KEYS.has(key):
+		if not KEYS.has(key) and key != DOORS_KEY:
 			unknown.append("\"%s\"" % str(key))
 	if not unknown.is_empty():
 		return "unknown key %s" % ", ".join(unknown)
@@ -246,6 +254,12 @@ func _read(data: Dictionary) -> String:
 	min_reactor_distance_mm = distances[1]
 	min_robot_distance_mm = distances[2]
 	latest_fall_fraction = float(fraction)
+	if data.has(DOORS_KEY):
+		var read: Array[DebrisDoors] = []
+		var problem_doors: String = DebrisDoors.read(data[DOORS_KEY], read)
+		if problem_doors != "":
+			return problem_doors
+		doors = read[0]
 	return ""
 
 
