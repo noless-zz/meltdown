@@ -15,6 +15,12 @@ extends RefCounted
 ## `load_level` turns either into the `LevelDef` (a seed through `SeedLevel`),
 ## so `main.gd` does not grow.
 ##
+## `--seed=random`, or `random` in `meltdown_seed`, flies a fresh seed (#533,
+## DEV-6, G3), so the owner can fly unseen levels without inventing numbers. The
+## pick is printed so the flight can be repeated with `--seed=<n>`. It uses an
+## unseeded generator here, never in `core/` or `gen/` (ARC-1): from the picked
+## seed on, everything is as if `--seed=<n>` had been given.
+##
 ## It sits beside `main.gd`, like `CombatWiring`, because it joins the `net/`
 ## session's level to the `view/` level drawing. It reads the level file and
 ## hands the drawing the level's walls; it never writes simulation state (MP-2).
@@ -33,6 +39,11 @@ const SEED_INTENT_EXTRA: String = "meltdown_seed"
 const SEED_PREFIX: String = "seed:"
 ## Longest seed accepted: 18 digits always fit a 64-bit int.
 const SEED_MAX_DIGITS: int = 18
+## The seed value that asks for a fresh seed instead of a number.
+const RANDOM_SEED: String = "random"
+## Range of a picked seed: positive, and short enough to read off a log and type.
+const RANDOM_SEED_MIN: int = 1
+const RANDOM_SEED_MAX: int = 999999999
 
 
 ## The level name asked for, or "" when the switch is off. A command-line
@@ -70,9 +81,11 @@ static func requested_path() -> String:
 ## The source for these arguments and intent extras: `--level` (argument, then
 ## extra) wins; otherwise `--seed` (argument, then extra; the last one given
 ## counts). A bad value is printed and the tunnel stays, even when the other
-## switch is on, so a typo is never covered up by another level.
+## switch is on, so a typo is never covered up by another level. A seed of
+## `random` is replaced by `pick_seed`'s result (`random_seed` when not given;
+## tests inject one so they are not flaky), printed once.
 static func requested_source(user_args: PackedStringArray, level_intent: String,
-		seed_intent: String) -> String:
+		seed_intent: String, pick_seed: Callable = Callable()) -> String:
 	var level_name: String = requested(user_args, level_intent)
 	if level_name != "":
 		var path: String = path_for(level_name)
@@ -87,10 +100,22 @@ static func requested_source(user_args: PackedStringArray, level_intent: String,
 		asked = seed_intent.strip_edges()
 	if asked == "":
 		return ""
+	if asked == RANDOM_SEED:
+		var picked: int = pick_seed.call() if pick_seed.is_valid() else random_seed()
+		print("Meltdown: flying random seed %d" % picked)
+		return SEED_PREFIX + str(picked)
 	if seed_from(asked) < 0:
 		print("Meltdown: seed \"%s\" is not a non-negative whole number; flying the test tunnel" % asked)
 		return ""
 	return SEED_PREFIX + str(seed_from(asked))
+
+
+## A fresh seed from `RANDOM_SEED_MIN` to `RANDOM_SEED_MAX`. Deliberately
+## unseeded: it only chooses which level to fly, before any simulation exists.
+static func random_seed() -> int:
+	var generator: RandomNumberGenerator = RandomNumberGenerator.new()
+	generator.randomize()
+	return generator.randi_range(RANDOM_SEED_MIN, RANDOM_SEED_MAX)
 
 
 ## `text` as a seed, or -1 unless it is only digits (at most `SEED_MAX_DIGITS`).
