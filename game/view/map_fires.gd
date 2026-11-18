@@ -17,6 +17,9 @@ extends Node3D
 ## The points arrive in level space with the fit that moves them into this
 ## node's space, and the look is handed in by the owner from its look file
 ## (ARC-4). This node only draws; it holds no simulation object (MP-2).
+##
+## `inside` keeps only the fires within given boxes, so the owner can hide
+## fires in unexplored space when the look's `fires_explored_only` says so (#562).
 
 const MESH_NAME: String = "FireMarkers"
 ## Vertices of one marker: 8 triangles, no shared vertices.
@@ -90,6 +93,21 @@ func marker_sizes() -> PackedFloat32Array:
 ## The node holding the single mesh, for reading its surfaces and material.
 func mesh_node() -> MeshInstance3D:
 	return _mesh_node
+
+
+## The fires of `centres_m` (with their `radii_m`) whose centre lies in one of
+## `boxes`, in the order given, as `[centres, radii]`. A missing radius stays 0.
+static func inside(centres_m: PackedVector3Array, radii_m: PackedFloat32Array,
+		boxes: Array[AABB]) -> Array:
+	var centres: PackedVector3Array = PackedVector3Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	for i: int in centres_m.size():
+		for box: AABB in boxes:
+			if box.has_point(centres_m[i]):
+				centres.append(centres_m[i])
+				radii.append(radii_m[i] if i < radii_m.size() else 0.0)
+				break
+	return [centres, radii]
 
 
 ## Triangles of an octahedron centred on `centre`, `size` from tip to tip.

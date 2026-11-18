@@ -6,6 +6,10 @@ extends RefCounted
 ## position after both falls and none for the solid entry, the marks freeze
 ## while paused and go once the run ends, a level without fire marks nothing,
 ## and the run's state hash is the same with or without the map.
+##
+## Fires are marked only in explored boxes (#562). The fixture's fire is centred
+## 1 m inside rock, so these tests use a copy with it moved into box 3 and mark
+## that box explored on the map; one test leaves it unexplored and unmarked.
 
 const TICK: float = 1.0 / 60.0
 const FIXTURE: String = "res://tests/fixtures/fire_debris_level.json"
@@ -15,6 +19,9 @@ const FIRE: int = 1
 const SOLID_FALL_TICKS: int = 30
 const FIRE_FALL_TICKS: int = 60
 const EPSILON: float = 0.0001
+## The fixture with the fire centred in box 3, written by `_moved_fixture`.
+const MOVED: String = "user://test_main_map_fires_level.json"
+const MOVED_FIRE_X: float = 21.0
 
 
 ## The map wiring with its frame work switched off, for the run without it.
@@ -25,10 +32,25 @@ class NoWiring:
 		pass
 
 
+## `FIXTURE` with the fire entry's centre moved into box 3, at `MOVED`.
+func _moved_fixture() -> String:
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(FIXTURE))
+	data["debris"][FIRE]["position"][0] = MOVED_FIRE_X
+	var file: FileAccess = FileAccess.open(MOVED, FileAccess.WRITE)
+	file.store_string(JSON.stringify(data))
+	file.close()
+	return MOVED
+
+
 func _main(path: String) -> Node:
 	var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	main.get_node("XRRig").call("build")
-	if path != "" and not main.call("use_level", path):
+	if path == FIXTURE:
+		path = _moved_fixture()
+	var used: bool = path == "" or main.call("use_level", path)
+	if path == MOVED:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MOVED))
+	if not used:
 		main.free()
 		return null
 	main.call("_ready")
@@ -60,10 +82,17 @@ func _box_holding(walls: BoxUnion, point: Vector3) -> int:
 	return -1
 
 
+## Marks the box holding the fire entry explored on `main`'s map, view side only,
+## as if the ship had passed through it; the next frame rebuilds the map.
+func _explore_fire(main: Node) -> void:
+	_map(main).explored.visit(_session(main).sim.debris.position(FIRE))
+
+
 ## `path`'s main scene one tick in, the ship moved into the reactor's room so it
 ## does not escape at once, and the reactor destroyed: the next tick is the
-## meltdown's first. Null when the level is rejected.
-func _melting(path: String = FIXTURE) -> Node:
+## meltdown's first. With `explore_fire`, the fire's box is explored on the map
+## too (#562). Null when the level is rejected.
+func _melting(path: String = FIXTURE, explore_fire: bool = true) -> Node:
 	var main: Node = _main(path)
 	if main == null:
 		return null
@@ -78,6 +107,8 @@ func _melting(path: String = FIXTURE) -> Node:
 		session.sim.ships[0].position = (bounds.min_corner + bounds.max_corner) / 2.0
 		session.sim.ships[0].velocity = Vector3.ZERO
 	reactor.apply_damage(reactor.hull)
+	if explore_fire and path == FIXTURE:
+		_explore_fire(main)
 	return main
 
 
@@ -194,6 +225,25 @@ func test_no_fire_markers_once_the_run_is_lost() -> String:
 	return ""
 
 
+func test_a_fire_in_unexplored_space_is_not_marked() -> String:
+	var main: Node = _melting(FIXTURE, false)
+	if main == null:
+		return "the fixture level was rejected"
+	var fire_box: int = _box_holding(_session(main).replay.walls(), _session(main).sim.debris.position(FIRE))
+	if fire_box < 0 or _map(main).explored.explored().has(fire_box):
+		main.free()
+		return "the fire is in box %d, which must exist and be unexplored" % fire_box
+	_ticks(main, FIRE_FALL_TICKS + 1)
+	var burning: bool = _session(main).sim.debris.is_burning(FIRE)
+	var count: int = _fires(main).marker_count()
+	main.free()
+	if not burning:
+		return "the fire has not caught"
+	if count != 0:
+		return "%d fire markers for a fire in unexplored space, want 0" % count
+	return ""
+
+
 func test_a_level_without_fire_marks_none() -> String:
 	var main: Node = _melting(LevelSwitch.path_for("g2"))
 	if main == null:
@@ -251,6 +301,8 @@ func test_the_state_hash_is_the_same_without_the_map() -> String:
 			session.sim.ships[0].position = (walls.boxes[box].min_corner + walls.boxes[box].max_corner) / 2.0
 			session.sim.ships[0].velocity = Vector3.ZERO
 		session.sim.reactor.apply_damage(session.sim.reactor.hull)
+		if with_map:
+			_explore_fire(main)
 		_ticks(main, FIRE_FALL_TICKS + 30)
 		hashes.append(session.sim.state_hash())
 		var hologram: MapHologram = _map(main).hologram
