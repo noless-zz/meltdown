@@ -6,7 +6,7 @@
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_escape.replay",
 			"checks": ["final_hash", "robots_cleared", "outcome"],
-			"expected_hash": 4156950278,
+			"expected_hash": 582427376,
 			"expected_outcome": "ESCAPED"
 		},
 		{

@@ -31,6 +31,9 @@ const ZERO_INPUT_LINE: String = "0 0 0 0 0 0 0 0 0 0"
 ## The escape takes about 6,000 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 20000
 const BotEscapeTest := preload("res://tests/test_bot_escape.gd")
+## The recorder's flight, shared with the check that the step flies the same
+## level (#578).
+const G2Setup := preload("res://tests/m3_g2_setup.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
 const REPLAY_HEADER: String = """# The bot pilot's G2 escape (#360): robots cleared, reactor destroyed, out
 # through the entrance. Flown in the m3 suite (#376).
@@ -54,7 +57,7 @@ static func step() -> AcceptanceStep:
 func test_record_when_asked() -> String:
 	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
-	var flight: BotEscapeTest.Flight = BotEscapeTest.fly(BotEscapeTest.g2_reactor())
+	var flight: BotEscapeTest.Flight = G2Setup.flight()
 	var session: LocalSession = flight.session
 	if session.sim.outcome() != ExitRule.Outcome.ESCAPED:
 		return "the bot did not escape, nothing recorded: %s" % BotEscapeTest.describe(flight)
