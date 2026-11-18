@@ -11,6 +11,10 @@ extends RefCounted
 ## The door step (#516) is chosen the same way, except that a blast door must
 ## also be down when the bot gets out.
 ##
+## A seed another generated step already flies can be excluded (#548), so the
+## suite covers two generated levels instead of one and a generator change
+## does not move both steps at once.
+##
 ## `pick` and `rewrite_step` are pure, so the unit test checks them on
 ## hand-made input without flying anything.
 
@@ -48,12 +52,14 @@ class Flown extends RefCounted:
 		return flown
 
 
-## The lowest seed in `results` that qualifies, as {"seed": n}, or
-## {"error": ...} naming the searched range when none does.
+## The lowest seed in `results` that qualifies and is not in `excluded`, as
+## {"seed": n}, or {"error": ...} naming the searched range when none does.
 static func pick(results: Array[Flown], first: int = SEARCH_FIRST, last: int = SEARCH_LAST,
-		need_door: bool = false) -> Dictionary:
+		need_door: bool = false, excluded: Array[int] = []) -> Dictionary:
 	var best: int = -1
 	for flown: Flown in results:
+		if flown.level_seed in excluded:
+			continue
 		if flown.qualifies(need_door) and (best < 0 or flown.level_seed < best):
 			best = flown.level_seed
 	if best < 0:
@@ -90,22 +96,30 @@ static func fly(level_seed: int) -> Flown:
 	return flown
 
 
-## `current` if it still qualifies, otherwise the lowest qualifying seed in the
-## search range. Returns {"flown": Flown} or {"error": ...}.
-static func choose(current: int, need_door: bool = false) -> Dictionary:
-	var kept: Flown = fly(current)
-	if kept.qualifies(need_door):
-		return {"flown": kept}
-	print("Meltdown: seed %d no longer qualifies (%s); searching %d..%d" % [
-		current, kept.reason, SEARCH_FIRST, SEARCH_LAST])
+## `current` if it still qualifies and is not excluded, otherwise the lowest
+## qualifying seed in the search range that is not in `excluded`. Returns
+## {"flown": Flown} or {"error": ...}.
+static func choose(current: int, need_door: bool = false, excluded: Array[int] = []) -> Dictionary:
+	var kept: Flown = null
+	if not current in excluded:
+		kept = fly(current)
+		if kept.qualifies(need_door):
+			return {"flown": kept}
+		print("Meltdown: seed %d no longer qualifies (%s); searching %d..%d" % [
+			current, kept.reason, SEARCH_FIRST, SEARCH_LAST])
+	else:
+		print("Meltdown: seed %d is flown by another step; searching %d..%d without %s" % [
+			current, SEARCH_FIRST, SEARCH_LAST, excluded])
 	var results: Array[Flown] = []
 	for level_seed: int in range(SEARCH_FIRST, SEARCH_LAST + 1):
-		var flown: Flown = kept if level_seed == current else fly(level_seed)
+		if level_seed in excluded:
+			continue
+		var flown: Flown = kept if kept != null and level_seed == current else fly(level_seed)
 		results.append(flown)
 		# Seeds are flown in order, so the first that qualifies is the lowest.
 		if flown.qualifies(need_door):
 			break
-	var picked: Dictionary = pick(results, SEARCH_FIRST, SEARCH_LAST, need_door)
+	var picked: Dictionary = pick(results, SEARCH_FIRST, SEARCH_LAST, need_door, excluded)
 	if picked.has("error"):
 		return picked
 	for flown: Flown in results:
@@ -143,14 +157,27 @@ static func find_step(step_id: String) -> AcceptanceStep:
 	return null
 
 
-## Re-records seed step `step_id`: keeps or picks its seed (`choose`), writes
-## the inputs to `replay_path` under `header` and the seed and both hashes into
-## the suite. Returns "" or what went wrong; nothing is written on failure.
-static func record(step_id: String, replay_path: String, header: String, need_door: bool) -> String:
+## The seeds the m3 steps in `step_ids` fly; steps that are missing or fly a
+## hand-made level are left out.
+static func seeds_of(step_ids: Array[String]) -> Array[int]:
+	var seeds: Array[int] = []
+	for step_id: String in step_ids:
+		var found: AcceptanceStep = find_step(step_id)
+		if found != null and found.level_seed != AcceptanceStep.NO_SEED:
+			seeds.append(found.level_seed)
+	return seeds
+
+
+## Re-records seed step `step_id`: keeps or picks its seed (`choose`, never one
+## in `excluded`), writes the inputs to `replay_path` under `header` and the
+## seed and both hashes into the suite. Returns "" or what went wrong; nothing
+## is written on failure.
+static func record(step_id: String, replay_path: String, header: String, need_door: bool,
+		excluded: Array[int] = []) -> String:
 	var found: AcceptanceStep = find_step(step_id)
 	if found == null:
 		return "%s has no step %s; nothing recorded" % [SUITE_PATH, step_id]
-	var chosen: Dictionary = choose(found.level_seed, need_door)
+	var chosen: Dictionary = choose(found.level_seed, need_door, excluded)
 	if chosen.has("error"):
 		return "%s: %s; nothing recorded" % [step_id, chosen["error"]]
 	var flown: Flown = chosen["flown"]

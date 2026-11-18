@@ -23,13 +23,15 @@ extends RefCounted
 
 const SUITE_PATH: String = "res://acceptance/suites/m3.json"
 const STEP_ID: String = "bot_generated_escape"
+## The other generated step, whose seed this one must not share (#548).
+const DOOR_STEP_ID: String = "bot_generated_door_escape"
 const REPLAY_PATH: String = "res://acceptance/replays/bot_generated_escape.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 const ROBOTS_FILE: String = "res://data/gen/robots.json"
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 ## Biased placement (#438) means `generator.json` can change any seed; the
 ## module file is the generator data this test changes. It must be a module the
-## step's seed places: seed 26 (#531) has no straight tunnel, three offset shafts.
+## step's seed places: seed 43 (#548) places it, as seed 26 did before (#531).
 const MODULE_FILE: String = "res://data/modules/offset_shaft.json"
 ## The escape takes about 3,700 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 12000
@@ -54,7 +56,9 @@ static func step() -> AcceptanceStep:
 func test_record_when_asked() -> String:
 	if OS.get_environment(RECORD_SWITCH) != "1":
 		return ""
-	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, false)
+	# Never the door step's seed (#548): two steps on one seed cover one level.
+	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, false,
+		SeedPick.seeds_of([DOOR_STEP_ID] as Array[String]))
 
 
 func test_the_step_names_its_seed_and_checks() -> String:
