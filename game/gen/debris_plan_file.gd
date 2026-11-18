@@ -11,7 +11,8 @@ extends RefCounted
 static func read(plan: DebrisPlan, data: Dictionary) -> String:
 	var unknown: Array[String] = []
 	for key: Variant in data:
-		if not DebrisPlan.KEYS.has(key) and key != DebrisPlan.DOORS_KEY:
+		if not DebrisPlan.KEYS.has(key) and key != DebrisPlan.DOORS_KEY \
+				and key != DebrisPlan.FIRES_KEY:
 			unknown.append("\"%s\"" % str(key))
 	if not unknown.is_empty():
 		return "unknown key %s" % ", ".join(unknown)
@@ -64,4 +65,10 @@ static func read(plan: DebrisPlan, data: Dictionary) -> String:
 		if problem_doors != "":
 			return problem_doors
 		plan.doors = read_doors[0]
+	if data.has(DebrisPlan.FIRES_KEY):
+		var read_fires: Array[DebrisFires] = []
+		var problem_fires: String = DebrisFires.read(data[DebrisPlan.FIRES_KEY], read_fires)
+		if problem_fires != "":
+			return problem_fires
+		plan.fires = read_fires[0]
 	return ""

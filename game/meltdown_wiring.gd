@@ -4,9 +4,9 @@ extends RefCounted
 ## Joins the level's reactor and the run's outcome to what the main scene shows
 ## (RUN-2, RUN-5, LGT-1, #359): the reactor view in the level, the meltdown
 ## countdown and the outcome row on the status panel. It also draws the
-## level's meltdown debris (RUN-4), spheres and box slabs alike (#479), and
-## holds the reactor's flicker still while the session is paused (CMF-8, PLT-7,
-## #422).
+## level's meltdown debris (RUN-4), spheres, box slabs (#479) and fire (#499)
+## alike, and holds the reactor's and the fire's flicker still while the session
+## is paused (CMF-8, PLT-7, #422).
 ##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
@@ -41,7 +41,7 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 	_follow(reactor)
 	if reactor_view != null:
 		reactor_view.frozen = session.paused
-	_follow_debris(SessionSnapshots.debris(session.sim.debris))
+	_follow_debris(SessionSnapshots.debris(session.sim.debris), session.sim.tick)
 	if panel != null:
 		panel.show_meltdown(seconds_left(reactor) if reactor != null and reactor.destroyed else -1.0)
 		panel.show_outcome(session.sim.outcome())
@@ -76,8 +76,11 @@ func _follow(reactor: ReactorState) -> void:
 
 
 ## Creates, feeds or removes the debris view so it matches `snapshot`, a
-## `SessionSnapshots.debris` copy. A level without debris gets no view.
-func _follow_debris(snapshot: Dictionary) -> void:
+## `SessionSnapshots.debris` copy taken at simulation tick `tick`. The fire
+## flicker follows that tick, not frame time, so a paused session, whose tick
+## stands still, keeps the same fire frame (CMF-8). A level without debris gets
+## no view.
+func _follow_debris(snapshot: Dictionary, tick: int) -> void:
 	var positions: Array[Vector3] = snapshot[SessionSnapshots.DEBRIS_POSITIONS]
 	if positions.is_empty():
 		if debris_view != null:
@@ -92,4 +95,5 @@ func _follow_debris(snapshot: Dictionary) -> void:
 		_world.add_child(debris_view)
 	debris_view.show_debris(positions, snapshot[SessionSnapshots.DEBRIS_RADII],
 		snapshot[SessionSnapshots.DEBRIS_SOLID], snapshot[SessionSnapshots.DEBRIS_HELD],
-		snapshot[SessionSnapshots.DEBRIS_SECONDS], snapshot[SessionSnapshots.DEBRIS_SIZES])
+		snapshot[SessionSnapshots.DEBRIS_SECONDS], snapshot[SessionSnapshots.DEBRIS_SIZES],
+		snapshot[SessionSnapshots.DEBRIS_KINDS], tick)
