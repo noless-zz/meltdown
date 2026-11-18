@@ -8,13 +8,20 @@ extends RefCounted
 ##
 ##     "doors": {"count": [0, 2], "thickness": 0.5, "after_seconds": [10, 60],
 ##               "min_start_distance": 15, "min_reactor_distance": 6,
-##               "min_robot_distance": 2}
+##               "min_robot_distance": 2, "loop_weight": 4}
 ##
 ## `count` and `after_seconds` are `[lowest, highest]` ranges like the
 ## spheres'; `thickness` is the slab's depth through the opening in metres; the
 ## three distances are metres of clear space between the slab and the start
 ## point, the reactor's surface and each robot spawn's surface. Kept apart from
 ## `DebrisPlan`, which is near its size limit.
+##
+## `loop_weight` (optional, 1 to 10, default 1) makes openings on a loop more
+## likely (#515): an opening whose door, alone on the level without debris,
+## still leaves the start reachable from the reactor is drawn `loop_weight`
+## times as often as one whose door would cut the route. A door on a loop can
+## fall and force the long way round; one on the only way out is held by the
+## guard and never falls. At 1 the draws are exactly those from before #515.
 ##
 ## An opening is the doorway box `MineGenerator` adds where two modules join.
 ## A door is centred on the plane the two modules meet in and covers the whole
@@ -30,6 +37,12 @@ extends RefCounted
 
 const KEYS: Array[String] = ["count", "thickness", "after_seconds", "min_start_distance",
 		"min_reactor_distance", "min_robot_distance"]
+## Keys a `doors` section may leave out.
+const OPTIONAL_KEYS: Array[String] = ["loop_weight"]
+const MAX_LOOP_WEIGHT: float = 10.0
+## A loop opening's weight is `loop_weight` in thousandths, a cutting one's a
+## thousand, so the draw stays in whole numbers (ARC-2).
+const WEIGHT_SCALE: int = 1000
 ## Bounds of `thickness`, metres. A doorway reaches 3 m into each module, so
 ## the thickest slab still sits inside it.
 const MIN_THICKNESS_M: float = 0.1
@@ -43,6 +56,8 @@ var max_after_ticks: int = 1
 var min_start_distance_mm: int = 0
 var min_reactor_distance_mm: int = 0
 var min_robot_distance_mm: int = 0
+## `loop_weight` in thousandths; `WEIGHT_SCALE` is today's uniform draw.
+var loop_weight_milli: int = WEIGHT_SCALE
 
 
 ## Reads the `doors` section into a new `DebrisDoors`, or returns the problem
@@ -53,7 +68,7 @@ static func read(value: Variant, into: Array[DebrisDoors]) -> String:
 	var data: Dictionary = value
 	var unknown: Array[String] = []
 	for key: Variant in data:
-		if not KEYS.has(key):
+		if not KEYS.has(key) and not OPTIONAL_KEYS.has(key):
 			unknown.append("\"doors.%s\"" % str(key))
 	if not unknown.is_empty():
 		return "unknown key %s" % ", ".join(unknown)
@@ -86,7 +101,11 @@ static func read(value: Variant, into: Array[DebrisDoors]) -> String:
 				or float(distance) > DebrisPlan.MAX_DISTANCE_M:
 			return "doors.%s must be a number of metres from 0 to %s" % [key, DebrisPlan.MAX_DISTANCE_M]
 		distances.append(roundi(float(distance) * RobotSpawn.SCALE))
+	var weight: Variant = data.get("loop_weight", 1)
+	if not DebrisPlan._is_number(weight) or float(weight) < 1.0 or float(weight) > MAX_LOOP_WEIGHT:
+		return "doors.loop_weight must be a number from 1 to %s" % MAX_LOOP_WEIGHT
 	var doors: DebrisDoors = DebrisDoors.new()
+	doors.loop_weight_milli = roundi(float(weight) * WEIGHT_SCALE)
 	doors.min_count = counts[0]
 	doors.max_count = counts[1]
 	doors.thickness_mm = roundi(float(thickness) * RobotSpawn.SCALE)
@@ -100,11 +119,12 @@ static func read(value: Variant, into: Array[DebrisDoors]) -> String:
 
 
 ## Appends this level's doors to `debris`, after its spheres. `robot_radii_mm`
-## is each robot's radius in spawn order and `fall_limit` the latest tick a
-## door may fall on (`DebrisPlan.fall_limit_ticks`). Returns why fewer doors
+## is each robot's radius in spawn order, `fall_limit` the latest tick a door
+## may fall on (`DebrisPlan.fall_limit_ticks`) and `ship_radius` the ship's
+## radius in metres, for telling loop openings apart. Returns why fewer doors
 ## than drawn were placed, or "".
 func place(generator: MineGenerator, level: LevelDef, debris: MeltdownDebris,
-		robot_radii_mm: Array[int], fall_limit: int) -> String:
+		robot_radii_mm: Array[int], fall_limit: int, ship_radius: float) -> String:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = hash([generator.output_hash(), "debris doors"])
 	var fall_rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -119,9 +139,14 @@ func place(generator: MineGenerator, level: LevelDef, debris: MeltdownDebris,
 	# Spheres built without sizes leave the list short; a door needs its own.
 	while debris.sizes_mm.size() < debris.size():
 		debris.sizes_mm.append(Vector3i.ZERO)
+	var weights: Array[int] = []
+	if loop_weight_milli != WEIGHT_SCALE and not free.is_empty():
+		var graph: OpeningGraph = OpeningGraph.new(level, ship_radius)
+		for box: int in free:
+			weights.append(loop_weight_milli if on_loop(generator, box, graph) else WEIGHT_SCALE)
 	var placed: int = 0
 	while placed < wanted and not free.is_empty():
-		var box: int = free.pop_at(DebrisPlan._pick(rng, free.size()))
+		var box: int = free.pop_at(_draw(rng, free.size(), weights))
 		var ticks: int = min_after_ticks + DebrisPlan._pick(rng, max_after_ticks - min_after_ticks + 1)
 		debris.positions_mm.append(centre_mm(generator, box))
 		debris.radii_mm.append(0)
@@ -148,6 +173,50 @@ static func openings(generator: MineGenerator) -> Array[int]:
 			continue
 		found.append(placement.door_box)
 	return found
+
+
+## True when a door across doorway `box`, alone on the level, still leaves
+## the start reachable from the reactor through `graph`.
+func on_loop(generator: MineGenerator, box: int, graph: OpeningGraph) -> bool:
+	var door: MeltdownDebris = MeltdownDebris.new()
+	door.positions_mm.append(centre_mm(generator, box))
+	door.radii_mm.append(0)
+	door.sizes_mm.append(size_mm(generator, box))
+	door.after_ticks.append(1)
+	door.skipped.append(false)
+	door.elapsed_ticks = 1
+	var near: Array[int] = graph.openings_near(door, 0)
+	var closed: Array[bool] = []
+	closed.resize(graph.opening_count())
+	closed.fill(false)
+	# Closing more never opens a route, so if one is left with every near
+	# opening shut the door is on a loop, without the costly clearance test.
+	for k: int in near:
+		closed[k] = true
+	if graph.connected(closed):
+		return true
+	for k: int in near:
+		closed[k] = graph.blocks(k, door)
+	return graph.connected(closed)
+
+
+## The index of the next opening to take out of `size` left. Without weights
+## every opening is as likely, the draw from before #515; with them the
+## weights are taken out alongside the pick.
+static func _draw(rng: RandomNumberGenerator, size: int, weights: Array[int]) -> int:
+	if weights.is_empty():
+		return DebrisPlan._pick(rng, size)
+	var total: int = 0
+	for weight: int in weights:
+		total += weight
+	var left: int = DebrisPlan._pick(rng, total)
+	for index: int in weights.size():
+		left -= weights[index]
+		if left < 0:
+			weights.remove_at(index)
+			return index
+	weights.pop_back()
+	return size - 1
 
 
 ## The axis a doorway box runs through: its shortest side, since it reaches

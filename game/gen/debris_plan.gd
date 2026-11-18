@@ -153,7 +153,8 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 		if near_robots > 0:
 			why.append("%d dropped for min_robot_distance" % near_robots)
 		notes.append("placed %d of %d debris entries: %s" % [debris.size(), wanted, ", ".join(why)])
-	var door_note: String = "" if doors == null else doors.place(generator, level, debris, robot_radii, limit)
+	var door_note: String = "" if doors == null else doors.place(generator, level, debris, robot_radii, limit,
+			ship_radius)
 	if door_note != "":
 		notes.append(door_note)
 	var dropped: int = 0 if escape_validator == null else DebrisEscape.trim(level, debris,
