@@ -136,7 +136,7 @@ func test_a_changed_data_value_fails_the_step_naming_it() -> String:
 			problem = "with %s changed the report says %s" % [path.get_file(), report]
 		elif not str(report.get("message")).contains("level_hash: level hash"):
 			problem = "with %s changed the level hash was not failed: %s" % [path.get_file(), report.get("message")]
-		elif not str(report.get("message")).contains(SeedPick.RECORD_COMMAND):
+		elif not str(report.get("message")).contains(SeedPick.record_command(STEP_ID)):
 			problem = "with %s changed the report does not name the record command: %s" % [
 				path.get_file(), report.get("message")]
 		elif not said.contains("step %s %s" % [STEP_ID, AcceptanceReport.RESULT_FAIL]):

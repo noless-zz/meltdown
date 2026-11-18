@@ -8,10 +8,9 @@ extends RefCounted
 ## did (#516). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
-## Re-records the seed step after an intended data change, picking a new seed
-## if needed and writing the hashes into the suite (#494). Only the m3 suite
-## has a seed step, so its command is the one a changed level hash names.
-const RECORD_COMMAND: String = "MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd"
+## The record switch a changed level hash names. Only the m3 suite pins level
+## hashes (#494), so its switch is the one.
+const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 
 
 ## [result, message] for `check`, one of `AcceptanceStep.REPLAY_CHECKS`, on
@@ -119,11 +118,19 @@ static func door_fallen(step_id: String, sim: Sim, measurements: Dictionary) -> 
 	return [AcceptanceReport.RESULT_PASS, "%d of %d doors fell" % [fallen, doors]]
 
 
+## The command, from the repository root, that re-records only step `step_id`
+## after an intended data change (#576). `MELTDOWN_RECORD_M3=1` would re-record
+## every m3 step, including ones whose recorder no longer reproduces the stored
+## flight (#560), so a failure names just the step that failed.
+static func record_command(step_id: String) -> String:
+	return "%s=%s godot --headless --path game -s res://tests/run_tests.gd" % [RECORD_SWITCH, step_id]
+
+
 static func level_hash(step: AcceptanceStep, replay: Replay, measurements: Dictionary) -> Array:
 	var actual: int = AcceptanceStepLevel.level_hash(replay)
 	measurements["level_hash"] = actual
 	measurements["expected_level_hash"] = step.expected_level_hash
 	if actual != step.expected_level_hash:
 		return [AcceptanceReport.RESULT_FAIL, "level hash %d, expected %d: the level's data changed; if intended, re-record from the repository root with %s" % [
-			actual, step.expected_level_hash, RECORD_COMMAND]]
+			actual, step.expected_level_hash, record_command(step.id)]]
 	return [AcceptanceReport.RESULT_PASS, "level hash %d" % actual]

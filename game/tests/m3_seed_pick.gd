@@ -23,8 +23,6 @@ const SEARCH_LAST: int = 300
 ## Ten minutes of flight, as `bot_escape_sweep.gd` allows.
 const TICK_LIMIT: int = 36000
 const BotSweep := preload("res://tests/bot_escape_sweep.gd")
-## The one command that re-records the m3 suite, from the repository root.
-const RECORD_COMMAND: String = AcceptanceStateChecks.RECORD_COMMAND
 const SUITE_PATH: String = "res://acceptance/suites/m3.json"
 
 
@@ -146,6 +144,12 @@ static func rewrite_step(suite_text: String, step_id: String, level_seed: int, h
 			return ""
 		block = pattern.sub(block, "\"%s\": %d" % pair, false)
 	return suite_text.substr(0, start) + block + suite_text.substr(end)
+
+
+## The command that re-records only step `step_id`, from the repository root;
+## the same one a level-hash failure of that step names.
+static func record_command(step_id: String) -> String:
+	return AcceptanceStateChecks.record_command(step_id)
 
 
 ## The m3 step `step_id`, or null.
