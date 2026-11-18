@@ -66,6 +66,8 @@ static func load_inputs(validator_text: String = "", overrides: Dictionary = {})
 			inputs.error = "%s: %s" % [(problem[0] as String).get_file(), problem[1]]
 			return inputs
 	inputs.robot_radii = inputs.robot_plan.radii_by_id()
+	# Debris is placed so the escape still fits this validator's margin (#493).
+	inputs.debris_plan.escape_validator = inputs.validator
 	return inputs
 
 
