@@ -103,3 +103,33 @@ func test_the_door_step_needs_a_door_down() -> String:
 	if not str(none.get("error", "")).contains("blast door"):
 		return "no door gave %s" % none
 	return ""
+
+
+## #548: a seed another generated step flies is skipped even when it would be
+## the best pick, and the next qualifying seed is taken; excluding nothing
+## picks what the picker always picked.
+func test_an_excluded_seed_is_skipped_for_the_next_valid_one() -> String:
+	var results: Array[SeedPick.Flown] = _results([[12, true, 2], [3, true, 0], [9, true, 1],
+		[5, false, 3], [30, true, 1]])
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, false, [9] as Array[int])
+	if picked.get("seed") != 12:
+		return "with 9 excluded picked %s, expected seed 12" % picked
+	if SeedPick.pick(results, 1, 300, false, [] as Array[int]) != SeedPick.pick(results):
+		return "excluding nothing picked %s" % SeedPick.pick(results, 1, 300, false, [] as Array[int])
+	if SeedPick.pick(results, 1, 300, false, [3, 5] as Array[int]).get("seed") != 9:
+		return "excluding seeds that do not qualify changed the pick"
+	var only_excluded: Dictionary = SeedPick.pick(_results([[9, true, 1]]), 1, 300, false, [9] as Array[int])
+	if not only_excluded.has("error"):
+		return "the only qualifying seed was excluded but %s was picked" % only_excluded
+	return ""
+
+
+## #548: the shipped suite's two generated steps fly different seeds, so the
+## suite covers two generated levels.
+func test_the_generated_steps_fly_different_seeds() -> String:
+	var seeds: Array[int] = SeedPick.seeds_of(["bot_generated_escape", "bot_generated_door_escape"] as Array[String])
+	if seeds.size() != 2:
+		return "expected two generated steps with seeds, found %s" % [seeds]
+	if seeds[0] == seeds[1]:
+		return "both generated steps fly seed %d" % seeds[0]
+	return ""
