@@ -7,6 +7,7 @@ extends SceneTree
 ##
 ##     godot --headless --path game -s res://tests/seed_card.gd -- --seeds=200 --first=1
 ##     godot --headless --path game -s res://tests/seed_card.gd -- --seeds=200 --first=1 --pick=3
+##     godot --headless --path game -s res://tests/seed_card.gd -- --seeds=200 --pick=3 --fair
 ##
 ## Each level is built as the validator sweep builds it: `SeedLevel`'s inputs,
 ## generator and level (the loader `--seed` flies), checked by the validator and
@@ -15,6 +16,8 @@ extends SceneTree
 ## With `--pick=N` it prints the cards of N seeds chosen to cover, between
 ## them, a loop, a door, a fire and the range's longest escape, then a
 ## `MELTDOWN_SEED_PICK` line; it exits 1 when they cannot cover all four.
+## `--fair` (#547, G3) only lets the pick take a seed after the bot pilot has
+## destroyed its reactor and escaped, so the owner is never handed an ambush.
 ## The functions are static so the unit test can call them without starting a
 ## second SceneTree.
 
@@ -80,11 +83,14 @@ static func line(seed_card: Dictionary) -> String:
 	var escape_mm: int = seed_card["escape_mm"]
 	var escape_m: String = "-1" if escape_mm == EscapePath.UNREACHABLE \
 			else "%.1f" % (escape_mm / float(RobotSpawn.SCALE))
-	return '%s {"seed":%d,"modules":%d,"loops":%d,"robots":%d,"spheres":%d,"doors":%d,"fires":%d,"escape_m":%s,"countdown_s":%.1f,"valid":%s}' % [
+	# A `--fair` card adds the bot's escape at the end, so other cards keep their bytes.
+	var bot: String = ',"bot":"escaped","escape_tick":%d' % seed_card["escape_tick"] \
+			if seed_card.has("escape_tick") else ""
+	return '%s {"seed":%d,"modules":%d,"loops":%d,"robots":%d,"spheres":%d,"doors":%d,"fires":%d,"escape_m":%s,"countdown_s":%.1f,"valid":%s%s}' % [
 			CARD_TAG, seed_card["seed"], seed_card["modules"], seed_card["loops"],
 			seed_card["robots"], seed_card["spheres"], seed_card["doors"], seed_card["fires"],
 			escape_m, seed_card["countdown_ticks"] / float(ReactorState.TICKS_PER_SECOND),
-			"true" if seed_card["valid"] else "false"]
+			"true" if seed_card["valid"] else "false", bot]
 
 
 ## The kinds of `KINDS` that `seed_card` has; "longest" when its escape is
@@ -125,22 +131,78 @@ static func suite_seeds(path: String = M3SeedPick.SUITE_PATH) -> Array[int]:
 ## covering most of what is still missing, on a tie a seed outside `avoid`, then
 ## the lowest seed. It depends only on the cards, so a range always gives the
 ## same pick.
-static func pick(seed_cards: Array[Dictionary], avoid: Array[int], count: int = 3) -> Dictionary:
+##
+## With `fair`, a seed is only taken once `flyer` (a callable from a seed to
+## {"escaped": bool, "tick": int}, `bot_flight` when none is given) says the bot
+## escaped it; a lost seed is skipped and the next best is tried. Only seeds the
+## greedy pass is about to take are flown, each at most once. "longest" then
+## means the longest escape the bot gets out of, found by flying the valid
+## seeds longest first until one escapes: the range's longest may be an ambush,
+## and the pick could never cover it. The result gains "fair": true and
+## "escape_ticks" ({seed: tick} for the chosen seeds). Without `fair` the
+## flyer is never called.
+static func pick(seed_cards: Array[Dictionary], avoid: Array[int], count: int = 3,
+		fair: bool = false, flyer: Callable = Callable()) -> Dictionary:
 	var valid: Array[Dictionary] = []
 	var longest_mm: int = 0
 	for seed_card: Dictionary in seed_cards:
 		if seed_card.get("valid", false):
 			valid.append(seed_card)
 			longest_mm = maxi(longest_mm, seed_card["escape_mm"])
-	var unseen: Dictionary = _greedy(valid, longest_mm, avoid, true, count)
-	if (unseen["missing"] as Array).is_empty():
-		return unseen
-	var any: Dictionary = _greedy(valid, longest_mm, avoid, false, count)
-	return any if (any["missing"] as Array).size() < (unseen["missing"] as Array).size() else unseen
+	# seed -> the flyer's answer; shared by both passes so no seed flies twice.
+	var flights: Dictionary = {}
+	if fair:
+		if not flyer.is_valid():
+			flyer = bot_flight
+		longest_mm = _fair_longest(valid, flyer, flights)
+	var unseen: Dictionary = _greedy(valid, longest_mm, avoid, true, count, fair, flyer, flights)
+	var picked: Dictionary = unseen
+	if not (unseen["missing"] as Array).is_empty():
+		var any: Dictionary = _greedy(valid, longest_mm, avoid, false, count, fair, flyer, flights)
+		if (any["missing"] as Array).size() < (unseen["missing"] as Array).size():
+			picked = any
+	if fair:
+		var ticks: Dictionary = {}
+		for level_seed: int in picked["seeds"]:
+			ticks[level_seed] = int(flights[level_seed]["tick"])
+		picked["fair"] = true
+		picked["escape_ticks"] = ticks
+	return picked
+
+
+## The bot pilot's flight on `level_seed` as the m3 seed step flies it
+## (`M3SeedPick.fly`, used read only): {"escaped": bool, "tick": int}, the tick
+## the run ended on. An escape means the reactor was destroyed first (`ExitRule`).
+static func bot_flight(level_seed: int) -> Dictionary:
+	var flown: M3SeedPick.Flown = M3SeedPick.fly(level_seed)
+	var tick: int = flown.session.sim.tick if flown.session != null else 0
+	return {"escaped": flown.escaped, "tick": tick}
+
+
+static func _escapes(level_seed: int, flyer: Callable, flights: Dictionary) -> bool:
+	if not flights.has(level_seed):
+		var answer: Variant = flyer.call(level_seed)
+		flights[level_seed] = answer if answer is Dictionary else {"escaped": false, "tick": 0}
+	return bool(flights[level_seed].get("escaped", false))
+
+
+## The longest escape among the valid seeds the bot gets out of, or 0.
+static func _fair_longest(valid: Array[Dictionary], flyer: Callable, flights: Dictionary) -> int:
+	var order: Array[Dictionary] = valid.duplicate()
+	order.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return a["escape_mm"] > b["escape_mm"] \
+				or (a["escape_mm"] == b["escape_mm"] and a["seed"] < b["seed"]))
+	for seed_card: Dictionary in order:
+		if seed_card["escape_mm"] <= 0:
+			break
+		if _escapes(seed_card["seed"], flyer, flights):
+			return seed_card["escape_mm"]
+	return 0
 
 
 static func _greedy(valid: Array[Dictionary], longest_mm: int, avoid: Array[int],
-		skip_avoided: bool, count: int) -> Dictionary:
+		skip_avoided: bool, count: int, fair: bool = false, flyer: Callable = Callable(),
+		flights: Dictionary = {}) -> Dictionary:
 	var missing: Array[String] = KINDS.duplicate()
 	var chosen: Array[int] = []
 	while chosen.size() < count:
@@ -150,6 +212,8 @@ static func _greedy(valid: Array[Dictionary], longest_mm: int, avoid: Array[int]
 			var level_seed: int = seed_card["seed"]
 			var avoided: bool = avoid.has(level_seed)
 			if chosen.has(level_seed) or (avoided and skip_avoided):
+				continue
+			if fair and flights.has(level_seed) and not flights[level_seed].get("escaped", false):
 				continue
 			var covered: int = 0
 			for kind: String in kinds_of(seed_card, longest_mm):
@@ -162,6 +226,9 @@ static func _greedy(valid: Array[Dictionary], longest_mm: int, avoid: Array[int]
 				best_score = score
 		if best.is_empty():
 			break
+		# A lost seed is now in `flights` and skipped, so the loop tries the next best.
+		if fair and not _escapes(int(best["seed"]), flyer, flights):
+			continue
 		chosen.append(int(best["seed"]))
 		for kind: String in kinds_of(best, longest_mm):
 			missing.erase(kind)
@@ -176,20 +243,30 @@ static func pick_line(picked: Dictionary) -> String:
 	var missing: Array[String] = []
 	for kind: String in picked["missing"]:
 		missing.append('"%s"' % kind)
-	return '%s {"seeds":[%s],"missing":[%s]}' % [PICK_TAG, ",".join(seeds), ",".join(missing)]
+	var fair: String = ',"fair":true' if picked.get("fair", false) else ""
+	return '%s {"seeds":[%s],"missing":[%s]%s}' % [PICK_TAG, ",".join(seeds), ",".join(missing),
+			fair]
 
 
 func _init() -> void:
 	var options: Dictionary[String, int] = {"seeds": 200, "first": 1, "pick": 0}
+	var fair: bool = false
 	for argument: String in OS.get_cmdline_user_args():
+		if argument == "--fair":
+			fair = true
+			continue
 		var parts: PackedStringArray = argument.trim_prefix("--").split("=")
 		if parts.size() != 2 or not options.has(parts[0]) or not parts[1].is_valid_int():
-			printerr("unknown option ", argument, "; expected --seeds=N, --first=S or --pick=N")
+			printerr("unknown option ", argument, "; expected --seeds=N, --first=S, --pick=N or --fair")
 			quit(2)
 			return
 		options[parts[0]] = parts[1].to_int()
 	if options["seeds"] < 1 or options["pick"] < 0:
 		printerr("--seeds must be at least 1 and --pick at least 0")
+		quit(2)
+		return
+	if fair and options["pick"] == 0:
+		printerr("--fair only applies with --pick=N")
 		quit(2)
 		return
 	var list: Array[Dictionary] = cards(options["first"], options["seeds"])
@@ -202,8 +279,11 @@ func _init() -> void:
 			print(line(seed_card))
 		quit(0)
 		return
-	var picked: Dictionary = pick(list, suite_seeds(), options["pick"])
+	var picked: Dictionary = pick(list, suite_seeds(), options["pick"], fair)
 	for level_seed: int in picked["seeds"]:
-		print(line(list[level_seed - options["first"]]))
+		var seed_card: Dictionary = list[level_seed - options["first"]]
+		if fair:
+			seed_card["escape_tick"] = picked["escape_ticks"][level_seed]
+		print(line(seed_card))
 	print(pick_line(picked))
 	quit(0 if (picked["missing"] as Array).is_empty() else 1)

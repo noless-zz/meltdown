@@ -4,7 +4,7 @@ extends RefCounted
 ## `MineGenerator` and the debris plan give for its seed, its line has the
 ## agreed shape, and `--pick` covers a loop, a door, a fire and the longest
 ## escape on seeds 1..200 while skipping the m3 suite's seeds, the same way
-## every time.
+## every time. With `--fair` (#547) a seed the bot loses is never picked.
 
 const SeedCard := preload("res://tests/seed_card.gd")
 const SeedSweepRef := preload("res://tests/seed_sweep.gd")
@@ -94,6 +94,65 @@ func test_pick_covers_the_four_kinds_and_prefers_unseen_seeds() -> String:
 	picked = SeedCard.pick([_card(1, 1, 0, 1, 10_000)] as Array[Dictionary], [] as Array[int], 3)
 	if picked["seeds"] != [1] or picked["missing"] != ["door"]:
 		return "a range without doors picked %s" % SeedCard.pick_line(picked)
+	return ""
+
+
+## A flyer that loses `lost` and escapes the rest at tick 1000 + seed,
+## counting its calls in `calls`.
+static func _flyer(lost: Array[int], calls: Array[int]) -> Callable:
+	return func(level_seed: int) -> Dictionary:
+		calls.append(level_seed)
+		return {"escaped": not lost.has(level_seed), "tick": 1000 + level_seed}
+
+
+func test_fair_pick_skips_seeds_the_bot_loses() -> String:
+	# Seeds 3, 4 and 5 cover everything; with 3 lost, 7 is the next best for loop and door.
+	var cards: Array[Dictionary] = [_card(1, 0, 0, 0, 50_000), _card(2, 1, 1, 1, 90_000),
+			_card(3, 1, 1, 0, 60_000), _card(4, 0, 0, 1, 70_000), _card(5, 0, 0, 0, 90_000),
+			_card(6, 1, 1, 1, 200_000, false), _card(7, 1, 1, 0, 40_000)]
+	var calls: Array[int] = []
+	var picked: Dictionary = SeedCard.pick(cards, [2] as Array[int], 3, true,
+			_flyer([3] as Array[int], calls))
+	if picked["seeds"] != [7, 4, 5] or not (picked["missing"] as Array).is_empty():
+		return "fair pick with seed 3 lost picked %s" % SeedCard.pick_line(picked)
+	if not picked.get("fair", false) or picked["escape_ticks"] != {7: 1007, 4: 1004, 5: 1005}:
+		return "fair pick reports %s and ticks %s" % [picked.get("fair"), picked.get("escape_ticks")]
+	if SeedCard.pick_line(picked) != 'MELTDOWN_SEED_PICK {"seeds":[7,4,5],"missing":[],"fair":true}':
+		return "fair pick line is %s" % SeedCard.pick_line(picked)
+	if calls.has(1) or calls.has(6):
+		return "flew seeds the pick was not about to take: %s" % [calls]
+	for level_seed: int in calls:
+		if calls.count(level_seed) > 1:
+			return "flew seed %d twice: %s" % [level_seed, calls]
+	# Both 90 m escapes lost: the longest the bot gets out of (seed 4's) counts.
+	picked = SeedCard.pick(cards, [2] as Array[int], 3, true, _flyer([2, 5] as Array[int], calls))
+	if picked["seeds"] != [3, 4, 1] or not (picked["missing"] as Array).is_empty():
+		return "fair pick with 2 and 5 lost picked %s" % SeedCard.pick_line(picked)
+	# Every door seed lost: the pick names the door as missing.
+	picked = SeedCard.pick(cards, [] as Array[int], 3, true, _flyer([2, 3, 7] as Array[int], calls))
+	if not (picked["missing"] as Array).has("door") or (picked["seeds"] as Array).has(2):
+		return "fair pick without a fair door picked %s" % SeedCard.pick_line(picked)
+	return ""
+
+
+func test_without_fair_the_flyer_is_never_called_and_lines_are_unchanged() -> String:
+	var cards: Array[Dictionary] = [_card(3, 1, 1, 0, 60_000), _card(4, 0, 0, 1, 70_000),
+			_card(5, 0, 0, 0, 90_000)]
+	var calls: Array[int] = []
+	var picked: Dictionary = SeedCard.pick(cards, [] as Array[int], 3, false,
+			_flyer([3] as Array[int], calls))
+	if not calls.is_empty():
+		return "the flyer was called without --fair: %s" % [calls]
+	if SeedCard.pick_line(picked) != 'MELTDOWN_SEED_PICK {"seeds":[3,4,5],"missing":[]}':
+		return "pick line without --fair is %s" % SeedCard.pick_line(picked)
+	if picked.has("fair") or picked.has("escape_ticks"):
+		return "a pick without --fair has fair fields: %s" % picked
+	var seed_card: Dictionary = _card(7, 1, 2, 1, 127_449)
+	var plain: String = SeedCard.line(seed_card)
+	seed_card["escape_tick"] = 4321
+	var expected: String = plain.trim_suffix("}") + ',"bot":"escaped","escape_tick":4321}'
+	if SeedCard.line(seed_card) != expected:
+		return "fair card line is %s" % SeedCard.line(seed_card)
 	return ""
 
 
