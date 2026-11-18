@@ -15,6 +15,11 @@ extends RefCounted
 ## On the way out the route treats openings that solid meltdown debris blocks
 ## as closed (RUN-4, #443), and is planned again each time another entry turns
 ## solid. Before the reactor dies, and on levels without debris, nothing changes.
+##
+## Fire is passable, but it burns (#480). On the way out the route weighs it
+## (#498): a fire-free route is taken when it is at most `FIRE_DETOUR_FACTOR`
+## times as long as the one through fire, and otherwise the ship flies through.
+## Levels without fire fly as before.
 
 ## Fastest the bot asks for on the way out, metres per second: the
 ## afterburner's cap with the shipped tuning. The ship's own cap applies.
@@ -30,6 +35,14 @@ const ESCAPE_THRUST_GAIN: float = 1.0
 ## speed wanted along the route, metres per second, so it is not spent on
 ## braking or holding speed.
 const BOOST_MARGIN: float = 2.0
+## How much longer a fire-free way out may be than the way through fire and
+## still be taken. Bot tuning, not simulation: a human pilot chooses for
+## themselves.
+const FIRE_DETOUR_FACTOR: float = 1.5
+## Speed the bot assumes when judging whether a fire will be burning by the
+## time it gets there, metres per second. Well under `ESCAPE_SPEED`, since it
+## slows at every corner, so a fire due soon counts as burning.
+const FIRE_PLAN_SPEED: float = 15.0
 
 var _sim: Sim = null
 var _ship_index: int = 0
@@ -37,6 +50,8 @@ var _walls: BoxUnion = null
 var _route: LevelRoute = null
 ## Solid debris entries the route was last planned around.
 var _solid_seen: int = 0
+## Whether the route weighs the meltdown's fire yet.
+var _fire_weighed: bool = false
 
 
 func _init(sim: Sim, ship_index: int, walls: BoxUnion, route: LevelRoute) -> void:
@@ -70,6 +85,7 @@ func next_input(ship: ShipState, target: RobotState, in_sight: bool) -> ShipInpu
 		return ShipInput.new()
 	if _sim.reactor.destroyed:
 		_plan_around_debris(ship)
+		_weigh_fire()
 		return _escape_input(ship, target, in_sight)
 	return _reactor_input(ship)
 
@@ -140,6 +156,19 @@ func _plan_around_debris(ship: ShipState) -> void:
 	if solid > _solid_seen:
 		_solid_seen = solid
 		_route.close_blocked(debris, ship.radius)
+
+
+## Has the route weigh the debris's fire, once, if there is any, so levels
+## without fire keep their routes.
+func _weigh_fire() -> void:
+	var debris: MeltdownDebris = _sim.debris
+	if _fire_weighed or debris == null:
+		return
+	_fire_weighed = true
+	for index: int in debris.size():
+		if debris.is_fire(index):
+			_route.weigh_fire(debris, FIRE_PLAN_SPEED, FIRE_DETOUR_FACTOR)
+			return
 
 
 ## The exit: this ship's start position (`ExitRule`).
