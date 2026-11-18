@@ -4,7 +4,9 @@ extends RefCounted
 ## RUN-4, GEN-2, GEN-3, ARC-4): the section is checked key by key; fires come
 ## after every solid entry and leave `output_hash`, the reactor, the robots and
 ## every solid entry as they were; and over seeds 0..999 every level passes
-## `LevelValidator` and the debris sweep, and every fire lies inside the level,
+## `LevelValidator` (its `debris_escape` check too, timed with the fires down,
+## since they are placed after `DebrisEscape.trim`) and the debris sweep, and
+## every fire lies inside the level,
 ## outside the start module and within the section's ranges and distances. The
 ## count of fires placed is printed.
 
@@ -147,6 +149,9 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 			var found: Array[String] = validator.validate(level, radius, true,
 					robot_plan.radii_by_id(), SeedSweep.start_module_boxes(generator))
 			problem = "" if found.is_empty() else "validator: %s" % found[0]
+		if problem == "" and not fires.is_empty():
+			problem = DebrisEscape.failure(level, level.debris, radius,
+					validator.escape_speed_mps, validator.escape_margin)
 		if problem == "" and level.debris != null:
 			problem = _meltdown(level, radius)
 		if problem != "":
