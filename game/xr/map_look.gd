@@ -12,22 +12,24 @@ extends RefCounted
 ##      "route_color": [r, g, b], "route_width_m": 0.0005..0.01,
 ##      "blocked_color": [r, g, b], "blocked_size_m": 0.002..0.05,
 ##      "distance_color": [r, g, b], "distance_height_m": 0.003..0.03,
-##      "distance_offset_m": 0..0.05}
+##      "distance_offset_m": 0..0.05,
+##      "fire_color": [r, g, b], "fire_size_m": 0.002..0.05}
 ##
 ## `exit_radius_m` is half the edge of the exit cube; `blocked_size_m` is the
 ## length of each bar of a blocked opening's cross. `distance_height_m` is the
 ## height of the route's distance label (#442) and `distance_offset_m` how far
 ## above the ship's end of the route it sits, both in the hologram whatever its
-## scale. The exit, reactor, route, blocked and distance keys are optional, so
-## a file written before #338, #400 or #442 still loads and keeps the built-in
-## values for them.
+## scale. `fire_size_m` is the smallest tip-to-tip span of a fire marker
+## (#519). The exit, reactor, route, blocked, distance and fire keys are
+## optional, so a file written before #338, #400, #442 or #519 still loads and
+## keeps the built-in values for them.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
-		"distance_offset_m"]
+		"distance_offset_m", "fire_color", "fire_size_m"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
-		"blocked_color", "distance_color"]
+		"blocked_color", "distance_color", "fire_color"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"line_energy": [0.0, 8.0],
@@ -43,12 +45,15 @@ const RANGES: Dictionary[String, Array] = {
 	# the part of the map the route runs through.
 	"distance_height_m": [0.003, 0.03],
 	"distance_offset_m": [0.0, 0.05],
+	"fire_size_m": [0.002, 0.05],
 }
 ## Look used when the file is missing or rejected, and for optional keys a
 ## file leaves out. The exit is green and the reactor magenta so neither reads
 ## as the orange ship marker or the cyan lines. The route is white, thicker
 ## than the wireframe, and the blocked crosses red (MAP-2, #400). The distance
 ## label is the route's white, so it reads as belonging to the route (#442).
+## Fires are yellow (#519): hazard, yet apart from the red blocked crosses and
+## the orange ship marker, since fire is passable and must not read as blocked.
 const FALLBACK: Dictionary = {
 	"line_color": Color(0.3, 0.85, 1.0),
 	"line_energy": 1.5,
@@ -66,6 +71,8 @@ const FALLBACK: Dictionary = {
 	"distance_color": Color(0.95, 0.95, 0.95),
 	"distance_height_m": 0.008,
 	"distance_offset_m": 0.012,
+	"fire_color": Color(1.0, 1.0, 0.0),
+	"fire_size_m": 0.012,
 }
 
 

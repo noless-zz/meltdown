@@ -14,5 +14,7 @@
 	"blocked_size_m": 0.012,
 	"distance_color": [0.95, 0.95, 0.95],
 	"distance_height_m": 0.008,
-	"distance_offset_m": 0.012
+	"distance_offset_m": 0.012,
+	"fire_color": [1.0, 1.0, 0.0],
+	"fire_size_m": 0.012
 }

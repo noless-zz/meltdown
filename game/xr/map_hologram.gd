@@ -19,7 +19,8 @@ extends Node3D
 ## the mine and what to destroy (#338, MAP-2, RUN-3); they are fitted like the
 ## lines, so they move with the map when more boxes are explored. The
 ## suggested route and blocked openings (MAP-2, #400) are drawn by a `MapRoute`
-## child, fitted the same way.
+## child, fitted the same way, and burning fire entries (#519) by a `MapFires`
+## child. The shared geometry lives in `MapShapes`.
 ##
 ## The look lives in `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
 
@@ -51,9 +52,12 @@ var _marker: MeshInstance3D = MeshInstance3D.new()
 var _exit: MeshInstance3D = MeshInstance3D.new()
 var _reactor: MeshInstance3D = MeshInstance3D.new()
 var _route: MapRoute = MapRoute.new()
+var _fires: MapFires = MapFires.new()
 ## The route's level-space points and blocked centres, kept so `build` can re-fit them.
 var _route_at: PackedVector3Array = PackedVector3Array()
 var _blocked_at: PackedVector3Array = PackedVector3Array()
+var _fire_at: PackedVector3Array = PackedVector3Array()
+var _fire_radii: PackedFloat32Array = PackedFloat32Array()
 ## The markers' level-space positions, kept so `build` can re-fit them.
 var _exit_at: Vector3 = Vector3.ZERO
 var _reactor_at: Vector3 = Vector3.ZERO
@@ -72,6 +76,7 @@ func _init() -> void:
 		child.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(child)
 	add_child(_route)
+	add_child(_fires)
 	_exit.visible = false
 	_reactor.visible = false
 	load_look()
@@ -118,15 +123,15 @@ func build(union: BoxUnion, explored: Array[int]) -> void:
 		arrays[Mesh.ARRAY_VERTEX] = MapWireframe.fit_to_cube(points, size)
 		var mesh: ArrayMesh = ArrayMesh.new()
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
-		mesh.surface_set_material(0, _glow(_look["line_color"], float(_look["line_energy"])))
+		mesh.surface_set_material(0, MapShapes.glow(_look["line_color"], float(_look["line_energy"])))
 		_lines.mesh = mesh
 	var energy: float = float(_look["line_energy"])
-	_marker.mesh = _ball(_look["marker_color"], float(_look["marker_radius_m"]), energy)
+	_marker.mesh = MapShapes.ball(_look["marker_color"], float(_look["marker_radius_m"]), energy)
 	var cube: BoxMesh = BoxMesh.new()
 	cube.size = Vector3.ONE * float(_look["exit_radius_m"]) * 2.0
-	cube.material = _glow(_look["exit_color"], energy)
+	cube.material = MapShapes.glow(_look["exit_color"], energy)
 	_exit.mesh = cube
-	_reactor.mesh = _ball(_look["reactor_color"], float(_look["reactor_radius_m"]), energy)
+	_reactor.mesh = MapShapes.ball(_look["reactor_color"], float(_look["reactor_radius_m"]), energy)
 	_place_markers()
 	_place_route()
 
@@ -190,6 +195,19 @@ func route() -> MapRoute:
 	return _route
 
 
+## Marks each burning fire entry at `centres_m` with radius `radii_m` (level-
+## space copies), fitted like the lines; see `MapFires`. Empty arrays remove them.
+func show_fires(centres_m: PackedVector3Array, radii_m: PackedFloat32Array) -> void:
+	_fire_at = centres_m.duplicate()
+	_fire_radii = radii_m.duplicate()
+	_place_route()
+
+
+## The node drawing the fire markers, for reading what it drew.
+func fires() -> MapFires:
+	return _fires
+
+
 ## Whether the exit marker is drawn: once `set_markers` was called.
 func exit_marker_shown() -> bool:
 	return _exit.visible
@@ -243,33 +261,9 @@ func attach_to(rig: Node, mapping: ThumbstickMapping) -> bool:
 	return true
 
 
-## Level space -> hologram space: the uniform scale and centring that
-## `MapWireframe.fit_to_cube(points, edge_m)` applies to `points`.
+## Level space -> hologram space; see `MapShapes.fit_transform`.
 static func fit_transform(points: PackedVector3Array, edge_m: float) -> Transform3D:
-	if points.is_empty():
-		return Transform3D.IDENTITY
-	var low: Vector3 = points[0]
-	var high: Vector3 = points[0]
-	for point: Vector3 in points:
-		low = low.min(point)
-		high = high.max(point)
-	var centre: Vector3 = (low + high) * 0.5
-	var longest: float = (high - low)[(high - low).max_axis_index()]
-	var scale: float = edge_m / longest if longest > MapWireframe.EPSILON_M else 1.0
-	return Transform3D(Basis.from_scale(Vector3.ONE * scale), -centre * scale)
-
-
-## A black, non-reflective material that only glows, so the map reads the same
-## in a lit room or a dark tunnel.
-static func _glow(color: Color, energy: float) -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = Color.BLACK
-	material.metallic_specular = 0.0
-	material.roughness = 1.0
-	material.emission_enabled = true
-	material.emission = color
-	material.emission_energy_multiplier = energy
-	return material
+	return MapShapes.fit_transform(points, edge_m)
 
 
 static func _rejected(message: String) -> Dictionary:
@@ -285,14 +279,5 @@ func _place_markers() -> void:
 
 func _place_route() -> void:
 	_route.draw_fitted(_fit, _route_at, _blocked_at, _look)
+	_fires.draw_fitted(_fit, _fire_at, _fire_radii, _look)
 
-
-## A small glowing ball; a dot this small needs few triangles (PRF-2).
-static func _ball(color: Color, radius: float, energy: float) -> SphereMesh:
-	var sphere: SphereMesh = SphereMesh.new()
-	sphere.radius = radius
-	sphere.height = radius * 2.0
-	sphere.radial_segments = 8
-	sphere.rings = 4
-	sphere.material = _glow(color, energy)
-	return sphere
