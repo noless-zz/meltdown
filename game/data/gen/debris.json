@@ -12,7 +12,8 @@
 		"after_seconds": [10, 60],
 		"min_start_distance": 15,
 		"min_reactor_distance": 6,
-		"min_robot_distance": 2
+		"min_robot_distance": 2,
+		"loop_weight": 6
 	},
 	"fires": {
 		"count": [0, 2],
