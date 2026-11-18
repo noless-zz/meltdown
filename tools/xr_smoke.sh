@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs the game against Monado with a simulated headset and two simulated
 # controllers, and checks that an OpenXR session with two views came up
-# (issue #26, PLT-2) and that both hands tracked (issue #571, PLT-5).
+# (issue #26, PLT-2) and that both hands tracked (issue #571, PLT-5). Also
+# reports how often XR_ERROR_SESSION_NOT_STOPPING was logged (issue #575).
 #
 # Usage: tools/xr_smoke.sh [frames]
 # Needs: godot, monado-service, xvfb-run, python3 and a software Vulkan driver
@@ -73,6 +74,11 @@ if [ -z "$line" ]; then
 fi
 echo "$line"
 echo "$line" > "$log_dir/result.txt"
+# Reported, never a failure: Godot 4.7.2 cannot end the session before
+# quitting (#558), so the count shows whether a later fix removes the error
+# (issue #575, decision record 0002, limit 5).
+not_stopping="$("$root/tools/count_session_not_stopping.sh" "$log_dir/godot.log")"
+echo "MELTDOWN_XR_SMOKE_SHUTDOWN {\"session_not_stopping_errors\":$not_stopping}"
 
 json="${line#MELTDOWN_XR_SMOKE }"
 session="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["session"])')"

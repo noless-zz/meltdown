@@ -98,6 +98,11 @@ The cause inside Mesa was not investigated further.
 5. Godot 4.7 logs errors against Monado that do not stop the session, among them
    `XR_ERROR_SESSION_NOT_STOPPING` when the game quits without first asking the session
    to end. The script does not treat logged errors as failures.
+   Since issue #575 the script counts the log lines containing
+   `XR_ERROR_SESSION_NOT_STOPPING` (`tools/count_session_not_stopping.sh`) and prints
+   `MELTDOWN_XR_SMOKE_SHUTDOWN {"session_not_stopping_errors":<n>}` after the result line.
+   The count is reported, never a failure; it shows whether a fix for #558 removes the
+   error.
 6. The package versions follow `ubuntu-latest`. A new runner image can change Monado or
    Mesa and break the job without any change in this repository; the crash above is an
    example of what a Mesa update can bring.
