@@ -4,31 +4,24 @@ extends ShipInputSource
 ## Flies one ship of a `Sim` against its robots: turns to the nearest live
 ## robot, holds an engagement distance and fires when the robot is in range
 ## and in front of the nose (CMB-3, PLT-4). Used to check automatically that
-## a level can be beaten (gate G2) without a person flying it.
+## a level can be beaten (gate G2) without a person flying it. In a level it
+## also picks the robot cheapest to aim at, weaves across the line of fire and
+## falls back to cover when outnumbered (#492; `BotAim`, `BotDodge`, `BotCover`).
 ##
 ## It only reads the simulation and answers with a `ShipInput`, exactly what a
 ## pilot's controllers would give, so the server stays the only writer of
 ## state (MP-2). No randomness and no clock: the same flight gives the same
-## inputs (ARC-1, ARC-2). In a level it remembers only where it last stood out
-## of every robot's line of fire, to fall back there.
+## inputs (ARC-1, ARC-2). In a level it remembers where it last stood out of
+## every robot's line of fire, the cover it chose and the way it weaves.
 
 ## Distance to the target the bot tries to hold, metres. Far enough that a
 ## robot's shots take a moment to arrive, close enough that every shipped
 ## primary weapon reaches.
 const ENGAGE_DISTANCE: float = 15.0
-## The bot holds fire unless the target is within this angle of the nose,
-## degrees. Shots leave straight ahead, so a wide cone would waste energy.
-const FIRE_CONE_HALF_ANGLE_DEG: float = 5.0
-## Turn rates the bot asks for at most, radians per second. Equal to the
-## thumbstick mapping's limits (`ThumbstickMapping.MAX_PITCH_RATE` and
-## `MAX_YAW_RATE`, tested), so the bot flies no faster than a pilot can. `net/`
-## may not depend on `xr/`, so the values are repeated here.
-const MAX_PITCH_RATE: float = PI / 2.0
-const MAX_YAW_RATE: float = PI / 2.0
-## Turn rate asked for per radian off the target, per second. Below the tick
-## rate, so a turn never overshoots within one tick; this value settles a
-## small error in about half a second.
-const TURN_GAIN: float = 6.0
+## Aiming lives in `BotAim` (#492); the names stay here for callers.
+const FIRE_CONE_HALF_ANGLE_DEG: float = BotAim.FIRE_CONE_HALF_ANGLE_DEG
+const MAX_PITCH_RATE: float = BotAim.MAX_PITCH_RATE
+const MAX_YAW_RATE: float = BotAim.MAX_YAW_RATE
 ## Closing speed wanted per metre away from `ENGAGE_DISTANCE`, per second.
 const CLOSING_GAIN: float = 1.0
 ## Thrust per metre per second of closing speed still missing: full thrust
@@ -48,6 +41,9 @@ const CORNER_SPEED: float = 3.0
 ## damage comes in short exchanges rather than one long one (#334). In the
 ## G2 level every robot is awake from the start, so a straight fight is lost.
 const RETREAT_SHIELD: float = 20.0
+## The bot falls back too once this many robots can shoot it at once (#492):
+## it meets them one at a time from cover instead.
+const OUTNUMBERED: int = 2
 ## A robot out of sight that closes on the ship faster than this, metres per
 ## second, is waited for where the bot stands rather than met round a corner.
 const CLOSING_ROBOT_SPEED: float = 0.5
@@ -68,6 +64,10 @@ var _retreating: bool = false
 var _flank: BotFlank = null
 ## Reactor and exit steps (#360); null without a level.
 var _escape: BotEscape = null
+## Weaving across the line of fire (#492); null without a level.
+var _dodge: BotDodge = null
+## Places out of every robot's line of fire (#492); null without a level.
+var _cover: BotCover = null
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -80,6 +80,8 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 		_walls = level.union
 		_flank = BotFlank.new(sim, _walls, _route)
 		_escape = BotEscape.new(sim, ship_index, _walls, _route)
+		_dodge = BotDodge.new(_walls)
+		_cover = BotCover.new(sim, level, _route)
 
 
 ## A point to fly to and stop at once no robot is left, such as a level's exit.
@@ -127,12 +129,13 @@ func next_input(_tick: int) -> ShipInput:
 ## robots close on it or its shield recharges; with its shield low under fire
 ## it falls back to where it last stood safe.
 func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
-	var threatened: bool = under_fire(ship)
+	var shooter: RobotState = _cover.threat(ship)
+	var threatened: bool = shooter != null
 	if not threatened:
 		_last_safe = ship.position
 		_has_safe = true
 		_retreating = false
-	elif _has_safe and ship.shield < RETREAT_SHIELD:
+	elif ship.shield < RETREAT_SHIELD or _cover.threat_count(ship) >= OUTNUMBERED:
 		_retreating = true
 	var in_sight: bool = target != null and shot_reaches(ship, target.position)
 	if _escape.takes_over(self, ship):
@@ -141,8 +144,9 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var flanking: bool = flank_point != Vector3.INF
 	var aim: Vector3 = _goal
 	var hold: float = 0.0
-	if _retreating:
-		aim = _last_safe
+	var shelter: Vector3 = _shelter(ship) if _retreating else Vector3.INF
+	if shelter != Vector3.INF:
+		aim = shelter
 	elif flanking:
 		aim = flank_point
 	elif target != null:
@@ -165,26 +169,39 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	if not waiting and distance > 0.0:
 		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
 		wanted = offset / distance * speed
+	if threatened:
+		wanted += _dodge.velocity(ship, shooter.position)
+	else:
+		_dodge.reset()
 	var push: Vector3 = ((wanted - ship.velocity) * THRUST_GAIN).limit_length(1.0)
 	var basis_inverse: Basis = ship.orientation.transposed()
 	var lead: Vector3 = lead_point(ship, target) - ship.position if in_sight else offset
 	if flanking:
 		# Nose on the robot, so the first tick the line opens is a shot.
 		lead = target.position - ship.position
-	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, turn_towards(basis_inverse * lead))
+	var turn: Vector3 = turn_towards(basis_inverse * lead)
+	if in_sight and not flanking:
+		turn = BotAim.track(ship, target)
+	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, turn)
 	# Only when a shot gets there: one at a robot behind rock would hit the rock.
 	input.fire_primary = in_sight and should_fire(ship, lead)
 	return input
 
 
-## Where `target` will be when a shot fired now reaches it, if it keeps its
-## velocity: the shot's flight time is taken over the present distance.
+## Where to fall back to while retreating: where the ship last stood safe if
+## no robot can hit it there now, else the nearest cover (#492), else where it
+## last stood safe after all; INF when there is nowhere.
+func _shelter(ship: ShipState) -> Vector3:
+	if _has_safe and not _cover.exposed(_last_safe):
+		return _last_safe
+	var point: Vector3 = _cover.point_for(ship)
+	if point == Vector3.INF and _has_safe:
+		return _last_safe
+	return point
+
+
 static func lead_point(ship: ShipState, target: RobotState) -> Vector3:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
-	if weapon == null or weapon.projectile_speed <= 0.0:
-		return target.position
-	var flight: float = ship.position.distance_to(target.position) / weapon.projectile_speed
-	return target.position + target.velocity * flight
+	return BotAim.lead_point(ship, target)
 
 
 ## Whether any live, armed robot could hit `ship` now: in its weapon's range
@@ -192,10 +209,7 @@ static func lead_point(ship: ShipState, target: RobotState) -> Vector3:
 ## An intact reactor stops robot shots too (#345), so one behind it is no threat.
 func under_fire(ship: ShipState) -> bool:
 	for robot: RobotState in _sim.robots:
-		if robot.is_alive() and robot.weapon != null \
-				and robot.position.distance_to(ship.position) <= robot.weapon_range() \
-				and (_sim.reactor == null or _sim.reactor.segment_entry(robot.position, ship.position) < 0.0) \
-				and _reaches(robot.position, ship.position, robot.weapon.projectile_speed):
+		if BotCover.hits(_sim, _walls, robot, ship.position):
 			return true
 	return false
 
@@ -209,18 +223,19 @@ func robots_closing(ship: ShipState) -> bool:
 	return false
 
 
-## In a level, the nearest robot a shot can reach, or `nearest` when none can:
-## the robot that can shoot back is the one to answer first.
+## In a level, of the robots a shot can reach the one `BotAim.cost` rates
+## cheapest, or `nearest` when none can: a robot that can shoot back is the one
+## to answer first.
 func _target_in_level(ship: ShipState, nearest: RobotState) -> RobotState:
 	var best: RobotState = null
-	var best_distance: float = INF
+	var best_cost: float = INF
 	for robot: RobotState in _sim.robots:
 		if not robot.is_alive() or not shot_reaches(ship, robot.position):
 			continue
-		var d: float = ship.position.distance_squared_to(robot.position)
-		if d < best_distance:
+		var cost: float = BotAim.cost(ship, robot)
+		if cost < best_cost:
 			best = robot
-			best_distance = d
+			best_cost = cost
 	return best if best != null else nearest
 
 
@@ -244,18 +259,8 @@ func _reaches(from: Vector3, point: Vector3, speed: float) -> bool:
 	return BotFlank.reaches_walls(_walls, from, point, speed)
 
 
-## Turn rates that bring the nose to `local`, a direction in ship space,
-## within the caps.
 static func turn_towards(local: Vector3) -> Vector3:
-	# Positive pitch raises the nose and positive yaw turns it left (see
-	# `ShipState.step`). Straight behind, atan2 gives a full half turn, so
-	# the bot turns at its full rate rather than stalling.
-	var pitch_error: float = atan2(local.y, -local.z)
-	var yaw_error: float = atan2(-local.x, -local.z)
-	return Vector3(
-		clampf(pitch_error * TURN_GAIN, -MAX_PITCH_RATE, MAX_PITCH_RATE),
-		clampf(yaw_error * TURN_GAIN, -MAX_YAW_RATE, MAX_YAW_RATE),
-		0.0)
+	return BotAim.turn_towards(local)
 
 
 ## The live robot nearest to `point`, or null when there is none. Only a
@@ -273,19 +278,5 @@ func nearest_robot(point: Vector3) -> RobotState:
 	return best
 
 
-## Whether `ship` should hold fire at a target `offset` away: within its
-## selected primary weapon's range and within the cone ahead of its nose. An
-## empty slot has no range, so an unarmed ship never fires.
 static func should_fire(ship: ShipState, offset: Vector3) -> bool:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
-	if weapon == null:
-		return false
-	var weapon_range: float = weapon.projectile_speed * float(weapon.lifetime_ticks()) \
-		* ShipState.TICK_DT
-	var distance: float = offset.length()
-	if distance > weapon_range:
-		return false
-	if distance == 0.0:
-		return true
-	var nose: Vector3 = -ship.orientation.z.normalized()
-	return StableAngle.between(nose, offset) <= deg_to_rad(FIRE_CONE_HALF_ANGLE_DEG)
+	return BotAim.should_fire(ship, offset)
