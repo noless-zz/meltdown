@@ -70,8 +70,9 @@ func test_m3_suite_loads_with_the_escape_step() -> String:
 	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
 	if suite.error != "":
 		return suite.error
-	# The G2 escape stays first; the generated seed's step follows it (#460).
-	if suite.name != SUITE_NAME or suite.steps.size() != 2:
+	# The G2 escape stays first; the generated seed's step follows it (#460),
+	# then the blast-door seed's (#516).
+	if suite.name != SUITE_NAME or suite.steps.size() != 3:
 		return "suite %s has %d steps" % [suite.name, suite.steps.size()]
 	var escape: AcceptanceStep = suite.steps[0]
 	if escape.id != STEP_ID or escape.replay_path != REPLAY_PATH or escape.level != LEVEL:

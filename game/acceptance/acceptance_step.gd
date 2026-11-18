@@ -28,12 +28,16 @@ const CHECK_DEBRIS_FALLEN: String = "debris_fallen"
 ## files every run; a changed value that the flight happens not to feel (a
 ## rock's radius it never touched) still changes the level.
 const CHECK_LEVEL_HASH: String = "level_hash"
+## At least one box entry (a blast door) is solid when the replay ends (RUN-4,
+## #516): a held-back door never fell, so unlike `debris_fallen` it does not
+## count. Shows the escape still works with a door down.
+const CHECK_DOOR_FALLEN: String = "door_fallen"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
-	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH]
+	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
-	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH]
+	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
