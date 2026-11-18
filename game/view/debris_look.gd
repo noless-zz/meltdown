@@ -11,7 +11,9 @@ extends RefCounted
 ##      "held_color": [r, g, b], "held_energy": 0..16, "held_alpha": 0..1,
 ##      "slab_color": [r, g, b], "slab_energy": 0..16,
 ##      "slab_warn_color": [r, g, b], "slab_warn_energy": 0..16,
-##      "slab_warn_alpha": 0..1}
+##      "slab_warn_alpha": 0..1,
+##      "fire_color": [r, g, b], "fire_energy": 0..16, "fire_alpha": 0..1,
+##      "fire_flicker": 0..0.5}
 ##
 ## Energies are emission multipliers. A held entry never became solid, so it
 ## is drawn see-through (`held_alpha`): an opaque rock there would show a
@@ -23,11 +25,15 @@ extends RefCounted
 ## colours: a flat grey-metal slab and a hazard-yellow warning, so a door about
 ## to slam reads differently from a rock about to fall. They share
 ## `warn_seconds` with spheres, so both warn equally early.
+##
+## Fire entries (#496) burn see-through in `fire_color`, so they never read as a
+## wall the ship must avoid touching. Their glow swings by up to `fire_flicker`
+## of `fire_energy`, slowly and from the simulation's tick (`fire_energy_at`).
 
 const DEFAULT_FILE: String = "res://view/debris_look.json"
 
 const COLOR_KEYS: Array[String] = ["solid_color", "warn_color", "held_color", "slab_color",
-	"slab_warn_color"]
+	"slab_warn_color", "fire_color"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"solid_energy": [0.0, 16.0],
@@ -41,7 +47,17 @@ const RANGES: Dictionary[String, Array] = {
 	"slab_energy": [0.0, 16.0],
 	"slab_warn_energy": [0.0, 16.0],
 	"slab_warn_alpha": [0.0, 1.0],
+	"fire_energy": [0.0, 16.0],
+	"fire_alpha": [0.0, 1.0],
+	# Past half the glow, the swing reads as flashing rather than burning.
+	"fire_flicker": [0.0, 0.5],
 }
+## The flicker's two waves, in cycles per second. Both stay under 3 Hz, the
+## flash rate photosensitivity guidance warns about, and they never line up, so
+## the glow wavers instead of pulsing.
+const FLICKER_HZ: Array[float] = [0.9, 2.3]
+## Simulation ticks per second; the view's own copy of the core's 60 Hz tick.
+const TICKS_PER_SECOND: float = 60.0
 
 ## Look used when the file is missing or rejected; matches the shipped file.
 const FALLBACK: Dictionary = {
@@ -59,6 +75,10 @@ const FALLBACK: Dictionary = {
 	"slab_warn_color": Color(1.0, 0.8, 0.1),
 	"slab_warn_energy": 1.5,
 	"slab_warn_alpha": 0.3,
+	"fire_color": Color(1.0, 0.35, 0.05),
+	"fire_energy": 2.0,
+	"fire_alpha": 0.4,
+	"fire_flicker": 0.2,
 }
 
 
@@ -98,6 +118,16 @@ static func parse(text: String) -> Dictionary:
 			return _rejected("\"%s\" is %s, must be within %s..%s" % [key, value, bounds[0], bounds[1]])
 		look[key] = float(value)
 	return look
+
+
+## The fire's glow at simulation tick `tick`: `fire_energy` swung by at most
+## `fire_flicker` of itself. Only the tick moves it, never wall-clock time, so a
+## paused session, which keeps its tick, keeps the same glow (CMF-8).
+static func fire_energy_at(look: Dictionary, tick: int) -> float:
+	var seconds: float = float(tick) / TICKS_PER_SECOND
+	var swing: float = 0.6 * sin(TAU * FLICKER_HZ[0] * seconds) \
+		+ 0.4 * sin(TAU * FLICKER_HZ[1] * seconds + 1.0)
+	return float(look["fire_energy"]) * (1.0 + float(look["fire_flicker"]) * swing)
 
 
 static func _rejected(message: String) -> Dictionary:
