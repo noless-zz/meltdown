@@ -6,20 +6,19 @@ extends Node3D
 ## mesh, fitted into a cube of `size_m`, with a marker where the ship is.
 ##
 ## It hangs under a controller, so it turns with the hand. It shows only while
-## the `show_map` action has been held for `HOLD_SECONDS`; a shorter click of
-## the same button stays the label toggle. When both share that button, the
-## map takes its answer from the label wiring's `ClickHold` (#335), so one
-## press can never both show the map and flip the labels.
+## `show_map` has been held for `HOLD_SECONDS`; a shorter click stays the label
+## toggle. When both share that button, the map takes its answer from the label
+## wiring's `ClickHold` (#335), so one press never both shows it and flips labels.
 ##
 ## It is handed copies and keeps no reference to the session, so it can never
 ## write simulation state or comfort settings (ARC-3, CMF-6, MP-2).
 ##
-## An exit marker (a cube) and a reactor marker (a ball) show where to leave
-## the mine and what to destroy (#338, MAP-2, RUN-3), fitted like the lines.
-## The route and blocked openings (#400) are drawn by a `MapRoute` child and
-## burning fire entries (#519) by a `MapFires` child, fitted the same way;
-## shared geometry lives in `MapShapes`. `set_zoom` scales it all about the
-## hand anchor (#549), with the factor `MapZoom` keeps. The look lives in `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
+## An exit cube and a reactor ball show where to leave and what to destroy
+## (#338, MAP-2, RUN-3); a `MapRoute` child draws the route and blocked openings
+## (#400) and a `MapFires` child burning fire entries (#519), all fitted like
+## the lines, with shared geometry in `MapShapes`. `set_zoom` scales it all
+## about the hand anchor (#549). The look is `res://xr/map_look.json` (ARC-4),
+## read and parsed by `MapLook`.
 
 const NODE_NAME: String = "MapHologram"
 const LINES_NAME: String = "Lines"
@@ -75,8 +74,6 @@ func _init() -> void:
 		add_child(child)
 	add_child(_route)
 	add_child(_fires)
-	_exit.visible = false
-	_reactor.visible = false
 	load_look()
 
 
@@ -85,22 +82,14 @@ static func parse_look(text: String) -> Dictionary:
 	return MapLook.parse(text)
 
 
-## Applies the look file at `path`. A missing or rejected file leaves the
-## built-in look, sets `look_error` and pushes a warning naming the field.
-## Takes effect on the next `build`. Returns `look_error`.
+## Applies the look file at `path` via `MapLook.load_file`; a missing or rejected
+## file leaves the built-in look and sets `look_error`, which it returns. Colours and
+## sizes apply on the next `build`; the zoom re-clamps and all re-places now (#561).
 func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
-	var values: Dictionary = {}
-	if FileAccess.file_exists(path):
-		values = MapLook.parse(FileAccess.get_file_as_string(path))
-	else:
-		values = {"error": "file not found"}
-	_look = FALLBACK_LOOK
-	look_error = ""
-	if values.has("error"):
-		look_error = "%s: %s" % [path, values["error"]]
-		push_warning("MapHologram uses the built-in look; %s" % look_error)
-	else:
-		_look = values
+	var loaded: Dictionary = MapLook.load_file(path)
+	_look = loaded["look"]
+	look_error = loaded["error"]
+	set_zoom(_zoom)
 	return look_error
 
 
@@ -142,8 +131,7 @@ func segment_count() -> int:
 	return mesh.surface_get_array_len(0) / 2
 
 
-## Moves the marker to the ship's level-space `position` (a copy), fitted
-## like the lines.
+## Moves the marker to the ship's level-space `position` (a copy), fitted like the lines.
 func set_ship_position(position: Vector3) -> void:
 	_ship_at = position
 	_marker.position = _view() * position
@@ -154,9 +142,8 @@ func marker_position() -> Vector3:
 	return _marker.position
 
 
-## Marks the exit (the entrance, RUN-3) and the reactor at their level-space
-## positions (copies), fitted like the lines. The reactor marker shows only
-## while `reactor_known`.
+## Marks the exit (the entrance, RUN-3) and the reactor at level-space copies of
+## their positions, fitted like the lines; the reactor shows only while `reactor_known`.
 func set_markers(exit_position: Vector3, reactor_position: Vector3, reactor_known: bool) -> void:
 	_exit_at = exit_position
 	_reactor_at = reactor_position
@@ -175,9 +162,8 @@ func reactor_marker_position() -> Vector3:
 	return _reactor.position
 
 
-## Draws the suggested route through `points_m` and a cross at each of
-## `blocked_m` (level-space copies, as `KnownRoute` gives them), fitted like
-## the lines. Empty arrays draw nothing.
+## Draws the suggested route through `points_m` and a cross at each of `blocked_m`
+## (level-space copies, as `KnownRoute` gives them), fitted like the lines.
 func show_route(points_m: PackedVector3Array, blocked_m: PackedVector3Array) -> void:
 	_route_at = points_m.duplicate()
 	_blocked_at = blocked_m.duplicate()
@@ -225,9 +211,8 @@ func hold(held: bool, delta: float) -> void:
 
 
 ## Reads `show_map` through `mapping` from sampled `buttons` and calls `hold`.
-## With `shared` (the label button's `ClickHold`, given only while that button
-## also shows the map), the map shows exactly while `shared` reports a long
-## hold instead; call this after `shared` was fed for the frame.
+## With `shared` (the label button's `ClickHold`, given only while that button also
+## shows the map), it shows exactly while `shared` reports a long hold; feed `shared` first.
 func read(mapping: ThumbstickMapping, buttons: Dictionary, delta: float,
 		shared: ClickHold = null) -> void:
 	if shared == null:
@@ -237,8 +222,7 @@ func read(mapping: ThumbstickMapping, buttons: Dictionary, delta: float,
 	visible = shared.is_long_hold()
 
 
-## The hand that clicks `show_map`, so the map sits in the hand that holds it:
-## left by default, right when left-handed mode or a remap moves the click.
+## The hand that clicks `show_map`, which holds the map: left unless left-handed mode or a remap.
 static func hand_for(mapping: ThumbstickMapping) -> String:
 	for control: String in mapping.physical_controls("show_map"):
 		if control.begins_with("right_"):
@@ -260,9 +244,8 @@ func attach_to(rig: Node, mapping: ThumbstickMapping) -> bool:
 	return true
 
 
-## Scales the map by `factor`, clamped to the look's zoom limits, about the hand
-## anchor (its origin), so the held point stays in the hand. Positions scale;
-## marker sizes keep their floors. `build` keeps the zoom.
+## Scales the map by `factor`, clamped to the look's limits, about the hand anchor
+## (its origin), so the held point stays put. Marker sizes keep their floors; `build` keeps it.
 func set_zoom(factor: float) -> void:
 	_zoom = clampf(factor, float(_look["min_zoom"]), float(_look["max_zoom"]))
 	_lines.scale = Vector3.ONE * _zoom

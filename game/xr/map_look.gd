@@ -138,5 +138,19 @@ static func parse(text: String) -> Dictionary:
 	return look
 
 
+## Reads and parses the look file at `path` (#561). Returns `{"look", "error"}`:
+## the parsed look and "", or, for a missing or rejected file, `FALLBACK` and an
+## error naming the path and field, after pushing a warning.
+static func load_file(path: String) -> Dictionary:
+	var values: Dictionary = {"error": "file not found"}
+	if FileAccess.file_exists(path):
+		values = parse(FileAccess.get_file_as_string(path))
+	if not values.has("error"):
+		return {"look": values, "error": ""}
+	var error: String = "%s: %s" % [path, values["error"]]
+	push_warning("MapHologram uses the built-in look; %s" % error)
+	return {"look": FALLBACK, "error": error}
+
+
 static func _rejected(message: String) -> Dictionary:
 	return {"error": message}
