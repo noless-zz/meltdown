@@ -12,7 +12,8 @@ const ROBOTS_FILE: String = SeedLevel.ROBOTS_FILE
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 20000
 const VALID: Dictionary = {"types": ["drone", "glider"], "min_per_level": 2, "max_per_level": 5,
-		"max_per_module": 2, "min_start_distance": 20, "min_reactor_distance": 8}
+		"max_per_module": 2, "min_start_distance": 20, "min_reactor_distance": 8,
+		"near_start_distance": 40, "max_near_start": 2}
 
 
 ## Every robot file's text by id, read by the one loader `--seed` and the
@@ -56,6 +57,9 @@ func test_data_file_is_rejected_naming_the_bad_key() -> String:
 		["max_per_level", "many", "max_per_level"], ["max_per_level", 1, "max_per_level"],
 		["max_per_module", 0, "max_per_module"], ["min_start_distance", -1, "min_start_distance"],
 		["min_reactor_distance", "far", "min_reactor_distance"], ["colour", "red", "colour"],
+		["near_start_distance", -5, "near_start_distance"], ["near_start_distance", "near", "near_start_distance"],
+		["max_near_start", -1, "max_near_start"], ["max_near_start", 2.5, "max_near_start"],
+		["max_near_start", "two", "max_near_start"],
 	]
 	for case: Array in cases:
 		var data: Dictionary = VALID.duplicate(true)

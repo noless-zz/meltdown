@@ -100,10 +100,13 @@ func test_on_loop_agrees_with_a_route_search() -> String:
 
 
 ## With `loop_weight` 1 the doors of seeds 0..199 are those placed before #515,
-## and the same as with the key left out.
+## and the same as with the key left out. Robots are placed without #531's
+## near-start cap, as they were when the checksum was taken, since doors keep
+## clear of robots and the cap moves some of them.
 func test_weight_one_places_doors_as_before() -> String:
-	var one: Dictionary = _doors(_plan(1), SAME_SEEDS)
-	var unset: Dictionary = _doors(_plan(null), SAME_SEEDS)
+	var robots: RobotPlan = _robots_before_531()
+	var one: Dictionary = _doors(_plan(1), SAME_SEEDS, robots)
+	var unset: Dictionary = _doors(_plan(null), SAME_SEEDS, robots)
 	if one["checksum"] != unset["checksum"] or one["placed"] != unset["placed"]:
 		return "loop_weight 1 and no loop_weight place different doors"
 	if one["placed"] != BEFORE_DOORS or one["checksum"] != BEFORE_CHECKSUM:
@@ -130,13 +133,20 @@ func test_shipped_weight_holds_fewer_doors() -> String:
 	return ""
 
 
+## The shipped robot file with the near-start cap lifted, placing as before #531.
+static func _robots_before_531() -> RobotPlan:
+	var data: Dictionary = JSON.parse_string(SeedLevel.read_text(SeedLevel.ROBOTS_FILE))
+	data["max_near_start"] = 1000
+	return RobotPlan.parse_json(JSON.stringify(data), SeedSweep.robot_texts())
+
+
 ## The doors `plan` places over seeds 0..`count` - 1: how many, how many the
 ## guard holds, and a checksum of where and when they fall.
-func _doors(plan: DebrisPlan, count: int) -> Dictionary:
+func _doors(plan: DebrisPlan, count: int, robots: RobotPlan = null) -> Dictionary:
+	var robot_plan: RobotPlan = robots if robots != null else SeedSweep.load_robot_plan()
 	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
 	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
-	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
 	var radius: float = SeedSweep.ship_radius()
 	var placed: int = 0
 	var held: int = 0
