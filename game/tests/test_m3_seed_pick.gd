@@ -86,3 +86,20 @@ func test_the_shipped_suite_round_trips() -> String:
 	if again != text:
 		return "rewriting m3.json with its own values changed it"
 	return ""
+
+
+## The door step (#516) also needs a blast door down: seed 9 escapes with a
+## rock down but no door, so 30 is picked; without the door rule 9 still is.
+func test_the_door_step_needs_a_door_down() -> String:
+	var results: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 0),
+		SeedPick.Flown.of(30, true, 2, 1), SeedPick.Flown.of(4, false, 2, 1)]
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, true)
+	if picked.get("seed") != 30:
+		return "picked %s, expected seed 30" % picked
+	if SeedPick.pick(results).get("seed") != 9:
+		return "without the door rule picked %s" % SeedPick.pick(results)
+	var rock_only: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 0)]
+	var none: Dictionary = SeedPick.pick(rock_only, 1, 300, true)
+	if not str(none.get("error", "")).contains("blast door"):
+		return "no door gave %s" % none
+	return ""

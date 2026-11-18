@@ -4,7 +4,8 @@ extends RefCounted
 ## The acceptance checks that read the state a step's replay ended in (DEV-6):
 ## the final hash, whether every robot is destroyed and whether the ship
 ## survived (gate G2, #334), how the run ended (#376) and whether any debris
-## came down and the level was the pinned one (#460). Kept apart from `AcceptanceRunner`, which drives
+## came down and the level was the pinned one (#460), and whether a blast door
+## did (#516). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
 ## Re-records the seed step after an intended data change, picking a new seed
@@ -33,6 +34,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return debris_fallen(session.sim, measurements)
 		AcceptanceStep.CHECK_LEVEL_HASH:
 			return level_hash(step, session.replay, measurements)
+		AcceptanceStep.CHECK_DOOR_FALLEN:
+			return door_fallen(step.id, session.sim, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -95,6 +98,25 @@ static func debris_fallen(sim: Sim, measurements: Dictionary) -> Array:
 	if fallen == 0:
 		return [AcceptanceReport.RESULT_FAIL, "none of %d debris entries fell" % total]
 	return [AcceptanceReport.RESULT_PASS, "%d of %d debris entries fell" % [fallen, total]]
+
+
+## Counts box entries (blast doors) that are solid. A door the route guard held
+## back never came down, so the escape did not have to get past it. The failure
+## names the step, since a suite may fly several generated seeds.
+static func door_fallen(step_id: String, sim: Sim, measurements: Dictionary) -> Array:
+	var doors: int = 0
+	var fallen: int = 0
+	var count: int = sim.debris.size() if sim.debris != null else 0
+	for index: int in count:
+		if sim.debris.is_box(index) and not sim.debris.is_fire(index):
+			doors += 1
+			if sim.debris.is_solid(index):
+				fallen += 1
+	measurements["doors"] = doors
+	measurements["doors_fallen"] = fallen
+	if fallen == 0:
+		return [AcceptanceReport.RESULT_FAIL, "step %s: none of %d doors fell" % [step_id, doors]]
+	return [AcceptanceReport.RESULT_PASS, "%d of %d doors fell" % [fallen, doors]]
 
 
 static func level_hash(step: AcceptanceStep, replay: Replay, measurements: Dictionary) -> Array:

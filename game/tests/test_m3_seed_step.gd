@@ -46,43 +46,14 @@ var _quit_codes: Array[int] = []
 
 
 static func step() -> AcceptanceStep:
-	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
-	for found: AcceptanceStep in suite.steps:
-		if found.id == STEP_ID:
-			return found
-	return null
+	return SeedPick.find_step(STEP_ID)
 
 
 ## Off unless RECORD_SWITCH is set; see the top of this file.
 func test_record_when_asked() -> String:
 	if OS.get_environment(RECORD_SWITCH) != "1":
 		return ""
-	var old_seed: int = step().level_seed
-	var chosen: Dictionary = SeedPick.choose(old_seed)
-	if chosen.has("error"):
-		return "%s; nothing recorded" % chosen["error"]
-	var flown: SeedPick.Flown = chosen["flown"]
-	var session: LocalSession = flown.session
-	# Inputs only: the level is the seed's, not the replay's.
-	var inputs: Replay = Replay.new(session.replay.run_seed, 1)
-	inputs.frames = session.replay.frames
-	inputs.expected_hash = session.sim.state_hash()
-	var level_hash: int = AcceptanceStepLevel.level_hash(session.replay)
-	var suite_text: String = SeedLevel.read_text(SUITE_PATH)
-	var rewritten: String = SeedPick.rewrite_step(suite_text, STEP_ID, flown.level_seed,
-		inputs.expected_hash, level_hash)
-	if rewritten == "":
-		return "%s has no step %s with seed and both hashes; nothing recorded" % [SUITE_PATH, STEP_ID]
-	for written: Array in [[REPLAY_PATH, REPLAY_HEADER + inputs.to_text()], [SUITE_PATH, rewritten]]:
-		var file: FileAccess = FileAccess.open(ProjectSettings.globalize_path(written[0]), FileAccess.WRITE)
-		if file == null:
-			return "could not write %s: %s" % [written[0], error_string(FileAccess.get_open_error())]
-		file.store_string(written[1])
-		file.close()
-	print("Meltdown: recorded %s: seed %d (was %d), %s, hash %d, level hash %d; written to %s" % [
-		REPLAY_PATH, flown.level_seed, old_seed, flown.reason, inputs.expected_hash, level_hash,
-		SUITE_PATH])
-	return ""
+	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, false)
 
 
 func test_the_step_names_its_seed_and_checks() -> String:
