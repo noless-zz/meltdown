@@ -11,11 +11,11 @@
 		},
 		{
 			"id": "bot_generated_escape",
-			"seed": 40,
+			"seed": 26,
 			"replay": "res://acceptance/replays/bot_generated_escape.replay",
 			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "debris_fallen"],
-			"expected_hash": 1116790880,
-			"expected_level_hash": 907092901,
+			"expected_hash": 1644261416,
+			"expected_level_hash": 1291906052,
 			"expected_outcome": "ESCAPED"
 		},
 		{

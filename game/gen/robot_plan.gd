@@ -5,7 +5,8 @@ extends RefCounted
 ## `data/gen/robots.json`:
 ##
 ##     {"types": ["drone", "glider"], "min_per_level": 4, "max_per_level": 8,
-##      "max_per_module": 2, "min_start_distance": 20, "min_reactor_distance": 8}
+##      "max_per_module": 2, "min_start_distance": 20, "min_reactor_distance": 8,
+##      "near_start_distance": 40, "max_near_start": 2}
 ##
 ## `types` names robot files in `data/robots/`, each once. A level gets from
 ## `min_per_level` to `max_per_level` robots, at most `max_per_module` in any
@@ -14,9 +15,13 @@ extends RefCounted
 ## The caller hands over the file's text and the robot files' text by id,
 ## because `gen/` never opens files; the robot files give each type's radius,
 ## which sets how much room a robot needs.
+##
+## `max_near_start` caps how many robots stand within `near_start_distance` of
+## the start (#531, GEN-3), so a short level cannot open on an ambush; the
+## owner tunes how busy the start is here, without code (ARC-4).
 
 const KEYS: Array[String] = ["types", "min_per_level", "max_per_level", "max_per_module",
-		"min_start_distance", "min_reactor_distance"]
+		"min_start_distance", "min_reactor_distance", "near_start_distance", "max_near_start"]
 ## Furthest a distance key may be, metres: far beyond any level.
 const MAX_DISTANCE_M: float = 10000.0
 
@@ -29,6 +34,9 @@ var max_per_level: int = 0
 var max_per_module: int = 1
 var min_start_distance_mm: int = 0
 var min_reactor_distance_mm: int = 0
+var near_start_distance_mm: int = 0
+## Most robots allowed within `near_start_distance_mm` of the start.
+var max_near_start: int = 0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -76,12 +84,17 @@ func _read(data: Dictionary, robot_texts: Dictionary) -> String:
 	if max_per_level < min_per_level:
 		return "max_per_level must not be below min_per_level"
 	var distances: Array[int] = []
-	for key: String in ["min_start_distance", "min_reactor_distance"]:
+	for key: String in ["min_start_distance", "min_reactor_distance", "near_start_distance"]:
 		problem = _read_distance(data[key], key, distances)
 		if problem != "":
 			return problem
 	min_start_distance_mm = distances[0]
 	min_reactor_distance_mm = distances[1]
+	near_start_distance_mm = distances[2]
+	problem = _read_count(data["max_near_start"], "max_near_start", 0, counts)
+	if problem != "":
+		return problem
+	max_near_start = counts[3]
 	return ""
 
 

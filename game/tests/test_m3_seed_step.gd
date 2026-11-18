@@ -28,8 +28,9 @@ const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 const ROBOTS_FILE: String = "res://data/gen/robots.json"
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 ## Biased placement (#438) means `generator.json` can change any seed; the
-## module file is the generator data this test changes.
-const MODULE_FILE: String = "res://data/modules/straight_tunnel.json"
+## module file is the generator data this test changes. It must be a module the
+## step's seed places: seed 26 (#531) has no straight tunnel, three offset shafts.
+const MODULE_FILE: String = "res://data/modules/offset_shaft.json"
 ## The escape takes about 3,700 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 12000
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
@@ -113,7 +114,7 @@ func test_a_changed_data_value_fails_the_step_naming_it() -> String:
 	var changes: Dictionary = {
 		ROBOTS_FILE: ["\"min_per_level\": 4", "\"min_per_level\": 5"],
 		DEBRIS_FILE: ["\"radius\": [1.5, 3]", "\"radius\": [1.5, 2.5]"],
-		MODULE_FILE: ["\"min\": [-5.0, -5.0, -30.0]", "\"min\": [-6.0, -5.0, -30.0]"],
+		MODULE_FILE: ["\"min\": [2.0, -22.0, -5.0]", "\"min\": [1.0, -22.0, -5.0]"],
 	}
 	for path: String in changes:
 		var text: String = SeedLevel.read_text(path)

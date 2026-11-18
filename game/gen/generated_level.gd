@@ -22,7 +22,9 @@ extends RefCounted
 ## start's, at a whole-millimetre point with the robot's radius and a ship's
 ## diameter clear of that box's faces, of the reactor and of every robot
 ## already placed, and at least the plan's distances from the start and the
-## reactor's centre. Each robot faces along one of the six axes. Every choice
+## reactor's centre. A draw that would put more than the plan's
+## `max_near_start` robots within `near_start_distance_mm` of the start is
+## rejected like any other failed draw (#531). Each robot faces along one of the six axes. Every choice
 ## comes from a `RandomNumberGenerator` seeded from the generator's
 ## `output_hash`, itself fixed by the level seed, so the same seed gives the
 ## same robots however often the level is built, and the generator is left as
@@ -174,7 +176,11 @@ static func _try_robot(generator: MineGenerator, plan: RobotPlan, ship_radius: f
 			return null
 		point[axis] = low + _pick(rng, high - low + 1)
 	var facing: Vector3i = FACINGS[_pick(rng, FACINGS.size())]
-	if _distance_squared(point, level.start_position_mm) < _squared(plan.min_start_distance_mm):
+	var to_start: int = _distance_squared(point, level.start_position_mm)
+	if to_start < _squared(plan.min_start_distance_mm):
+		return null
+	if to_start < _squared(plan.near_start_distance_mm) \
+			and _near_start_count(plan, level) >= plan.max_near_start:
 		return null
 	if level.reactor != null:
 		var reactor_gap: int = maxi(plan.min_reactor_distance_mm, level.reactor.radius_mm + clear)
@@ -189,6 +195,16 @@ static func _try_robot(generator: MineGenerator, plan: RobotPlan, ship_radius: f
 	in_module[module] += 1
 	radii.append(radius)
 	return spawn
+
+
+## Robots already placed within the plan's `near_start_distance_mm` of the start.
+static func _near_start_count(plan: RobotPlan, level: LevelDef) -> int:
+	var count: int = 0
+	var limit: int = _squared(plan.near_start_distance_mm)
+	for spawn: RobotSpawn in level.robots.spawns:
+		if _distance_squared(spawn.position_mm, level.start_position_mm) < limit:
+			count += 1
+	return count
 
 
 static func _distance_squared(a: Vector3i, b: Vector3i) -> int:

@@ -4,5 +4,7 @@
 	"max_per_level": 8,
 	"max_per_module": 2,
 	"min_start_distance": 20,
-	"min_reactor_distance": 8
+	"min_reactor_distance": 8,
+	"near_start_distance": 40,
+	"max_near_start": 2
 }
