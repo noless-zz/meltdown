@@ -7,7 +7,9 @@ extends RefCounted
 ## but not escaped; and a level with no reactor is counted apart, never as
 ## cleared. Since #420 the levels carry the shipped loop bridges, a looped
 ## seed flies to its exit, and `--robots` places robots as well, with a summary
-## that says so and stays the same run to run. The 1,000-seed rates are in the
+## that says so and stays the same run to run. Since #495 a robot summary also
+## says how the uncleared seeds ended, and every seed lands in exactly one of
+## cleared, lost before the reactor, out of ticks or no reactor. The 1,000-seed rates are in the
 ## #377 and #420 devlogs.
 
 const Sweep := preload("res://tests/bot_escape_sweep.gd")
@@ -59,13 +61,20 @@ func test_the_summary_line_has_the_agreed_shape() -> String:
 		return problem
 	if line.contains("robots"):
 		return "a run without robots names robots: %s" % line
+	var line_without_robots: String = line
+	# The counts of uncleared seeds stay off a line without robots (#495).
+	result["lost_before_reactor"] = 0
+	result["timed_out"] = 1
+	if Sweep.summary(result) != line_without_robots:
+		return "the uncleared counts changed a line without robots: %s" % Sweep.summary(result)
 	result["robots"] = true
 	result["robots_destroyed"] = 31
 	line = Sweep.summary(result)
-	expected = 'MELTDOWN_BOT_ESCAPE {"seeds":7,"cleared":6,"escaped":5,"looped":2,"rate":0.8333,"robots_destroyed":31,"robots":true}'
+	expected = 'MELTDOWN_BOT_ESCAPE {"seeds":7,"cleared":6,"escaped":5,"looped":2,"rate":0.8333,"robots_destroyed":31,"lost_before_reactor":0,"timed_out":1,"robots":true}'
 	if line != expected:
 		return "robot summary \"%s\", expected \"%s\"" % [line, expected]
-	return _parses_with(line, ["looped", "robots_destroyed", "robots"])
+	return _parses_with(line, ["looped", "robots_destroyed", "lost_before_reactor", "timed_out",
+			"robots"])
 
 
 ## "" when `line` is the tag and a JSON object holding every key in `keys`.
@@ -160,9 +169,17 @@ func test_robots_on_request_give_a_deterministic_summary() -> String:
 	var line: String = Sweep.summary(first)
 	print("  %s" % line)
 	var problem: String = _parses_with(line, ["seeds", "cleared", "escaped", "looped", "rate",
-			"robots_destroyed", "robots"])
+			"robots_destroyed", "lost_before_reactor", "timed_out", "robots"])
 	if problem != "":
 		return problem
+	# combine works out "without a reactor" as what is left, so the counts must
+	# not overlap or miss a seed.
+	var ended: int = first["cleared"] + first["lost_before_reactor"] + first["timed_out"] \
+			+ first["no_reactor"]
+	if ended != first["seeds"]:
+		return "%d cleared, %d lost, %d timed out and %d without a reactor of %d seeds" % [
+				first["cleared"], first["lost_before_reactor"], first["timed_out"],
+				first["no_reactor"], first["seeds"]]
 	if JSON.parse_string(line.trim_prefix(Sweep.SUMMARY_TAG + " "))["robots"] != true:
 		return "\"robots\" is not true: %s" % line
 	var second: Dictionary = Sweep.run(FIRST_SEED, REPEATED_SEEDS, true)
