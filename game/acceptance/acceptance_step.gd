@@ -32,12 +32,17 @@ const CHECK_LEVEL_HASH: String = "level_hash"
 ## #516): a held-back door never fell, so unlike `debris_fallen` it does not
 ## count. Shows the escape still works with a door down.
 const CHECK_DOOR_FALLEN: String = "door_fallen"
+## On at least one tick of the replay the ship's centre was inside a burning
+## entry and its shield or hull went down on that tick (RUN-4, CMB-2, #517):
+## shows fire still burns the ship it touches. See `FireBurnCheck`.
+const CHECK_FIRE_BURNED: String = "fire_burned"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
-	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN]
+	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN,
+	CHECK_FIRE_BURNED]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
-	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN]
+	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN, CHECK_FIRE_BURNED]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0

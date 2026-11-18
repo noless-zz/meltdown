@@ -93,13 +93,29 @@ func test_the_shipped_suite_round_trips() -> String:
 func test_the_door_step_needs_a_door_down() -> String:
 	var results: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 0),
 		SeedPick.Flown.of(30, true, 2, 1), SeedPick.Flown.of(4, false, 2, 1)]
-	var picked: Dictionary = SeedPick.pick(results, 1, 300, true)
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, SeedPick.NEED_DOOR)
 	if picked.get("seed") != 30:
 		return "picked %s, expected seed 30" % picked
 	if SeedPick.pick(results).get("seed") != 9:
 		return "without the door rule picked %s" % SeedPick.pick(results)
 	var rock_only: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 0)]
-	var none: Dictionary = SeedPick.pick(rock_only, 1, 300, true)
+	var none: Dictionary = SeedPick.pick(rock_only, 1, 300, SeedPick.NEED_DOOR)
 	if not str(none.get("error", "")).contains("blast door"):
 		return "no door gave %s" % none
+	return ""
+
+
+## The fire step (#517) needs the bot to escape having been burnt: seed 9
+## escapes unburnt, 12 is burnt but lost, so 20 is picked; a burn alone is
+## enough, with no meltdown entry counted as fallen.
+func test_the_fire_step_needs_a_burn() -> String:
+	var results: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 1, 0),
+		SeedPick.Flown.of(12, false, 2, 0, 30), SeedPick.Flown.of(20, true, 0, 0, 4)]
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, SeedPick.NEED_BURN)
+	if picked.get("seed") != 20:
+		return "picked %s, expected seed 20" % picked
+	var unburnt: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 1, 0)]
+	var none: Dictionary = SeedPick.pick(unburnt, 1, 300, SeedPick.NEED_BURN)
+	if not str(none.get("error", "")).contains("burnt by fire"):
+		return "no burn gave %s" % none
 	return ""

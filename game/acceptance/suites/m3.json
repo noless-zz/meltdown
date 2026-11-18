@@ -26,6 +26,15 @@
 			"expected_hash": 1644261416,
 			"expected_level_hash": 590518961,
 			"expected_outcome": "ESCAPED"
+		},
+		{
+			"id": "bot_generated_fire_escape",
+			"seed": 1,
+			"replay": "res://acceptance/replays/bot_generated_fire_escape.replay",
+			"checks": ["final_hash", "level_hash", "outcome", "fire_burned"],
+			"expected_hash": 0,
+			"expected_level_hash": 0,
+			"expected_outcome": "ESCAPED"
 		}
 	]
 }

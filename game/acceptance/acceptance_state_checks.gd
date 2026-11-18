@@ -5,7 +5,7 @@ extends RefCounted
 ## the final hash, whether every robot is destroyed and whether the ship
 ## survived (gate G2, #334), how the run ended (#376) and whether any debris
 ## came down and the level was the pinned one (#460), and whether a blast door
-## did (#516). Kept apart from `AcceptanceRunner`, which drives
+## did (#516), and whether fire burnt the ship (#517, in `FireBurnCheck`). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
 ## Re-records the seed step after an intended data change, picking a new seed
@@ -36,6 +36,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return level_hash(step, session.replay, measurements)
 		AcceptanceStep.CHECK_DOOR_FALLEN:
 			return door_fallen(step.id, session.sim, measurements)
+		AcceptanceStep.CHECK_FIRE_BURNED:
+			return FireBurnCheck.run(step.id, session, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 

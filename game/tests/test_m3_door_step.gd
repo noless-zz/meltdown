@@ -40,7 +40,7 @@ var _quit_codes: Array[int] = []
 func test_record_when_asked() -> String:
 	if OS.get_environment(RECORD_SWITCH) != "1":
 		return ""
-	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, true)
+	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, SeedPick.NEED_DOOR)
 
 
 func test_the_step_names_its_seed_and_checks() -> String:

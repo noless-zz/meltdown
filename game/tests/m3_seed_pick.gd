@@ -9,7 +9,8 @@ extends RefCounted
 ## written into the suite file, which is the only place they live.
 ##
 ## The door step (#516) is chosen the same way, except that a blast door must
-## also be down when the bot gets out.
+## also be down when the bot gets out. The fire step (#517) needs the bot to
+## escape having been burnt by fire on the way (`FireBurnCheck`).
 ##
 ## `pick` and `rewrite_step` are pure, so the unit test checks them on
 ## hand-made input without flying anything.
@@ -22,43 +23,61 @@ const BotSweep := preload("res://tests/bot_escape_sweep.gd")
 ## The one command that re-records the m3 suite, from the repository root.
 const RECORD_COMMAND: String = AcceptanceStateChecks.RECORD_COMMAND
 const SUITE_PATH: String = "res://acceptance/suites/m3.json"
+## What a seed step needs besides the escape: a meltdown entry down (the first
+## seed step), a blast door down as well (#516), or a burn by fire (#517).
+const NEED_DEBRIS: String = "debris"
+const NEED_DOOR: String = "door"
+const NEED_BURN: String = "burn"
 
 
 ## How the bot flew one seed: whether it escaped, how many meltdown entries
 ## had fallen (or were held back by the route guard) and how many blast doors
-## were down when the run ended, which for an escape is before it.
+## were down when the run ended, which for an escape is before it, and on how
+## many ticks fire burnt the ship.
 class Flown extends RefCounted:
 	var level_seed: int = 0
 	var escaped: bool = false
 	var fallen: int = 0
 	var doors_fallen: int = 0
+	var burnt_ticks: int = 0
 	var session: LocalSession = null
 	var reason: String = ""
 
-	## `need_door` asks for a fallen blast door too, as the door step does.
-	func qualifies(need_door: bool = false) -> bool:
-		return escaped and fallen >= 1 and (doors_fallen >= 1 or not need_door)
+	## `need` is one of the NEED_ values. A burn is all the fire step asks
+	## for besides the escape; the other two need a meltdown entry down.
+	func qualifies(need: String = NEED_DEBRIS) -> bool:
+		if not escaped:
+			return false
+		match need:
+			NEED_BURN:
+				return burnt_ticks >= 1
+			NEED_DOOR:
+				return fallen >= 1 and doors_fallen >= 1
+		return fallen >= 1
 
-	static func of(level_seed: int, escaped: bool, fallen: int, doors_fallen: int = 0) -> Flown:
+	static func of(level_seed: int, escaped: bool, fallen: int, doors_fallen: int = 0,
+			burnt_ticks: int = 0) -> Flown:
 		var flown: Flown = Flown.new()
 		flown.level_seed = level_seed
 		flown.escaped = escaped
 		flown.fallen = fallen
 		flown.doors_fallen = doors_fallen
+		flown.burnt_ticks = burnt_ticks
 		return flown
 
 
 ## The lowest seed in `results` that qualifies, as {"seed": n}, or
 ## {"error": ...} naming the searched range when none does.
 static func pick(results: Array[Flown], first: int = SEARCH_FIRST, last: int = SEARCH_LAST,
-		need_door: bool = false) -> Dictionary:
+		need: String = NEED_DEBRIS) -> Dictionary:
 	var best: int = -1
 	for flown: Flown in results:
-		if flown.qualifies(need_door) and (best < 0 or flown.level_seed < best):
+		if flown.qualifies(need) and (best < 0 or flown.level_seed < best):
 			best = flown.level_seed
 	if best < 0:
-		return {"error": "no seed in %d..%d escapes with %s fallen" % [
-			first, last, "a blast door" if need_door else "a meltdown entry"]}
+		var wanted: String = {NEED_DOOR: "with a blast door fallen", NEED_BURN: "having been burnt by fire"} \
+			.get(need, "with a meltdown entry fallen")
+		return {"error": "no seed in %d..%d escapes %s" % [first, last, wanted]}
 	return {"seed": best}
 
 
@@ -76,7 +95,11 @@ static func fly(level_seed: int) -> Flown:
 	source.bot = BotPilot.new(session.sim, 0, level)
 	var sim: Sim = session.sim
 	while sim.outcome() == ExitRule.Outcome.RUNNING and sim.ships[0].hull > 0.0 and sim.tick < TICK_LIMIT:
+		var shield: float = sim.ships[0].shield
+		var hull: float = sim.ships[0].hull
 		session.advance(ShipState.TICK_DT)
+		if FireBurnCheck.burnt_this_tick(sim, shield, hull):
+			flown.burnt_ticks += 1
 	var measured: Dictionary = {}
 	AcceptanceStateChecks.debris_fallen(sim, measured)
 	AcceptanceStateChecks.door_fallen("", sim, measured)
@@ -84,17 +107,17 @@ static func fly(level_seed: int) -> Flown:
 	flown.fallen = int(measured.get("debris_fallen", 0))
 	flown.doors_fallen = int(measured.get("doors_fallen", 0))
 	flown.session = session
-	flown.reason = "outcome %s at tick %d, %d of %d entries and %d of %d doors fallen" % [
+	flown.reason = "outcome %s at tick %d, %d of %d entries and %d of %d doors fallen, burnt on %d ticks" % [
 		AcceptanceStateChecks.outcome_name(sim.outcome()), sim.tick, flown.fallen,
-		int(measured.get("debris", 0)), flown.doors_fallen, int(measured.get("doors", 0))]
+		int(measured.get("debris", 0)), flown.doors_fallen, int(measured.get("doors", 0)), flown.burnt_ticks]
 	return flown
 
 
 ## `current` if it still qualifies, otherwise the lowest qualifying seed in the
 ## search range. Returns {"flown": Flown} or {"error": ...}.
-static func choose(current: int, need_door: bool = false) -> Dictionary:
+static func choose(current: int, need: String = NEED_DEBRIS) -> Dictionary:
 	var kept: Flown = fly(current)
-	if kept.qualifies(need_door):
+	if kept.qualifies(need):
 		return {"flown": kept}
 	print("Meltdown: seed %d no longer qualifies (%s); searching %d..%d" % [
 		current, kept.reason, SEARCH_FIRST, SEARCH_LAST])
@@ -103,9 +126,9 @@ static func choose(current: int, need_door: bool = false) -> Dictionary:
 		var flown: Flown = kept if level_seed == current else fly(level_seed)
 		results.append(flown)
 		# Seeds are flown in order, so the first that qualifies is the lowest.
-		if flown.qualifies(need_door):
+		if flown.qualifies(need):
 			break
-	var picked: Dictionary = pick(results, SEARCH_FIRST, SEARCH_LAST, need_door)
+	var picked: Dictionary = pick(results, SEARCH_FIRST, SEARCH_LAST, need)
 	if picked.has("error"):
 		return picked
 	for flown: Flown in results:
@@ -146,11 +169,11 @@ static func find_step(step_id: String) -> AcceptanceStep:
 ## Re-records seed step `step_id`: keeps or picks its seed (`choose`), writes
 ## the inputs to `replay_path` under `header` and the seed and both hashes into
 ## the suite. Returns "" or what went wrong; nothing is written on failure.
-static func record(step_id: String, replay_path: String, header: String, need_door: bool) -> String:
+static func record(step_id: String, replay_path: String, header: String, need: String) -> String:
 	var found: AcceptanceStep = find_step(step_id)
 	if found == null:
 		return "%s has no step %s; nothing recorded" % [SUITE_PATH, step_id]
-	var chosen: Dictionary = choose(found.level_seed, need_door)
+	var chosen: Dictionary = choose(found.level_seed, need)
 	if chosen.has("error"):
 		return "%s: %s; nothing recorded" % [step_id, chosen["error"]]
 	var flown: Flown = chosen["flown"]

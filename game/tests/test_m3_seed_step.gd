@@ -53,7 +53,7 @@ static func step() -> AcceptanceStep:
 func test_record_when_asked() -> String:
 	if OS.get_environment(RECORD_SWITCH) != "1":
 		return ""
-	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, false)
+	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, SeedPick.NEED_DEBRIS)
 
 
 func test_the_step_names_its_seed_and_checks() -> String:
