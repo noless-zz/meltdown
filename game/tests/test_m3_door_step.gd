@@ -6,10 +6,11 @@ extends RefCounted
 ## `bot_generated_escape` the replay holds only inputs and the level is built
 ## from the seed each run; the seed and hashes live only in `m3.json`.
 ##
-## Re-recording uses the same one command as the other m3 steps, from the
-## repository root:
+## Re-recording this step only, from the repository root (the switch takes a
+## comma-separated list of step ids, see `record_switch.gd`; `1` records every
+## m3 step):
 ##
-##     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+##     MELTDOWN_RECORD_M3=bot_generated_door_escape godot --headless --path game -s res://tests/run_tests.gd
 ##
 ## It keeps the step's seed while the bot still escapes it with a door down,
 ## otherwise picks the lowest seed in 1..300 that does (`m3_seed_pick.gd`).
@@ -17,6 +18,7 @@ extends RefCounted
 const STEP_ID: String = "bot_generated_door_escape"
 const REPLAY_PATH: String = "res://acceptance/replays/bot_generated_door_escape.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
+const RecordSwitch := preload("res://tests/record_switch.gd")
 ## The escape takes a few thousand ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 40000
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
@@ -25,8 +27,8 @@ const REPLAY_HEADER: String = """# The bot pilot's escape from the m3 suite's bl
 # the reactor destroyed, at least one blast door down, out through the entrance.
 # Inputs only: the m3 suite builds the level from the seed in m3.json and the
 # shipped data files. Re-record from the repository root; the recorder picks the
-# seed and writes the seed and hashes into m3.json itself:
-#     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+# seed and writes the seed and hashes into m3.json itself. Records this step only:
+#     MELTDOWN_RECORD_M3=bot_generated_door_escape godot --headless --path game -s res://tests/run_tests.gd
 """
 ## One sphere, one door and one fire, all due one second after the meltdown.
 const DEBRIS: String = """[{"position": [0, 0, -10], "radius": 1, "after_seconds": 1},
@@ -36,9 +38,9 @@ const DEBRIS: String = """[{"position": [0, 0, -10], "radius": 1, "after_seconds
 var _quit_codes: Array[int] = []
 
 
-## Off unless RECORD_SWITCH is set; see the top of this file.
+## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
 func test_record_when_asked() -> String:
-	if OS.get_environment(RECORD_SWITCH) != "1":
+	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
 	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, true)
 

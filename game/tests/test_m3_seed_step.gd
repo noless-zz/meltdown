@@ -12,10 +12,10 @@ extends RefCounted
 ##
 ## The seed, the hash and the level hash live only in the step in
 ## `acceptance/suites/m3.json`. Re-recording after an intended change (one
-## command, from the repository root; it re-records the G2 step in
-## `test_m3_suite.gd` too):
+## command, from the repository root; only the steps listed are re-recorded,
+## see `record_switch.gd`, and `MELTDOWN_RECORD_M3=1` records every m3 step):
 ##
-##     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+##     MELTDOWN_RECORD_M3=bot_generated_escape godot --headless --path game -s res://tests/run_tests.gd
 ##
 ## It keeps the suite's seed if the bot still escapes it with an entry down,
 ## otherwise picks the lowest seed that does (`m3_seed_pick.gd`), overwrites
@@ -27,6 +27,7 @@ const STEP_ID: String = "bot_generated_escape"
 const DOOR_STEP_ID: String = "bot_generated_door_escape"
 const REPLAY_PATH: String = "res://acceptance/replays/bot_generated_escape.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
+const RecordSwitch := preload("res://tests/record_switch.gd")
 const ROBOTS_FILE: String = "res://data/gen/robots.json"
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 ## Biased placement (#438) means `generator.json` can change any seed; the
@@ -41,8 +42,8 @@ const REPLAY_HEADER: String = """# The bot pilot's escape from the m3 suite's ge
 # and the reactor destroyed, debris falling, out through the entrance. Inputs
 # only: the m3 suite builds the level from the seed in m3.json and the shipped
 # data files. Re-record from the repository root; the recorder picks the seed and
-# writes the seed and hashes into m3.json itself:
-#     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+# writes the seed and hashes into m3.json itself. Records this step only:
+#     MELTDOWN_RECORD_M3=bot_generated_escape godot --headless --path game -s res://tests/run_tests.gd
 """
 
 var _quit_codes: Array[int] = []
@@ -52,9 +53,9 @@ static func step() -> AcceptanceStep:
 	return SeedPick.find_step(STEP_ID)
 
 
-## Off unless RECORD_SWITCH is set; see the top of this file.
+## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
 func test_record_when_asked() -> String:
-	if OS.get_environment(RECORD_SWITCH) != "1":
+	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
 	# Never the door step's seed (#548): two steps on one seed cover one level.
 	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, false,

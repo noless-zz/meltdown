@@ -5,10 +5,11 @@ extends RefCounted
 ## six types, with the ship still alive at the end.
 ##
 ## Re-recording after an intended change to the simulation, the bot, the ship
-## or robot data, or the level (one command, from the repository root; it
-## also re-records the test tunnel replay, see `test_m2_suite.gd`):
+## or robot data, or the level (one command, from the repository root; only
+## the steps listed are re-recorded, see `record_switch.gd`, and
+## `MELTDOWN_RECORD_M2=1` also re-records the test tunnel, see `test_m2_suite.gd`):
 ##
-##     MELTDOWN_RECORD_M2=1 godot --headless --path game -s res://tests/run_tests.gd
+##     MELTDOWN_RECORD_M2=bot_clears_g2_level godot --headless --path game -s res://tests/run_tests.gd
 ##
 ## It flies the bot in a session built as the main scene builds one for
 ## `--level=g2`, overwrites `acceptance/replays/bot_g2_level.replay` and prints
@@ -21,14 +22,16 @@ const STEP_ID: String = "bot_clears_g2_level"
 const REPLAY_PATH: String = "res://acceptance/replays/bot_g2_level.replay"
 const LEVEL: String = "g2"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M2"
+const RecordSwitch := preload("res://tests/record_switch.gd")
 ## Four minutes of flight; the bot needs a little over one.
 const TICK_LIMIT: int = 14400
 const ROBOT_TYPES: Array[String] = ["needler", "drone", "skimmer", "glider", "hauler", "warden"]
 const Main := preload("res://main.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
 const REPLAY_HEADER: String = """# The bot pilot clearing the G2 level (#334), flown in the m2 suite.
-# Re-record from the repository root, then copy the printed hash into m2.json:
-#     MELTDOWN_RECORD_M2=1 godot --headless --path game -s res://tests/run_tests.gd
+# Re-record this step only from the repository root, then copy the printed hash
+# into m2.json:
+#     MELTDOWN_RECORD_M2=bot_clears_g2_level godot --headless --path game -s res://tests/run_tests.gd
 """
 
 
@@ -75,9 +78,9 @@ static func step() -> AcceptanceStep:
 	return null
 
 
-## Off unless RECORD_SWITCH is set; see the top of this file.
+## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
 func test_record_when_asked() -> String:
-	if OS.get_environment(RECORD_SWITCH) != "1":
+	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
 	var session: LocalSession = record()
 	session.replay.expected_hash = session.sim.state_hash()
