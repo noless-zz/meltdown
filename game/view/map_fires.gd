@@ -18,8 +18,11 @@ extends Node3D
 ## node's space, and the look is handed in by the owner from its look file
 ## (ARC-4). This node only draws; it holds no simulation object (MP-2).
 ##
-## `inside` keeps only the fires within given boxes, so the owner can hide
-## fires in unexplored space when the look's `fires_explored_only` says so (#562).
+## `inside` keeps only the fires that reach into given boxes, so the owner can
+## hide fires in unexplored space when the look's `fires_explored_only` says so
+## (#562). A fire counts by its whole sphere, not its centre (#577): one centred
+## in rock still burns a ship in the tunnel its sphere reaches, and the mark
+## warns about danger in a tunnel the pilot knows.
 
 const MESH_NAME: String = "FireMarkers"
 ## Vertices of one marker: 8 triangles, no shared vertices.
@@ -95,19 +98,28 @@ func mesh_node() -> MeshInstance3D:
 	return _mesh_node
 
 
-## The fires of `centres_m` (with their `radii_m`) whose centre lies in one of
-## `boxes`, in the order given, as `[centres, radii]`. A missing radius stays 0.
+## The fires of `centres_m` (with their `radii_m`) whose sphere meets one of
+## `boxes`, in the order given, as `[centres, radii]`. A missing radius stays 0,
+## so such a fire is kept only if its centre lies in a box.
 static func inside(centres_m: PackedVector3Array, radii_m: PackedFloat32Array,
 		boxes: Array[AABB]) -> Array:
 	var centres: PackedVector3Array = PackedVector3Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()
 	for i: int in centres_m.size():
+		var radius: float = maxf(radii_m[i], 0.0) if i < radii_m.size() else 0.0
 		for box: AABB in boxes:
-			if box.has_point(centres_m[i]):
+			if sphere_meets(centres_m[i], radius, box):
 				centres.append(centres_m[i])
 				radii.append(radii_m[i] if i < radii_m.size() else 0.0)
 				break
 	return [centres, radii]
+
+
+## Whether the sphere at `centre` with `radius` meets `box`: the box's closest
+## point to the centre is no farther than the radius. A touching sphere meets.
+static func sphere_meets(centre: Vector3, radius: float, box: AABB) -> bool:
+	var closest: Vector3 = centre.clamp(box.position, box.end)
+	return closest.distance_squared_to(centre) <= radius * radius
 
 
 ## Triangles of an octahedron centred on `centre`, `size` from tip to tip.
