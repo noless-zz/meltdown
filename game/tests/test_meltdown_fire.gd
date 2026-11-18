@@ -172,6 +172,38 @@ func test_no_burn_before_the_fall_tick() -> String:
 	return ""
 
 
+## Two ships in one fire (#518): the one with a point of hull dies, then lies in it untouched
+## (a shield set on the wreck shows no `apply_damage` call) while the other burns on.
+func test_a_destroyed_ship_takes_no_more_fire() -> String:
+	var sim: Sim = Sim.new(480, 2, BoxBounds.new(Vector3(-20, -20, -40), Vector3(20, 20, 20)))
+	sim.set_reactor(ReactorState.parse_json(FAR_REACTOR_JSON))
+	sim.set_debris(MeltdownDebris.parse_json(FIRE_SPHERE))
+	var idle: Array[ShipInput] = [ShipInput.new(), ShipInput.new()]
+	sim.step(idle)
+	var wreck: ShipState = sim.ships[0]
+	var live: ShipState = sim.ships[1]
+	wreck.position = CENTRE + Vector3(-1, 0, 0)
+	live.position = CENTRE + Vector3(1, 0, 0)
+	wreck.shield_recharge = 0.0
+	live.shield_recharge = 0.0
+	wreck.shield = 0.0
+	wreck.hull = 1.0
+	sim.reactor.apply_damage(40.0)
+	for i: int in 2:
+		sim.step(idle)
+	if wreck.hull != 0.0:
+		return "the fire left the wreck with hull %s" % wreck.hull
+	wreck.shield = 5.0
+	var shield_before: float = live.shield
+	for i: int in 60:
+		sim.step(idle)
+	if wreck.hull != 0.0 or wreck.shield != 5.0:
+		return "the wreck burnt on: shield %s hull %s" % [wreck.shield, wreck.hull]
+	if not is_equal_approx(live.shield, shield_before - 30.0):
+		return "the live ship's shield went %s -> %s, expected 30 less" % [shield_before, live.shield]
+	return ""
+
+
 ## Through a burning box at 30 m/s: no bounce, no wall hit, out the far side,
 ## a little burnt.
 func test_a_ship_flies_through_fire_without_bouncing() -> String:
