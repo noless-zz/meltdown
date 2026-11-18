@@ -86,9 +86,11 @@ The cause inside Mesa was not investigated further.
 
 1. It proves that the OpenXR start-up path runs, not that the picture is right. The null
    compositor throws every frame away; nothing is looked at or compared.
-2. The simulated headset has no controllers, so `XRController3D` nodes never track and
-   the action map is only loaded, not used. Monado has `SIMULATED_LEFT` and
-   `SIMULATED_RIGHT` switches; they were not tried (out of scope for #26).
+2. Since issue #571 the run starts two simulated `Simple Controller`s, the action map
+   binds their profile, and the script fails unless both hands track. Only the pose
+   actions are bound for that profile, so buttons, sticks and haptics are not exercised,
+   and the Quest's own Touch bindings are checked by a unit test, not by the run.
+   (Before #571 the simulated headset had no controllers and the hands never tracked.)
 3. The only refresh rate is 20 Hz, so the 90 Hz branch in `main.gd` (PRF-1) is not taken.
 4. Software rendering says nothing about performance (PRF requirements) and is desktop
    Vulkan, not the Quest's Android driver. Foveation and every Meta-specific extension
@@ -113,8 +115,8 @@ The cause inside Mesa was not investigated further.
 
 ## Possible follow-ups (not started)
 
-- Simulated controllers through `SIMULATED_LEFT` and `SIMULATED_RIGHT`, to check that
-  both hands track.
+(Simulated controllers, once listed here, were done in issues #559 and #571.)
+
 - End the session cleanly before quitting to remove the `xrEndSession` error.
 
 ## Addendum 2026-11-18: simulated controllers (issue #559)
@@ -142,3 +144,12 @@ Tried in an `ubuntu:26.04` container with the runner's packages (Monado
 So `tools/xr_smoke.sh` now starts Monado with two simple controllers and prints the two
 values, but does not fail on them. Limit 2 above stays until issue #571 adds the
 simple-controller profile to the action map and makes the script check both hands.
+
+Update (issue #571): `game/openxr_action_map.tres` now has a
+`/interaction_profiles/khr/simple_controller` profile binding `default_pose` and
+`aim_pose` to `/user/hand/{left,right}/input/aim/pose` and `grip_pose` to
+`.../grip/pose`, the same pose paths the Touch profile uses. `default_pose` is the pose the
+rig's `XRController3D` nodes follow. The hands are now tracked and checked:
+`tools/xr_smoke.sh` fails, naming the hand, when `left_tracked` or `right_tracked` is
+false. `game/tests/test_xr_action_map.gd` pins the Touch profile's bindings so the
+addition cannot change what the Quest uses. Limit 2 above is rewritten accordingly.
