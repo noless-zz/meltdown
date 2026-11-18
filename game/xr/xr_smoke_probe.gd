@@ -13,6 +13,8 @@ const LINE_PREFIX: String = "MELTDOWN_XR_SMOKE "
 
 var _frames_total: int = 0
 var _frames_seen: int = 0
+var _left_tracked: bool = false
+var _right_tracked: bool = false
 
 
 ## Frame count asked for on the command line; 0 means the switch is off.
@@ -29,13 +31,18 @@ static func frames_from_args(args: PackedStringArray) -> int:
 
 
 ## One line a shell script can find and parse: the prefix, then JSON.
-static func format_line(session: bool, runtime: String, views: int, refresh_rate: float, frames: int) -> String:
+## The hand flags default to false so a caller that never watched the hands
+## cannot claim tracking (issue #559).
+static func format_line(session: bool, runtime: String, views: int, refresh_rate: float, frames: int,
+		left_tracked: bool = false, right_tracked: bool = false) -> String:
 	var report: Dictionary = {
 		"session": session,
 		"runtime": runtime,
 		"views": views,
 		"refresh_rate": refresh_rate,
 		"frames": frames,
+		"left_tracked": left_tracked,
+		"right_tracked": right_tracked,
 	}
 	return LINE_PREFIX + JSON.stringify(report)
 
@@ -50,6 +57,31 @@ func is_enabled() -> bool:
 
 func frames_seen() -> int:
 	return _frames_seen
+
+
+func left_tracked() -> bool:
+	return _left_tracked
+
+
+func right_tracked() -> bool:
+	return _right_tracked
+
+
+## Records this frame's hand state. A hand counts as tracked once it has
+## reported a pose on any frame, because a simulated controller may drop out
+## again before the run ends and the question is whether tracking works at all.
+func note_hands(left: bool, right: bool) -> void:
+	if not is_enabled():
+		return
+	_left_tracked = _left_tracked or left
+	_right_tracked = _right_tracked or right
+
+
+## Asks both controller nodes whether their tracker has a pose this frame.
+## A missing node counts as untracked.
+func watch_hands(left: XRController3D, right: XRController3D) -> void:
+	note_hands(left != null and left.get_has_tracking_data(),
+		right != null and right.get_has_tracking_data())
 
 
 ## Counts one frame. Returns true exactly once, on the frame that reaches the
@@ -72,4 +104,5 @@ func report(session_begun: bool) -> String:
 		runtime = str(openxr.get_system_info().get("XRRuntimeName", ""))
 		views = openxr.get_view_count()
 		refresh_rate = openxr.display_refresh_rate
-	return XrSmokeProbe.format_line(session_begun, runtime, views, refresh_rate, frames_seen())
+	return XrSmokeProbe.format_line(session_begun, runtime, views, refresh_rate, frames_seen(),
+		_left_tracked, _right_tracked)

@@ -23,6 +23,15 @@ export XR_RUNTIME_JSON="${XR_RUNTIME_JSON:-/usr/share/openxr/1/openxr_monado.jso
 # headset attached Monado creates its "Simulated HMD" by itself.
 export XRT_COMPOSITOR_NULL=1
 export XRT_LOG="${XRT_LOG:-info}"
+# Simulated controllers for both hands (issue #559). Monado 25 reads
+# SIMULATED_ENABLE, SIMULATED_LEFT and SIMULATED_RIGHT. Of the hand values,
+# simple, wmr and ml2 were tried and all create two controllers; "simple"
+# offers /interaction_profiles/khr/simple_controller. The game's action map has
+# no binding for that profile yet (issue #571), so the hands do not track and the result is
+# only printed; see the addendum in docs/decisions/0002-monado-in-ci.md.
+export SIMULATED_ENABLE=1
+export SIMULATED_LEFT="${SIMULATED_LEFT:-simple}"
+export SIMULATED_RIGHT="${SIMULATED_RIGHT:-simple}"
 
 # The service watches stdin for a quit key and fails to start when stdin is
 # not pollable (as with /dev/null), so it is given a pipe that stays open.
@@ -67,6 +76,10 @@ echo "$line" > "$log_dir/result.txt"
 json="${line#MELTDOWN_XR_SMOKE }"
 session="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["session"])')"
 views="$(printf '%s' "$json" | python3 -c 'import json,sys; print(int(json.load(sys.stdin)["views"]))')"
+hands="$(printf '%s' "$json" | python3 -c 'import json,sys; r=json.load(sys.stdin); print("left_tracked=%s right_tracked=%s" % (r.get("left_tracked"), r.get("right_tracked")))')"
+# Reported only, never a failure, until the action map binds a profile the
+# simulated controllers offer (decision record 0002, addendum).
+echo "xr_smoke: simulated controllers $hands (not checked)"
 if [ "$session" != "True" ] || [ "$views" -lt 2 ]; then
 	echo "xr_smoke: no OpenXR session with two views (session=$session views=$views)" >&2
 	exit 1
