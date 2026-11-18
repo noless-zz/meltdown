@@ -173,6 +173,7 @@ func test_empty_level_fails() -> String:
 func test_seeds_1_to_1000_pass_in_under_20_s() -> String:
 	var result: Dictionary = SeedSweep.run(1, SEEDS)
 	print(SeedSweep.summary(result))
+	print(SeedSweep.timing(result))
 	if result["failed"] != 0:
 		return "%d seeds failed, first: %s" % [result["failed"], result["failures"]]
 	if result["passed"] != SEEDS:
