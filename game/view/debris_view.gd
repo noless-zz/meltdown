@@ -19,11 +19,18 @@ extends Node3D
 ## slab of its size with its own `slab_*` look, going through the same hidden,
 ## warning and solid stages. A held box is not drawn at all: a see-through
 ## slab across an opening would read as a door, and the route there is open.
+##
+## A fire entry (#496) is drawn in its own shape and size, see-through and
+## glowing in the `fire_*` look, from its fall tick on (`BURNING`). Before that it
+## shows the sphere warning look, so every coming danger warns alike; a held fire
+## is not drawn. Its glow flickers with the tick it is handed, never with the
+## clock, so a paused session draws the same frame (CMF-8). The view adds no
+## collision and no full-screen pass (GFX-6).
 
 const NODE_NAME: String = "DebrisView"
 const ENTRY_PREFIX: String = "Debris"
 
-enum EntryState { HIDDEN, WARNING, SOLID, HELD }
+enum EntryState { HIDDEN, WARNING, SOLID, HELD, BURNING }
 
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
@@ -39,9 +46,13 @@ var _held_material: StandardMaterial3D
 var _slab_mesh: BoxMesh
 var _slab_material: StandardMaterial3D
 var _slab_warn_material: StandardMaterial3D
+var _fire_material: StandardMaterial3D
 var _entries: Array[MeshInstance3D] = []
 var _states: Array[EntryState] = []
 var _boxes: Array[bool] = []
+var _fires: Array[bool] = []
+## The tick the fire glow was last set for.
+var _fire_tick: int = 0
 
 
 func _init() -> void:
@@ -51,6 +62,7 @@ func _init() -> void:
 	_held_material = _new_material(true)
 	_slab_material = _new_material(false)
 	_slab_warn_material = _new_material(true)
+	_fire_material = _new_material(true)
 	# More facets read as a whole rock; fewer, as a broken one.
 	_rock_mesh = _build_mesh(10, 5)
 	_cracked_mesh = _build_mesh(5, 3)
@@ -82,6 +94,8 @@ func load_look(path: String = DebrisLook.DEFAULT_FILE) -> String:
 	_paint(_slab_material, _look["slab_color"], float(_look["slab_energy"]), 1.0)
 	_paint(_slab_warn_material, _look["slab_warn_color"], float(_look["slab_warn_energy"]),
 		float(_look["slab_warn_alpha"]))
+	_paint(_fire_material, _look["fire_color"], DebrisLook.fire_energy_at(_look, _fire_tick),
+		float(_look["fire_alpha"]))
 	return look_error
 
 
@@ -95,13 +109,16 @@ func look() -> Dictionary:
 ## call every frame, and nodes past the last entry are freed. An entry with
 ## a radius of zero or less is hidden. `sizes_m` (the snapshot's `sizes_m` key)
 ## gives a box entry's full size and zero for a sphere; a missing or shorter
-## array makes the remaining entries spheres, as before boxes.
-func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Array[bool], held: Array[bool], seconds_to_fall: Array[float], sizes_m: Array[Vector3] = []) -> void:
+## array makes the remaining entries spheres, as before boxes. `kinds` (the
+## snapshot's `kinds` key) marks fire entries; without it none is fire. `tick` is
+## the simulation tick the snapshot was taken at, which drives the fire flicker.
+func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Array[bool], held: Array[bool], seconds_to_fall: Array[float], sizes_m: Array[Vector3] = [], kinds: Array[String] = [], tick: int = 0) -> void:
 	var count: int = mini(mini(positions_m.size(), radii_m.size()), mini(mini(solid.size(), held.size()), seconds_to_fall.size()))
 	while _entries.size() > count:
 		var extra: MeshInstance3D = _entries.pop_back()
 		_states.pop_back()
 		_boxes.pop_back()
+		_fires.pop_back()
 		remove_child(extra)
 		extra.free()
 	while _entries.size() < count:
@@ -112,14 +129,19 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 		_entries.append(entry)
 		_states.append(EntryState.HIDDEN)
 		_boxes.append(false)
+		_fires.append(false)
 	for index: int in count:
 		var size_m: Vector3 = sizes_m[index] if index < sizes_m.size() else Vector3.ZERO
 		var is_box: bool = size_m != Vector3.ZERO
+		var is_fire: bool = index < kinds.size() and kinds[index] == MeltdownFire.KIND_FIRE
 		var state: EntryState = box_state_for(size_m, solid[index], held[index], seconds_to_fall[index]) \
 			if is_box else state_for(radii_m[index], solid[index], held[index], seconds_to_fall[index])
+		if is_fire:
+			state = fire_state_for(radii_m[index], size_m, held[index], seconds_to_fall[index])
 		var entry: MeshInstance3D = _entries[index]
 		_states[index] = state
 		_boxes[index] = is_box
+		_fires[index] = is_fire
 		entry.visible = state != EntryState.HIDDEN
 		entry.position = positions_m[index]
 		if is_box:
@@ -130,6 +152,11 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 			entry.scale = Vector3.ONE * maxf(radii_m[index], 0.001)
 			entry.mesh = _cracked_mesh if state == EntryState.HELD else _rock_mesh
 			entry.material_override = material_for(state)
+		if is_fire:
+			entry.material_override = fire_material_for(state)
+	if tick != _fire_tick:
+		_fire_tick = tick
+		_fire_material.emission_energy_multiplier = DebrisLook.fire_energy_at(_look, tick)
 
 
 ## Which look an entry gets. Held wins over solid: a held entry never fell.
@@ -150,6 +177,18 @@ func box_state_for(size_m: Vector3, solid: bool, held: bool, seconds_to_fall: fl
 	return _falling_state(solid, seconds_to_fall)
 
 
+## Which look a fire entry gets: hidden when held or of no size, burning from
+## its fall, and the shared warning within `warn_seconds` before it.
+func fire_state_for(radius_m: float, size_m: Vector3, held: bool, seconds_to_fall: float) -> EntryState:
+	var empty: bool = minf(size_m.x, minf(size_m.y, size_m.z)) <= 0.0 \
+		if size_m != Vector3.ZERO else radius_m <= 0.0
+	if held or empty:
+		return EntryState.HIDDEN
+	if seconds_to_fall <= 0.0:
+		return EntryState.BURNING
+	return _falling_state(false, seconds_to_fall)
+
+
 func _falling_state(solid: bool, seconds_to_fall: float) -> EntryState:
 	if solid:
 		return EntryState.SOLID
@@ -167,6 +206,17 @@ func material_for(state: EntryState) -> StandardMaterial3D:
 			return _warn_material
 		EntryState.HELD:
 			return _held_material
+	return null
+
+
+## The material for a fire entry's state, whatever its shape: the sphere
+## warning, the fire look once burning, null otherwise.
+func fire_material_for(state: EntryState) -> StandardMaterial3D:
+	match state:
+		EntryState.WARNING:
+			return _warn_material
+		EntryState.BURNING:
+			return _fire_material
 	return null
 
 
@@ -194,6 +244,10 @@ func entry_state(index: int) -> EntryState:
 
 func entry_is_box(index: int) -> bool:
 	return _boxes[index]
+
+
+func entry_is_fire(index: int) -> bool:
+	return _fires[index]
 
 
 ## Radius of the drawn sphere of entry `index`, metres; zero for a box.

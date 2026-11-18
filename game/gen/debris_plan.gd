@@ -28,12 +28,17 @@ extends RefCounted
 ## each centred in one of those modules' boxes or in an opening between two of
 ## them. Whether an entry may really fall is not decided here:
 ## `DebrisRouteGuard` holds back any that would close the last route out when
-## it falls due.
+## it falls due. What is decided here (#493) is that the escape still fits the
+## countdown once the entries the guard lets fall are down: `place` drops
+## entries until `DebrisEscape` passes, with `escape_validator`'s speed and
+## margin.
 
 const KEYS: Array[String] = ["count", "radius", "after_seconds", "min_start_distance",
 		"min_reactor_distance", "min_robot_distance", "latest_fall_fraction"]
 ## The optional `doors` section (#462), read by `DebrisDoors`; without it no doors.
 const DOORS_KEY: String = "doors"
+## The optional `fires` section (#497), read by `DebrisFires`; without it no fire.
+const FIRES_KEY: String = "fires"
 ## Largest radius an entry may have, metres: a cave-in, not a wall of rock.
 const MAX_RADIUS_M: float = 20.0
 ## Latest an entry may fall, seconds after the reactor dies.
@@ -58,6 +63,13 @@ var min_robot_distance_mm: int = 0
 var latest_fall_fraction: float = 1.0
 ## Blast doors to place after the spheres (#462), or null without a section.
 var doors: DebrisDoors = null
+## Fires to place after the trimming (#497), or null without a section.
+var fires: DebrisFires = null
+## Whose `escape_speed_mps` and `escape_margin` the escape with debris fallen
+## must keep (#493). The defaults are `validator.json`'s; `SeedLevel` hands over
+## the file it read, so the placing and the check that follows agree. Null
+## leaves the entries as drawn, for tests that compare.
+var escape_validator: LevelValidator = LevelValidator.new()
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -71,7 +83,7 @@ static func parse_json(text: String) -> DebrisPlan:
 	if typeof(json.data) != TYPE_DICTIONARY:
 		plan.error = "top level must be a JSON object"
 		return plan
-	plan.error = plan._read(json.data)
+	plan.error = DebrisPlanFile.read(plan, json.data)
 	return plan
 
 
@@ -144,6 +156,16 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 	var door_note: String = "" if doors == null else doors.place(generator, level, debris, robot_radii, limit)
 	if door_note != "":
 		notes.append(door_note)
+	var dropped: int = 0 if escape_validator == null else DebrisEscape.trim(level, debris,
+			ship_radius, escape_validator.escape_speed_mps, escape_validator.escape_margin)
+	if dropped > 0:
+		notes.append("%d debris entries dropped to keep the escape in time" % dropped)
+	# Fire goes in after the trimming: it never closes an opening, so it cannot
+	# lengthen the escape, and the solid entries stay those a plan without fire
+	# keeps (#497).
+	var fire_note: String = "" if fires == null else fires.place(generator, level, debris, robot_radii, limit)
+	if fire_note != "":
+		notes.append(fire_note)
 	generator.debris_note = "; ".join(notes)
 	return null if debris.size() == 0 else debris
 
@@ -205,62 +227,6 @@ func fits(point_mm: Vector3i, radius_mm: int, level: LevelDef) -> bool:
 			< _squared(radius_mm + min_reactor_distance_mm + level.reactor.radius_mm):
 		return false
 	return true
-
-
-func _read(data: Dictionary) -> String:
-	var unknown: Array[String] = []
-	for key: Variant in data:
-		if not KEYS.has(key) and key != DOORS_KEY:
-			unknown.append("\"%s\"" % str(key))
-	if not unknown.is_empty():
-		return "unknown key %s" % ", ".join(unknown)
-	var missing: Array[String] = []
-	for key: String in KEYS:
-		if not data.has(key):
-			missing.append("\"%s\"" % key)
-	if not missing.is_empty():
-		return "missing key %s" % ", ".join(missing)
-	var counts: Array[int] = []
-	var problem: String = _read_range(data["count"], "count", 1.0, 0.0, 1000.0, "a whole number", counts)
-	if problem != "":
-		return problem
-	var radii: Array[int] = []
-	problem = _read_range(data["radius"], "radius", RobotSpawn.SCALE, 0.001, MAX_RADIUS_M, "metres", radii)
-	if problem != "":
-		return problem
-	var ticks: Array[int] = []
-	problem = _read_range(data["after_seconds"], "after_seconds", MeltdownDebris.TICKS_PER_SECOND,
-		1.0 / MeltdownDebris.TICKS_PER_SECOND, MAX_AFTER_SECONDS, "seconds", ticks)
-	if problem != "":
-		return problem
-	var distances: Array[int] = []
-	for key: String in ["min_start_distance", "min_reactor_distance", "min_robot_distance"]:
-		var value: Variant = data[key]
-		if not _is_number(value) or float(value) < 0.0 or float(value) > MAX_DISTANCE_M:
-			return "%s must be a number of metres from 0 to %s" % [key, MAX_DISTANCE_M]
-		distances.append(roundi(float(value) * RobotSpawn.SCALE))
-	var fraction: Variant = data["latest_fall_fraction"]
-	if not _is_number(fraction) or float(fraction) < MIN_FALL_FRACTION \
-			or float(fraction) > MAX_FALL_FRACTION:
-		return "latest_fall_fraction must be a number from %s to %s" \
-				% [MIN_FALL_FRACTION, MAX_FALL_FRACTION]
-	min_count = counts[0]
-	max_count = counts[1]
-	min_radius_mm = radii[0]
-	max_radius_mm = radii[1]
-	min_after_ticks = ticks[0]
-	max_after_ticks = ticks[1]
-	min_start_distance_mm = distances[0]
-	min_reactor_distance_mm = distances[1]
-	min_robot_distance_mm = distances[2]
-	latest_fall_fraction = float(fraction)
-	if data.has(DOORS_KEY):
-		var read: Array[DebrisDoors] = []
-		var problem_doors: String = DebrisDoors.read(data[DOORS_KEY], read)
-		if problem_doors != "":
-			return problem_doors
-		doors = read[0]
-	return ""
 
 
 ## Reads `[lowest, highest]` into `into` as whole units of 1/`scale`. With a

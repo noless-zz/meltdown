@@ -43,6 +43,7 @@ func test_snapshot_carries_sizes_and_keeps_sphere_values() -> String:
 		SessionSnapshots.DEBRIS_SOLID: [true, false] as Array[bool],
 		SessionSnapshots.DEBRIS_HELD: [false, false] as Array[bool],
 		SessionSnapshots.DEBRIS_SECONDS: [0.0, 2.0] as Array[float],
+		SessionSnapshots.DEBRIS_KINDS: [MeltdownFire.KIND_SOLID, MeltdownFire.KIND_SOLID] as Array[String],
 	}
 	if spheres.keys().size() != want.keys().size():
 		return "sphere-only snapshot has keys %s" % [spheres.keys()]

@@ -7,8 +7,12 @@
 #       Prints "FIRST COUNT" for shard INDEX (0-based) of SHARDS over seeds
 #       1..SEEDS. COUNT is 0 for a shard with nothing left to fly.
 #   tools/bot_escape_rate.sh combine SEEDS FILE...
-#       Reads each shard's sweep output, adds the counts and prints one line:
-#       "bot escape rate: E escaped of C cleared = R over N seeds (robots, debris)".
+#       Reads each shard's sweep output, adds the counts and prints two lines:
+#       "bot escape rate: E escaped of C cleared = R over N seeds (robots, debris)"
+#       "bot clear rate: C cleared of N seeds (L lost before the reactor, T out of
+#       ticks, R without a reactor)" (#495), where R is what is left of N, then a
+#       GitHub ::warning:: line when fewer than 100 levels were cleared, since the
+#       rate then rests on a small sample. Only escaped over cleared is judged.
 #       Exits 1 when a file has no summary line, more than one, one that does not
 #       parse, one from a run without robots or debris, when the seeds do not add
 #       up to SEEDS, when nothing was cleared, or when the rate is below 0.95.
@@ -21,6 +25,9 @@ tag="MELTDOWN_BOT_ESCAPE"
 # G3's bar, as REQUIRED_RATE in game/tests/bot_escape_sweep.gd, in hundredths so
 # the comparison stays in whole numbers.
 required_hundredths=95
+# Fewer cleared levels than this and a single escape moves the rate by over a
+# point, so the summary warns; it does not fail, the bar stays escaped/cleared.
+small_sample=100
 
 fail() {
 	echo "$*" >&2
@@ -47,7 +54,7 @@ range() {
 	echo "$first $count"
 }
 
-# Prints "SEEDS CLEARED ESCAPED" from one sweep output file.
+# Prints "SEEDS CLEARED ESCAPED LOST TIMED_OUT" from one sweep output file.
 read_summary() {
 	local file="$1" lines json
 	[ -f "$file" ] || fail "$file: missing"
@@ -58,9 +65,11 @@ read_summary() {
 	jq -er '
 		if (.seeds | type) == "number" and (.cleared | type) == "number"
 			and (.escaped | type) == "number" and .robots == true and .debris == true
+			and (.lost_before_reactor | type) == "number" and (.timed_out | type) == "number"
 			and .seeds >= 0 and .cleared >= 0 and .escaped >= 0 and .escaped <= .cleared
-			and .cleared <= .seeds
-		then "\(.seeds) \(.cleared) \(.escaped)"
+			and .lost_before_reactor >= 0 and .timed_out >= 0
+			and .cleared + .lost_before_reactor + .timed_out <= .seeds
+		then "\(.seeds) \(.cleared) \(.escaped) \(.lost_before_reactor) \(.timed_out)"
 		else error("not a robots and debris sweep") end' <<< "$json" 2> /dev/null \
 		|| fail "$file: the ${tag} line does not parse as a robots and debris sweep: $json"
 }
@@ -70,19 +79,29 @@ combine() {
 	shift
 	is_count "$expected" && [ "$expected" -ge 1 ] || fail "seeds must be a positive whole number, got '$expected'"
 	[ "$#" -ge 1 ] || fail "no shard output files"
-	local seeds=0 cleared=0 escaped=0 file values s c e
+	local seeds=0 cleared=0 escaped=0 lost=0 timed_out=0 file values s c e l t
 	for file in "$@"; do
 		values="$(read_summary "$file")"
-		read -r s c e <<< "$values"
+		read -r s c e l t <<< "$values"
 		seeds=$((seeds + s))
 		cleared=$((cleared + c))
 		escaped=$((escaped + e))
+		lost=$((lost + l))
+		timed_out=$((timed_out + t))
 	done
 	[ "$seeds" -eq "$expected" ] || fail "the shards flew $seeds seeds, expected $expected"
-	[ "$cleared" -ge 1 ] || fail "bot escape rate: no level cleared in $seeds seeds"
+	local clear_line="bot clear rate: $cleared cleared of $seeds seeds ($lost lost before the reactor, $timed_out out of ticks, $((seeds - cleared - lost - timed_out)) without a reactor)"
+	if [ "$cleared" -lt 1 ]; then
+		echo "$clear_line"
+		fail "bot escape rate: no level cleared in $seeds seeds"
+	fi
 	local rate
 	rate="$(awk -v e="$escaped" -v c="$cleared" 'BEGIN { printf "%.4f", e / c }')"
 	echo "bot escape rate: $escaped escaped of $cleared cleared = $rate over $seeds seeds (robots, debris)"
+	echo "$clear_line"
+	if [ "$cleared" -lt "$small_sample" ]; then
+		echo "::warning::the G3 bot escape rate rests on a small sample: $cleared levels cleared, fewer than $small_sample"
+	fi
 	[ $((escaped * 100)) -ge $((cleared * required_hundredths)) ] \
 		|| fail "the rate $rate is below 0.$required_hundredths"
 }
