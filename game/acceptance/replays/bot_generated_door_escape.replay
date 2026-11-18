@@ -2,8 +2,8 @@
 # the reactor destroyed, at least one blast door down, out through the entrance.
 # Inputs only: the m3 suite builds the level from the seed in m3.json and the
 # shipped data files. Re-record from the repository root; the recorder picks the
-# seed and writes the seed and hashes into m3.json itself:
-#     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+# seed and writes the seed and hashes into m3.json itself. Records this step only:
+#     MELTDOWN_RECORD_M3=bot_generated_door_escape godot --headless --path game -s res://tests/run_tests.gd
 meltdown-replay 15
 seed 0
 ships 1

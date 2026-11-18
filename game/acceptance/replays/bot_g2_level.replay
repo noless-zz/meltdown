@@ -1,6 +1,7 @@
 # The bot pilot clearing the G2 level (#334), flown in the m2 suite.
-# Re-record from the repository root, then copy the printed hash into m2.json:
-#     MELTDOWN_RECORD_M2=1 godot --headless --path game -s res://tests/run_tests.gd
+# Re-record this step only from the repository root, then copy the printed hash
+# into m2.json:
+#     MELTDOWN_RECORD_M2=bot_clears_g2_level godot --headless --path game -s res://tests/run_tests.gd
 meltdown-replay 14
 seed 0
 ships 1

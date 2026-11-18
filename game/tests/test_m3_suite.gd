@@ -9,9 +9,10 @@ extends RefCounted
 ## Re-recording after an intended change to the simulation, the bot, the ship
 ## or robot data, or the level (one command, from the repository root):
 ##
-##     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+##     MELTDOWN_RECORD_M3=bot_g2_escape godot --headless --path game -s res://tests/run_tests.gd
 ##
-## It flies the bot as `test_bot_escape.gd` does, overwrites
+## The switch takes a comma-separated list of step ids and records only those
+## (`record_switch.gd`, #560); `MELTDOWN_RECORD_M3=1` records every m3 step. It flies the bot as `test_bot_escape.gd` does, overwrites
 ## `acceptance/replays/bot_g2_escape.replay` and prints the new hash; paste
 ## that hash into `expected_hash` of the step in `acceptance/suites/m3.json`.
 
@@ -22,6 +23,7 @@ const REPLAY_PATH: String = "res://acceptance/replays/bot_g2_escape.replay"
 const DOCTORED_REPLAY: String = "user://t376_doctored.replay"
 const LEVEL: String = "g2"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
+const RecordSwitch := preload("res://tests/record_switch.gd")
 ## The input line changed in the doctored copy: the first one from here on
 ## that is not already all zeros, so zeroing it really changes the flight.
 const DOCTORED_FROM_TICK: int = 30
@@ -32,8 +34,9 @@ const BotEscapeTest := preload("res://tests/test_bot_escape.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
 const REPLAY_HEADER: String = """# The bot pilot's G2 escape (#360): robots cleared, reactor destroyed, out
 # through the entrance. Flown in the m3 suite (#376).
-# Re-record from the repository root, then copy the printed hash into m3.json:
-#     MELTDOWN_RECORD_M3=1 godot --headless --path game -s res://tests/run_tests.gd
+# Re-record this step only from the repository root, then copy the printed hash
+# into m3.json:
+#     MELTDOWN_RECORD_M3=bot_g2_escape godot --headless --path game -s res://tests/run_tests.gd
 """
 
 var _quit_codes: Array[int] = []
@@ -47,9 +50,9 @@ static func step() -> AcceptanceStep:
 	return null
 
 
-## Off unless RECORD_SWITCH is set; see the top of this file.
+## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
 func test_record_when_asked() -> String:
-	if OS.get_environment(RECORD_SWITCH) != "1":
+	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
 	var flight: BotEscapeTest.Flight = BotEscapeTest.fly(BotEscapeTest.g2_reactor())
 	var session: LocalSession = flight.session

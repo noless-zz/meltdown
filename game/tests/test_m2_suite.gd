@@ -5,9 +5,11 @@ extends RefCounted
 ## tunnel, and must end on the pinned hash with no robot left.
 ##
 ## Re-recording after an intended change to the simulation, the ship or robot
-## data, or the level (one command, from the repository root):
+## data, or the level (one command, from the repository root; the switch takes
+## a comma-separated list of step ids, see `record_switch.gd`, and
+## `MELTDOWN_RECORD_M2=1` records every m2 step):
 ##
-##     MELTDOWN_RECORD_M2=1 godot --headless --path game -s res://tests/run_tests.gd
+##     MELTDOWN_RECORD_M2=bot_clears_test_tunnel godot --headless --path game -s res://tests/run_tests.gd
 ##
 ## It flies the bot in the main scene's session, overwrites
 ## `acceptance/replays/bot_test_tunnel.replay` and prints the new hash; paste
@@ -17,6 +19,7 @@ const SUITE_PATH: String = "res://acceptance/suites/m2.json"
 const STEP_ID: String = "bot_clears_test_tunnel"
 const REPLAY_PATH: String = "res://acceptance/replays/bot_test_tunnel.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M2"
+const RecordSwitch := preload("res://tests/record_switch.gd")
 ## The issue's limit: two minutes of flight.
 const TICK_LIMIT: int = 7200
 const Main := preload("res://main.gd")
@@ -59,9 +62,9 @@ func _step() -> AcceptanceStep:
 	return null
 
 
-## Off unless RECORD_SWITCH is set; see the top of this file.
+## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
 func test_record_when_asked() -> String:
-	if OS.get_environment(RECORD_SWITCH) != "1":
+	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
 	var session: LocalSession = record()
 	session.replay.expected_hash = session.sim.state_hash()
