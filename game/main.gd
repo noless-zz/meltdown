@@ -103,6 +103,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	apply_controls(sample_controls())
 	advance_frame(delta)
+	if _smoke_probe != null and _smoke_probe.is_enabled():
+		_smoke_probe.watch_hands(boost_haptics.left_controller, boost_haptics.right_controller)
 	if _smoke_probe != null and _smoke_probe.tick():
 		print(_smoke_probe.report(_session_begun))
 		get_tree().quit()
