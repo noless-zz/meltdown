@@ -18,6 +18,10 @@ extends RefCounted
 ## During the meltdown `close_blocked` shuts the openings that solid debris
 ## blocks (RUN-4, #443), by `OpeningClearance.blocked`, the test `KnownRoute`
 ## uses, and a straight segment then also has to pass the solid debris.
+##
+## Once `weigh_fire` is called (the bot's escape, #498), a route through fire
+## that burns before the ship gets there gives way to a fire-free one that is
+## not much longer (`FireDetour`). Until then fire changes nothing.
 
 ## Slack on the segment test, as a fraction of the segment, so that legs
 ## ending exactly on a shrunk wall still count as held.
@@ -32,6 +36,13 @@ var _closed: Dictionary[int, bool] = {}
 var _debris: MeltdownDebris = null
 ## Ship radius last passed to `close_blocked`, metres.
 var _debris_radius: float = 0.0
+## The debris whose fire the route weighs; null until `weigh_fire`.
+var _fire: MeltdownDebris = null
+## Speed the ship is assumed to fly at when judging whether a fire will burn
+## by the time it gets there, metres per second.
+var _fire_speed: float = 0.0
+## A fire-free route is taken when at most this many times as long.
+var _detour_factor: float = 1.0
 
 
 func _init(level: LevelDef) -> void:
@@ -94,10 +105,30 @@ func is_closed(a: int, b: int) -> bool:
 	return _closed.has(_pair_key(mini(a, b), maxi(a, b)))
 
 
+## From now on, routes through fire entries of `debris` that burn, or will
+## by the time a ship flying at `speed` gets there, give way to a fire-free
+## route at most `detour_factor` times as long. Pass null to stop.
+func weigh_fire(debris: MeltdownDebris, speed: float, detour_factor: float) -> void:
+	_fire = debris
+	_fire_speed = speed
+	_detour_factor = detour_factor
+
+
 ## The points to fly through from `from` to `to`, ending with `to`. Just
 ## `[to]` when the straight segment is held, or when no chain joins the two
-## ends (the caller then flies straight, as without a level).
+## ends (the caller then flies straight, as without a level). With fire
+## weighed, a fire-free route not much longer may replace it.
 func waypoints(from: Vector3, to: Vector3, radius: float) -> Array[Vector3]:
+	var points: Array[Vector3] = _plain_waypoints(from, to, radius)
+	if _fire == null:
+		return points
+	var detour: Array[Vector3] = FireDetour.reroute(_union, _neighbours, is_closed, _fire, from, to,
+		_holding(from, radius), _holding(to, radius), points, _fire_speed, _detour_factor)
+	return points if detour.is_empty() else detour
+
+
+## `waypoints` without regard to fire.
+func _plain_waypoints(from: Vector3, to: Vector3, radius: float) -> Array[Vector3]:
 	var points: Array[Vector3] = []
 	if not segment_held(_union, from, to, radius) or _meets_debris(from, to, radius):
 		var boxes: Array[int] = chain(from, to, radius)
