@@ -8,6 +8,11 @@ extends RefCounted
 ## alike, and holds the reactor's and the fire's flicker still while the session
 ## is paused (CMF-8, PLT-7, #422).
 ##
+## `burning_fires` picks the fire entries that burn now out of the same debris
+## copy, for the hologram map (#520, MAP-2). `MapRouteWiring` hands them to the
+## map with the route, because that is where the map is reached during the
+## meltdown and `main.gd` must not grow.
+##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
 ## reactor reaches the view as a `SessionSnapshots.reactor` copy and the outcome
@@ -50,6 +55,25 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 ## Seconds of meltdown left on `reactor`, a session copy: its ticks at 60 a second.
 static func seconds_left(reactor: ReactorState) -> float:
 	return float(reactor.meltdown_ticks_left) / float(ReactorState.TICKS_PER_SECOND)
+
+
+## The centres and radii of the fire entries in `snapshot`, a
+## `SessionSnapshots.debris` copy, that burn at the tick it was taken: a fire
+## kind, not held, and no time left until it catches. Returns
+## `[PackedVector3Array, PackedFloat32Array]`, both empty when nothing burns.
+static func burning_fires(snapshot: Dictionary) -> Array:
+	var centres: PackedVector3Array = PackedVector3Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	var positions: Array[Vector3] = snapshot[SessionSnapshots.DEBRIS_POSITIONS]
+	var kinds: Array[String] = snapshot[SessionSnapshots.DEBRIS_KINDS]
+	var held: Array[bool] = snapshot[SessionSnapshots.DEBRIS_HELD]
+	var seconds: Array[float] = snapshot[SessionSnapshots.DEBRIS_SECONDS]
+	var sizes: Array[float] = snapshot[SessionSnapshots.DEBRIS_RADII]
+	for index: int in positions.size():
+		if kinds[index] == MeltdownFire.KIND_FIRE and not held[index] and seconds[index] == 0.0:
+			centres.append(positions[index])
+			radii.append(sizes[index])
+	return [centres, radii]
 
 
 ## The hull `reactor`, a session copy, has left as a fraction of its start;
