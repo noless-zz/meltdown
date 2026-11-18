@@ -45,9 +45,18 @@ shard() {
 	echo "$file"
 }
 
+# A robots and debris summary line; LOST and TIMED_OUT default to 0.
 line() {
-	local seeds="$1" cleared="$2" escaped="$3"
-	echo "{\"seeds\":$seeds,\"cleared\":$cleared,\"escaped\":$escaped,\"looped\":0,\"rate\":1.0000,\"robots_destroyed\":4,\"robots\":true,\"debris\":true}"
+	local seeds="$1" cleared="$2" escaped="$3" lost="${4:-0}" timed_out="${5:-0}"
+	echo "{\"seeds\":$seeds,\"cleared\":$cleared,\"escaped\":$escaped,\"looped\":0,\"rate\":1.0000,\"robots_destroyed\":4,\"lost_before_reactor\":$lost,\"timed_out\":$timed_out,\"robots\":true,\"debris\":true}"
+}
+
+# combine's second line and, under 100 cleared, its warning (#495).
+clear_line() {
+	echo "bot clear rate: $2 cleared of $1 seeds ($3 lost before the reactor, $4 out of ticks, $5 without a reactor)"
+}
+small() {
+	echo "::warning::the G3 bot escape rate rests on a small sample: $1 levels cleared, fewer than 100"
 }
 
 # Shard ranges cover 1..SEEDS once, in order.
@@ -75,20 +84,38 @@ expect_refused "zero seeds" range 0 8 0
 expect_refused "index past the shards" range 1000 8 8
 expect_refused "seeds not a number" range "10e3" 8 0
 
-a="$(shard a.txt "$(line 500 30 29)")"
-b="$(shard b.txt "$(line 500 10 10)")"
-expect_output "two shards add up" \
-	"bot escape rate: 39 escaped of 40 cleared = 0.9750 over 1000 seeds (robots, debris)" \
+a="$(shard a.txt "$(line 500 30 29 400 60)")"
+b="$(shard b.txt "$(line 500 10 10 450 15)")"
+expect_output "two shards add up, with how the rest ended and a small-sample warning" \
+	"bot escape rate: 39 escaped of 40 cleared = 0.9750 over 1000 seeds (robots, debris)
+$(clear_line 1000 40 850 75 35)
+$(small 40)" \
 	combine 1000 "$a" "$b"
 exact="$(shard exact.txt "$(line 1000 20 19)")"
 expect_output "exactly 0.95 passes" \
-	"bot escape rate: 19 escaped of 20 cleared = 0.9500 over 1000 seeds (robots, debris)" \
+	"bot escape rate: 19 escaped of 20 cleared = 0.9500 over 1000 seeds (robots, debris)
+$(clear_line 1000 20 0 0 980)
+$(small 20)" \
 	combine 1000 "$exact"
+big="$(shard big.txt "$(line 500 100 95 300 100)")"
+big2="$(shard big2.txt "$(line 500 0 0 500 0)")"
+expect_output "a hundred cleared gives no warning" \
+	"bot escape rate: 95 escaped of 100 cleared = 0.9500 over 1000 seeds (robots, debris)
+$(clear_line 1000 100 800 100 0)" \
+	combine 1000 "$big" "$big2"
+lowbig="$(shard lowbig.txt "$(line 1000 200 180 10 5)")"
+expect_refused "a large sample below 0.95 still fails" combine 1000 "$lowbig"
 
 low="$(shard low.txt "$(line 500 20 18)")"
 expect_refused "below 0.95 fails" combine 1000 "$a" "$low"
-none="$(shard none.txt "$(line 1000 0 0)")"
+none="$(shard none.txt "$(line 1000 0 0 900 100)")"
 expect_refused "nothing cleared fails" combine 1000 "$none"
+if [ "$("$script" combine 1000 "$none" 2> /dev/null)" == "$(clear_line 1000 0 900 100 0)" ]; then
+	echo "ok   nothing cleared still says how the seeds ended"
+else
+	echo "FAIL nothing cleared does not print the clear rate line" >&2
+	failures=$((failures + 1))
+fi
 expect_refused "seeds short of the request fail" combine 1000 "$a"
 expect_refused "a missing shard file fails" combine 1000 "$a" "$work/absent.txt"
 
@@ -105,6 +132,14 @@ bare="$(shard bare.txt '{"seeds":500,"cleared":10,"escaped":10,"looped":0,"rate"
 expect_refused "a run without robots or debris fails" combine 1000 "$a" "$bare"
 nodebris="$(shard nodebris.txt '{"seeds":500,"cleared":10,"escaped":10,"robots":true}')"
 expect_refused "a run without debris fails" combine 1000 "$a" "$nodebris"
+old="$(shard old.txt '{"seeds":500,"cleared":10,"escaped":10,"looped":0,"rate":1.0000,"robots_destroyed":4,"robots":true,"debris":true}')"
+expect_refused "a robot line without the new counts fails" combine 1000 "$a" "$old"
+notimed="$(shard notimed.txt '{"seeds":500,"cleared":10,"escaped":10,"robots_destroyed":4,"lost_before_reactor":3,"robots":true,"debris":true}')"
+expect_refused "a robot line without timed_out fails" combine 1000 "$a" "$notimed"
+lostext="$(shard lostext.txt '{"seeds":500,"cleared":10,"escaped":10,"lost_before_reactor":"3","timed_out":0,"robots":true,"debris":true}')"
+expect_refused "a lost count written as text fails" combine 1000 "$a" "$lostext"
+over="$(shard over.txt "$(line 500 10 10 480 20)")"
+expect_refused "more ended seeds than flown fails" combine 1000 "$a" "$over"
 more="$(shard more.txt "$(line 500 10 11)")"
 expect_refused "more escaped than cleared fails" combine 1000 "$a" "$more"
 expect_refused "no files" combine 1000
