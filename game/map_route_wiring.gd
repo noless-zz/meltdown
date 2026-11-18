@@ -18,6 +18,12 @@ extends RefCounted
 ## The search runs at most once every `ROUTE_EVERY_TICKS` ticks, so the route
 ## follows the ship, and at once when a box is explored or more debris falls,
 ## the only way an opening becomes blocked.
+##
+## Fire entries burning now go to the map with every route it is handed, and at
+## once when another fire catches, picked by `MeltdownWiring.burning_fires` from
+## a `SessionSnapshots` copy (#520, MAP-2). Fire is passable, so it never
+## changes the route; the mark only warns. A paused session's tick stands still,
+## so the marks freeze with the rest of the map (CMF-8).
 
 ## Simulation ticks between two searches while nothing else changed: a quarter
 ## of a second.
@@ -31,6 +37,8 @@ var searches: int = 0
 ## The simulation tick and solid debris count of the last search.
 var _tick: int = 0
 var _solid: int = 0
+## How many fire entries burned when the map's fires were last handed over.
+var _burning: int = 0
 
 
 ## Once per frame, after the explored boxes were updated: searches for the
@@ -44,22 +52,31 @@ func update(session: LocalSession, walls: BoxUnion, explored: Array[int], grew: 
 		return
 	var tick: int = session.sim.tick
 	var solid: int = solid_count(session.sim.debris)
-	if route != null and not grew and solid == _solid and tick - _tick < ROUTE_EVERY_TICKS:
+	var fires: Array = MeltdownWiring.burning_fires(SessionSnapshots.debris(session.sim.debris))
+	var burning: int = (fires[0] as PackedVector3Array).size()
+	var search: bool = route == null or grew or solid != _solid or tick - _tick >= ROUTE_EVERY_TICKS
+	if not search and burning == _burning:
 		return
-	_tick = tick
-	_solid = solid
-	searches += 1
-	var ship: ShipState = session.current_ship()
-	route = EscapePath.known_route(walls, explored, ship.position,
-		ReplayStartLine.position(session.replay, 0), debris_copy(session.sim.debris), ship.radius)
-	hologram.show_route(metres(route.points_mm), metres(route.blocked_centres_mm))
+	if search:
+		_tick = tick
+		_solid = solid
+		searches += 1
+		var ship: ShipState = session.current_ship()
+		route = EscapePath.known_route(walls, explored, ship.position,
+			ReplayStartLine.position(session.replay, 0), debris_copy(session.sim.debris), ship.radius)
+		hologram.show_route(metres(route.points_mm), metres(route.blocked_centres_mm))
+	_burning = burning
+	hologram.show_fires(fires[0], fires[1])
 
 
-## Removes any route from `hologram`; a new session starts without one.
+## Removes any route and fire marks from `hologram`; a new session starts
+## without them.
 func clear(hologram: MapHologram) -> void:
 	if route != null:
 		route = null
+		_burning = 0
 		hologram.clear_route()
+		hologram.show_fires(PackedVector3Array(), PackedFloat32Array())
 
 
 ## True from the tick the reactor dies until the run is escaped or lost.
