@@ -16,7 +16,8 @@ extends Node3D
 ## An exit cube and a reactor ball show where to leave and what to destroy
 ## (#338, MAP-2, RUN-3); a `MapRoute` child draws the route and blocked openings
 ## (#400) and a `MapFires` child burning fire entries (#519), all fitted like
-## the lines, with shared geometry in `MapShapes`. `set_zoom` scales it all
+## the lines, with shared geometry in `MapShapes`; fires only in explored boxes
+## unless the look's `fires_explored_only` is off (#562). `set_zoom` scales it all
 ## about the hand anchor (#549). The look is `res://xr/map_look.json` (ARC-4),
 ## read and parsed by `MapLook`.
 
@@ -54,6 +55,8 @@ var _route_at: PackedVector3Array = PackedVector3Array()
 var _blocked_at: PackedVector3Array = PackedVector3Array()
 var _fire_at: PackedVector3Array = PackedVector3Array()
 var _fire_radii: PackedFloat32Array = PackedFloat32Array()
+## The explored boxes of the last `build`, as copies, for `fires_explored_only`.
+var _explored_boxes: Array[AABB] = []
 var _exit_at: Vector3 = Vector3.ZERO
 var _reactor_at: Vector3 = Vector3.ZERO
 var _markers_set: bool = false
@@ -101,6 +104,11 @@ func look() -> Dictionary:
 ## Redraws the map from the boxes of `union` listed in `explored`.
 func build(union: BoxUnion, explored: Array[int]) -> void:
 	var points: PackedVector3Array = MapWireframe.segments(union, explored)
+	_explored_boxes.clear()
+	for index: int in explored:
+		if index >= 0 and index < union.boxes.size():
+			var box: BoxBounds = union.boxes[index]
+			_explored_boxes.append(AABB(box.min_corner, box.max_corner - box.min_corner))
 	var size: float = float(_look["size_m"])
 	_fit = fit_transform(points, size)
 	_lines.mesh = null
@@ -272,7 +280,10 @@ func _place_markers() -> void:
 
 func _place_route() -> void:
 	_route.draw_fitted(_view(), _route_at, _blocked_at, _look)
-	_fires.draw_fitted(_view(), _fire_at, _fire_radii, _look)
+	var shown: Array = [_fire_at, _fire_radii]
+	if _look["fires_explored_only"]:
+		shown = MapFires.inside(_fire_at, _fire_radii, _explored_boxes)
+	_fires.draw_fitted(_view(), shown[0], shown[1], _look)
 
 
 func _view() -> Transform3D:

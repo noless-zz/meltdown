@@ -14,7 +14,8 @@ extends RefCounted
 ##      "distance_color": [r, g, b], "distance_height_m": 0.003..0.03,
 ##      "distance_offset_m": 0..0.05,
 ##      "fire_color": [r, g, b], "fire_size_m": 0.002..0.05,
-##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10}
+##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10,
+##      "fires_explored_only": true | false}
 ##
 ## `exit_radius_m` is half the edge of the exit cube; `blocked_size_m` is the
 ## length of each bar of a blocked opening's cross. `distance_height_m` is the
@@ -28,13 +29,18 @@ extends RefCounted
 ## `min_zoom` and `max_zoom` bound `MapZoom`'s factor and `zoom_per_second` is
 ## the factor gained per second of zooming (#549). They are optional too. The
 ## limits must not cross and must hold 1.0, the fitted size the map starts at.
+##
+## `fires_explored_only` (optional, #562) marks only fires inside the explored
+## boxes, so the map does not give away unexplored tunnels (MAP-1); false marks
+## every burning fire.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
-		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second"]
+		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second", "fires_explored_only"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
 		"blocked_color", "distance_color", "fire_color"]
+const BOOL_KEYS: Array[String] = ["fires_explored_only"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"line_energy": [0.0, 8.0],
@@ -88,6 +94,8 @@ const FALLBACK: Dictionary = {
 	"min_zoom": 0.5,
 	"max_zoom": 3.0,
 	"zoom_per_second": 1.5,
+	# MAP-1 maps explored tunnels only; a mark further out would reveal layout (#562).
+	"fires_explored_only": true,
 }
 
 
@@ -131,6 +139,12 @@ static func parse(text: String) -> Dictionary:
 		if float(value) < float(bounds[0]) or float(value) > float(bounds[1]):
 			return _rejected("\"%s\" is %s, must be within %s..%s" % [key, value, bounds[0], bounds[1]])
 		look[key] = float(value)
+	for key: String in BOOL_KEYS:
+		if not data.has(key):
+			continue
+		if typeof(data[key]) != TYPE_BOOL:
+			return _rejected("\"%s\" must be true or false" % key)
+		look[key] = data[key]
 	if float(look["min_zoom"]) >= float(look["max_zoom"]):
 		return _rejected("\"min_zoom\" %s must be below \"max_zoom\" %s" % [look["min_zoom"], look["max_zoom"]])
 	if float(look["min_zoom"]) > MapZoom.START or float(look["max_zoom"]) < MapZoom.START:
