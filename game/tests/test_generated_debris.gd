@@ -214,7 +214,7 @@ func _spheres(debris: MeltdownDebris) -> int:
 	if debris == null:
 		return 0
 	for index: int in debris.size():
-		if debris.is_box(index):
+		if debris.is_box(index) or debris.is_fire(index):
 			return index
 	return debris.size()
 

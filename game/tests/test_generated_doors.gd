@@ -17,8 +17,12 @@ const DOORS: Dictionary = {"count": [1, 2], "thickness": 0.5, "after_seconds": [
 		"min_start_distance": 15, "min_reactor_distance": 6, "min_robot_distance": 2}
 
 
+## The shipped file without its fires (#497), which come after the doors and
+## have their own test.
 func _file() -> Dictionary:
-	return JSON.parse_string(FileAccess.get_file_as_string(DEBRIS_FILE))
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DEBRIS_FILE))
+	data.erase(DebrisPlan.FIRES_KEY)
+	return data
 
 
 func _plan(data: Dictionary) -> DebrisPlan:
