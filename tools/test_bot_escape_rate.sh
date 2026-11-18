@@ -34,26 +34,47 @@ expect_refused() {
 }
 
 # A shard's output as the sweep prints it, failure lines and engine noise included.
+# The AWAKE values after the JSON give one MELTDOWN_BOT_LOST line each (#534);
+# without them the shard prints one line with 2 robots awake per lost seed, as
+# many as its summary's lost_before_reactor.
 shard() {
-	local file="$work/$1" json="$2"
+	local file="$work/$1" json="$2" lost awake
+	shift 2
 	{
 		echo "WARNING: OpenXR: no runtime"
 		echo "seed 3: RUNNING at tick 193: ship destroyed"
 		echo "bot escape sweep: 0 without a reactor, 1 not escaped, 1000 ms"
+		if [ "$#" -gt 0 ]; then
+			for awake in "$@"; do
+				echo "MELTDOWN_BOT_LOST {\"seed\":3,\"seconds\":3.22,\"awake\":$awake}"
+			done
+		else
+			lost="$(jq -r '.lost_before_reactor // 0' <<< "$json" 2> /dev/null || echo 0)"
+			for ((i = 0; i < lost; i++)); do
+				echo "MELTDOWN_BOT_LOST {\"seed\":$((i + 1)),\"seconds\":12.50,\"awake\":2}"
+			done
+		fi
 		echo "MELTDOWN_BOT_ESCAPE $json"
 	} > "$file"
 	echo "$file"
 }
 
-# A robots and debris summary line; LOST and TIMED_OUT default to 0.
+# A robots and debris summary line; LOST and TIMED_OUT default to 0. The loss
+# buckets default to every lost seed in 10 to 60 s, the median to 2.0 (null
+# with nothing lost).
 line() {
 	local seeds="$1" cleared="$2" escaped="$3" lost="${4:-0}" timed_out="${5:-0}"
-	echo "{\"seeds\":$seeds,\"cleared\":$cleared,\"escaped\":$escaped,\"looped\":0,\"rate\":1.0000,\"robots_destroyed\":4,\"lost_before_reactor\":$lost,\"timed_out\":$timed_out,\"robots\":true,\"debris\":true}"
+	local under="${6:-0}" middle="${7:-$lost}" over="${8:-0}" median="${9:-2.0}"
+	[ "$lost" -gt 0 ] || [ -n "${9:-}" ] || median="null"
+	echo "{\"seeds\":$seeds,\"cleared\":$cleared,\"escaped\":$escaped,\"looped\":0,\"rate\":1.0000,\"robots_destroyed\":4,\"lost_before_reactor\":$lost,\"timed_out\":$timed_out,\"robots\":true,\"lost_under_10_s\":$under,\"lost_10_to_60_s\":$middle,\"lost_over_60_s\":$over,\"lost_awake_median\":$median,\"debris\":true}"
 }
 
-# combine's second line and, under 100 cleared, its warning (#495).
+# combine's second line and, under 100 cleared, its warning (#495). The loss
+# buckets default to every lost seed in 10 to 60 s with a median of 2.0 awake.
 clear_line() {
-	echo "bot clear rate: $2 cleared of $1 seeds ($3 lost before the reactor, $4 out of ticks, $5 without a reactor)"
+	local under="${6:-0}" middle="${7:-$3}" over="${8:-0}" median="${9:-2.0}"
+	[ "$3" -gt 0 ] || [ -n "${9:-}" ] || median="none"
+	echo "bot clear rate: $2 cleared of $1 seeds ($3 lost before the reactor, $4 out of ticks, $5 without a reactor; lost under 10 s $under, 10 to 60 s $middle, over 60 s $over, median $median robots awake)"
 }
 small() {
 	echo "::warning::the G3 bot escape rate rests on a small sample: $1 levels cleared, fewer than 100"
@@ -142,6 +163,38 @@ over="$(shard over.txt "$(line 500 10 10 480 20)")"
 expect_refused "more ended seeds than flown fails" combine 1000 "$a" "$over"
 more="$(shard more.txt "$(line 500 10 11)")"
 expect_refused "more escaped than cleared fails" combine 1000 "$a" "$more"
+
+# Loss timing and awake robots (#534): buckets add over shards, the median is
+# over every shard's lost seeds, not a median of shard medians.
+early="$(shard early.txt "$(line 500 20 20 3 0 2 1 0 1.0)" 0 1 7)"
+late="$(shard late.txt "$(line 500 20 20 2 0 0 0 2 5.5)" 4 7)"
+expect_output "loss buckets add and the median spans every shard" \
+	"bot escape rate: 40 escaped of 40 cleared = 1.0000 over 1000 seeds (robots, debris)
+$(clear_line 1000 40 5 0 955 2 1 2 4.0)
+$(small 40)" \
+	combine 1000 "$early" "$late"
+even="$(shard even.txt "$(line 1000 20 20 4 0 4 0 0 2.5)" 3 1 2 5)"
+expect_output "an even count takes the mean of the middle two" \
+	"bot escape rate: 20 escaped of 20 cleared = 1.0000 over 1000 seeds (robots, debris)
+$(clear_line 1000 20 4 0 976 4 0 0 2.5)
+$(small 20)" \
+	combine 1000 "$even"
+nolost="$(shard nolost.txt "$(line 1000 20 20)")"
+expect_output "nothing lost gives no median" \
+	"bot escape rate: 20 escaped of 20 cleared = 1.0000 over 1000 seeds (robots, debris)
+$(clear_line 1000 20 0 0 980)
+$(small 20)" \
+	combine 1000 "$nolost"
+nobuckets="$(shard nobuckets.txt '{"seeds":500,"cleared":10,"escaped":10,"lost_before_reactor":0,"timed_out":0,"robots":true,"debris":true}')"
+expect_refused "a robot line without the loss buckets fails" combine 1000 "$a" "$nobuckets"
+skew="$(shard skew.txt "$(line 500 10 10 3 0 1 1 0)")"
+expect_refused "buckets that do not add up to the lost seeds fail" combine 1000 "$a" "$skew"
+textmedian="$(shard textmedian.txt "$(line 500 10 10 1 0 0 1 0 '"2"')")"
+expect_refused "a median written as text fails" combine 1000 "$a" "$textmedian"
+fewlines="$(shard fewlines.txt "$(line 500 10 10 3)" 1 2)"
+expect_refused "fewer lost lines than lost seeds fails" combine 1000 "$a" "$fewlines"
+badlost="$(shard badlost.txt "$(line 500 10 10 1)" '"two"')"
+expect_refused "a lost line with text for awake fails" combine 1000 "$a" "$badlost"
 expect_refused "no files" combine 1000
 expect_refused "unknown command" average 1000
 

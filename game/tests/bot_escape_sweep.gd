@@ -21,12 +21,16 @@ extends SceneTree
 ## the rate is escaped over cleared and `looped` counts seeds with at least one
 ## loop. `lost_before_reactor` counts uncleared seeds whose ship was destroyed
 ## and `timed_out` those still flying at TICK_LIMIT (#495), so a robot run says
-## why the bot cleared so few. Without `--robots` the rate is G3's number. Seeds with no reactor are counted apart, so a generator that
+## why the bot cleared so few. With robots the line also gains
+## `,"lost_under_10_s":a,"lost_10_to_60_s":b,"lost_over_60_s":c,"lost_awake_median":m`
+## after the robot fields, and a `MELTDOWN_BOT_LOST` line is printed for every
+## lost seed (#534, `bot_sweep_losses.gd`). Without `--robots` the rate is G3's number. Seeds with no reactor are counted apart, so a generator that
 ## drops reactors cannot raise the rate. Exit code 0 only when the rate is at
 ## least `REQUIRED_RATE`. The functions are static so the unit test can call
 ## them without starting a second SceneTree.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const Losses := preload("res://tests/bot_sweep_losses.gd")
 const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
 ## Read here as `seed_sweep.gd` reads its data files; `gen/` never opens files.
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
@@ -61,6 +65,8 @@ class SeedResult extends RefCounted:
 	var robots_destroyed: int = 0
 	## Whether the flight stopped because the ship's hull reached zero.
 	var destroyed: bool = false
+	## Robots alive and awake where the flight stopped (#534).
+	var awake: int = 0
 
 	func line() -> String:
 		return "seed %d: %s at tick %d: %s" % [level_seed, outcome, tick, reason]
@@ -118,6 +124,7 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 			alive += 1
 	result.robots_destroyed = spawned - alive
 	result.destroyed = sim.ships[0].hull <= 0.0
+	result.awake = Losses.awake_robots(sim)
 	result.escaped = outcome == ExitRule.Outcome.ESCAPED
 	if result.escaped:
 		return result
@@ -138,8 +145,9 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 ## "lost_before_reactor", "timed_out" (flown, not cleared, ship destroyed or
 ## not), "robots" and
 ## "debris" (whether robots and debris were placed),
-## "robots_destroyed", "rate", "ms" and "failures": a `SeedResult` line for
-## every seed that did not escape, in seed order.
+## "robots_destroyed", "rate", "ms", "failures": a `SeedResult` line for
+## every seed that did not escape, in seed order, and "lost": one
+## `{"seed", "tick", "awake"}` per seed lost before the reactor, in seed order.
 static func run(first_seed: int, count: int, with_robots: bool = false,
 		with_debris: bool = false) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
@@ -153,7 +161,7 @@ static func run(first_seed: int, count: int, with_robots: bool = false,
 	var result: Dictionary = {"seeds": count, "cleared": 0, "escaped": 0, "looped": 0,
 			"no_reactor": 0, "lost_before_reactor": 0, "timed_out": 0, "robots": with_robots, "debris": with_debris, "robots_destroyed": 0,
 			"rate": 0.0,
-			"failures": [] as Array[String]}
+			"failures": [] as Array[String], "lost": [] as Array[Dictionary]}
 	# A broken file would give levels with no reactor, no loops or no robots,
 	# and a rate that measures something other than the levels the player flies.
 	var broken: String = ""
@@ -180,6 +188,9 @@ static func run(first_seed: int, count: int, with_robots: bool = false,
 			result["no_reactor"] += 1
 		elif not flown.cleared and flown.outcome != "NO_LEVEL":
 			result["lost_before_reactor" if flown.destroyed else "timed_out"] += 1
+			if flown.destroyed:
+				result["lost"].append({"seed": level_seed, "tick": flown.tick,
+						"awake": flown.awake})
 		if flown.cleared:
 			result["cleared"] += 1
 		if flown.escaped:
@@ -196,8 +207,9 @@ static func run(first_seed: int, count: int, with_robots: bool = false,
 ## the rate to four places so the line is the same on every machine. With
 ## robots, `,"robots_destroyed":D,"lost_before_reactor":B,"timed_out":T,"robots":true`
 ## follows the rate, so a robot run's line can never be read as the G3 number
-## and says how the uncleared seeds ended; `,"debris":true` follows
-## when debris was placed.
+## and says how the uncleared seeds ended, then when the lost ones died and the
+## median of robots awake then (#534); `,"debris":true` follows when debris was
+## placed.
 static func summary(result: Dictionary) -> String:
 	var line: String = '%s {"seeds":%d,"cleared":%d,"escaped":%d,"looped":%d,"rate":%.4f' % [
 			SUMMARY_TAG, result["seeds"], result["cleared"], result["escaped"],
@@ -206,6 +218,7 @@ static func summary(result: Dictionary) -> String:
 		line += ',"robots_destroyed":%d,"lost_before_reactor":%d,"timed_out":%d,"robots":true' % [
 				result.get("robots_destroyed", 0), result.get("lost_before_reactor", 0),
 				result.get("timed_out", 0)]
+		line += Losses.summary_fields(result.get("lost", [] as Array[Dictionary]))
 	if result.get("debris", false):
 		line += ',"debris":true'
 	return line + "}"
@@ -242,6 +255,9 @@ func _init() -> void:
 			with_debris)
 	for line: String in result["failures"]:
 		print(line)
+	if with_robots:
+		for line: String in Losses.lines(result["lost"]):
+			print(line)
 	print(details(result))
 	print(summary(result))
 	quit(0 if result["cleared"] > 0 and result["rate"] >= REQUIRED_RATE else 1)
