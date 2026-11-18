@@ -55,7 +55,11 @@ static func write(debris: MeltdownDebris, index: int, entry: Dictionary) -> void
 
 ## One tick of every burning entry `debris` holds on `ship`: each one whose
 ## volume holds the ship's centre deals a sixtieth of its damage per second.
+## A destroyed ship (hull at zero) is skipped, so a wreck lying in fire is not
+## damaged again every tick and no later damage count sees it (#518).
 static func burn(debris: MeltdownDebris, ship: ShipState) -> void:
+	if ship.hull <= 0.0:
+		return
 	for index: int in debris.size():
 		if debris.is_burning(index) and contains(debris, index, ship.position):
 			ship.apply_damage(debris.fire_milli_dps[index] / float(MILLI * ShipState.TICK_RATE))
