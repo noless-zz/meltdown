@@ -9,6 +9,8 @@ extends RefCounted
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const SEEDS: int = 1000
 const SHIP_RADIUS: float = 1.0
+## Generated levels on which `debris_route` is compared with the flown meltdown.
+const COMPARED_SEEDS: int = 200
 ## Two rooms joined by a 6 m tunnel: the start in the first, the reactor in the
 ## second, and one 4 m entry in the opening between the first room and the
 ## tunnel (routes only close at openings), falling a second into the meltdown.
@@ -102,3 +104,51 @@ func test_bypassing_the_guard_fails_the_level_under_debris_route() -> String:
 	if not closed.contains("60 ticks"):
 		return "the message does not name the tick: %s" % closed
 	return "" if held == [0] else "%s entries held without the guard" % [held]
+
+
+## `debris_route` gives what flying the meltdown through the guard gives (#513):
+## the same message and the same number held, on the hand-made level, on it
+## with the tunnel gone (no route before anything falls), and over seeds
+## 0..`COMPARED_SEEDS - 1`.
+func test_debris_route_matches_the_flown_meltdown() -> String:
+	var levels: Array[LevelDef] = [_blocked_level(), _blocked_level()]
+	var boxes: Array[BoxBounds] = levels[1].union.boxes.duplicate()
+	boxes.remove_at(1)
+	levels[1].union = BoxUnion.new(boxes)
+	var inputs: SeedLevel = SeedLevel.load_inputs()
+	for level_seed: int in COMPARED_SEEDS:
+		levels.append(inputs.level_of(inputs.generate(level_seed)))
+	var radius: float = SeedSweep.ship_radius()
+	var compared: int = 0
+	var held_total: int = 0
+	for index: int in levels.size():
+		var level: LevelDef = levels[index]
+		if level.reactor == null or level.debris == null:
+			continue
+		var each: float = SHIP_RADIUS if index < 2 else radius
+		var fast: Array[int] = []
+		var flown: Array[int] = []
+		var message: String = SeedSweep.debris_route(level, each, fast)
+		var expected: String = SeedSweep.debris_route_flown(level, each, flown)
+		if message != expected or fast != flown:
+			return "level %d: \"%s\" holding %s, flown \"%s\" holding %s" \
+					% [index - 2, message, fast, expected, flown]
+		if index == 1 and not message.contains("60 ticks"):
+			return "no route from the start: \"%s\"" % message
+		compared += 1
+		held_total += flown[0]
+	if compared <= COMPARED_SEEDS / 2:
+		return "only %d levels compared" % compared
+	return "" if held_total > 0 else "no entry held in any level: the comparison proves little"
+
+
+func test_the_sweep_times_every_stage() -> String:
+	var result: Dictionary = SeedSweep.run(0, 2)
+	var stage_ms: Dictionary = result.get("stage_ms", {})
+	var line: String = SeedSweep.timing(result)
+	for stage: String in SeedSweep.STAGES:
+		if not stage_ms.has(stage) or stage_ms[stage] < 0:
+			return "no time for %s: %s" % [stage, stage_ms]
+		if not line.contains("%s %d ms" % [stage, stage_ms[stage]]):
+			return "%s missing from \"%s\"" % [stage, line]
+	return "" if line.begins_with("sweep time: generate ") else line
