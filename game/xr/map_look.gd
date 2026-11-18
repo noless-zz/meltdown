@@ -13,7 +13,8 @@ extends RefCounted
 ##      "blocked_color": [r, g, b], "blocked_size_m": 0.002..0.05,
 ##      "distance_color": [r, g, b], "distance_height_m": 0.003..0.03,
 ##      "distance_offset_m": 0..0.05,
-##      "fire_color": [r, g, b], "fire_size_m": 0.002..0.05}
+##      "fire_color": [r, g, b], "fire_size_m": 0.002..0.05,
+##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10}
 ##
 ## `exit_radius_m` is half the edge of the exit cube; `blocked_size_m` is the
 ## length of each bar of a blocked opening's cross. `distance_height_m` is the
@@ -23,11 +24,15 @@ extends RefCounted
 ## (#519). The exit, reactor, route, blocked, distance and fire keys are
 ## optional, so a file written before #338, #400, #442 or #519 still loads and
 ## keeps the built-in values for them.
+##
+## `min_zoom` and `max_zoom` bound `MapZoom`'s factor and `zoom_per_second` is
+## the factor gained per second of zooming (#549). They are optional too. The
+## limits must not cross and must hold 1.0, the fitted size the map starts at.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
-		"distance_offset_m", "fire_color", "fire_size_m"]
+		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
 		"blocked_color", "distance_color", "fire_color"]
 ## Inclusive ranges of the number keys.
@@ -46,6 +51,11 @@ const RANGES: Dictionary[String, Array] = {
 	"distance_height_m": [0.003, 0.03],
 	"distance_offset_m": [0.0, 0.05],
 	"fire_size_m": [0.002, 0.05],
+	"min_zoom": [0.1, 10.0],
+	"max_zoom": [0.1, 10.0],
+	# At 1.0 the control would do nothing; past 10x a second one frame's jitter
+	# jumps the map visibly.
+	"zoom_per_second": [1.01, 10.0],
 }
 ## Look used when the file is missing or rejected, and for optional keys a
 ## file leaves out. The exit is green and the reactor magenta so neither reads
@@ -73,6 +83,11 @@ const FALLBACK: Dictionary = {
 	"distance_offset_m": 0.012,
 	"fire_color": Color(1.0, 1.0, 0.0),
 	"fire_size_m": 0.012,
+	# Half size shows a whole large mine in the hand; three times the size reads
+	# one junction at arm's length without the map filling the view (#549).
+	"min_zoom": 0.5,
+	"max_zoom": 3.0,
+	"zoom_per_second": 1.5,
 }
 
 
@@ -116,6 +131,10 @@ static func parse(text: String) -> Dictionary:
 		if float(value) < float(bounds[0]) or float(value) > float(bounds[1]):
 			return _rejected("\"%s\" is %s, must be within %s..%s" % [key, value, bounds[0], bounds[1]])
 		look[key] = float(value)
+	if float(look["min_zoom"]) >= float(look["max_zoom"]):
+		return _rejected("\"min_zoom\" %s must be below \"max_zoom\" %s" % [look["min_zoom"], look["max_zoom"]])
+	if float(look["min_zoom"]) > MapZoom.START or float(look["max_zoom"]) < MapZoom.START:
+		return _rejected("\"min_zoom\"..\"max_zoom\" must hold %s, the fitted size" % MapZoom.START)
 	return look
 
 
