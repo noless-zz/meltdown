@@ -205,8 +205,11 @@ func test_the_debris_summary_has_the_agreed_shape() -> String:
 	result["robots_destroyed"] = 3
 	result["lost_before_reactor"] = 2
 	result["timed_out"] = 0
-	# The nightly sweep's shape, which tools/bot_escape_rate.sh parses (#495).
-	expected = 'MELTDOWN_BOT_ESCAPE {"seeds":7,"cleared":6,"escaped":5,"looped":2,"rate":0.8333,"robots_destroyed":3,"lost_before_reactor":2,"timed_out":0,"robots":true,"debris":true}'
+	var lost: Array[Dictionary] = [{"seed": 1, "tick": 420, "awake": 3},
+			{"seed": 4, "tick": 2400, "awake": 6}]
+	result["lost"] = lost
+	# The nightly sweep's shape, which tools/bot_escape_rate.sh parses (#495, #534).
+	expected = 'MELTDOWN_BOT_ESCAPE {"seeds":7,"cleared":6,"escaped":5,"looped":2,"rate":0.8333,"robots_destroyed":3,"lost_before_reactor":2,"timed_out":0,"robots":true,"lost_under_10_s":1,"lost_10_to_60_s":1,"lost_over_60_s":0,"lost_awake_median":4.5,"debris":true}'
 	if Sweep.summary(result) != expected:
 		return "summary \"%s\", expected \"%s\"" % [Sweep.summary(result), expected]
 	if JSON.parse_string(expected.trim_prefix(Sweep.SUMMARY_TAG + " ")) == null:

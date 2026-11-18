@@ -9,11 +9,14 @@ extends RefCounted
 ## seed flies to its exit, and `--robots` places robots as well, with a summary
 ## that says so and stays the same run to run. Since #495 a robot summary also
 ## says how the uncleared seeds ended, and every seed lands in exactly one of
-## cleared, lost before the reactor, out of ticks or no reactor. The 1,000-seed rates are in the
+## cleared, lost before the reactor, out of ticks or no reactor. Since #534 it
+## also says when the lost flights died and how many robots were awake then.
+## The 1,000-seed rates are in the
 ## #377 and #420 devlogs.
 
 const Sweep := preload("res://tests/bot_escape_sweep.gd")
 const SeedSweepRef := preload("res://tests/seed_sweep.gd")
+const Losses := preload("res://tests/bot_sweep_losses.gd")
 const SEEDS: int = 20
 const FIRST_SEED: int = 1
 ## About ten seconds on a desktop; CI machines are slower.
@@ -70,11 +73,73 @@ func test_the_summary_line_has_the_agreed_shape() -> String:
 	result["robots"] = true
 	result["robots_destroyed"] = 31
 	line = Sweep.summary(result)
-	expected = 'MELTDOWN_BOT_ESCAPE {"seeds":7,"cleared":6,"escaped":5,"looped":2,"rate":0.8333,"robots_destroyed":31,"lost_before_reactor":0,"timed_out":1,"robots":true}'
+	expected = 'MELTDOWN_BOT_ESCAPE {"seeds":7,"cleared":6,"escaped":5,"looped":2,"rate":0.8333,"robots_destroyed":31,"lost_before_reactor":0,"timed_out":1,"robots":true,"lost_under_10_s":0,"lost_10_to_60_s":0,"lost_over_60_s":0,"lost_awake_median":null}'
 	if line != expected:
 		return "robot summary \"%s\", expected \"%s\"" % [line, expected]
 	return _parses_with(line, ["looped", "robots_destroyed", "lost_before_reactor", "timed_out",
-			"robots"])
+			"robots", "lost_under_10_s", "lost_10_to_60_s", "lost_over_60_s",
+			"lost_awake_median"])
+
+
+## Hand-built lost seeds: `[seed, tick, awake]` each.
+static func _lost(entries: Array) -> Array[Dictionary]:
+	var lost: Array[Dictionary] = []
+	for entry: Array in entries:
+		lost.append({"seed": entry[0], "tick": entry[1], "awake": entry[2]})
+	return lost
+
+
+func test_losses_fall_into_three_time_buckets() -> String:
+	# 10 s is 600 ticks and 60 s is 3600: the edges belong to the middle bucket.
+	var cases: Dictionary[int, String] = {0: "lost_under_10_s", 599: "lost_under_10_s",
+			600: "lost_10_to_60_s", 3600: "lost_10_to_60_s", 3601: "lost_over_60_s",
+			36000: "lost_over_60_s"}
+	for tick: int in cases:
+		if Losses.bucket(tick) != cases[tick]:
+			return "tick %d in %s, expected %s" % [tick, Losses.bucket(tick), cases[tick]]
+	var counts: Dictionary[String, int] = Losses.buckets(_lost([[1, 30, 0], [2, 599, 0],
+			[3, 1200, 0], [4, 4000, 0], [5, 9000, 0], [6, 20000, 0]]))
+	var expected: Dictionary[String, int] = {"lost_under_10_s": 2, "lost_10_to_60_s": 1,
+			"lost_over_60_s": 3}
+	if counts != expected:
+		return "buckets %s, expected %s" % [counts, expected]
+	return ""
+
+
+func test_the_awake_median_is_the_middle_value() -> String:
+	if Losses.awake_median(_lost([[1, 10, 7], [2, 10, 0], [3, 10, 3]])) != 3.0:
+		return "odd count: %.1f, expected 3.0" % Losses.awake_median(
+				_lost([[1, 10, 7], [2, 10, 0], [3, 10, 3]]))
+	var even: float = Losses.awake_median(_lost([[1, 10, 5], [2, 10, 1], [3, 10, 2], [4, 10, 3]]))
+	if even != 2.5:
+		return "even count: %.1f, expected 2.5" % even
+	if Losses.awake_median(_lost([])) >= 0.0:
+		return "nothing lost gave a median"
+	return ""
+
+
+func test_a_robot_summary_carries_the_losses_and_lost_lines() -> String:
+	var result: Dictionary = {"seeds": 10, "cleared": 5, "escaped": 5, "looped": 0,
+			"robots": true, "robots_destroyed": 12, "lost_before_reactor": 3, "timed_out": 0,
+			"rate": 1.0, "debris": true,
+			"lost": _lost([[2, 300, 4], [5, 1500, 1], [9, 5000, 2]])}
+	var line: String = Sweep.summary(result)
+	var expected: String = 'MELTDOWN_BOT_ESCAPE {"seeds":10,"cleared":5,"escaped":5,"looped":0,"rate":1.0000,"robots_destroyed":12,"lost_before_reactor":3,"timed_out":0,"robots":true,"lost_under_10_s":1,"lost_10_to_60_s":1,"lost_over_60_s":1,"lost_awake_median":2.0,"debris":true}'
+	if line != expected:
+		return "summary \"%s\", expected \"%s\"" % [line, expected]
+	var lines: Array[String] = Losses.lines(result["lost"])
+	var expected_lines: Array[String] = [
+			'MELTDOWN_BOT_LOST {"seed":2,"seconds":5.00,"awake":4}',
+			'MELTDOWN_BOT_LOST {"seed":5,"seconds":25.00,"awake":1}',
+			'MELTDOWN_BOT_LOST {"seed":9,"seconds":83.33,"awake":2}']
+	if lines != expected_lines:
+		return "lost lines %s, expected %s" % [lines, expected_lines]
+	# A run without robots keeps its line exactly as before (#534).
+	result["robots"] = false
+	result["debris"] = false
+	if Sweep.summary(result).contains("lost"):
+		return "a line without robots names losses: %s" % Sweep.summary(result)
+	return ""
 
 
 ## "" when `line` is the tag and a JSON object holding every key in `keys`.
@@ -174,6 +239,9 @@ func test_robots_on_request_give_a_deterministic_summary() -> String:
 		return problem
 	# combine works out "without a reactor" as what is left, so the counts must
 	# not overlap or miss a seed.
+	if first["lost"].size() != first["lost_before_reactor"]:
+		return "%d lost entries for %d lost seeds" % [first["lost"].size(),
+				first["lost_before_reactor"]]
 	var ended: int = first["cleared"] + first["lost_before_reactor"] + first["timed_out"] \
 			+ first["no_reactor"]
 	if ended != first["seeds"]:
