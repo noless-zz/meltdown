@@ -11,18 +11,15 @@ extends Node3D
 ## map takes its answer from the label wiring's `ClickHold` (#335), so one
 ## press can never both show the map and flip the labels.
 ##
-## It is handed copies (the union, the explored indices, the ship position) and
-## keeps no reference to the session, so it can never write simulation state
-## or comfort settings (ARC-3, CMF-6, MP-2).
+## It is handed copies and keeps no reference to the session, so it can never
+## write simulation state or comfort settings (ARC-3, CMF-6, MP-2).
 ##
 ## An exit marker (a cube) and a reactor marker (a ball) show where to leave
-## the mine and what to destroy (#338, MAP-2, RUN-3); they are fitted like the
-## lines, so they move with the map when more boxes are explored. The
-## suggested route and blocked openings (MAP-2, #400) are drawn by a `MapRoute`
-## child, fitted the same way, and burning fire entries (#519) by a `MapFires`
-## child. The shared geometry lives in `MapShapes`.
-##
-## The look lives in `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
+## the mine and what to destroy (#338, MAP-2, RUN-3), fitted like the lines.
+## The route and blocked openings (#400) are drawn by a `MapRoute` child and
+## burning fire entries (#519) by a `MapFires` child, fitted the same way;
+## shared geometry lives in `MapShapes`. `set_zoom` scales it all about the
+## hand anchor (#549), with the factor `MapZoom` keeps. The look lives in `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
 
 const NODE_NAME: String = "MapHologram"
 const LINES_NAME: String = "Lines"
@@ -58,11 +55,12 @@ var _route_at: PackedVector3Array = PackedVector3Array()
 var _blocked_at: PackedVector3Array = PackedVector3Array()
 var _fire_at: PackedVector3Array = PackedVector3Array()
 var _fire_radii: PackedFloat32Array = PackedFloat32Array()
-## The markers' level-space positions, kept so `build` can re-fit them.
 var _exit_at: Vector3 = Vector3.ZERO
 var _reactor_at: Vector3 = Vector3.ZERO
 var _markers_set: bool = false
 var _reactor_known: bool = false
+var _ship_at: Vector3 = Vector3.ZERO
+var _zoom: float = MapZoom.START
 
 
 func _init() -> void:
@@ -95,7 +93,7 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 	if FileAccess.file_exists(path):
 		values = MapLook.parse(FileAccess.get_file_as_string(path))
 	else:
-		values = _rejected("file not found")
+		values = {"error": "file not found"}
 	_look = FALLBACK_LOOK
 	look_error = ""
 	if values.has("error"):
@@ -147,7 +145,8 @@ func segment_count() -> int:
 ## Moves the marker to the ship's level-space `position` (a copy), fitted
 ## like the lines.
 func set_ship_position(position: Vector3) -> void:
-	_marker.position = _fit * position
+	_ship_at = position
+	_marker.position = _view() * position
 
 
 ## The marker's position in the hologram.
@@ -190,7 +189,7 @@ func clear_route() -> void:
 	show_route(PackedVector3Array(), PackedVector3Array())
 
 
-## The node drawing the route, for reading what it drew.
+## The route's node, for reading what it drew.
 func route() -> MapRoute:
 	return _route
 
@@ -261,23 +260,38 @@ func attach_to(rig: Node, mapping: ThumbstickMapping) -> bool:
 	return true
 
 
+## Scales the map by `factor`, clamped to the look's zoom limits, about the hand
+## anchor (its origin), so the held point stays in the hand. Positions scale;
+## marker sizes keep their floors. `build` keeps the zoom.
+func set_zoom(factor: float) -> void:
+	_zoom = clampf(factor, float(_look["min_zoom"]), float(_look["max_zoom"]))
+	_lines.scale = Vector3.ONE * _zoom
+	_marker.position = _view() * _ship_at
+	_place_markers()
+	_place_route()
+
+
+func zoom() -> float:
+	return _zoom
+
+
 ## Level space -> hologram space; see `MapShapes.fit_transform`.
 static func fit_transform(points: PackedVector3Array, edge_m: float) -> Transform3D:
 	return MapShapes.fit_transform(points, edge_m)
 
 
-static func _rejected(message: String) -> Dictionary:
-	return {"error": message}
-
-
 func _place_markers() -> void:
 	_exit.visible = _markers_set
 	_reactor.visible = _markers_set and _reactor_known
-	_exit.position = _fit * _exit_at
-	_reactor.position = _fit * _reactor_at
+	_exit.position = _view() * _exit_at
+	_reactor.position = _view() * _reactor_at
 
 
 func _place_route() -> void:
-	_route.draw_fitted(_fit, _route_at, _blocked_at, _look)
-	_fires.draw_fitted(_fit, _fire_at, _fire_radii, _look)
+	_route.draw_fitted(_view(), _route_at, _blocked_at, _look)
+	_fires.draw_fitted(_view(), _fire_at, _fire_radii, _look)
+
+
+func _view() -> Transform3D:
+	return MapZoom.scaled(_fit, _zoom)
 
