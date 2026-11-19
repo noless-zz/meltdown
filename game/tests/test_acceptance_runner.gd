@@ -80,8 +80,12 @@ func test_m1_suite_passes_in_the_flat_main_scene() -> String:
 		problem = "the m1 report did not pass"
 	else:
 		var step: Dictionary = runner.reports[0].steps[0]
+		var frame_step: Dictionary = runner.reports[0].steps[runner.reports[0].steps.size() - 1]
 		if step["measurements"].get("final_hash") != M1_HASH:
 			problem = "final hash %s, expected %d" % [step["measurements"].get("final_hash"), M1_HASH]
+		elif frame_step["id"] != "frame_budget" or frame_step["result"] != AcceptanceReport.RESULT_SKIPPED:
+			# Frame times off the headset prove nothing about PRF-1 (#643).
+			problem = "the frame_budget step is %s off the headset" % frame_step["result"]
 	if problem == "":
 		problem = _check_report_file(runner)
 	if problem == "" and not runner.main.is_processing():

@@ -23,7 +23,9 @@ extends RefCounted
 ## builds it, so its replay holds only the inputs and the level is never stored
 ## in it. A step lists at most one of the two, and either needs a replay.
 ## `expected_level_hash` goes with the `level_hash` check, as `expected_hash`
-## goes with `final_hash`, and pins the level a seed builds.
+## goes with `final_hash`, and pins the level a seed builds. The
+## `frame_budget` check needs `settle_seconds`, `measure_seconds`,
+## `max_over_budget_share` and `budget_slack_ms` (`AcceptanceFrameBudgetCheck`).
 ##
 ## Unknown keys, unknown checks and bad values are rejected with the field
 ## named, like `ShipTuning`: a mistyped key would otherwise switch a check off
@@ -36,7 +38,8 @@ const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
 const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
-	"level", "expected_outcome", "seed", "expected_level_hash"]
+	"level", "expected_outcome", "seed", "expected_level_hash", "settle_seconds", "measure_seconds",
+	"max_over_budget_share", "budget_slack_ms"]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -65,6 +68,17 @@ static func load_named(suite_name: String, suites_dir: String = SUITES_DIR) -> A
 	for file: String in names:
 		found.append(load_file(suites_dir.path_join(file)))
 	return found
+
+
+## Why `found` cannot be run, or "": every suite must load before anything
+## flies, so a missing or rejected suite ends the run with this message.
+static func unreadable(found: Array[AcceptanceSuite]) -> String:
+	if found.is_empty():
+		return "no suite found"
+	for suite: AcceptanceSuite in found:
+		if suite.error != "":
+			return "cannot run: %s" % suite.error
+	return ""
 
 
 ## Reads one suite file. Its `name` must equal the file name without the
@@ -157,6 +171,8 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 	problem = _parse_expected_hash(data, field, step)
 	if problem == "":
 		problem = _parse_expected_level_hash(data, field, step)
+	if problem == "":
+		problem = AcceptanceFrameBudgetCheck.parse_step(data, field, step)
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

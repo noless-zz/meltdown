@@ -48,6 +48,15 @@ write_log() {
 				},
 				"message": "final_hash: final hash 861662111",
 				"result": "$result"
+			},
+			{
+				"id": "frame_budget",
+				"measurements": {
+					"p99_ms": 11.4,
+					"summary": "90.0 Hz, 2700 frames: p99 11.40 ms"
+				},
+				"message": "frame_budget: 90.0 Hz, 2700 frames: p99 11.40 ms",
+				"result": "pass"
 			}
 		],
 		"suite": "m1"
@@ -150,7 +159,8 @@ if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] && [ -f "$out/m1.
 	&& grep -q -- "settings put global stay_on_while_plugged_in 7" <<< "$log" \
 	&& grep -q -- "settings put global stay_on_while_plugged_in 2" <<< "$log" \
 	&& grep -q -- "automation_disable" <<< "$log" \
-	&& grep -q "| m1 | basic_flight | pass |" <<< "$output"; then
+	&& grep -q "| m1 | basic_flight | pass |" <<< "$output" \
+	&& grep -q "| m1 | frame_budget | pass: 90.0 Hz, 2700 frames: p99 11.40 ms |" <<< "$output"; then
 	pass "passing suite: report, streamed log, screenshot in game, table, headset restored"
 else
 	fail "passing suite: report, streamed log, screenshot in game, table, headset restored"

@@ -179,6 +179,10 @@ function Format-ResultTable {
 				$cell = [string]$step.result
 				if ($step.result -ne 'pass' -and $step.message) {
 					$cell = "${cell}: $($step.message)"
+				} elseif ($step.measurements -and $step.measurements.summary) {
+					# A passing step's numbers the owner reads from the table, such as the
+					# frame_budget step's frame times (#643).
+					$cell = "${cell}: $($step.measurements.summary)"
 				}
 				$cells["$key|$($result.target)"] = Format-Cell $cell
 			}
