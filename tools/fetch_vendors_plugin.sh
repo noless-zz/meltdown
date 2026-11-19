@@ -12,7 +12,7 @@ set -euo pipefail
 
 version="5.2.0-stable"
 url="https://github.com/GodotVR/godot_openxr_vendors/releases/download/${version}/godotopenxrvendorsaddon.zip"
-sha256="PENDING_FIRST_CI_DOWNLOAD"
+sha256="2a3958fff0de2dbdc4f1a036b5e4cfcea12ae7e45f8deebf4b45e5e9718c4e35"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 url="${MELTDOWN_VENDORS_URL:-$url}"

@@ -67,6 +67,12 @@ else
 	echo "ok   failed download fails"
 fi
 
+if grep -q '^sha256="[0-9a-f]\{64\}"$' "$script"; then
+	echo "ok   the script pins a full SHA-256"
+else
+	fail "the script does not pin a 64-digit SHA-256"
+fi
+
 if [ "$failures" -gt 0 ]; then
 	echo "$failures vendors plugin fetch check(s) failed" >&2
 	exit 1
