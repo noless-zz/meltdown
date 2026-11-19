@@ -30,3 +30,6 @@ Thumbs.db
 
 # Android gradle build template, installed at export time
 game/android/
+
+# Godot OpenXR Vendors plugin, downloaded by tools/fetch_vendors_plugin.sh
+game/addons/godotopenxrvendors/

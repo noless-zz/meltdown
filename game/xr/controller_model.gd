@@ -9,7 +9,10 @@ extends Node3D
 ## own model of the controller (XR_EXT_render_model, #93), that model is shown
 ## instead and the generic shape is hidden; it comes back if the runtime
 ## removes its model. The runtime's model is fetched at run time and never
-## stored in the repository (NAM-3). Labels stay in both cases and are
+## stored in the repository (NAM-3). Quest builds also carry the Godot OpenXR
+## Vendors plugin (#10), whose Meta render-model node (XR_FB_render_model) is
+## tried as well, since the Quest runtime offers no XR_EXT_render_model models.
+## Labels stay in both cases and are
 ## billboarded so they face the player from any hand angle. Nothing here reads
 ## or writes input or ship state; the rig hands it the words to show (ARC-3).
 
@@ -53,6 +56,12 @@ const CONTROL_POINTS: Dictionary = {
 const GENERIC_PARTS: PackedStringArray = ["Handle", "Head", "Stick", "ButtonUpper", "ButtonLower", "Menu", "Trigger"]
 ## The node that asks the runtime for this hand's controller model.
 const RUNTIME_MODELS_NAME: String = "RuntimeModels"
+## The vendors plugin's Meta render-model node. Only the Quest export fetches
+## the plugin, so the class is looked up by name and may be missing.
+const VENDOR_MODEL_CLASS: String = "OpenXRFbRenderModel"
+const VENDOR_MODEL_NAME: String = "VendorModel"
+const VENDOR_MODEL_SETTING: String = "xr/openxr/extensions/meta/render_model"
+const VENDOR_MODEL_LOADED: StringName = &"openxr_fb_render_model_loaded"
 
 ## `"left"` or `"right"`; picks which way the shape and labels mirror.
 var hand: String = "right"
@@ -69,6 +78,9 @@ var show_labels: bool = true:
 var _labels_root: ControlLabelSet = null
 ## Runtime models shown now; the generic shape is visible only at zero.
 var _runtime_model_count: int = 0
+## True once the vendors plugin loaded this hand's Meta model; it has no
+## removal signal, and a new session reloads the model in place.
+var _vendor_model_shown: bool = false
 
 
 func _init(p_hand: String = "right", p_body_color: Color = Color(0.5, 0.5, 0.5)) -> void:
@@ -103,12 +115,14 @@ func build() -> void:
 	_labels_root.visible = show_labels
 	add_child(_labels_root)
 	_runtime_model_count = 0
+	_vendor_model_shown = false
 	_add_runtime_models()
+	_add_vendor_model()
 
 
 ## True while the runtime supplies this hand's model and the generic shape is hidden.
 func has_runtime_model() -> bool:
-	return _runtime_model_count > 0
+	return _runtime_model_count > 0 or _vendor_model_shown
 
 
 ## True when the generic shape is drawn (every part visible).
@@ -123,6 +137,11 @@ func generic_shape_visible() -> bool:
 ## The runtime model manager for this hand, or null before `build`.
 func runtime_models() -> OpenXRRenderModelManager:
 	return get_node_or_null(RUNTIME_MODELS_NAME) as OpenXRRenderModelManager
+
+
+## The vendors plugin's model node for this hand, or null without the plugin.
+func vendor_model() -> Node3D:
+	return get_node_or_null(VENDOR_MODEL_NAME) as Node3D
 
 
 ## Replaces the labels with `labels` (control without hand prefix -> text,
@@ -171,7 +190,18 @@ func on_runtime_model_added(_render_model: Node3D) -> void:
 ## Connected to the manager's `render_model_removed`.
 func on_runtime_model_removed(_render_model: Node3D) -> void:
 	_runtime_model_count = maxi(_runtime_model_count - 1, 0)
-	_show_generic(_runtime_model_count == 0)
+	_show_generic(not has_runtime_model())
+
+
+## Connected to the vendor model's `openxr_fb_render_model_loaded`; public to
+## the tests, which have no plugin. The Meta model wins over any
+## XR_EXT_render_model one so the hand never shows two controllers.
+func on_vendor_model_loaded() -> void:
+	_vendor_model_shown = true
+	_show_generic(false)
+	var manager: OpenXRRenderModelManager = runtime_models()
+	if manager != null:
+		manager.visible = false
 
 
 func _add_runtime_models() -> void:
@@ -188,6 +218,21 @@ func _add_runtime_models() -> void:
 	manager.render_model_added.connect(on_runtime_model_added)
 	manager.render_model_removed.connect(on_runtime_model_removed)
 	add_child(manager)
+
+
+func _add_vendor_model() -> void:
+	if not ClassDB.class_exists(VENDOR_MODEL_CLASS):
+		return
+	if not bool(ProjectSettings.get_setting(VENDOR_MODEL_SETTING, false)):
+		return
+	var node: Node3D = ClassDB.instantiate(VENDOR_MODEL_CLASS) as Node3D
+	if node == null:
+		return
+	node.name = VENDOR_MODEL_NAME
+	# The plugin's enum: 0 is the left controller, 1 the right.
+	node.set("render_model_type", 0 if hand == "left" else 1)
+	node.connect(VENDOR_MODEL_LOADED, on_vendor_model_loaded)
+	add_child(node)
 
 
 func _show_generic(shown: bool) -> void:
