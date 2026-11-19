@@ -1,16 +1,18 @@
 class_name InstallerProbe
 extends RefCounted
 
-## Debug-only spike for in-app updates (#130, DEV-8, PLT-1): can a sideloaded
-## build hand an APK to the Android package installer on Horizon OS? It copies
-## the running app's own APK into app storage and opens it with the installer,
-## so no download is needed; on the headset the expected result is Android's
-## "update this app?" dialog. The answer decides how the update issues are
-## written, so the probe only reports and changes nothing in the game.
+## Debug-only spike for in-app updates (#130, #595, DEV-8, PLT-1): can a
+## sideloaded build hand an APK to the Android package installer on Horizon OS?
+## It copies the running app's own APK into app storage and opens it with the
+## installer, so no download is needed; on the headset the expected result is
+## Android's "update this app?" dialog. The answer decides how the update
+## issues are written, so the probe only reports and changes nothing in the
+## game.
 ##
 ## No plugin: the Godot Android template already declares a FileProvider with
 ## the authority "<package>.fileprovider" that serves the app's files
-## directory, so `JavaClassWrapper` can build the content URI and the intent.
+## directory. All Android work is in `InstallerProbeJava`, through
+## `JavaClassWrapper`; Godot's `FileAccess` cannot read the APK (#106).
 
 const STATUS_STARTED: String = "started"
 const STATUS_UNSUPPORTED: String = "unsupported"
@@ -26,8 +28,13 @@ const INTENT_EXTRA: String = "meltdown_installer_probe"
 const OFF_VALUES: Array[String] = ["", "0", "false", "no", "off"]
 
 const COPY_NAME: String = "meltdown_installer_probe.apk"
-const APK_MIME: String = "application/vnd.android.package-archive"
-const PROVIDER_SUFFIX: String = ".fileprovider"
+
+## Step names, the first word of each step's log line and of its error.
+const STEP_SOURCE: String = "source"
+const STEP_TARGET: String = "target"
+const STEP_COPY: String = "copied"
+const STEP_URI: String = "content URI"
+const STEP_INTENT: String = "intent"
 
 
 ## Whether the owner asked for the probe, from the user command-line arguments
@@ -78,7 +85,7 @@ static func run(runtime: Object) -> String:
 		return unsupported("not running on Android (%s)" % OS.get_name())
 	if runtime == null:
 		return unsupported("the AndroidRuntime singleton is missing")
-	return _hand_own_apk_to_installer(runtime)
+	return run_steps(InstallerProbeJava.new(runtime), func(line: String) -> void: print(line))
 
 
 ## The AndroidRuntime singleton, or null off Android. Public so other launch
@@ -104,52 +111,46 @@ static func intent_extra(runtime: Object, extra_name: String) -> String:
 	return value if value is String else ""
 
 
-static func _hand_own_apk_to_installer(runtime: Object) -> String:
-	var activity: Object = runtime.call("getActivity")
-	if activity == null:
-		return error("no Android activity")
-	var source: String = str(activity.call("getPackageCodePath"))
-	if source == "" or not FileAccess.file_exists(source):
-		return error("own APK not found at '%s'" % source)
-	# The files directory, not user://, because that is what the template's
-	# FileProvider serves ("files-path" at "/").
-	var files_dir: Object = activity.call("getFilesDir")
-	if files_dir == null:
-		return error("no files directory")
-	var target: String = str(files_dir.call("getAbsolutePath")).path_join(COPY_NAME)
-	var copied: Error = DirAccess.copy_absolute(source, target)
-	if copied != OK:
-		return error("copy %s -> %s failed: %s" % [source, target, error_string(copied)])
+## The probe's steps in order, each logging its own line through `emit` so one
+## run on the headset shows where it stopped. Returns "started" or
+## "error: <step>: <reason>". The tests drive this with a fake bridge.
+static func run_steps(bridge: InstallerProbeBridge, emit: Callable) -> String:
+	bridge.failure = ""
+	var source: String = bridge.source_path()
+	if source == "":
+		return _step_error(STEP_SOURCE, bridge.failure)
+	var size: int = bridge.source_size(source)
+	if size < 0:
+		return _step_error(STEP_SOURCE, "'%s': %s" % [source, bridge.failure])
+	emit.call(log_line("%s: %s (%d bytes)" % [STEP_SOURCE, source, size]))
 
-	var file_class: Object = JavaClassWrapper.wrap("java.io.File")
-	var provider_class: Object = JavaClassWrapper.wrap("androidx.core.content.FileProvider")
-	var intent_class: Object = JavaClassWrapper.wrap("android.content.Intent")
-	if file_class == null or provider_class == null or intent_class == null:
-		return error("could not wrap File, FileProvider or Intent")
-	var file: Object = file_class.call("File", target)
-	var authority: String = str(activity.call("getPackageName")) + PROVIDER_SUFFIX
-	var uri: Object = provider_class.call("getUriForFile", activity, authority, file)
-	var failure: String = _java_failure("FileProvider.getUriForFile")
-	if failure != "":
-		return failure
-	if uri == null:
-		return error("FileProvider gave no URI for %s" % target)
-	var intent: Object = intent_class.call("Intent")
-	intent.call("setAction", intent_class.get("ACTION_VIEW"))
-	intent.call("setDataAndType", uri, APK_MIME)
-	var flags: int = int(intent_class.get("FLAG_GRANT_READ_URI_PERMISSION")) \
-			| int(intent_class.get("FLAG_ACTIVITY_NEW_TASK"))
-	intent.call("addFlags", flags)
-	activity.call("startActivity", intent)
-	failure = _java_failure("startActivity")
-	if failure != "":
-		return failure
+	bridge.failure = ""
+	var dir: String = bridge.files_dir()
+	if dir == "":
+		return _step_error(STEP_TARGET, bridge.failure)
+	var target: String = dir.path_join(COPY_NAME)
+	emit.call(log_line("%s: %s" % [STEP_TARGET, target]))
+
+	bridge.failure = ""
+	var copied: int = bridge.copy(source, target)
+	if copied < 0:
+		return _step_error(STEP_COPY, "%s -> %s: %s" % [source, target, bridge.failure])
+	emit.call(log_line("%s: %d bytes" % [STEP_COPY, copied]))
+	if copied != size:
+		return _step_error(STEP_COPY, "copied %d of %d bytes" % [copied, size])
+
+	bridge.failure = ""
+	var uri: String = bridge.content_uri(target)
+	if uri == "":
+		return _step_error(STEP_URI, bridge.failure)
+	emit.call(log_line("%s: %s" % [STEP_URI, uri]))
+
+	bridge.failure = ""
+	if not bridge.start_installer():
+		return _step_error(STEP_INTENT, bridge.failure)
+	emit.call(log_line("%s: started" % STEP_INTENT))
 	return STATUS_STARTED
 
 
-## An "error: ..." status when the last Java call threw, otherwise "".
-static func _java_failure(step: String) -> String:
-	var exception: Object = JavaClassWrapper.get_exception()
-	if exception == null:
-		return ""
-	return error("%s threw %s" % [step, str(exception.call("toString"))])
+static func _step_error(step: String, reason: String) -> String:
+	return error("%s: %s" % [step, reason if reason != "" else "failed without a reason"])
