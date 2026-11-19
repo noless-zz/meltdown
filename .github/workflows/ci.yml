@@ -28,22 +28,38 @@ jobs:
           for script in tools/*.sh; do bash -n "$script"; done
           shellcheck tools/*.sh
 
-      - name: Check the release notes script
-        run: tools/test_release_notes.sh
+      - name: Check the device acceptance workflow
+        run: tools/check_device_workflow.sh
 
-      - name: Check the Quest update script
-        run: tools/test_update_quest.sh
-
-      - name: Check the vendors plugin fetch script
-        run: tools/test_fetch_vendors_plugin.sh
-
-      - name: Check the Quest manifest check
-        run: tools/test_check_quest_manifest.sh
-
-      - name: Check the device acceptance workflow and its scripts
+      # Every tools/test_*.sh, found by name, so a new tool test runs without
+      # another workflow change (#619). All of them run even after a failure,
+      # and the step ends naming each script that failed. They need only bash,
+      # jq, zip and, for test_device_acceptance.sh, pwsh: all on ubuntu-latest.
+      - name: Run the tool tests
         run: |
-          tools/check_device_workflow.sh
-          tools/test_device_acceptance.sh
+          shopt -s nullglob
+          export LC_ALL=C
+          scripts=(tools/test_*.sh)
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "::error::no tools/test_*.sh found"
+            exit 1
+          fi
+          failed=()
+          for script in "${scripts[@]}"; do
+            echo "::group::$script"
+            if "$script"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error::$script failed"
+              failed+=("$script")
+            fi
+          done
+          echo "Ran ${#scripts[@]} tool tests."
+          if [ "${#failed[@]}" -gt 0 ]; then
+            echo "Failed: ${failed[*]}"
+            exit 1
+          fi
 
       - name: Download Godot
         run: |
