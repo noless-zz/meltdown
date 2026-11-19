@@ -9,19 +9,12 @@ extends RefCounted
 const Scene := preload("res://tests/cockpit_scene.gd")
 
 
-## The nearest any part of the frame can come to the eye: each instance's
-## centre distance less half the sum of its scaled unit axes, which bounds
-## its half diagonal from above. Shell panels are flat quads, so their third
-## axis adds no depth; struts are boxes and it does.
+const FrameTests := preload("res://tests/test_cockpit_frame.gd")
+
+
+## The nearest any part of the frame comes to the eye.
 static func _nearest_surface(frame: CockpitFrame) -> float:
-	var nearest: float = INF
-	for part_name: String in ["Solid", "Glass", "Struts"]:
-		var deep: bool = part_name == "Struts"
-		for placed: Transform3D in frame.instance_transforms(part_name):
-			var reach: float = 0.5 * (placed.basis.x.length() + placed.basis.y.length()
-				+ (placed.basis.z.length() if deep else 0.0))
-			nearest = minf(nearest, placed.origin.length() - reach)
-	return nearest
+	return FrameTests.distance_range(frame).x
 
 
 func test_the_start_up_frame_is_the_start_presets() -> String:

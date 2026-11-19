@@ -1,7 +1,17 @@
 {
 	"window_half_angle_h_deg": 38,
 	"window_half_angle_v_deg": 26,
-	"strut_width_m": 0.04,
 	"frame_distance_m": 0.5,
-	"glass_tint_alpha": 0.15
+	"glass_tint_alpha": 0.15,
+	"ledge_top_deg": 26,
+	"ledge_height_deg": 14,
+	"ledge_half_width_deg": 60,
+	"ledge_distance_m": 0.36,
+	"pillar_width_deg": 8,
+	"pillar_distance_m": 0.44,
+	"rim_height_deg": 8,
+	"rim_distance_m": 0.44,
+	"part_depth_m": 0.03,
+	"interior_color": [0.08, 0.1, 0.13],
+	"structure_color": [0.24, 0.27, 0.32]
 }
