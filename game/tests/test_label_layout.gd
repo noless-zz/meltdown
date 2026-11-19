@@ -15,9 +15,8 @@ const OLD_EM_M: float = 0.016
 const MAX_LEADER_M: float = 0.08
 ## Every control with a long, two-action text, to fill each column.
 const EVERY_CONTROL: Dictionary = {
-	"stick_x": "strafe left / right, yaw left / right",
-	"stick_y": "back / forward, nose down / up",
-	"stick_click": "boost, roll right",
+	"stick": "back, nose down\nstrafe left, yaw left  +  strafe right, yaw right\nforward, nose up",
+	"stick_click": "click: labels, hold: map",
 	"button_upper": "nose down / up",
 	"button_lower": "strafe left / right",
 	"menu": "reset (hold)",
@@ -53,7 +52,8 @@ static func _view_rects(rig: Node) -> Dictionary:
 			if label.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
 				left_x = anchor.x + outline - size.x
 			elif label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER:
-				left_x = anchor.x - size.x * 0.5
+				# A centred label is moved by its offset, which turns with the billboard.
+				left_x = anchor.x + label.offset.x * label.pixel_size - size.x * 0.5
 			var depth: float = -anchor.z
 			rects["%s %s" % [hand, control]] = Rect2(
 				Vector2(left_x, anchor.y - size.y * 0.5) / depth, size / depth)
@@ -99,8 +99,8 @@ func test_default_labels_do_not_overlap_in_the_neutral_pose() -> String:
 	var rig: Node = _rig_in_neutral_pose()
 	var rects: Dictionary = _view_rects(rig)
 	var message: String = _first_overlap(rects)
-	if message == "" and rects.size() != 14:
-		message = "want the 14 default labels, measured %d" % rects.size()
+	if message == "" and rects.size() != 12:
+		message = "want the 12 default labels, measured %d" % rects.size()
 	rig.free()
 	return message
 
@@ -141,7 +141,7 @@ func test_each_label_has_a_short_leader_to_its_control() -> String:
 			var ends: Array = leaders[control]
 			var label_end: Vector3 = ends[0]
 			var control_end: Vector3 = ends[1]
-			var point: Vector3 = labels.mirror(ControllerModel.CONTROL_POINTS[control])
+			var point: Vector3 = labels.mirror(ControlLabelSet.control_point(str(control), ControllerModel.CONTROL_POINTS))
 			var anchor: Vector3 = labels.label_for(str(control)).position
 			if not control_end.is_equal_approx(point):
 				message = "%s %s leader ends at %s, not the control at %s" % [hand, control, control_end, point]
@@ -169,7 +169,12 @@ func test_text_runs_away_from_the_other_hand() -> String:
 		var labels: ControlLabelSet = (rig.call("model_for", hand) as ControllerModel).label_set()
 		for control: Variant in labels.texts():
 			var label: Label3D = labels.label_for(str(control))
-			if label.horizontal_alignment != want[hand]:
+			if ControlLabelSet.CENTRED.has(str(control)):
+				# The cross's lines are centred; its block is moved outward instead.
+				if label.horizontal_alignment != HORIZONTAL_ALIGNMENT_CENTER \
+						or (label.offset.x < 0.0) != (hand == "left"):
+					message = "%s %s cross should be centred and moved outward" % [hand, control]
+			elif label.horizontal_alignment != want[hand]:
 				message = "%s %s text should run outward" % [hand, control]
 			elif (label.position.x < 0.0) != (hand == "left"):
 				message = "%s %s sits on the inner side" % [hand, control]

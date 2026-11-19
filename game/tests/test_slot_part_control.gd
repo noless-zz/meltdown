@@ -91,12 +91,12 @@ func test_the_keyboard_key_slots() -> String:
 func test_the_labels_name_it_on_the_bound_control() -> String:
 	var m: ThumbstickMapping = ThumbstickMapping.new()
 	var right: Dictionary = ControlLabels.for_mapping(m)
-	if right.get("right_stick_click", "") != "slot part":
+	if right.get("right_stick_click", "") != "click: slot held part":
 		return "right stick click labelled '%s'" % right.get("right_stick_click", "<none>")
 	m.left_handed = true
 	var left: Dictionary = ControlLabels.for_mapping(m)
-	if left.get("left_stick_click", "") != "slot part" \
-			or left.get("right_stick_click", "") != "map (hold)":
+	if left.get("left_stick_click", "") != "click: slot held part" \
+			or left.get("right_stick_click", "") != "click: labels, hold: map":
 		return "left-handed labels: %s" % left
 	return ""
 

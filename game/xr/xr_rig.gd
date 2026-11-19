@@ -35,6 +35,14 @@ var show_labels: bool = true:
 		for model: ControllerModel in _models():
 			model.show_labels = value
 
+## True while the slot control should say how to pick a part up (#606,
+## `PickupHint`); the scene that owns the session sets it each frame.
+var pickup_hint: bool = false:
+	set(value):
+		if value != pickup_hint:
+			pickup_hint = value
+			refresh_labels()
+
 ## What the labels were last built from, so a remap made in place on the
 ## layout dictionary is noticed too.
 var _shown_signature: int = 0
@@ -90,7 +98,7 @@ func render_model_report() -> RenderModelReport:
 ## Rebuilds both hands' labels from the mapping as it is now.
 func refresh_labels() -> void:
 	_shown_signature = _signature()
-	var labels: Dictionary = ControlLabels.for_mapping(mapping) if mapping != null else {}
+	var labels: Dictionary = ControlLabels.for_mapping(mapping, pickup_hint) if mapping != null else {}
 	var left: ControllerModel = model_for("left")
 	var right: ControllerModel = model_for("right")
 	if left != null:

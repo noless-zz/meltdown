@@ -80,7 +80,7 @@ func test_without_runtime_generic_shape_and_labels_stay() -> String:
 func test_runtime_model_replaces_shape_and_keeps_labels() -> String:
 	var model: ControllerModel = ControllerModel.new("right")
 	model.build()
-	model.set_labels({"trigger": "up", "stick_x": "yaw left / right"})
+	model.set_labels({"trigger": "up", "stick": "nose up\nyaw left  +  yaw right\nnose down"})
 	var first: OpenXRRenderModel = OpenXRRenderModel.new()
 	var second: OpenXRRenderModel = OpenXRRenderModel.new()
 	var message: String = ""

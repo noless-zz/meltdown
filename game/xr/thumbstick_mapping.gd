@@ -88,6 +88,9 @@ const BUTTONS: Array[String] = [
 ## the hand that does not turn (decision record 0004, #613). It is not a
 ## flight control, so no layout binds it; `preset_button` swaps its hand.
 const PRESET_BUTTON: String = "left_button_lower"
+## The control-label toggle in right-handed mode: the left stick click (#181,
+## decision record 0004). Read outside the mapping; `label_button` swaps it.
+const LABEL_BUTTON: String = "left_stick_click"
 
 const LAYOUTS_DIR: String = "res://xr/layouts"
 ## Today's built-in layout as a file; must equal `default_layout()`.
@@ -253,6 +256,12 @@ func action_held(action: String, buttons: Dictionary) -> bool:
 ## left-handed.
 func preset_button() -> String:
 	return str(_swap_hands({PRESET_BUTTON: 0.0}).keys()[0]) if left_handed else PRESET_BUTTON
+
+
+## The physical control-label toggle: the left stick click, or the right one
+## when left-handed.
+func label_button() -> String:
+	return str(_swap_hands({LABEL_BUTTON: 0.0}).keys()[0]) if left_handed else LABEL_BUTTON
 
 
 ## The physical controls that drive `action`, after left-handed mode moves

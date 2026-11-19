@@ -17,16 +17,23 @@ extends Node3D
 ## Hand-local anchor of each control's label on the right hand, in metres.
 ## -z points ahead along the controller, +y up, +x to the right; the left hand
 ## mirrors x. The text starts at the anchor and runs away from the controller.
+## A stick's cross (#606) is three lines tall: it is centred on the top row,
+## where the stick's two axis rows were, and its top line rises one row above.
 const LABEL_POSITIONS: Dictionary = {
-	"stick_y": Vector3(COLUMN_X, 0.080, COLUMN_Z),
-	"stick_x": Vector3(COLUMN_X, 0.080 - ROW_PITCH, COLUMN_Z),
-	"stick_click": Vector3(COLUMN_X, 0.080 - 2.0 * ROW_PITCH, COLUMN_Z),
-	"button_upper": Vector3(COLUMN_X, 0.080 - 3.0 * ROW_PITCH, COLUMN_Z),
-	"button_lower": Vector3(COLUMN_X, 0.080 - 4.0 * ROW_PITCH, COLUMN_Z),
-	"menu": Vector3(COLUMN_X, 0.080 - 5.0 * ROW_PITCH, COLUMN_Z),
-	"trigger": Vector3(COLUMN_X, 0.080 - 6.0 * ROW_PITCH, COLUMN_Z),
-	"grip": Vector3(COLUMN_X, 0.080 - 7.0 * ROW_PITCH, COLUMN_Z),
+	"stick": Vector3(COLUMN_X, TOP_ROW_Y, COLUMN_Z),
+	"stick_click": Vector3(COLUMN_X, TOP_ROW_Y - 2.0 * ROW_PITCH, COLUMN_Z),
+	"button_upper": Vector3(COLUMN_X, TOP_ROW_Y - 3.0 * ROW_PITCH, COLUMN_Z),
+	"button_lower": Vector3(COLUMN_X, TOP_ROW_Y - 4.0 * ROW_PITCH, COLUMN_Z),
+	"menu": Vector3(COLUMN_X, TOP_ROW_Y - 5.0 * ROW_PITCH, COLUMN_Z),
+	"trigger": Vector3(COLUMN_X, TOP_ROW_Y - 6.0 * ROW_PITCH, COLUMN_Z),
+	"grip": Vector3(COLUMN_X, TOP_ROW_Y - 7.0 * ROW_PITCH, COLUMN_Z),
 }
+## Labels whose leader ends at another control's point: the cross names the
+## stick as a whole, whose top is where the stick click's leader ends too.
+const POINT_OF: Dictionary = {"stick": "stick_click"}
+## Labels whose lines are centred on each other, as a cross must be.
+const CENTRED: Array[String] = ["stick"]
+const TOP_ROW_Y: float = 0.080
 ## Just outside the controller head (half width 25 mm) and the runtime models.
 const COLUMN_X: float = 0.045
 const COLUMN_Z: float = -0.02
@@ -91,11 +98,18 @@ func set_labels(labels: Dictionary, control_points: Dictionary) -> void:
 		label.outline_modulate = LABEL_OUTLINE_COLOR
 		label.modulate = LABEL_COLOR
 		label.horizontal_alignment = text_alignment()
+		if CENTRED.has(str(control)):
+			# Centre the lines on each other, then move the block so its inner
+			# edge still sits at the anchor like every other row.
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var half_width_px: float = 0.5 * _glyph_width_px(label.text)
+			label.offset = Vector2(-half_width_px if hand == "left" else half_width_px, 0.0)
 		# Labels must stay readable when a hand or the cockpit is in front.
 		label.no_depth_test = true
 		add_child(label)
-		if control_points.has(control):
-			_add_leader(str(control), anchor, mirror(control_points[control]))
+		var point_name: String = str(POINT_OF.get(control, control))
+		if control_points.has(point_name):
+			_add_leader(str(control), anchor, mirror(control_points[point_name]))
 	set_alpha(_alpha)
 
 
@@ -140,12 +154,24 @@ func text_alignment() -> HorizontalAlignment:
 	return HORIZONTAL_ALIGNMENT_RIGHT if hand == "left" else HORIZONTAL_ALIGNMENT_LEFT
 
 
-## Width and height, in metres, of `text` as a label draws it, outline included.
+## Width and height, in metres, of `text` as a label draws it, outline
+## included. Lines are split at "\n"; the widest sets the width.
 static func text_size(text: String) -> Vector2:
 	var font: Font = ThemeDB.fallback_font
-	var pixels: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_FONT_SIZE)
+	var pixels: Vector2 = font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_FONT_SIZE)
 	pixels += Vector2.ONE * 2.0 * LABEL_OUTLINE_SIZE
 	return pixels * LABEL_PIXEL_SIZE
+
+
+## The hand-local point where `control`'s leader ends, on the right hand,
+## from the model's `control_points`; zero for an unknown control.
+static func control_point(control: String, control_points: Dictionary) -> Vector3:
+	return control_points.get(POINT_OF.get(control, control), Vector3.ZERO)
+
+
+static func _glyph_width_px(text: String) -> float:
+	var font: Font = ThemeDB.fallback_font
+	return font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_FONT_SIZE).x
 
 
 func mirror(offset: Vector3) -> Vector3:

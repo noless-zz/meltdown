@@ -123,7 +123,7 @@ func read_preset_button(buttons: Dictionary) -> void:
 ## (left, or right when left-handed), as decision record 0004 places it. Read
 ## here like the preset button; it never reaches `ShipInput` (ARC-3).
 func label_button() -> String:
-	return "right_stick_click" if _mapping.left_handed else "left_stick_click"
+	return _mapping.label_button()
 
 
 ## True on the one frame a click should flip the labels. When the label

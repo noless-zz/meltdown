@@ -7,11 +7,10 @@ extends RefCounted
 const RIG_SCENE: String = "res://xr/xr_rig.tscn"
 
 ## Every control the default right-handed layout binds, and its label.
+## Each stick is one cross: pushed away on top, pulled back below (#606).
 const DEFAULT_LABELS: Dictionary = {
-	"left_stick_x": "strafe left / right",
-	"left_stick_y": "back / forward",
-	"right_stick_x": "yaw left / right",
-	"right_stick_y": "nose down / up",
+	"left_stick": "forward\nleft  <  strafe  >  right\nback",
+	"right_stick": "nose up\nleft  <  yaw  >  right\nnose down",
 	"left_grip": "roll left",
 	"right_grip": "roll right",
 	# Down on Y mirrors up on B; X is the comfort preset (#613).
@@ -20,9 +19,9 @@ const DEFAULT_LABELS: Dictionary = {
 	"left_button_lower": "comfort preset",
 	"right_button_lower": "boost",
 	"right_trigger": "fire",
-	"right_stick_click": "slot part",
-	# Holding it shows the map (#314); a short click is the label toggle.
-	"left_stick_click": "map (hold)",
+	"right_stick_click": "click: slot held part",
+	# A short click is the label toggle; holding it shows the map (#314, #606).
+	"left_stick_click": "click: labels, hold: map",
 	"left_menu": "reset (hold)",
 }
 
@@ -58,6 +57,7 @@ func test_unbound_controls_get_no_label() -> String:
 	var zero: Dictionary = ControlLabels.for_layout({"lift": {"right_trigger": 0.0}})
 	var only_fixed: Dictionary = ControlLabels.FIXED_LABELS.duplicate()
 	only_fixed[ThumbstickMapping.PRESET_BUTTON] = ControlLabels.PRESET_WORD
+	only_fixed[ThumbstickMapping.LABEL_BUTTON] = ControlLabels.LABEL_TOGGLE_WORD
 	if zero != only_fixed:
 		return "a zero weight should give no label, got %s" % zero
 	return ""
@@ -89,15 +89,15 @@ func test_remapping_one_axis_changes_its_label() -> String:
 		return "buttons still labelled after lift moved away: %s" % got
 	if got.get("left_trigger", "") != "down" or got.get("right_grip", "") != "roll right, up":
 		return "left trigger should read down and right grip roll right, up; got %s" % got
-	if got.get("right_stick_x", "") != DEFAULT_LABELS["right_stick_x"]:
+	if got.get("right_stick", "") != DEFAULT_LABELS["right_stick"]:
 		return "an untouched axis changed its label"
 	return ""
 
 
 func test_negative_stick_weight_reverses_the_words() -> String:
 	var got: Dictionary = ControlLabels.for_layout({"yaw": {"right_stick_x": -1.0}})
-	if got.get("right_stick_x", "") != "yaw right / left":
-		return "a reversed yaw stick should read 'yaw right / left', got '%s'" % got.get("right_stick_x", "")
+	if got.get("right_stick", "") != ControlLabels.cross("", "", "yaw right", "yaw left"):
+		return "a reversed yaw stick should read yaw right on the left, got '%s'" % got.get("right_stick", "")
 	return ""
 
 
@@ -105,8 +105,8 @@ func test_invert_pitch_reverses_the_pitch_words() -> String:
 	var mapping: ThumbstickMapping = ThumbstickMapping.new()
 	mapping.invert_pitch = true
 	var got: Dictionary = ControlLabels.for_mapping(mapping)
-	if got.get("right_stick_y", "") != "nose up / down":
-		return "inverted pitch should read 'nose up / down', got '%s'" % got.get("right_stick_y", "")
+	if got.get("right_stick", "") != ControlLabels.cross("nose down", "nose up", "yaw left", "yaw right"):
+		return "inverted pitch should put nose down on top, got '%s'" % got.get("right_stick", "")
 	return ""
 
 
@@ -151,6 +151,8 @@ func test_reset_is_labelled_on_the_left_menu_button() -> String:
 func test_every_bindable_control_has_a_label_position() -> String:
 	for control: String in ThumbstickMapping.CONTROLS:
 		var part: String = control.trim_prefix("left_").trim_prefix("right_")
+		if part in ["stick_x", "stick_y"]:
+			part = ControlLabels.STICK  # Both axes share the cross (#606).
 		if not ControllerModel.LABEL_POSITIONS.has(part):
 			return "no label position for %s" % part
 	return ""
@@ -189,13 +191,13 @@ func test_rig_rebuilds_labels_on_remap_and_left_handed() -> String:
 	rig.call("_process", 0.0)
 	var right: ControllerModel = rig.call("model_for", "right") as ControllerModel
 	# The click already slots the held part (#312), so both actions share the label.
-	if right.label_texts().get("stick_click", "") != "up, slot part" or right.label_texts().has("button_upper"):
+	if right.label_texts().get("stick_click", "") != "up, click: slot held part" or right.label_texts().has("button_upper"):
 		message = "remap not shown: %s" % right.label_texts()
 	if message == "":
 		mapping.left_handed = true
 		rig.call("_process", 0.0)
 		var left: ControllerModel = rig.call("model_for", "left") as ControllerModel
-		if left.label_texts().get("stick_click", "") != "up, slot part":
+		if left.label_texts().get("stick_click", "") != "up, click: slot held part":
 			message = "left-handed not shown: %s" % left.label_texts()
 		elif right.label_texts().get("button_lower", "") != "comfort preset" \
 				or left.label_texts().get("button_lower", "") != "boost":
