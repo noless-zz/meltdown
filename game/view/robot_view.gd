@@ -2,87 +2,61 @@ class_name RobotView
 extends Node3D
 
 ## Draws the simulation's robots as placeholder shapes, one look per robot type
-## (CMB-3). Real art comes later; for now each type gets a primitive shape and
-## a glowing colour so the types can be told apart in a dark tunnel.
+## (CMB-3): a body and extra parts for a silhouette that reads at 20 m, a lean
+## drawn from the robot's velocity, a flash on every hit, a dim sputter below
+## half hull, a glow that grows over the wind-up before a burst of fire and a
+## burst where one is destroyed (#604).
 ##
 ## It only reads the robots it is given and never writes to them, so the view
-## cannot change what the authoritative simulation decided (MP-2). Meshes are
+## cannot change what the authoritative simulation decided (MP-2). Nodes are
 ## pooled: robots appearing and disappearing reuse hidden nodes instead of
 ## creating and freeing them every frame.
 ##
-## The look per type lives in `res://view/robot_look.json`, keyed by the robot
-## data file's id, so a new robot type needs a new entry there and no code
-## (ARC-4).
+## The look per type lives in `res://view/robot_look.json` (`RobotLook`), keyed
+## by the robot data file's id, so a new robot type needs a new entry there and
+## no code (ARC-4).
 
 const NODE_NAME: String = "RobotView"
 const MESH_PREFIX: String = "Robot"
 const DEFAULT_LOOK_FILE: String = "res://view/robot_look.json"
-
-const SHAPES: Array[String] = ["sphere", "box", "capsule", "prism"]
-## Keys of one look entry.
-const ENTRY_KEYS: Array[String] = ["shape", "scale", "emission_color"]
-## Keys of the file's top level.
-const TOP_KEYS: Array[String] = ["default", "robots"]
-## Size relative to the robot's collision radius, inclusive.
-const SCALE_RANGE: Array[float] = [0.1, 4.0]
-
-## A robot whose position jumped further than this many ticks of its top speed
-## (plus `JUMP_MARGIN_M`) is not the same robot as the one at the same index on
-## the previous tick: an earlier robot was removed and the array shifted. It is
-## drawn where it is rather than sliding across the tunnel.
-const JUMP_TICKS: float = 2.0
-const JUMP_MARGIN_M: float = 0.1
-
+const SHAPES: Array[String] = RobotLook.SHAPES
 ## Look used for an id the file does not list, and when the file is rejected.
-const FALLBACK_LOOK: Dictionary = {"shape": "sphere", "scale": 1.0, "emission_color": Color(0.8, 0.8, 0.8)}
+const FALLBACK_LOOK: Dictionary = RobotLook.FALLBACK
+## How bright an eye part is while its robot sleeps (not yet awake).
+const ASLEEP_EYE: float = 0.08
+## A hit flash adds up to this much emission energy, so it reads in the dark.
+const FLASH_ENERGY: float = 3.0
 
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
+## Seconds on the clock the flashes and bursts run on. Negative: the engine's
+## clock. Tests set it to step time by hand.
+var clock_s: float = -1.0
 
-## Look per robot id: {"shape", "scale", "emission_color"}.
 var _looks: Dictionary[String, Dictionary] = {}
 var _default_look: Dictionary = FALLBACK_LOOK
-## One shared mesh per robot id (and "" for the default), built on first use.
+var _effects: Dictionary = RobotLook.DEFAULT_EFFECTS
+## One shared unit mesh per shape, built on first use.
 var _meshes: Dictionary[String, PrimitiveMesh] = {}
+## Pooled robot nodes. The root carries the pose and no mesh of its own; its
+## children are the body and the parts of the type in `_node_ids`.
 var _nodes: Array[MeshInstance3D] = []
+var _node_ids: Array[String] = []
+var _body_materials: Array[StandardMaterial3D] = []
+var _eye_materials: Array[StandardMaterial3D] = []
+var _bursts: RobotBursts = RobotBursts.new()
+var _tracker: RobotHitTracker = RobotHitTracker.new()
 
 
 func _init() -> void:
 	name = NODE_NAME
+	add_child(_bursts)
 	load_look()
 
 
-## Parses the text of a look file: `{"default": <entry>, "robots": {<id>:
-## <entry>, ...}}`, where an entry is `{"shape": one of SHAPES, "scale":
-## number, "emission_color": [r, g, b]}`. Returns `{"default": <look>,
-## "robots": {<id>: <look>}}` with the colour as a `Color`, or a dictionary
-## holding only `"error"`, which names the field.
+## See `RobotLook.parse`.
 static func parse_look(text: String) -> Dictionary:
-	var json: JSON = JSON.new()
-	if json.parse(text) != OK:
-		return _rejected("invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()])
-	if typeof(json.data) != TYPE_DICTIONARY:
-		return _rejected("top level must be a JSON object")
-	var data: Dictionary = json.data
-	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not TOP_KEYS.has(key):
-			return _rejected("unknown key \"%s\"" % str(key))
-	for key: String in TOP_KEYS:
-		if not data.has(key):
-			return _rejected("missing key \"%s\"" % key)
-	var default_look: Dictionary = _parse_entry("default", data["default"])
-	if default_look.has("error"):
-		return default_look
-	if typeof(data["robots"]) != TYPE_DICTIONARY:
-		return _rejected("key \"robots\" must be an object of robot id to look")
-	var robots: Dictionary = {}
-	var given: Dictionary = data["robots"]
-	for id: Variant in given:
-		var look: Dictionary = _parse_entry("robots.%s" % str(id), given[id])
-		if look.has("error"):
-			return look
-		robots[str(id)] = look
-	return {"default": default_look, "robots": robots}
+	return RobotLook.parse(text)
 
 
 ## Applies the look file at `path`. A missing or rejected file leaves every
@@ -93,16 +67,18 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 	if FileAccess.file_exists(path):
 		values = parse_look(FileAccess.get_file_as_string(path))
 	else:
-		values = _rejected("file not found")
+		values = {"error": "file not found"}
 	_looks.clear()
-	_meshes.clear()
+	_node_ids.fill("")
 	_default_look = FALLBACK_LOOK
+	_effects = RobotLook.DEFAULT_EFFECTS
 	look_error = ""
 	if values.has("error"):
 		look_error = "%s: %s" % [path, values["error"]]
 		push_warning("RobotView uses the fallback look; %s" % look_error)
 	else:
 		_default_look = values["default"]
+		_effects = values["effects"]
 		var robots: Dictionary = values["robots"]
 		for id: String in robots:
 			_looks[id] = robots[id]
@@ -114,6 +90,11 @@ func look_for(id: String) -> Dictionary:
 	return _looks.get(id, _default_look)
 
 
+## The flash, damage and burst settings in use.
+func effects() -> Dictionary:
+	return _effects
+
+
 ## Ids the loaded look file lists.
 func looked_ids() -> Array[String]:
 	var ids: Array[String] = []
@@ -121,13 +102,16 @@ func looked_ids() -> Array[String]:
 	return ids
 
 
-## Draws one mesh per robot in `current`, `alpha` (0..1) of the way from its
-## pose in `previous` to its pose in `current`. Both are copies of the
-## simulation's ordered robot array on consecutive ticks, so robots are paired
-## by index. A robot with no partner (new, or an earlier one was removed and
-## the array shifted) is drawn where it is. Never writes to either array (MP-2).
+## Draws every robot in `current`, `alpha` (0..1) of the way from its pose in
+## `previous` to its pose in `current`. Both are copies of the simulation's
+## ordered robot array on consecutive ticks. A robot with no partner in
+## `previous` (new, or too far from any) is drawn where it is; a robot of
+## `previous` with none in `current` was destroyed and bursts. Never writes to
+## either array (MP-2).
 func show_robots(previous: Array[RobotState], current: Array[RobotState], alpha: float) -> void:
+	var now: float = now_s()
 	var blend: float = clampf(alpha, 0.0, 1.0)
+	_tracker.observe(previous, current, now)
 	while _nodes.size() < current.size():
 		_add_node()
 	for index: int in current.size():
@@ -136,39 +120,73 @@ func show_robots(previous: Array[RobotState], current: Array[RobotState], alpha:
 		if robot == null or robot.def == null:
 			node.visible = false
 			continue
-		var before: RobotState = previous[index] if index < previous.size() else null
-		if not is_same_robot(before, robot):
-			before = robot
+		var at: int = _tracker.partner(index)
+		var before: RobotState = previous[at] if at >= 0 and at < previous.size() else robot
 		var look: Dictionary = look_for(robot.def.id)
+		if _node_ids[index] != robot.def.id:
+			_build_parts(index, look)
+			_node_ids[index] = robot.def.id
 		var size: float = robot.def.radius * float(look["scale"])
 		var from_rotation: Quaternion = before.orientation.orthonormalized().get_rotation_quaternion()
 		var to_rotation: Quaternion = robot.orientation.orthonormalized().get_rotation_quaternion()
 		var rotation: Quaternion = from_rotation.slerp(to_rotation, blend)
-		node.mesh = _mesh_for(robot.def.id)
-		node.transform = Transform3D(Basis(rotation).scaled(Vector3.ONE * size),
+		var lean: Vector2 = lean_degrees(robot, look["tell"])
+		var leaned: Basis = Basis(rotation) * Basis.from_euler(Vector3(deg_to_rad(lean.x), 0.0, deg_to_rad(lean.y)))
+		node.transform = Transform3D(leaned.scaled(Vector3.ONE * size),
 				before.position.lerp(robot.position, blend))
+		var hull_fraction: float = robot.hull / robot.def.hull if robot.def.hull > 0.0 else 1.0
+		_paint(index, look, RobotHitTracker.glow(_effects, hull_fraction, _tracker.since_hit(index, now), now,
+				RobotHitTracker.windup_fraction(robot)), robot.awake)
 		node.visible = true
 	for index: int in range(current.size(), _nodes.size()):
 		_nodes[index].visible = false
+	_tracker.prune_bursts(now, _effects["burst_seconds"])
+	_bursts.show_bursts(_tracker.bursts, _effects, now)
 
 
-## Whether `before` can be the previous tick's copy of `robot`: same type, and
-## no further away than it could have moved.
+## Seconds on the flash and burst clock.
+func now_s() -> float:
+	return clock_s if clock_s >= 0.0 else Time.get_ticks_usec() / 1_000_000.0
+
+
+## The lean of a robot's drawn body, degrees about its own axes: `x` pitch
+## (negative is nose down, as it closes on its target) and `y` roll (negative
+## banks to its right, as it slides right around its target). From the
+## velocity the snapshot already holds, so nothing is added to the simulation.
+static func lean_degrees(robot: RobotState, tell: Dictionary) -> Vector2:
+	var limit: float = float(tell["max_deg"])
+	if limit <= 0.0:
+		return Vector2.ZERO
+	var local: Vector3 = robot.orientation.orthonormalized().inverse() * robot.velocity
+	var closing: float = -local.z
+	var pitch: float = -clampf(closing * float(tell["pitch_deg_per_mps"]), -limit, limit)
+	var roll: float = -clampf(local.x * float(tell["roll_deg_per_mps"]), -limit, limit)
+	return Vector2(pitch, roll)
+
+
+## See `RobotHitTracker.is_same_robot`.
 static func is_same_robot(before: RobotState, robot: RobotState) -> bool:
-	if before == null or before.def == null or before.def.id != robot.def.id:
-		return false
-	var reach: float = robot.def.max_speed * ShipState.TICK_DT * JUMP_TICKS + JUMP_MARGIN_M
-	return before.position.distance_to(robot.position) <= reach
+	return RobotHitTracker.is_same_robot(before, robot)
 
 
-## Number of mesh nodes in the pool, shown or hidden.
+## Number of robot nodes in the pool, shown or hidden.
 func node_count() -> int:
 	return _nodes.size()
 
 
-## The pooled mesh node at `index`, for tests.
+## The pooled robot node at `index`, for tests. Its children are the body and parts.
 func node(index: int) -> MeshInstance3D:
 	return _nodes[index]
+
+
+## The body material of the robot node at `index`, for tests.
+func body_material(index: int) -> StandardMaterial3D:
+	return _body_materials[index]
+
+
+## Bursts drawn on the last `show_robots`.
+func visible_burst_count() -> int:
+	return _bursts.visible_count()
 
 
 ## A unit-sized mesh for `shape`: about 1 m from the centre to the surface
@@ -190,6 +208,21 @@ static func build_mesh(shape: String) -> PrimitiveMesh:
 			var prism: PrismMesh = PrismMesh.new()
 			prism.size = Vector3(2.0, 2.0, 2.0)
 			return prism
+		"cylinder", "cone":
+			var cylinder: CylinderMesh = CylinderMesh.new()
+			cylinder.top_radius = 1.0 if shape == "cylinder" else 0.0
+			cylinder.bottom_radius = 1.0
+			cylinder.height = 2.0
+			cylinder.radial_segments = 12
+			cylinder.rings = 1
+			return cylinder
+		"torus":
+			var torus: TorusMesh = TorusMesh.new()
+			torus.inner_radius = 0.7
+			torus.outer_radius = 1.0
+			torus.rings = 16
+			torus.ring_segments = 6
+			return torus
 	var sphere: SphereMesh = SphereMesh.new()
 	sphere.radius = 1.0
 	sphere.height = 2.0
@@ -198,65 +231,57 @@ static func build_mesh(shape: String) -> PrimitiveMesh:
 	return sphere
 
 
-func _mesh_for(id: String) -> PrimitiveMesh:
-	var key: String = id if _looks.has(id) else ""
-	if _meshes.has(key):
-		return _meshes[key]
-	var look: Dictionary = look_for(id)
-	var mesh: PrimitiveMesh = build_mesh(look["shape"])
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	var color: Color = look["emission_color"]
+func _mesh(shape: String) -> PrimitiveMesh:
+	if not _meshes.has(shape):
+		_meshes[shape] = build_mesh(shape)
+	return _meshes[shape]
+
+
+## Rebuilds the children of node `index` for `look`: the body, then each part.
+func _build_parts(index: int, look: Dictionary) -> void:
+	var root: MeshInstance3D = _nodes[index]
+	for child: Node in root.get_children():
+		root.remove_child(child)
+		child.free()
+	var pieces: Array = [{"shape": look["shape"], "size": look["stretch"], "offset": Vector3.ZERO, "eye": false}]
+	pieces.append_array(look["parts"])
+	for piece: Dictionary in pieces:
+		var part: MeshInstance3D = MeshInstance3D.new()
+		part.mesh = _mesh(piece["shape"])
+		part.transform = Transform3D(Basis.from_scale(piece["size"]), piece["offset"])
+		part.material_override = _eye_materials[index] if piece["eye"] else _body_materials[index]
+		part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(part)
+
+
+func _paint(index: int, look: Dictionary, glow: Dictionary, awake: bool) -> void:
+	var base: Color = look["emission_color"]
+	var flash: float = glow["flash"]
+	var flash_color: Color = _effects["hit_flash_color"]
+	var body: StandardMaterial3D = _body_materials[index]
 	# Shaded, so the shape still reads under the ship's and the bolts' lights,
 	# and emissive, so the colour reads in a dark tunnel with no light on it.
-	material.albedo_color = color
-	material.emission_enabled = true
-	material.emission = color
-	mesh.material = material
-	_meshes[key] = mesh
-	return mesh
+	body.albedo_color = (base * float(glow["brightness"])).lerp(flash_color, flash)
+	body.emission = body.albedo_color
+	# The glow grows over the wind-up, so the pilot sees a burst coming (#612).
+	var windup: float = float(glow["windup"]) * float(_effects["windup_energy"])
+	body.emission_energy_multiplier = 1.0 + FLASH_ENERGY * flash + windup
+	var eye: Color = look["eye_color"]
+	_eye_materials[index].emission = eye if awake else eye * ASLEEP_EYE
+	_eye_materials[index].albedo_color = _eye_materials[index].emission
+	_eye_materials[index].emission_energy_multiplier = 1.0 + 2.0 * windup
 
 
 func _add_node() -> void:
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = "%s%d" % [MESH_PREFIX, _nodes.size()]
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	instance.visible = false
 	add_child(instance)
 	_nodes.append(instance)
-
-
-static func _parse_entry(field: String, entry: Variant) -> Dictionary:
-	if typeof(entry) != TYPE_DICTIONARY:
-		return _rejected("\"%s\" must be an object" % field)
-	var data: Dictionary = entry
-	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not ENTRY_KEYS.has(key):
-			return _rejected("\"%s\" has unknown key \"%s\"" % [field, str(key)])
-	for key: String in ENTRY_KEYS:
-		if not data.has(key):
-			return _rejected("\"%s\" is missing key \"%s\"" % [field, key])
-	if typeof(data["shape"]) != TYPE_STRING or not SHAPES.has(data["shape"]):
-		return _rejected("\"%s.shape\" is %s, must be one of %s" % [field, JSON.stringify(data["shape"]), ", ".join(PackedStringArray(SHAPES))])
-	var scale: Variant = data["scale"]
-	# A bool must not pass as 0 or 1.
-	if typeof(scale) != TYPE_FLOAT and typeof(scale) != TYPE_INT:
-		return _rejected("\"%s.scale\" must be a number" % field)
-	if float(scale) < SCALE_RANGE[0] or float(scale) > SCALE_RANGE[1]:
-		return _rejected("\"%s.scale\" is %s, must be within %s..%s" % [field, scale, SCALE_RANGE[0], SCALE_RANGE[1]])
-	var parts: Variant = data["emission_color"]
-	if typeof(parts) != TYPE_ARRAY or (parts as Array).size() != 3:
-		return _rejected("\"%s.emission_color\" must be [red, green, blue]" % field)
-	for part: Variant in parts:
-		if typeof(part) != TYPE_FLOAT and typeof(part) != TYPE_INT:
-			return _rejected("\"%s.emission_color\" must hold numbers" % field)
-		if float(part) < 0.0 or float(part) > 1.0:
-			return _rejected("\"%s.emission_color\" has %s, must be within 0..1" % [field, part])
-	return {
-		"shape": data["shape"],
-		"scale": float(scale),
-		"emission_color": Color(float(parts[0]), float(parts[1]), float(parts[2])),
-	}
-
-
-static func _rejected(message: String) -> Dictionary:
-	return {"error": message}
+	_node_ids.append("")
+	var body: StandardMaterial3D = StandardMaterial3D.new()
+	body.emission_enabled = true
+	_body_materials.append(body)
+	var eye: StandardMaterial3D = StandardMaterial3D.new()
+	eye.emission_enabled = true
+	_eye_materials.append(eye)
