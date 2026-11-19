@@ -83,10 +83,11 @@ func test_the_hold_row_sits_clear_of_the_shield_and_hull_rows() -> String:
 		StatusPanel.SHIELD_BAR_NAME: _y(panel, StatusPanel.SHIELD_BAR_NAME),
 		StatusPanel.HULL_LABEL_NAME: _y(panel, StatusPanel.HULL_LABEL_NAME),
 		StatusPanel.HULL_BAR_NAME: _y(panel, StatusPanel.HULL_BAR_NAME),
-		StatusPanel.BUILD_NAME: _y(panel, StatusPanel.BUILD_NAME),
+		StatusPanel.WEAPON_NAME: _y(panel, StatusPanel.WEAPON_NAME),
+		StatusPanel.SPEED_NAME: _y(panel, StatusPanel.SPEED_NAME),
 	}
-	var hull_y: float = others[StatusPanel.HULL_BAR_NAME]
-	var build_y: float = others[StatusPanel.BUILD_NAME]
+	var weapon_y: float = others[StatusPanel.WEAPON_NAME]
+	var speed_y: float = others[StatusPanel.SPEED_NAME]
 	var looks_like_others: bool = hold.font_size == StatusPanel.SMALL_FONT \
 		and hold.no_depth_test and hold.render_priority == StatusPanel.RENDER_PRIORITY_TOP \
 		and is_equal_approx(hold.position.x, StatusPanel.LABEL_X)
@@ -94,8 +95,9 @@ func test_the_hold_row_sits_clear_of_the_shield_and_hull_rows() -> String:
 	for node_name: String in others:
 		if absf(hold_y - float(others[node_name])) < MIN_ROW_GAP:
 			return "the hold row at %.3f is within %.3f of %s" % [hold_y, MIN_ROW_GAP, node_name]
-	if not (hull_y > hold_y and hold_y > build_y):
-		return "the hold row at %.3f is not between hull %.3f and build %.3f" % [hold_y, hull_y, build_y]
+	# The weapon, then the hold, then the rest (#605).
+	if not (weapon_y > hold_y and hold_y > speed_y):
+		return "the hold row at %.3f is not between weapon %.3f and speed %.3f" % [hold_y, weapon_y, speed_y]
 	if not looks_like_others:
 		return "the hold label is not drawn like the other small labels"
 	return ""
