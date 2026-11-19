@@ -62,6 +62,8 @@ var meltdown: MeltdownWiring = MeltdownWiring.new()
 var pickup_hint: PickupHint = PickupHint.load_file()
 ## Asks the headset for the preset's refresh rate and reads back the rate in use (#598).
 var refresh_rate: RefreshRate = RefreshRate.new()
+## Asks for a newer build on start and on a menu tap; debug headset builds only (#646).
+var update: UpdateWiring = UpdateWiring.new()
 
 
 func _ready() -> void:
@@ -101,6 +103,7 @@ func _ready() -> void:
 	meltdown.attach(self, session)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
+	update.attach(self, status_panel, build_info)
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 
@@ -138,6 +141,7 @@ func apply_controls(values: Dictionary) -> void:
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
 	map.buttons = values.get("buttons", {})
 	reset_hold.press(ResetHold.is_held(values))
+	update.press_menu(ResetHold.is_held(values))  # A tap shorter than the reset hold.
 	comfort.hand_input(ControllerSampler.map_values(mapping, values),
 		session.current_ship().orientation, reset_hold.reset_due())
 

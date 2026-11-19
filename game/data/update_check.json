@@ -1,0 +1,5 @@
+{
+	"enabled": true,
+	"url": "https://api.github.com/repos/noless-zz/meltdown/releases/tags/main-latest",
+	"timeout_seconds": 10
+}
