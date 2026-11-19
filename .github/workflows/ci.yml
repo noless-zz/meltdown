@@ -34,6 +34,12 @@ jobs:
       - name: Check the Quest update script
         run: tools/test_update_quest.sh
 
+      - name: Check the vendors plugin fetch script
+        run: tools/test_fetch_vendors_plugin.sh
+
+      - name: Check the Quest manifest check
+        run: tools/test_check_quest_manifest.sh
+
       - name: Check the device acceptance workflow and its scripts
         run: |
           tools/check_device_workflow.sh
@@ -243,8 +249,16 @@ jobs:
             echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android"
           } >> "$GITHUB_ENV"
 
+      # Only this job needs the plugin (owner's choice on #10: pinned
+      # download, nothing binary in the repository).
+      - name: Fetch the OpenXR Vendors plugin
+        run: tools/fetch_vendors_plugin.sh
+
       - name: Export APK
         run: tools/build.sh quest
+
+      - name: Check the APK manifest
+        run: tools/check_quest_manifest.sh build/meltdown-quest-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,218 @@
+name: Nightly seeds
+
+# Requirements section 8 and gate G3: the level validators on 10,000 seeds every
+# night (GEN-3, #358). G3's "10,000 seeds pass validators" points at the latest
+# run of this workflow. The per-pull-request 1,000 seeds stay in the unit tests.
+# G3's other automated half, "bots escape 95% of cleared levels", is re-measured
+# here too (#461): the bot flies 1,000 seeds with robots and debris, split over
+# shards that run beside the validator job, and the rate job adds them up.
+
+on:
+  schedule:
+    # 23:17 UTC: night in Israel, mid-afternoon Pacific, off the hour.
+    - cron: '17 23 * * *'
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: Number of seeds, starting at seed 1
+        required: false
+        default: '10000'
+      bot_seeds:
+        description: Number of seeds for the bot escape sweep, starting at seed 1
+        required: false
+        default: '1000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-seeds-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in step with ci.yml.
+  GODOT_VERSION: 4.7.2-stable
+  BOT_SEEDS: ${{ inputs.bot_seeds || '1000' }}
+  # Keep in step with the bot-escape matrix below.
+  BOT_SHARDS: 8
+
+jobs:
+  seeds:
+    name: Level validators on every seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot
+        run: |
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        run: godot --headless --path game --import
+
+      - name: Validate seeds
+        env:
+          SEEDS: ${{ inputs.seeds || '10000' }}
+        run: |
+          if ! [[ "$SEEDS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "seeds must be a positive whole number, got '$SEEDS'" >&2
+            exit 2
+          fi
+          status=0
+          tools/validate_seeds.sh --all-failures "$SEEDS" > out.txt 2> err.txt || status=$?
+          cat out.txt
+          cat err.txt >&2
+          summary_line="$(grep '^level validator:' out.txt || true)"
+          # Godot also writes engine noise (OpenXR without a headset) to stderr;
+          # the sweep's own messages start with "seed N:" or a data file name.
+          grep -E '^(seed [0-9]+|[a-z_]+\.json): ' err.txt > failures.txt || true
+          {
+            echo "## Level validators on $SEEDS seeds"
+            echo
+            echo '```'
+            echo "${summary_line:-no summary line: the run stopped with exit code $status}"
+            echo '```'
+            if [ "$status" -ne 0 ]; then
+              echo
+              if [ -s failures.txt ]; then
+                echo "### Failure messages ($(wc -l < failures.txt))"
+              else
+                echo "### Last lines of the error output"
+                tail -n 40 err.txt > failures.txt
+              fi
+              echo
+              echo '```'
+              # The job summary holds at most 1 MiB; the step log has every line.
+              if [ "$(wc -c < failures.txt)" -gt 900000 ]; then
+                head -c 900000 failures.txt
+                echo
+                echo '```'
+                echo
+                echo "Cut at 900 kB; the step log has every message."
+              else
+                cat failures.txt
+                echo '```'
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  bot-escape:
+    # About 1.2 s a seed on a two-core machine with robots and debris (#461), so
+    # 1,000 seeds would take over 20 minutes in one job; eight shards of 125 take
+    # a few minutes each. No `needs`: this runs beside the validator job.
+    name: Bot escape sweep, shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the rate script
+        run: tools/test_bot_escape_rate.sh
+
+      - name: Pick this shard's seeds
+        id: range
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          read -r first count <<< "$(tools/bot_escape_rate.sh range "$BOT_SEEDS" "$BOT_SHARDS" "$SHARD")"
+          echo "first=$first" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "shard $SHARD flies $count seeds from seed $first"
+
+      - name: Download Godot
+        if: steps.range.outputs.count != '0'
+        run: |
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        if: steps.range.outputs.count != '0'
+        run: godot --headless --path game --import
+
+      - name: Fly the bot
+        if: steps.range.outputs.count != '0'
+        env:
+          FIRST: ${{ steps.range.outputs.first }}
+          COUNT: ${{ steps.range.outputs.count }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          # The sweep exits 1 when its own shard is below the bar or cleared
+          # nothing; only the sum over every shard is G3's number, so the rate
+          # job judges that. A run that printed no summary line fails there too.
+          status=0
+          godot --headless --path game -s res://tests/bot_escape_sweep.gd -- \
+            --seeds="$COUNT" --first="$FIRST" --robots --debris > "shard-$SHARD.txt" || status=$?
+          cat "shard-$SHARD.txt"
+          echo "sweep exit code $status"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.range.outputs.count != '0'
+        with:
+          name: bot-escape-shard-${{ matrix.shard }}
+          path: shard-${{ matrix.shard }}.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  bot-escape-rate:
+    name: Bot escape rate on every shard
+    runs-on: ubuntu-latest
+    needs: bot-escape
+    # Runs when a shard failed too, so the summary says so; not when cancelled.
+    if: ${{ !cancelled() }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bot-escape-shard-*
+          path: shards
+          merge-multiple: true
+
+      - name: Add up the shards
+        env:
+          SHARDS_RESULT: ${{ needs.bot-escape.result }}
+        run: |
+          status=0
+          shopt -s nullglob
+          files=(shards/shard-*.txt)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no shard output: the shard jobs ended with '$SHARDS_RESULT'" > rate.txt
+            status=1
+          else
+            tools/bot_escape_rate.sh combine "$BOT_SEEDS" "${files[@]}" > rate.txt 2>&1 || status=$?
+          fi
+          if [ "$SHARDS_RESULT" != "success" ] && [ "$status" -eq 0 ]; then
+            echo "a shard job ended with '$SHARDS_RESULT'" >> rate.txt
+            status=1
+          fi
+          cat rate.txt
+          {
+            echo "## Bot escape sweep on $BOT_SEEDS seeds with robots and debris"
+            echo
+            echo "Gate G3 wants at least 0.95 (escaped over cleared)."
+            echo
+            echo '```'
+            cat rate.txt
+            echo '```'
+            echo
+            echo "### Shard summary lines"
+            echo
+            echo '```'
+            for file in "${files[@]}"; do
+              echo "$(basename "$file"): $(grep '^MELTDOWN_BOT_ESCAPE ' "$file" || echo 'no summary line')"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

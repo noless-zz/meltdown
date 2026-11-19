@@ -1,0 +1,7 @@
+{
+	"wall_color": [0.16, 0.15, 0.14],
+	"roughness": 0.9,
+	"edge_color": [0.25, 0.45, 0.6],
+	"edge_energy": 0.4,
+	"edge_width_m": 0.15
+}

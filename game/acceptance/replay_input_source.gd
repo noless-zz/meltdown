@@ -14,6 +14,38 @@ func _init(replay: Replay) -> void:
 	_replay = replay
 
 
+## A fresh session fed by this source, from the replay's own seed, walls,
+## tuning, weapons, robots and part catalogue, so it flies exactly the run the replay
+## recorded. Every box of a level's walls, its start pose and its reactor are
+## taken over, as `LocalSession.for_level` does (#334, #401, #332), and so is
+## its debris (#456).
+func new_session() -> LocalSession:
+	var session: LocalSession = LocalSession.new(_replay.run_seed, self, _replay.bounds(), _replay.tuning,
+		_replay.robots, _replay.loadout, _replay.parts)
+	if _replay.box_mins_mm.size() > 1:
+		session.replay.set_boxes(_replay.box_mins_mm, _replay.box_maxs_mm)
+		session.sim.set_walls(session.replay.walls())
+	# A level that does not start at the origin facing -z flies a different run
+	# from the origin (#401). Without a start line the ship stays at the origin.
+	for ship: int in _replay.start_positions_mm:
+		session.replay.start_positions_mm[ship] = _replay.start_positions_mm[ship]
+		session.replay.start_facings_mm[ship] = _replay.start_facings_mm[ship]
+	ReplayStartLine.apply(session.replay, session.sim)
+	session.reset_ship_snapshots()
+	# A level's reactor stops shots and counts down, so a replay recorded with
+	# one flies differently without it (#332).
+	if _replay.reactor != null:
+		session.replay.reactor = _replay.reactor.fresh_copy()
+		session.sim.set_reactor(_replay.reactor.fresh_copy())
+	# Debris that falls in the meltdown bounces the ship and stops shots, so a
+	# replay recorded with it misses its hash without it (RUN-4, #456). Separate
+	# copies, as in `for_level`, so the live run never moves the recorded one.
+	if _replay.debris != null and _replay.debris.size() > 0:
+		session.replay.debris = _replay.debris.fresh_copy()
+		session.sim.set_debris(_replay.debris.fresh_copy())
+	return session
+
+
 func tick_count() -> int:
 	return _replay.frames.size()
 

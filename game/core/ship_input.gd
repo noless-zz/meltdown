@@ -24,6 +24,9 @@ var reset_to_start: bool = false
 ## Primary fire held: the ship fires its selected primary weapon whenever its
 ## fire interval and energy allow (CMB-1).
 var fire_primary: bool = false
+## Slot the part in the hold into a primary weapon slot on this tick (SLV-1).
+## Set by the cockpit's hand gesture; `PartSlotting` decides what it does.
+var slot_held: bool = false
 
 
 func _init(
@@ -31,12 +34,14 @@ func _init(
 		p_turn_q: Vector3i = Vector3i.ZERO,
 		p_afterburner: bool = false,
 		p_reset_to_start: bool = false,
-		p_fire_primary: bool = false) -> void:
+		p_fire_primary: bool = false,
+		p_slot_held: bool = false) -> void:
 	thrust_q = p_thrust_q
 	turn_q = p_turn_q
 	afterburner = p_afterburner
 	reset_to_start = p_reset_to_start
 	fire_primary = p_fire_primary
+	slot_held = p_slot_held
 
 
 ## Rounds analogue values (thrust -1..1 per axis, turn in radians per second)

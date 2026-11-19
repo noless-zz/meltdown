@@ -86,9 +86,11 @@ The cause inside Mesa was not investigated further.
 
 1. It proves that the OpenXR start-up path runs, not that the picture is right. The null
    compositor throws every frame away; nothing is looked at or compared.
-2. The simulated headset has no controllers, so `XRController3D` nodes never track and
-   the action map is only loaded, not used. Monado has `SIMULATED_LEFT` and
-   `SIMULATED_RIGHT` switches; they were not tried (out of scope for #26).
+2. Since issue #571 the run starts two simulated `Simple Controller`s, the action map
+   binds their profile, and the script fails unless both hands track. Only the pose
+   actions are bound for that profile, so buttons, sticks and haptics are not exercised,
+   and the Quest's own Touch bindings are checked by a unit test, not by the run.
+   (Before #571 the simulated headset had no controllers and the hands never tracked.)
 3. The only refresh rate is 20 Hz, so the 90 Hz branch in `main.gd` (PRF-1) is not taken.
 4. Software rendering says nothing about performance (PRF requirements) and is desktop
    Vulkan, not the Quest's Android driver. Foveation and every Meta-specific extension
@@ -96,6 +98,11 @@ The cause inside Mesa was not investigated further.
 5. Godot 4.7 logs errors against Monado that do not stop the session, among them
    `XR_ERROR_SESSION_NOT_STOPPING` when the game quits without first asking the session
    to end. The script does not treat logged errors as failures.
+   Since issue #575 the script counts the log lines containing
+   `XR_ERROR_SESSION_NOT_STOPPING` (`tools/count_session_not_stopping.sh`) and prints
+   `MELTDOWN_XR_SMOKE_SHUTDOWN {"session_not_stopping_errors":<n>}` after the result line.
+   The count is reported, never a failure; it shows whether a fix for #558 removes the
+   error.
 6. The package versions follow `ubuntu-latest`. A new runner image can change Monado or
    Mesa and break the job without any change in this repository; the crash above is an
    example of what a Mesa update can bring.
@@ -113,6 +120,41 @@ The cause inside Mesa was not investigated further.
 
 ## Possible follow-ups (not started)
 
-- Simulated controllers through `SIMULATED_LEFT` and `SIMULATED_RIGHT`, to check that
-  both hands track.
+(Simulated controllers, once listed here, were done in issues #559 and #571.)
+
 - End the session cleanly before quitting to remove the `xrEndSession` error.
+
+## Addendum 2026-11-18: simulated controllers (issue #559)
+
+Tried in an `ubuntu:26.04` container with the runner's packages (Monado
+`25.0.0+dfsg-2build1`, Mesa 26.0.8 lavapipe, Godot 4.7.2) and the unchanged game.
+
+- Monado 25 reads `SIMULATED_ENABLE`, `SIMULATED_LEFT` and `SIMULATED_RIGHT`. With
+  `SIMULATED_ENABLE=1` its log says `Using builder simulated` and lists `left: Simple
+  Controller (Simulated)` and `right: Simple Controller (Simulated)` for the value
+  `simple`, `WinMR Left/Right Controller (Simulated)` for `wmr`, and `ML2 Controller
+  (Simulated)` for `ml2`. `hand_tracking.left` and `.right` stay `<none>`.
+- With each of the three, the session starts as before but neither hand tracks:
+  `"left_tracked":false,"right_tracked":false`. Godot logs no error about it.
+- The cause is the action map. `game/openxr_action_map.tres` suggests bindings only for
+  `khr/generic_controller`, `oculus/touch_controller` and `ext/hand_interaction_ext`.
+  Monado 25 does not offer `khr/generic_controller`, and none of its simulated
+  controllers offers the Touch profile, so no pose action is bound.
+- As a check, a scratch copy with an extra `/interaction_profiles/khr/simple_controller`
+  profile (only `default_pose` on `/user/hand/{left,right}/input/grip/pose`) reported
+  `"left_tracked":true,"right_tracked":true` with `SIMULATED_LEFT=simple` and
+  `SIMULATED_RIGHT=simple`. That change was not committed: the action map ships to the
+  headset and was outside issue #559's files.
+
+So `tools/xr_smoke.sh` now starts Monado with two simple controllers and prints the two
+values, but does not fail on them. Limit 2 above stays until issue #571 adds the
+simple-controller profile to the action map and makes the script check both hands.
+
+Update (issue #571): `game/openxr_action_map.tres` now has a
+`/interaction_profiles/khr/simple_controller` profile binding `default_pose` and
+`aim_pose` to `/user/hand/{left,right}/input/aim/pose` and `grip_pose` to
+`.../grip/pose`, the same pose paths the Touch profile uses. `default_pose` is the pose the
+rig's `XRController3D` nodes follow. The hands are now tracked and checked:
+`tools/xr_smoke.sh` fails, naming the hand, when `left_tracked` or `right_tracked` is
+false. `game/tests/test_xr_action_map.gd` pins the Touch profile's bindings so the
+addition cannot change what the Quest uses. Limit 2 above is rewritten accordingly.

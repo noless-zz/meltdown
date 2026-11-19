@@ -36,7 +36,7 @@ A run lasts 20-30 minutes and ends in escape or loss of the ship.
 | FLT-1 | Six-degrees-of-freedom flight: forward/back, strafe, up/down, pitch, yaw, roll; light inertia, no gravity. | M |
 | FLT-2 | Afterburner with a recharging energy pool. | M |
 | FLT-3 | Wall collisions bounce and deal minor damage, never stop the ship dead. | M |
-| CMB-1 | Two primary and two secondary weapon slots, filled only by salvage found during the run. | M |
+| CMB-1 | Two primary and two secondary weapon slots. A ship starts each run with the loadout named in its ship data file; every other weapon comes from salvage found during the run. | M |
 | CMB-2 | Shields recharge from energy; hull damage is permanent for the run unless repaired with salvage. | M |
 | CMB-3 | At least 12 robot types at release, each with distinct movement, attack and salvage drop. | M |
 | CMB-4 | A boss guarding the reactor on every third level. | S |

@@ -19,6 +19,10 @@ const MARKER_DISTANCES: Array[float] = [1.0, 5.0, 20.0]
 # the 5 m and 20 m markers are about 11 degrees apart, and the wide 20 m label
 # stays clear of both walls on the centre line.
 const MARKER_OFFSETS_X: Array[float] = [-0.5, 1.0, 0.0]
+# Markers nearer than this hang their label below the ball. Above it, the 1 m
+# label sat about 34 degrees up from the start eye, outside the preset 1 and 2
+# windows (#249); farther labels stay above, where they already fit.
+const LABEL_BELOW_UNDER_M: float = 2.0
 const LIGHT_POSITIONS_Z: Array[float] = [-3.0, -12.0, -22.0]
 const LIGHT_COLORS: Array[Color] = [
 	Color(1.0, 0.45, 0.3),
@@ -132,7 +136,10 @@ func _add_markers() -> void:
 		label.text = "%d m" % int(distance)
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.pixel_size = 0.004 * maxf(1.0, distance / 2.0)
-		label.position = Vector3(0.0, 0.3 + 0.05 * distance, 0.0)
+		var label_rise: float = 0.3 + 0.05 * distance
+		if distance < LABEL_BELOW_UNDER_M:
+			label_rise = -label_rise
+		label.position = Vector3(0.0, label_rise, 0.0)
 		marker.add_child(label)
 
 

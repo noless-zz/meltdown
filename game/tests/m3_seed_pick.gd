@@ -1,0 +1,207 @@
+extends RefCounted
+
+## Picks and records the generated seed the m3 suite's seed step flies (#494,
+## DEV-6, GEN-2, RUN-4, decision record 0005). The step moved from seed 205 to
+## 40 by hand (#438); any generator, robot or debris change can move it again,
+## so re-recording now finds the seed itself: the step's seed if the bot still
+## escapes it with a meltdown entry down, otherwise the lowest seed in
+## SEARCH_FIRST..SEARCH_LAST that does. The seed, hash and level hash are then
+## written into the suite file, which is the only place they live.
+##
+## The door step (#516) is chosen the same way, except that a blast door must
+## also be down when the bot gets out.
+##
+## A seed another generated step already flies can be excluded (#548), so the
+## suite covers two generated levels instead of one and a generator change
+## does not move both steps at once.
+##
+## `pick` and `rewrite_step` are pure, so the unit test checks them on
+## hand-made input without flying anything.
+
+const SEARCH_FIRST: int = 1
+const SEARCH_LAST: int = 300
+## Ten minutes of flight, as `bot_escape_sweep.gd` allows.
+const TICK_LIMIT: int = 36000
+const BotSweep := preload("res://tests/bot_escape_sweep.gd")
+const SUITE_PATH: String = "res://acceptance/suites/m3.json"
+
+
+## How the bot flew one seed: whether it escaped, how many meltdown entries
+## had fallen (or were held back by the route guard) and how many blast doors
+## were down when the run ended, which for an escape is before it.
+class Flown extends RefCounted:
+	var level_seed: int = 0
+	var escaped: bool = false
+	var fallen: int = 0
+	var doors_fallen: int = 0
+	var session: LocalSession = null
+	var reason: String = ""
+
+	## `need_door` asks for a fallen blast door too, as the door step does.
+	func qualifies(need_door: bool = false) -> bool:
+		return escaped and fallen >= 1 and (doors_fallen >= 1 or not need_door)
+
+	static func of(level_seed: int, escaped: bool, fallen: int, doors_fallen: int = 0) -> Flown:
+		var flown: Flown = Flown.new()
+		flown.level_seed = level_seed
+		flown.escaped = escaped
+		flown.fallen = fallen
+		flown.doors_fallen = doors_fallen
+		return flown
+
+
+## The lowest seed in `results` that qualifies and is not in `excluded`, as
+## {"seed": n}, or {"error": ...} naming the searched range when none does.
+static func pick(results: Array[Flown], first: int = SEARCH_FIRST, last: int = SEARCH_LAST,
+		need_door: bool = false, excluded: Array[int] = []) -> Dictionary:
+	var best: int = -1
+	for flown: Flown in results:
+		if flown.level_seed in excluded:
+			continue
+		if flown.qualifies(need_door) and (best < 0 or flown.level_seed < best):
+			best = flown.level_seed
+	if best < 0:
+		return {"error": "no seed in %d..%d escapes with %s fallen" % [
+			first, last, "a blast door" if need_door else "a meltdown entry"]}
+	return {"seed": best}
+
+
+## The bot's flight on `level_seed` as the step builds it (`SeedLevel`, the
+## shipped data files, robots and debris), keeping the session for recording.
+static func fly(level_seed: int) -> Flown:
+	var flown: Flown = Flown.of(level_seed, false, 0)
+	var level: LevelDef = SeedLevel.load_level(level_seed)
+	if level == null:
+		flown.reason = "the level was rejected"
+		return flown
+	var source: BotSweep.BotSource = BotSweep.BotSource.new()
+	var session: LocalSession = LocalSession.for_level(level, 0, source,
+		LocalSession.load_tuning(AcceptanceStepLevel.SHIP_FILE))
+	source.bot = BotPilot.new(session.sim, 0, level)
+	var sim: Sim = session.sim
+	while sim.outcome() == ExitRule.Outcome.RUNNING and sim.ships[0].hull > 0.0 and sim.tick < TICK_LIMIT:
+		session.advance(ShipState.TICK_DT)
+	var measured: Dictionary = {}
+	AcceptanceStateChecks.debris_fallen(sim, measured)
+	AcceptanceStateChecks.door_fallen("", sim, measured)
+	flown.escaped = sim.outcome() == ExitRule.Outcome.ESCAPED
+	flown.fallen = int(measured.get("debris_fallen", 0))
+	flown.doors_fallen = int(measured.get("doors_fallen", 0))
+	flown.session = session
+	flown.reason = "outcome %s at tick %d, %d of %d entries and %d of %d doors fallen" % [
+		AcceptanceStateChecks.outcome_name(sim.outcome()), sim.tick, flown.fallen,
+		int(measured.get("debris", 0)), flown.doors_fallen, int(measured.get("doors", 0))]
+	return flown
+
+
+## `current` if it still qualifies and is not excluded, otherwise the lowest
+## qualifying seed in the search range that is not in `excluded`. Returns
+## {"flown": Flown} or {"error": ...}.
+static func choose(current: int, need_door: bool = false, excluded: Array[int] = []) -> Dictionary:
+	var kept: Flown = null
+	if not current in excluded:
+		kept = fly(current)
+		if kept.qualifies(need_door):
+			return {"flown": kept}
+		print("Meltdown: seed %d no longer qualifies (%s); searching %d..%d" % [
+			current, kept.reason, SEARCH_FIRST, SEARCH_LAST])
+	else:
+		print("Meltdown: seed %d is flown by another step; searching %d..%d without %s" % [
+			current, SEARCH_FIRST, SEARCH_LAST, excluded])
+	var results: Array[Flown] = []
+	for level_seed: int in range(SEARCH_FIRST, SEARCH_LAST + 1):
+		if level_seed in excluded:
+			continue
+		var flown: Flown = kept if kept != null and level_seed == current else fly(level_seed)
+		results.append(flown)
+		# Seeds are flown in order, so the first that qualifies is the lowest.
+		if flown.qualifies(need_door):
+			break
+	var picked: Dictionary = pick(results, SEARCH_FIRST, SEARCH_LAST, need_door, excluded)
+	if picked.has("error"):
+		return picked
+	for flown: Flown in results:
+		if flown.level_seed == picked["seed"]:
+			return {"flown": flown}
+	return {"error": "seed %d picked but not flown" % picked["seed"]}
+
+
+## `suite_text` with the seed, expected hash and expected level hash of step
+## `step_id` replaced, everything else kept as written. Returns "" when the
+## step or one of the three fields is missing.
+static func rewrite_step(suite_text: String, step_id: String, level_seed: int, hash: int,
+		level_hash: int) -> String:
+	var start: int = suite_text.find("\"id\": \"%s\"" % step_id)
+	if start < 0:
+		return ""
+	var end: int = suite_text.find("}", start)
+	if end < 0:
+		return ""
+	var block: String = suite_text.substr(start, end - start)
+	for pair: Array in [["seed", level_seed], ["expected_hash", hash], ["expected_level_hash", level_hash]]:
+		var pattern: RegEx = RegEx.create_from_string("\"%s\": -?\\d+" % pair[0])
+		if pattern.search(block) == null:
+			return ""
+		block = pattern.sub(block, "\"%s\": %d" % pair, false)
+	return suite_text.substr(0, start) + block + suite_text.substr(end)
+
+
+## The command that re-records only step `step_id`, from the repository root;
+## the same one a level-hash failure of that step names.
+static func record_command(step_id: String) -> String:
+	return AcceptanceStateChecks.record_command(step_id)
+
+
+## The m3 step `step_id`, or null.
+static func find_step(step_id: String) -> AcceptanceStep:
+	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
+	for found: AcceptanceStep in suite.steps:
+		if found.id == step_id:
+			return found
+	return null
+
+
+## The seeds the m3 steps in `step_ids` fly; steps that are missing or fly a
+## hand-made level are left out.
+static func seeds_of(step_ids: Array[String]) -> Array[int]:
+	var seeds: Array[int] = []
+	for step_id: String in step_ids:
+		var found: AcceptanceStep = find_step(step_id)
+		if found != null and found.level_seed != AcceptanceStep.NO_SEED:
+			seeds.append(found.level_seed)
+	return seeds
+
+
+## Re-records seed step `step_id`: keeps or picks its seed (`choose`, never one
+## in `excluded`), writes the inputs to `replay_path` under `header` and the
+## seed and both hashes into the suite. Returns "" or what went wrong; nothing
+## is written on failure.
+static func record(step_id: String, replay_path: String, header: String, need_door: bool,
+		excluded: Array[int] = []) -> String:
+	var found: AcceptanceStep = find_step(step_id)
+	if found == null:
+		return "%s has no step %s; nothing recorded" % [SUITE_PATH, step_id]
+	var chosen: Dictionary = choose(found.level_seed, need_door, excluded)
+	if chosen.has("error"):
+		return "%s: %s; nothing recorded" % [step_id, chosen["error"]]
+	var flown: Flown = chosen["flown"]
+	var session: LocalSession = flown.session
+	# Inputs only: the level is the seed's, not the replay's.
+	var inputs: Replay = Replay.new(session.replay.run_seed, 1)
+	inputs.frames = session.replay.frames
+	inputs.expected_hash = session.sim.state_hash()
+	var level_hash: int = AcceptanceStepLevel.level_hash(session.replay)
+	var rewritten: String = rewrite_step(SeedLevel.read_text(SUITE_PATH), step_id, flown.level_seed,
+		inputs.expected_hash, level_hash)
+	if rewritten == "":
+		return "%s has no step %s with seed and both hashes; nothing recorded" % [SUITE_PATH, step_id]
+	for written: Array in [[replay_path, header + inputs.to_text()], [SUITE_PATH, rewritten]]:
+		var file: FileAccess = FileAccess.open(ProjectSettings.globalize_path(written[0]), FileAccess.WRITE)
+		if file == null:
+			return "could not write %s: %s" % [written[0], error_string(FileAccess.get_open_error())]
+		file.store_string(written[1])
+		file.close()
+	print("Meltdown: recorded %s: seed %d (was %d), %s, hash %d, level hash %d; written to %s" % [
+		replay_path, flown.level_seed, found.level_seed, flown.reason, inputs.expected_hash, level_hash,
+		SUITE_PATH])
+	return ""

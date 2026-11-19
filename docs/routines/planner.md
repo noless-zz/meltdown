@@ -22,7 +22,10 @@ One run keeps the backlog small, ordered and ready, and tells the owner where th
 2. Find the earliest open milestone. Count its open `ready` issues.
 3. Shape `triage` and `playtest` issues first: add requirement IDs and acceptance criteria
    an automated test can check, then label `ready`; or label `needs-human` with a clear
-   question for the owner.
+   question for the owner. A feature issue also names the acceptance-suite step it adds
+   or updates, wherever a replay or scripted input can drive the behaviour (decision
+   record 0005). A `playtest` issue opened by the nightly device run counts as shaped
+   once it names the failing suite and step: give it a lane and label it `ready`.
 4. Keep at least three `ready` issues in every lane while work remains. Write new ones
    from the milestone scope in `docs/requirements.md`. Each must fit one Builder run: one
    behaviour, a handful of files, a few hundred lines at most.
@@ -33,7 +36,11 @@ One run keeps the backlog small, ordered and ready, and tells the owner where th
 6. If every issue in a milestone is closed except the `gate` issue, comment on the gate
    issue with the automated criteria and their status, list everything the owner must
    check in a headset (collected from the merged pull requests' "Needs a headset check"
-   sections), and label it `needs-human`.
+   sections), and label it `needs-human`. Keep the two halves apart on the gate
+   (decision record 0005): the automated half says whether unit tests, the Monado smoke
+   test and the device suites are green, on the `m<N>-rc` build if that tag exists and
+   otherwise on `main`, with the report linked, or says plainly which of these has not
+   run yet; the human half lists what only the owner can judge.
    - Normally: prepare the first five issues of the next milestone without labelling
      them `ready`, and never create issues more than one milestone ahead.
    - While away mode is on (decision record 0003): an open gate does not stop planning.

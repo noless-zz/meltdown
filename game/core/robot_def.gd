@@ -29,6 +29,34 @@ var weapon: String = ""
 ## Id of the weapon or part it drops when destroyed (SLV-1).
 var salvage: String = ""
 
+## Optional movement tuning. A file may leave any of these out and gets the
+## default, so the shipped robots keep today's behaviour (CMB-3, #242). The
+## defaults match the constants `RobotState` used before these keys existed.
+
+## Chase stand-off as a multiple of the robot's own radius, 1..50: a chaser
+## stops this many radii, plus the ship's radius, from the ship's centre.
+var standoff_radii: float = 4.0
+## Near edge of the band a strafer holds from its target's centre, metres,
+## 0..500. Must not exceed `strafe_max_distance`.
+var strafe_min_distance: float = 10.0
+## Far edge of the strafe band, metres, 0..500.
+var strafe_max_distance: float = 20.0
+## How hard a strafer pulls back to the middle of its band, metres per second
+## of radial speed per metre off the middle, 0..10.
+var strafe_radial_gain: float = 0.5
+## Distance from a ship's centre that wakes the robot, metres, read in whole
+## millimetres, above zero. Until then it neither moves nor fires, so a level can
+## place robots that wait for the ship to come to them (#301). Zero means the
+## file has no such key: the robot is awake from the first tick, as before.
+var wake_range: float = 0.0
+## Seconds without a clear line to its target after which the robot drops it
+## (#615): when it next sees the ship it has to aim again, so its next shot
+## waits one full fire interval. 0.1..60; 2 s by default.
+var lose_target_seconds: float = LOSE_TARGET_DEFAULT_SECONDS
+
+## Default of `lose_target_seconds`, for files that leave the key out.
+const LOSE_TARGET_DEFAULT_SECONDS: float = 2.0
+
 ## Movement behaviours the simulation knows:
 ## hover: hold position near its spawn, turning to face the target.
 ## chase: close in on the target.
@@ -44,6 +72,12 @@ const KEYS: Array[String] = [
 	"movement", "weapon", "salvage",
 ]
 
+## Keys a file may leave out; each falls back to its field's default above.
+const OPTIONAL_KEYS: Array[String] = [
+	"standoff_radii", "strafe_min_distance", "strafe_max_distance", "strafe_radial_gain",
+	"wake_range", "lose_target_seconds",
+]
+
 ## Keys whose value is an id string rather than a number.
 const ID_KEYS: Array[String] = ["id", "weapon", "salvage"]
 
@@ -55,7 +89,17 @@ const RANGES: Dictionary = {
 	"max_speed": [0.0, 200.0],
 	"acceleration": [0.0, 1000.0],
 	"turn_rate": [1.0, 1440.0],
+	"standoff_radii": [1.0, 50.0],
+	"strafe_min_distance": [0.0, 500.0],
+	"strafe_max_distance": [0.0, 500.0],
+	"strafe_radial_gain": [0.0, 10.0],
+	# One millimetre is the smallest wake range above zero.
+	"wake_range": [0.001, 10000.0],
+	"lose_target_seconds": [0.1, 60.0],
 }
+
+## Millimetres per metre, for keys read in whole millimetres.
+const MM_PER_M: float = 1000.0
 
 const ID_MAX_LENGTH: int = 64
 
@@ -64,8 +108,10 @@ var error: String = ""
 
 
 ## Parses the text of a robot data file: one JSON object holding every key in
-## `KEYS`, and nothing else. A missing key is an error rather than a silent
-## default, so a typo cannot leave a robot untuned. On failure the returned
+## `KEYS`, any of `OPTIONAL_KEYS`, and nothing else. A missing required key is
+## an error rather than a silent default, so a typo cannot leave a robot
+## untuned; an unknown key is an error too, so a misspelt optional key is
+## caught instead of quietly falling back to its default. On failure the returned
 ## robot has `error` set, naming the field, and default values.
 static func parse_json(text: String) -> RobotDef:
 	var json: JSON = JSON.new()
@@ -75,7 +121,7 @@ static func parse_json(text: String) -> RobotDef:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)):
 			return _failed("unknown key \"%s\"" % str(key))
 	var robot: RobotDef = RobotDef.new()
 	for key: String in KEYS:
@@ -95,7 +141,30 @@ static func parse_json(text: String) -> RobotDef:
 			robot.set(key, value)
 		else:
 			robot.set(key, float(value))
+	for key: String in OPTIONAL_KEYS:
+		if not data.has(key):
+			continue
+		var message: String = _check_number(key, data[key])
+		if message != "":
+			return _failed(message)
+		robot.set(key, float(data[key]))
+	# Whole millimetres, as spawn positions are, so every reader compares the
+	# same distance however the file wrote it.
+	robot.wake_range = roundf(robot.wake_range * MM_PER_M) / MM_PER_M
+	if robot.strafe_min_distance > robot.strafe_max_distance:
+		return _failed("key \"strafe_min_distance\" is %s, must not exceed \"strafe_max_distance\" %s" % [robot.strafe_min_distance, robot.strafe_max_distance])
 	return robot
+
+
+## Reads a wake range given outside a robot file, such as on one spawn in a
+## level file, with the same check and rounding as the file's key. Returns ""
+## and sets `wake_range`, or returns the problem and changes nothing.
+func set_wake_range(value: Variant) -> String:
+	var message: String = _check_number("wake_range", value)
+	if message != "":
+		return message
+	wake_range = roundf(float(value) * MM_PER_M) / MM_PER_M
+	return ""
 
 
 ## Path of the weapon data file this robot fires; the caller reads it and
@@ -104,9 +173,27 @@ func weapon_path() -> String:
 	return "%s/%s.json" % [WEAPONS_DIR, weapon]
 
 
+## True when the data gives a wake range, so the robot starts idle.
+func has_wake_range() -> bool:
+	return wake_range > 0.0
+
+
+## Ticks without a clear line after which the robot drops its target.
+func lose_target_ticks() -> int:
+	return int(roundf(lose_target_seconds * float(ShipState.TICK_RATE)))
+
+
 ## Hash of the values, so a replay can record which robot data it ran with.
+## The wake range joins only when set, and the time to drop a target only when
+## it is not the default, so robots without them keep their hashes.
 func values_hash() -> int:
-	return hash([id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon, salvage])
+	var values: Array = [id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon,
+		salvage, standoff_radii, strafe_min_distance, strafe_max_distance, strafe_radial_gain]
+	if has_wake_range():
+		values.append_array(["wake_range", wake_range])
+	if lose_target_seconds != LOSE_TARGET_DEFAULT_SECONDS:
+		values.append_array(["lose_target_seconds", lose_target_seconds])
+	return hash(values)
 
 
 static func _check_number(key: String, value: Variant) -> String:

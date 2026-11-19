@@ -89,3 +89,84 @@ func test_main_scene_quits_only_through_an_enabled_probe() -> String:
 		if probe.tick():
 			return "a disabled probe asked to quit on frame %d" % i
 	return ""
+
+
+func test_line_reports_both_hands() -> String:
+	var line: String = XrSmokeProbe.format_line(true, "Monado(XRT)", 2, 20.0, 120, true, false)
+	var report: Dictionary = JSON.parse_string(line.substr(XrSmokeProbe.LINE_PREFIX.length()))
+	if report.get("left_tracked") != true or report.get("right_tracked") != false:
+		return "hand flags wrong: %s" % line
+	var keys: Array = report.keys()
+	keys.sort()
+	var expected: Array = ["frames", "left_tracked", "refresh_rate", "right_tracked", "runtime", "session", "views"]
+	if keys != expected:
+		return "keys were %s, expected %s" % [str(keys), str(expected)]
+	return ""
+
+
+func test_line_without_hands_says_untracked() -> String:
+	var line: String = XrSmokeProbe.format_line(true, "Monado(XRT)", 2, 20.0, 120)
+	var report: Dictionary = JSON.parse_string(line.substr(XrSmokeProbe.LINE_PREFIX.length()))
+	if report.get("left_tracked") != false or report.get("right_tracked") != false:
+		return "a caller that never watched the hands claimed tracking: %s" % line
+	if report.get("session") != true or int(report.get("views", -1)) != 2:
+		return "existing keys changed: %s" % line
+	return ""
+
+
+func test_existing_keys_keep_their_order() -> String:
+	# The script and earlier logs read the line as it was; new keys must not
+	# move the old ones relative to each other.
+	var line: String = XrSmokeProbe.format_line(true, "R", 2, 20.0, 120, true, true)
+	var order: Array[String] = ["\"frames\"", "\"refresh_rate\"", "\"runtime\"", "\"session\"", "\"views\""]
+	var last: int = -1
+	for key: String in order:
+		var at: int = line.find(key)
+		if at <= last:
+			return "key %s out of order in %s" % [key, line]
+		last = at
+	return ""
+
+
+func test_a_hand_stays_tracked_once_seen() -> String:
+	var probe: XrSmokeProbe = XrSmokeProbe.new(10)
+	probe.note_hands(false, false)
+	if probe.left_tracked() or probe.right_tracked():
+		return "a hand counted as tracked without a pose"
+	probe.note_hands(true, false)
+	probe.note_hands(false, true)
+	probe.note_hands(false, false)
+	if not probe.left_tracked() or not probe.right_tracked():
+		return "a hand that reported a pose was forgotten: left %s right %s" % [
+			probe.left_tracked(), probe.right_tracked()]
+	return ""
+
+
+func test_disabled_probe_ignores_hands() -> String:
+	var probe: XrSmokeProbe = XrSmokeProbe.new(0)
+	probe.note_hands(true, true)
+	if probe.left_tracked() or probe.right_tracked():
+		return "a disabled probe recorded hand tracking"
+	return ""
+
+
+func test_missing_controller_nodes_count_as_untracked() -> String:
+	var probe: XrSmokeProbe = XrSmokeProbe.new(5)
+	probe.watch_hands(null, null)
+	if probe.left_tracked() or probe.right_tracked():
+		return "missing controller nodes counted as tracked"
+	var left: XRController3D = XRController3D.new()
+	var right: XRController3D = XRController3D.new()
+	probe.watch_hands(left, right)
+	left.free()
+	right.free()
+	if probe.left_tracked() or probe.right_tracked():
+		return "controllers without a tracker counted as tracked"
+	return ""
+
+
+func test_main_scene_watches_both_hands_for_the_probe() -> String:
+	var source: String = FileAccess.get_file_as_string("res://main.gd")
+	if not source.contains("_smoke_probe.watch_hands(boost_haptics.left_controller, boost_haptics.right_controller)"):
+		return "main.gd does not pass both controller nodes to the smoke probe"
+	return ""

@@ -71,10 +71,26 @@ var shield_energy_cost: float = 1.0
 ## and two secondary slots.
 var primary_slots: Array[WeaponDef] = [null, null]
 var secondary_slots: Array[WeaponDef] = [null, null]
+## Part id of the weapon in each primary slot, "" when empty or unknown. A
+## weapon replaced by slotting is dropped under this id, so it can be picked up
+## again (`PartSlotting`). Not hashed: the id is fixed by the replay's weapon
+## lines and hold, and the weapon's values are already in the hash.
+var primary_ids: Array[String] = ["", ""]
 ## Index into `primary_slots` of the weapon `fire_primary` uses.
 var selected_primary: int = 0
 ## Ticks until the selected primary may fire again; 0 means ready.
 var fire_cooldown: int = 0
+
+## Salvage hold (SLV-1). Parts taken from the mine wait here, by id, until
+## they are slotted. One part, as it is pulled into the cockpit.
+const HOLD_CAPACITY: int = 1
+## Part ids in the order they were taken, at most HOLD_CAPACITY.
+var hold: Array[String] = []
+## Set by `ExitRule` when the ship leaves through the exit during the meltdown
+## (RUN-3); `Sim` then stops stepping it and nothing can hit it. Not in this
+## state's hash: `Sim` hashes it with the reactor, so levels without one keep
+## their hashes.
+var escaped: bool = false
 
 const MIN_WALL_RESTITUTION: float = 0.05
 
@@ -166,6 +182,10 @@ func fire_primary(held: bool) -> WeaponDef:
 	return weapon
 
 
+func hold_has_room() -> bool:
+	return hold.size() < HOLD_CAPACITY
+
+
 ## Restitution actually used by a bounce: `wall_restitution` kept in
 ## MIN_WALL_RESTITUTION..1.
 func bounce_factor() -> float:
@@ -201,4 +221,7 @@ func state_hash() -> int:
 		armed = armed or slot != null
 	if armed:
 		parts.append(weapons)
+	# Joins only once something is held, so earlier replays keep their hashes.
+	if not hold.is_empty():
+		parts.append(["hold", hold.duplicate()])
 	return hash(parts)

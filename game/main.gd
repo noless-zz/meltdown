@@ -10,20 +10,21 @@ extends Node3D
 ## simulation state (MP-2, ARC-3).
 
 const TARGET_REFRESH_RATE: float = 90.0
-## Where the test tunnel sits relative to the simulation origin, where the ship
-## starts. The ship's collision sphere has a 1 m radius, so the floor goes 1 m
-## below the start; otherwise the first tick would push the ship up off the
-## floor with a jolt.
+## Where the test tunnel sits relative to the simulation origin, where the ship starts:
+## 1 m below, the ship's radius, so the first tick does not push it off the floor.
 const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
 ## The ship's feel values, tuned after headset sessions without code changes.
 const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
+const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  # (#228)
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
 ## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
-## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults.
+## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults,
+## and every weapon file as a part a held part can be slotted from (#320).
 var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET),
-		LocalSession.load_tuning(SHIP_TUNING_PATH))
+		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
+		null, LocalSession.load_parts())
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
@@ -51,6 +52,12 @@ var status_panel: StatusPanel = null
 var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
 ## Logs each afterburner start and stop and pulses the boosting hand (#170).
 var boost_haptics: BoostHaptics = BoostHaptics.new()
+## The bolts, robots, shield and hull, shown from session copies (#189, #228, MP-2).
+var combat: CombatWiring = CombatWiring.new()
+## The hologram map in the hand, filled in as the ship explores (#339, MAP-1).
+var map: MapWiring = MapWiring.new()
+## The reactor, the meltdown countdown and the outcome row (#359, RUN-2, RUN-5).
+var meltdown: MeltdownWiring = MeltdownWiring.new()
 
 
 func _ready() -> void:
@@ -80,10 +87,14 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
+	use_level(LevelSwitch.requested_path())  # Only with --level=<name> (#291) or --seed=<n> (#382).
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
 	attach_status_panel()
+	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
+	map.attach($XRRig, mapping)
+	meltdown.attach(self, session)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
@@ -92,8 +103,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	apply_controls(sample_controls())
 	advance_frame(delta)
+	if _smoke_probe != null and _smoke_probe.is_enabled():
+		_smoke_probe.watch_hands(boost_haptics.left_controller, boost_haptics.right_controller)
 	if _smoke_probe != null and _smoke_probe.tick():
-		print(_smoke_report())
+		print(_smoke_probe.report(_session_begun))
 		get_tree().quit()
 
 
@@ -116,6 +129,9 @@ func sample_controls() -> Dictionary:
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
 	comfort.read_preset_button(values.get("buttons", {}))
+	if comfort.read_label_button(values.get("buttons", {})):
+		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
+	map.buttons = values.get("buttons", {})
 	reset_hold.press(ResetHold.is_held(values))
 	comfort.hand_input(ControllerSampler.map_values(mapping, values),
 		session.current_ship().orientation, reset_hold.reset_due())
@@ -143,8 +159,12 @@ func advance_frame(delta_seconds: float) -> void:
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
 	if fade_overlay != null:
 		fade_overlay.set_alpha(reset_hold.alpha)
-	log_afterburner()
+	# Logs afterburner starts and stops and pulses the boosting hand (#146, #170).
+	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 	place_rig()
+	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
+	map.update(session, delta_seconds, comfort.shared_click_hold())
+	meltdown.update(session, status_panel)
 	update_status_panel(delta_seconds)
 
 
@@ -163,6 +183,19 @@ func _end_one_tick_if_flown() -> void:
 		head_recentre.request()
 
 
+## Flies the level file at `path` in place of the test tunnel (#291): a new
+## session in the level's walls, from its start, with its robots, and the
+## level drawn where the tunnel was. Call it before the first frame. Returns
+## false, leaving the tunnel and its session, for "" or a rejected file.
+func use_level(path: String) -> bool:
+	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
+	if level == null:
+		return false
+	session = LocalSession.for_level(level, 0, input_source, LocalSession.load_tuning(SHIP_TUNING_PATH))
+	LevelSwitch.show_level(self, level)
+	return true
+
+
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
 func place_tunnel() -> void:
 	var tunnel: Node3D = get_node_or_null("TestTunnel") as Node3D
@@ -170,62 +203,43 @@ func place_tunnel() -> void:
 		tunnel.position = TUNNEL_OFFSET
 
 
-## Puts the active preset's cockpit frame under the rig's camera, as the fade
-## quad is; every preset change rebuilds it there (`ComfortWiring.set_preset`).
+## Puts the active preset's cockpit frame under the rig origin, at the head
+## point with the status panel, so the head turns inside it (#478); every
+## preset change rebuilds it there (`ComfortWiring.set_preset`).
 func attach_cockpit_frame() -> void:
-	var camera: Node3D = get_node_or_null("XRRig/Camera") as Node3D
-	if camera != null:
-		comfort.attach_cockpit_frame(camera)
+	var rig: Node3D = get_node_or_null("XRRig") as Node3D
+	if rig != null:
+		comfort.attach_cockpit_frame(rig)
+		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
 ## Puts the fade quad under the rig's camera; the rig scene stays as it is.
 func attach_fade_overlay() -> void:
-	var camera: Node3D = get_node_or_null("XRRig/Camera") as Node3D
-	if camera != null and fade_overlay == null:
-		fade_overlay = FadeOverlay.new()
-		camera.add_child(fade_overlay)
+	if fade_overlay == null:
+		fade_overlay = RigViews.add_fade_overlay(get_node_or_null("XRRig") as Node3D)
 
 
 ## Puts the status panel under the rig origin, not the camera, so it stays in
-## the cockpit while the head turns; `update_status_panel` places it.
+## the cockpit while the head turns; `place_rig` places it.
 func attach_status_panel() -> void:
-	var rig: Node3D = get_node_or_null("XRRig") as Node3D
-	if rig != null and status_panel == null:
-		status_panel = StatusPanel.new()
-		rig.add_child(status_panel)
+	if status_panel == null:
+		status_panel = RigViews.add_status_panel(get_node_or_null("XRRig") as Node3D)
+		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
 ## Hands the panel this frame's values, read from copies of the latest ship
 ## state; the panel never sees the session itself (ARC-3).
 func update_status_panel(delta_seconds: float) -> void:
-	if status_panel == null:
-		return
-	# The ship's centre sits at the recentred head point in the rig's space.
-	status_panel.transform = StatusPanel.rig_transform(head_recentre.offset.affine_inverse())
-	var ship: ShipState = session.current_ship()
-	var boost: String = ""
-	if ship.afterburner_active:
-		boost = StatusPanel.BOOST_ON
-	elif ship.afterburner_locked:
-		boost = StatusPanel.BOOST_RECHARGING
-	var energy_fraction: float = ship.energy / ship.max_energy if ship.max_energy > 0.0 else 0.0
-	status_panel.show_values(comfort.number, comfort.preset.display_name, ship.velocity.length(),
-		energy_fraction, boost, build_info.describe())
-	status_panel.advance(delta_seconds)
-
-
-## Logs each afterburner start and stop, so a device log shows whether the
-## button reaches the simulation (#146), and pulses the boosting hand at the
-## same moment (#170). Read from the latest state once per frame:
-## `Sim.last_events` only holds the last tick of a frame.
-func log_afterburner() -> void:
-	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
+	if status_panel != null:
+		RigViews.show_ship(status_panel, session.current_ship(), comfort.number,
+			comfort.preset.display_name, build_info.describe(), delta_seconds)
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
 ## the ship's centre. The headset camera and controllers are tracked relative
 ## to the rig, so they ride along. A requested recentre takes the head pose here.
-## The hit shake goes on after the pose, in the cockpit's own frame.
+## The hit shake goes on after the pose, in the cockpit's own frame. The
+## cockpit frame and panel follow the head point, so a recentre moves both.
 func place_rig() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig == null:
@@ -236,6 +250,7 @@ func place_rig() -> void:
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped)
 	rig.transform = head_recentre.rig_transform(pose * comfort.shake_offset)
+	RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:
@@ -249,10 +264,9 @@ func _on_session_begun(openxr: OpenXRInterface) -> void:
 	print("Meltdown: refresh rate ", openxr.display_refresh_rate, " Hz, available ", rates)
 
 
-## The app is shown but has lost input focus: the headset was taken off or
-## the system menu is up. Solo play holds still until focus returns (PLT-7).
-## The runtime also passes through this state on the way to focus at start,
-## which is harmless: nothing has been flown yet.
+## The app is shown but has lost input focus: the headset was taken off or the
+## system menu is up. Solo play holds still until focus returns (PLT-7). The
+## runtime passes through here on the way to focus at start; nothing has flown yet.
 func on_session_visible() -> void:
 	session.paused = true
 
@@ -274,17 +288,3 @@ func on_session_loss_pending() -> void:
 func on_session_stopping() -> void:
 	_xr_running = false
 	session.paused = true
-
-
-## Reads what the runtime reports at the moment of quitting, so the line shows
-## the state after the frames ran and not what was hoped for at start.
-func _smoke_report() -> String:
-	var runtime: String = ""
-	var views: int = 0
-	var refresh_rate: float = 0.0
-	var openxr: OpenXRInterface = XRServer.find_interface("OpenXR") as OpenXRInterface
-	if openxr != null and openxr.is_initialized():
-		runtime = str(openxr.get_system_info().get("XRRuntimeName", ""))
-		views = openxr.get_view_count()
-		refresh_rate = openxr.display_refresh_rate
-	return XrSmokeProbe.format_line(_session_begun, runtime, views, refresh_rate, _smoke_probe.frames_seen())

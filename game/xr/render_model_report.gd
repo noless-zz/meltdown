@@ -51,15 +51,19 @@ static func format_session_line(
 
 ## The second line: how many models the runtime has, under which top-level
 ## paths (empty where the runtime has not bound one yet), how many
-## `render_model_added` signals arrived, and what printed the line:
-## `"added"`, `"timeout"` or `"exit"`.
-static func format_models_line(paths: PackedStringArray, added_signals: int, trigger: String) -> String:
+## `render_model_added` signals arrived, what printed the line:
+## `"added"`, `"timeout"` or `"exit"`, and how many hands show a Meta model
+## from the Godot OpenXR Vendors plugin (#10; always 0 without the plugin).
+static func format_models_line(
+	paths: PackedStringArray, added_signals: int, trigger: String, vendor_models: int = 0
+) -> String:
 	var report: Dictionary = {
 		"phase": "models",
 		"models": paths.size(),
 		"paths": Array(paths),
 		"added_signals": added_signals,
 		"trigger": trigger,
+		"vendor_models": vendor_models,
 	}
 	return LINE_PREFIX + JSON.stringify(report)
 
@@ -138,7 +142,7 @@ func report_models(trigger: String) -> void:
 	if _models_reported:
 		return
 	_models_reported = true
-	_emit(format_models_line(_model_paths(), _added_signals, trigger))
+	_emit(format_models_line(_model_paths(), _added_signals, trigger, _vendor_model_count()))
 
 
 func _extension_active() -> bool:
@@ -153,6 +157,18 @@ func _model_paths() -> PackedStringArray:
 	for model: Variant in models:
 		paths.append(str(_extension.call("render_model_get_top_level_path", model)))
 	return paths
+
+
+## Hands whose vendors plugin node has loaded a Meta model. The class only
+## exists in Quest builds, so it is matched by name.
+func _vendor_model_count() -> int:
+	if not is_inside_tree() or not ClassDB.class_exists(ControllerModel.VENDOR_MODEL_CLASS):
+		return 0
+	var count: int = 0
+	for node: Node in get_tree().root.find_children("*", ControllerModel.VENDOR_MODEL_CLASS, true, false):
+		if node.has_method("has_render_model_node") and bool(node.call("has_render_model_node")):
+			count += 1
+	return count
 
 
 func _emit(line: String) -> void:

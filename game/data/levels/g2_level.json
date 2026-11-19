@@ -1,0 +1,25 @@
+{
+	"boxes": [
+		{"min": [-6.0, -4.0, -40.0], "max": [6.0, 4.0, 6.0]},
+		{"min": [-5.0, -44.0, -48.0], "max": [5.0, 4.0, -36.0]},
+		{"min": [-4.0, -44.0, -110.0], "max": [4.0, -36.0, -44.0]},
+		{"min": [1.0, -46.0, -90.0], "max": [22.0, -30.0, -70.0]},
+		{"min": [-10.0, -48.0, -136.0], "max": [10.0, -30.0, -106.0]},
+		{"min": [-4.0, -34.0, -134.0], "max": [4.0, 10.0, -126.0]}
+	],
+	"start": {"position": [0.0, 0.0, 0.0], "facing": [0.0, 0.0, -1.0]},
+	"robots": [
+		{"id": "needler", "position": [2.0, 1.0, -32.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "drone", "position": [0.0, -20.0, -42.0], "facing": [0.0, 1.0, 0.0]},
+		{"id": "skimmer", "position": [-1.0, -40.0, -60.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "glider", "position": [14.0, -38.0, -80.0], "facing": [-1.0, 0.0, 0.0]},
+		{"id": "hauler", "position": [1.0, -39.0, -95.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "warden", "position": [0.0, -39.0, -124.0], "facing": [0.0, 0.0, 1.0]}
+	],
+	"reactor": {"position": [0.0, -39.0, -116.0], "radius": 2.5, "hull": 400.0, "meltdown_seconds": 90.0,
+		"meltdown_base_seconds": 30.0, "meltdown_seconds_per_metre": 0.4, "meltdown_min_seconds": 45.0, "meltdown_max_seconds": 120.0},
+	"exit_radius": 4.0,
+	"debris": [
+		{"position": [-3.0, -15.0, -45.0], "radius": 1.0, "after_seconds": 10.0}
+	]
+}

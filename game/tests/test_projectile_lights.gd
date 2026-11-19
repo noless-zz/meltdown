@@ -49,11 +49,15 @@ func _visible_lights(view: ProjectileView) -> int:
 	return count
 
 
+## The shipped look file as raw JSON values, for tests to change one key of.
+func _shipped_look() -> Dictionary:
+	return JSON.parse_string(FileAccess.get_file_as_string(ProjectileLook.DEFAULT_FILE))
+
+
 func _load_budget(view: ProjectileView, budget: int) -> String:
-	var look: Dictionary = {
-		"bolt_length_m": 0.6, "bolt_radius_m": 0.03, "emission_color": [0.2, 0.6, 1.0],
-		"max_lights": budget, "light_range": 9.0, "light_energy": 2.5,
-	}
+	var look: Dictionary = _shipped_look()
+	look.merge({"emission_color": [0.2, 0.6, 1.0], "max_lights": budget, "light_range": 9.0,
+		"light_energy": 2.5}, true)
 	var file: FileAccess = FileAccess.open(LOOK_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(look))
 	file.close()
@@ -191,10 +195,8 @@ func test_lights_use_the_look_and_cast_no_shadows() -> String:
 
 
 func test_light_budget_must_be_a_whole_number() -> String:
-	var look: Dictionary = {
-		"bolt_length_m": 0.6, "bolt_radius_m": 0.03, "emission_color": [1.0, 0.5, 0.1],
-		"max_lights": 2.5, "light_range": 6.0, "light_energy": 1.5,
-	}
+	var look: Dictionary = _shipped_look()
+	look["max_lights"] = 2.5
 	var error: Variant = ProjectileView.parse_look(JSON.stringify(look)).get("error", "")
 	if error == "" or not "max_lights" in str(error):
 		return "a budget of 2.5 gave error \"%s\"" % error

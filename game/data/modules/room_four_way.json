@@ -1,0 +1,12 @@
+{
+	"id": "room_four_way",
+	"boxes": [
+		{"min": [-15.0, -8.0, -15.0], "max": [15.0, 8.0, 15.0]}
+	],
+	"connectors": [
+		{"position": [0.0, 0.0, 15.0], "axis": "+z", "size": "small"},
+		{"position": [15.0, 0.0, 0.0], "axis": "+x", "size": "small"},
+		{"position": [0.0, 0.0, -15.0], "axis": "-z", "size": "small"},
+		{"position": [-15.0, 0.0, 0.0], "axis": "-x", "size": "small"}
+	]
+}

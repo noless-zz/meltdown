@@ -22,8 +22,8 @@ func _expect_rejected(text: String, field: String) -> String:
 	return ""
 
 
-func test_both_shipped_suites_load() -> String:
-	for suite_name: String in ["m0", "m1"]:
+func test_every_shipped_suite_loads() -> String:
+	for suite_name: String in ["m0", "m1", "m2"]:
 		var found: Array[AcceptanceSuite] = AcceptanceSuite.load_named(suite_name)
 		if found.size() != 1:
 			return "%s gave %d suites" % [suite_name, found.size()]
@@ -61,7 +61,7 @@ func test_all_returns_every_suite_in_name_order() -> String:
 		if suite.error != "":
 			return suite.error
 		names.append(suite.name)
-	if names != ["m0", "m1"]:
+	if names != ["m0", "m1", "m2", "m3"]:
 		return "all gave %s" % [names]
 	return ""
 

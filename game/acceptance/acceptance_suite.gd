@@ -12,9 +12,18 @@ extends RefCounted
 ##         "steps": [
 ##             {"id": "fly", "replay": "res://acceptance/replays/x.replay",
 ##              "preset": 2, "checks": ["final_hash"], "expected_hash": 123,
-##              "required": false}
+##              "required": false, "level": "g2",
+##              "expected_outcome": "ESCAPED"}
 ##         ]
 ##     }
+##
+## `level` names a level file the scene switches to before the replay flies.
+## `seed` (#460) instead names a generated level: a whole number from 0 up,
+## built by `SeedLevel` from the shipped data files exactly as `--seed=<n>`
+## builds it, so its replay holds only the inputs and the level is never stored
+## in it. A step lists at most one of the two, and either needs a replay.
+## `expected_level_hash` goes with the `level_hash` check, as `expected_hash`
+## goes with `final_hash`, and pins the level a seed builds.
 ##
 ## Unknown keys, unknown checks and bad values are rejected with the field
 ## named, like `ShipTuning`: a mistyped key would otherwise switch a check off
@@ -26,7 +35,8 @@ const SUITE_EXTENSION: String = ".json"
 const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
-const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required"]
+const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
+	"level", "expected_outcome", "seed", "expected_level_hash"]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -125,6 +135,15 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 		if step.preset < AcceptanceStep.MIN_PRESET or step.preset > AcceptanceStep.MAX_PRESET:
 			return "%s.preset: %d is outside %d..%d" % [
 				field, step.preset, AcceptanceStep.MIN_PRESET, AcceptanceStep.MAX_PRESET]
+	if data.has("level"):
+		if typeof(data["level"]) != TYPE_STRING or LevelSwitch.path_for(str(data["level"])) == "":
+			return "%s.level: must be a level name of a-z, 0-9 and '_'" % field
+		if not data.has("replay"):
+			return "%s.level: only used with a replay, which the step does not list" % field
+		step.level = data["level"]
+	problem = _parse_seed(data, field, step)
+	if problem != "":
+		return problem
 	if data.has("required"):
 		if typeof(data["required"]) != TYPE_BOOL:
 			return "%s.required: must be true or false" % field
@@ -132,7 +151,29 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 	problem = _parse_checks(data.get("checks"), field + ".checks", step)
 	if problem != "":
 		return problem
-	return _parse_expected_hash(data, field, step)
+	for check: String in step.checks:
+		if AcceptanceStep.REPLAY_CHECKS.has(check) and step.replay_path == "":
+			return "%s.replay: needed by the %s check" % [field, check]
+	problem = _parse_expected_hash(data, field, step)
+	if problem == "":
+		problem = _parse_expected_level_hash(data, field, step)
+	return problem if problem != "" else _parse_expected_outcome(data, field, step)
+
+
+## A generated level is built from its seed alone, so a step cannot also name
+## a level file for it.
+static func _parse_seed(data: Dictionary, field: String, step: AcceptanceStep) -> String:
+	if not data.has("seed"):
+		return ""
+	var value: Variant = data["seed"]
+	if not _is_whole(value) or float(value) < 0.0 or float(value) > MAX_EXACT_INT:
+		return "%s.seed: must be a whole number from 0 to %d" % [field, int(MAX_EXACT_INT)]
+	if not data.has("replay"):
+		return "%s.seed: only used with a replay, which the step does not list" % field
+	if data.has("level"):
+		return "%s.seed: a step flies a level file or a seed, not both" % field
+	step.level_seed = int(value)
+	return ""
 
 
 static func _parse_checks(raw: Variant, field: String, step: AcceptanceStep) -> String:
@@ -164,6 +205,35 @@ static func _parse_expected_hash(data: Dictionary, field: String, step: Acceptan
 	if step.replay_path == "":
 		return "%s.replay: needed by the final_hash check" % field
 	step.expected_hash = int(value)
+	return ""
+
+
+## Like the final hash: the level_hash check and its value come together.
+static func _parse_expected_level_hash(data: Dictionary, field: String, step: AcceptanceStep) -> String:
+	var wants_hash: bool = step.has_check(AcceptanceStep.CHECK_LEVEL_HASH)
+	if not data.has("expected_level_hash"):
+		return "%s.expected_level_hash: needed by the level_hash check" % field if wants_hash else ""
+	if not wants_hash:
+		return "%s.expected_level_hash: only used by the level_hash check, which the step does not list" % field
+	var value: Variant = data["expected_level_hash"]
+	if not _is_whole(value) or float(value) < 0.0 or float(value) > MAX_EXACT_INT:
+		return "%s.expected_level_hash: must be a whole number from 0 to %d" % [field, int(MAX_EXACT_INT)]
+	step.expected_level_hash = int(value)
+	return ""
+
+
+## Like the hash: the outcome check and `expected_outcome` come together, and
+## the outcome is named, so a suite reads "ESCAPED" rather than an enum number.
+static func _parse_expected_outcome(data: Dictionary, field: String, step: AcceptanceStep) -> String:
+	var wants_outcome: bool = step.has_check(AcceptanceStep.CHECK_OUTCOME)
+	if not data.has("expected_outcome"):
+		return "%s.expected_outcome: needed by the outcome check" % field if wants_outcome else ""
+	if not wants_outcome:
+		return "%s.expected_outcome: only used by the outcome check, which the step does not list" % field
+	var value: Variant = data["expected_outcome"]
+	if typeof(value) != TYPE_STRING or not ExitRule.Outcome.has(str(value)):
+		return "%s.expected_outcome: must be one of %s" % [field, ", ".join(ExitRule.Outcome.keys())]
+	step.expected_outcome = ExitRule.Outcome[str(value)]
 	return ""
 
 

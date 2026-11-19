@@ -54,9 +54,11 @@ func test_default_layout_is_unchanged() -> String:
 		"yaw": {"right_stick_x": 1.0},
 		"pitch": {"right_stick_y": 1.0},
 		"roll": {"left_grip": -1.0, "right_grip": 1.0},
-		"lift": {"left_button_lower": -1.0, "right_button_upper": 1.0},
+		"lift": {"left_button_upper": -1.0, "right_button_upper": 1.0},
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
+		"slot_part": {"right_stick_click": 1.0},
+		"show_map": {"left_stick_click": 1.0},
 	}
 	return _layout_diff(ThumbstickMapping.default_layout(), want)
 
@@ -67,10 +69,12 @@ func test_paired_file_follows_decision_record() -> String:
 		"forward": {"left_stick_y": 1.0},
 		"yaw": {"right_stick_x": 1.0},
 		"pitch": {"right_stick_y": 1.0},
-		"roll": {"left_button_lower": -1.0, "left_grip": 1.0},
+		"roll": {"left_button_upper": -1.0, "left_grip": 1.0},
 		"lift": {"right_button_upper": 1.0, "right_grip": -1.0},
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
+		"slot_part": {"right_stick_click": 1.0},
+		"show_map": {"left_stick_click": 1.0},
 	}
 	return _layout_diff(_paired().layout, want)
 
@@ -103,7 +107,7 @@ func test_paired_bindings_give_right_axis_and_sign() -> String:
 			ShipInput.from_floats(Vector3(0, 1, 0), Vector3.ZERO)],
 		["right grip down", m.map_controls(z, z, 0.0, 0.0, 0.0, 1.0),
 			ShipInput.from_floats(Vector3(0, -1, 0), Vector3.ZERO)],
-		["X roll left", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"left_button_lower": true}),
+		["Y roll left", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"left_button_upper": true}),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, ROLL))],
 		["left grip roll right", m.map_controls(z, z, 0.0, 0.0, 1.0, 0.0),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, -ROLL))],
@@ -149,7 +153,7 @@ func test_left_handed_paired_swaps_hands() -> String:
 			ShipInput.from_floats(Vector3(0, 1, 0), Vector3.ZERO)],
 		["left grip down", m.map_controls(z, z, 0.0, 0.0, 1.0, 0.0),
 			ShipInput.from_floats(Vector3(0, -1, 0), Vector3.ZERO)],
-		["A roll left", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"right_button_lower": true}),
+		["B roll left", m.map_controls(z, z, 0.0, 0.0, 0.0, 0.0, {"right_button_upper": true}),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, ROLL))],
 		["right grip roll right", m.map_controls(z, z, 0.0, 0.0, 0.0, 1.0),
 			ShipInput.from_floats(Vector3.ZERO, Vector3(0, 0, -ROLL))],

@@ -3,12 +3,14 @@ extends Node3D
 
 ## A small panel fixed in the cockpit, low and ahead of the eye point, that
 ## shows at a glance what the owner could not tell in the headset (#146): the
-## active comfort preset, the ship's speed, the energy pool, whether the
-## afterburner is boosting or locked out, and which build is running.
+## active comfort preset, the ship's speed, the energy pool, the shield and
+## hull (#227), whether the afterburner is boosting or locked out, the part in
+## the hold (#290), the meltdown countdown (#315), which build is running, and
+## how the level ended (#361).
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
 ## the session, so it can never read more than it is handed or write
-## simulation state (ARC-3, MP-2). Unshaded labels and one bar mesh: no
+## simulation state (ARC-3, MP-2). Unshaded labels and flat bars: no
 ## lights, no textures, nothing per-pixel beyond the glyphs (PRF-2).
 
 const NODE_NAME: String = "StatusPanel"
@@ -20,6 +22,20 @@ const BUILD_NAME: String = "Build"
 const ENERGY_LABEL_NAME: String = "EnergyLabel"
 const ENERGY_BAR_NAME: String = "EnergyBar"
 const ENERGY_TRACK_NAME: String = "EnergyTrack"
+const SHIELD_LABEL_NAME: String = "ShieldLabel"
+const SHIELD_BAR_NAME: String = "ShieldBar"
+const SHIELD_TRACK_NAME: String = "ShieldTrack"
+const HULL_LABEL_NAME: String = "HullLabel"
+const HULL_BAR_NAME: String = "HullBar"
+const HULL_TRACK_NAME: String = "HullTrack"
+const HOLD_NAME: String = "Hold"
+const MELTDOWN_NAME: String = "Meltdown"
+const OUTCOME_NAME: String = "Outcome"
+const ESCAPED_TEXT: String = "ESCAPED"
+const LOST_TEXT: String = "SHIP LOST"
+## The hold line reads "Hold <part>" or this, so an empty hold is said, not
+## left blank: a blank line looks the same as an unwired panel.
+const HOLD_EMPTY: String = "Hold empty"
 const BOOST_ON: String = "BOOST"
 const BOOST_RECHARGING: String = "recharging"
 
@@ -39,15 +55,38 @@ const TILT_DEGREES: float = 30.0
 const PIXEL_SIZE: float = 0.0004
 const SMALL_FONT: int = 32
 const LARGE_FONT: int = 96
-const BAR_WIDTH: float = 0.12
-const BAR_HEIGHT: float = 0.012
-## Centre of the full bar; the energy label sits to its left.
-const BAR_CENTRE_X: float = 0.0
 const TEXT_COLOR: Color = Color(0.85, 0.95, 1.0)
 const BOOST_COLOR: Color = Color(1.0, 0.6, 0.15)
 const RECHARGING_COLOR: Color = Color(0.6, 0.6, 0.6)
 const BAR_COLOR: Color = Color(0.3, 0.85, 1.0)
-const TRACK_COLOR: Color = Color(0.15, 0.2, 0.25)
+## Shield is a cool blue, set apart from the energy bar's cyan; hull is a warm
+## amber. Read by colour at a glance, not by the small labels (#227).
+const SHIELD_COLOR: Color = Color(0.4, 0.5, 1.0)
+const HULL_COLOR: Color = Color(1.0, 0.72, 0.3)
+## At or below this hull fraction the hull label turns `HULL_WARNING_COLOR`.
+const HULL_WARNING_FRACTION: float = 0.25
+const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
+## Under this many seconds the meltdown row turns `HULL_WARNING_COLOR`: the
+## same red as a failing hull, so red on the panel always means "act now".
+const MELTDOWN_WARNING_SECONDS: float = 30.0
+## Rows, top to bottom, 3 cm apart: the bars sit under the energy bar, the
+## hold line under the hull bar (#290), and the build line moves down below it.
+## The meltdown row sits above them all, so it is the first line read (RUN-2),
+## and still clear of the large preset label centred at 0.11.
+const MELTDOWN_Y: float = 0.075
+const PRESET_Y: float = 0.045
+const SPEED_Y: float = 0.015
+const ENERGY_Y: float = -0.015
+const SHIELD_Y: float = -0.045
+const HULL_Y: float = -0.075
+const HOLD_Y: float = -0.105
+const BUILD_Y: float = -0.135
+const LABEL_X: float = -0.12
+## The large preset label is centred here.
+const PRESET_LARGE_Y: float = 0.11
+## The large, centred outcome row sits above all rows, nearest the line of
+## sight, and clear of the large preset label even if both show.
+const OUTCOME_Y: float = 0.165
 ## The panel draws without a depth test, over whatever lies between it and the
 ## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
 ## (#199). Its render priority sits above the cockpit frame's materials, which
@@ -59,6 +98,13 @@ const RENDER_PRIORITY: int = 10
 ## track never covers them now that depth no longer decides.
 const RENDER_PRIORITY_TOP: int = RENDER_PRIORITY + 1
 
+## How many times the hold label's text was replaced. Only tests read it: it
+## shows that a per-frame call with the same part leaves the glyphs alone.
+var hold_text_changes: int = 0
+## How many times the meltdown label's text was replaced; read by tests only.
+var meltdown_text_changes: int = 0
+## How many times the outcome label's text was replaced; read by tests only.
+var outcome_text_changes: int = 0
 ## Seconds the large preset label has left; 0 when it is hidden.
 var large_seconds_left: float = 0.0
 
@@ -70,23 +116,48 @@ var _preset_large: Label3D
 var _speed: Label3D
 var _boost: Label3D
 var _build: Label3D
-var _energy_bar: MeshInstance3D
+var _hold: Label3D
+var _meltdown: Label3D
+var _outcome: Label3D
+var _shown_outcome: int = ExitRule.Outcome.RUNNING
+## From the look file (ARC-4).
+var _escaped_color: Color = StatusPanelLook.FALLBACK["escaped_color"]
+var _hull_label: Label3D
+var _energy_bar: PanelBar
+var _shield_bar: PanelBar
+var _hull_bar: PanelBar
 
 
 func _init() -> void:
 	name = NODE_NAME
-	_preset = _label(PRESET_NAME, Vector3(-0.12, 0.045, 0.0), SMALL_FONT)
-	_speed = _label(SPEED_NAME, Vector3(-0.12, 0.015, 0.0), SMALL_FONT)
-	_label(ENERGY_LABEL_NAME, Vector3(-0.12, -0.015, 0.0), SMALL_FONT).text = "Energy"
-	_boost = _label(BOOST_NAME, Vector3(0.04, 0.015, 0.0), SMALL_FONT)
-	_build = _label(BUILD_NAME, Vector3(-0.12, -0.045, 0.0), SMALL_FONT)
+	_preset = StatusPanelLabels.make(self, PRESET_NAME, Vector3(LABEL_X, PRESET_Y, 0.0), SMALL_FONT)
+	_speed = StatusPanelLabels.make(self, SPEED_NAME, Vector3(LABEL_X, SPEED_Y, 0.0), SMALL_FONT)
+	StatusPanelLabels.make(self, ENERGY_LABEL_NAME, Vector3(LABEL_X, ENERGY_Y, 0.0), SMALL_FONT).text = "Energy"
+	StatusPanelLabels.make(self, SHIELD_LABEL_NAME, Vector3(LABEL_X, SHIELD_Y, 0.0), SMALL_FONT).text = "Shield"
+	_hull_label = StatusPanelLabels.make(self, HULL_LABEL_NAME, Vector3(LABEL_X, HULL_Y, 0.0), SMALL_FONT)
+	_hull_label.text = "Hull"
+	_boost = StatusPanelLabels.make(self, BOOST_NAME, Vector3(0.04, SPEED_Y, 0.0), SMALL_FONT)
+	_hold = StatusPanelLabels.make(self, HOLD_NAME, Vector3(LABEL_X, HOLD_Y, 0.0), SMALL_FONT)
+	_hold.text = HOLD_EMPTY
+	_meltdown = StatusPanelLabels.make(self, MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT)
+	# Hidden until a meltdown starts: most of a run has no countdown.
+	_meltdown.visible = false
+	_build = StatusPanelLabels.make(self, BUILD_NAME, Vector3(LABEL_X, BUILD_Y, 0.0), SMALL_FONT)
 	_build.font_size = SMALL_FONT * 3 / 4
-	_preset_large = _label(PRESET_LARGE_NAME, Vector3(0.0, 0.11, 0.0), LARGE_FONT)
+	_preset_large = StatusPanelLabels.make(self, PRESET_LARGE_NAME, Vector3(0.0, PRESET_LARGE_Y, 0.0), LARGE_FONT)
 	_preset_large.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_preset_large.visible = false
-	_bar(ENERGY_TRACK_NAME, TRACK_COLOR, -0.001, RENDER_PRIORITY)
-	_energy_bar = _bar(ENERGY_BAR_NAME, BAR_COLOR, 0.0, RENDER_PRIORITY_TOP)
-	_set_bar_fraction(1.0)
+	_outcome = StatusPanelLabels.make(self, OUTCOME_NAME, Vector3(0.0, OUTCOME_Y, 0.0), LARGE_FONT)
+	_outcome.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Hidden while the level runs, which is nearly always.
+	_outcome.visible = false
+	_escaped_color = StatusPanelLook.load_file()["escaped_color"]
+	_energy_bar = PanelBar.new(self, ENERGY_TRACK_NAME, ENERGY_BAR_NAME, BAR_COLOR, ENERGY_Y, RENDER_PRIORITY)
+	_shield_bar = PanelBar.new(self, SHIELD_TRACK_NAME, SHIELD_BAR_NAME, SHIELD_COLOR, SHIELD_Y, RENDER_PRIORITY)
+	_hull_bar = PanelBar.new(self, HULL_TRACK_NAME, HULL_BAR_NAME, HULL_COLOR, HULL_Y, RENDER_PRIORITY)
+	# Full until `show_defence` is first called, so an unwired panel does not
+	# look like a dying ship.
+	show_defence(1.0, 1.0)
 
 
 ## Shows this frame's values. `boost` is `""`, `BOOST_ON` or
@@ -98,14 +169,81 @@ func show_values(preset_number: int, preset_name: String, speed_mps: float,
 	if preset_number != _shown_preset:
 		_shown_preset = preset_number
 		large_seconds_left = PRESET_LARGE_SECONDS
-	_set_text(_preset, preset_text)
-	_set_text(_preset_large, preset_text)
-	_set_text(_speed, "Speed %d m/s" % roundi(speed_mps))
-	_set_text(_boost, boost)
+	StatusPanelLabels.set_text(_preset, preset_text)
+	StatusPanelLabels.set_text(_preset_large, preset_text)
+	StatusPanelLabels.set_text(_speed, "Speed %d m/s" % roundi(speed_mps))
+	StatusPanelLabels.set_text(_boost, boost)
 	_boost.modulate = RECHARGING_COLOR if boost == BOOST_RECHARGING else BOOST_COLOR
-	_set_text(_build, build_text)
-	_set_bar_fraction(energy_fraction)
+	StatusPanelLabels.set_text(_build, build_text)
+	_energy_bar.set_fraction(energy_fraction)
 	_show_large(large_seconds_left > 0.0)
+
+
+## Shows the shield and hull as fractions of their maximums, each clamped to
+## 0..1. A hull at or below `HULL_WARNING_FRACTION` turns the hull label
+## `HULL_WARNING_COLOR`.
+func show_defence(shield_fraction: float, hull_fraction: float) -> void:
+	_shield_bar.set_fraction(shield_fraction)
+	var hull: float = _hull_bar.set_fraction(hull_fraction)
+	_hull_label.modulate = HULL_WARNING_COLOR if hull <= HULL_WARNING_FRACTION else TEXT_COLOR
+
+
+## Shows the part in the hold by name; an empty string shows `HOLD_EMPTY`.
+## Safe to call every frame: the label is only rebuilt when the text changes.
+func show_hold(part_name: String) -> void:
+	if StatusPanelLabels.set_text(_hold, HOLD_EMPTY if part_name.is_empty() else "Hold %s" % part_name):
+		hold_text_changes += 1
+
+
+## Shows the meltdown countdown as "Meltdown m:ss"; a negative value hides the
+## row (no meltdown). Whole seconds are floored, so the row reads 0:00 only in
+## the last second. Safe to call every frame: the glyphs are rebuilt only when
+## the shown second changes.
+func show_meltdown(seconds_left: float) -> void:
+	if seconds_left < 0.0:
+		_meltdown.visible = false
+		return
+	_meltdown.visible = true
+	var whole: int = floori(seconds_left)
+	if StatusPanelLabels.set_text(_meltdown, "Meltdown %d:%02d" % [floori(whole / 60.0), whole % 60]):
+		meltdown_text_changes += 1
+	_meltdown.modulate = HULL_WARNING_COLOR if seconds_left < MELTDOWN_WARNING_SECONDS else TEXT_COLOR
+
+
+func meltdown_visible() -> bool:
+	return _meltdown.visible
+
+
+## Whether the meltdown row shows the warning colour.
+func meltdown_warning_shown() -> bool:
+	return _meltdown.modulate == HULL_WARNING_COLOR
+
+
+## Shows how the level ended, from `ExitRule.Outcome`: `RUNNING` hides the
+## row, `ESCAPED` reads `ESCAPED_TEXT` in the look's colour and `LOST` reads
+## `LOST_TEXT` in the hull-warning red. Safe to call every frame: nothing is
+## touched unless the outcome changed. The row never moves or animates (CMF-3).
+func show_outcome(outcome: int) -> void:
+	if outcome == _shown_outcome:
+		return
+	_shown_outcome = outcome
+	if outcome == ExitRule.Outcome.ESCAPED:
+		_set_outcome(ESCAPED_TEXT, _escaped_color)
+	elif outcome == ExitRule.Outcome.LOST:
+		_set_outcome(LOST_TEXT, HULL_WARNING_COLOR)
+	else:
+		_outcome.visible = false
+
+
+func outcome_visible() -> bool:
+	return _outcome.visible
+
+
+func _set_outcome(text: String, color: Color) -> void:
+	if StatusPanelLabels.set_text(_outcome, text):
+		outcome_text_changes += 1
+	_outcome.modulate = color
+	_outcome.visible = true
 
 
 ## Runs the large preset label's timer by `delta` seconds.
@@ -131,62 +269,26 @@ func large_preset_visible() -> bool:
 
 ## The energy bar's length as a fraction of the full bar, 0..1.
 func energy_bar_scale() -> float:
-	return _energy_bar.scale.x
+	return _energy_bar.fraction()
+
+
+func shield_bar_scale() -> float:
+	return _shield_bar.fraction()
+
+
+func hull_bar_scale() -> float:
+	return _hull_bar.fraction()
+
+
+## Whether the hull label shows the low-hull warning colour.
+func hull_warning_shown() -> bool:
+	return _hull_label.modulate == HULL_WARNING_COLOR
 
 
 ## Large and small never show together, so the preset is not read twice.
 func _show_large(large: bool) -> void:
 	_preset_large.visible = large
 	_preset.visible = not large
-
-
-func _set_bar_fraction(fraction: float) -> void:
-	var clamped: float = clampf(fraction, 0.0, 1.0) if is_finite(fraction) else 0.0
-	_energy_bar.scale = Vector3(clamped, 1.0, 1.0)
-	# Anchored at the left end, so the bar empties towards the left.
-	_energy_bar.position.x = BAR_CENTRE_X + BAR_WIDTH * (clamped - 1.0) * 0.5
-
-
-## Label3D rebuilds its glyph mesh on every assignment; most frames change nothing.
-static func _set_text(label: Label3D, text: String) -> void:
-	if label.text != text:
-		label.text = text
-
-
-func _label(label_name: String, at: Vector3, font_size: int) -> Label3D:
-	var label: Label3D = Label3D.new()
-	label.name = label_name
-	label.position = at
-	label.pixel_size = PIXEL_SIZE
-	label.font_size = font_size
-	label.outline_size = 0
-	label.shaded = false
-	label.double_sided = false
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	label.modulate = TEXT_COLOR
-	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	label.no_depth_test = true
-	label.render_priority = RENDER_PRIORITY_TOP
-	add_child(label)
-	return label
-
-
-func _bar(bar_name: String, color: Color, depth: float, priority: int) -> MeshInstance3D:
-	var quad: QuadMesh = QuadMesh.new()
-	quad.size = Vector2(BAR_WIDTH, BAR_HEIGHT)
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = color
-	material.no_depth_test = true
-	material.render_priority = priority
-	var bar: MeshInstance3D = MeshInstance3D.new()
-	bar.name = bar_name
-	bar.mesh = quad
-	bar.material_override = material
-	bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	bar.position = Vector3(BAR_CENTRE_X, -0.015, depth)
-	add_child(bar)
-	return bar
 
 
 ## The panel's transform under the rig origin. `cockpit` is where the ship's

@@ -1,0 +1,5 @@
+{
+	"min_passage_ship_diameters": 2.5,
+	"escape_speed_mps": 10,
+	"escape_margin": 0.8
+}

@@ -5,16 +5,16 @@ extends RefCounted
 ## interpolation rule, draws a just-fired one where it is, points bolts along
 ## their flight and range-checks its look file.
 
-const SCRIPT_PATH: String = "res://view/projectile_view.gd"
+const SCRIPT_PATHS: Array[String] = ["res://view/projectile_view.gd",
+	"res://view/projectile_look.gd", "res://view/bolt_muzzles.gd", "res://view/bolt_flashes.gd"]
 const OUTSIDE_DIRS: Array[String] = ["res://xr", "res://meta", "res://net"]
 const EPSILON: float = 1e-5
 
 
 func _valid_look() -> Dictionary:
-	return {
-		"bolt_length_m": 0.6, "bolt_radius_m": 0.03, "emission_color": [1.0, 0.5, 0.1],
-		"max_lights": 4, "light_range": 6.0, "light_energy": 1.5,
-	}
+	var look: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(ProjectileLook.DEFAULT_FILE))
+	look["emission_color"] = [1.0, 0.5, 0.1]
+	return look
 
 
 func _shots(count: int) -> Array[Projectile]:
@@ -66,7 +66,7 @@ func test_bolts_are_pooled() -> String:
 	if _bolt_ids(view) != ids:
 		result = "bolt nodes changed while the count stayed at 4"
 	view.show_projectiles(_shots(7), 0.5)
-	if result == "" and (view.bolt_count() != 7 or view.get_child_count() != 7 + view.light_count()):
+	if result == "" and (view.bolt_count() != 7 or view.get_child_count() != 7 + view.light_count() + 2):
 		result = "7 shots gave %d bolts and %d children" % [view.bolt_count(), view.get_child_count()]
 	var grown: Array[int] = _bolt_ids(view)
 	view.show_projectiles(_shots(2), 0.5)
@@ -176,11 +176,12 @@ func test_look_file_loads_and_shapes_the_bolts() -> String:
 
 
 func test_bad_look_values_are_rejected_with_the_field_named() -> String:
-	for key: String in ProjectileView.KEYS:
+	for key: String in ProjectileLook.KEYS:
+		var is_color: bool = ProjectileLook.COLOR_KEYS.has(key)
 		var high: Dictionary = _valid_look()
-		high[key] = [2.0, 0.5, 0.5] if key == "emission_color" else float(ProjectileView.RANGES[key][1]) + 1.0
+		high[key] = [2.0, 0.5, 0.5] if is_color else float(ProjectileLook.RANGES[key][1]) + 1.0
 		var low: Dictionary = _valid_look()
-		low[key] = [0.5, -0.1, 0.5] if key == "emission_color" else float(ProjectileView.RANGES[key][0]) - 0.001
+		low[key] = [0.5, -0.1, 0.5] if is_color else float(ProjectileLook.RANGES[key][0]) - 0.001
 		var missing: Dictionary = _valid_look()
 		missing.erase(key)
 		var wrong_type: Dictionary = _valid_look()
@@ -191,9 +192,11 @@ func test_bad_look_values_are_rejected_with_the_field_named() -> String:
 				return "%s gave error \"%s\"" % [JSON.stringify(bad), error]
 	var short_color: Dictionary = _valid_look()
 	short_color["emission_color"] = [1.0, 0.5]
+	var short_impact: Dictionary = _valid_look()
+	short_impact["impact_color"] = [1.0, 0.5]
 	var unknown: Dictionary = _valid_look()
 	unknown["glow"] = 1.0
-	for bad: Dictionary in [short_color, unknown]:
+	for bad: Dictionary in [short_color, short_impact, unknown]:
 		if not ProjectileView.parse_look(JSON.stringify(bad)).has("error"):
 			return "%s was accepted" % JSON.stringify(bad)
 	if ProjectileView.parse_look(JSON.stringify(_valid_look())).has("error"):
@@ -208,9 +211,11 @@ func test_a_rejected_or_missing_look_falls_back_to_defaults() -> String:
 	var error: String = view.load_look("res://view/no_such_look.json")
 	if error == "" or view.look_error != error:
 		result = "a missing file gave no error"
-	elif view.bolt_length_m != ProjectileView.DEFAULT_BOLT_LENGTH_M \
-			or view.bolt_radius_m != ProjectileView.DEFAULT_BOLT_RADIUS_M \
-			or view.emission_color != ProjectileView.DEFAULT_EMISSION_COLOR:
+	elif view.bolt_length_m != ProjectileLook.DEFAULTS["bolt_length_m"] \
+			or view.bolt_radius_m != ProjectileLook.DEFAULTS["bolt_radius_m"] \
+			or view.emission_color != ProjectileLook.DEFAULTS["emission_color"] \
+			or view.muzzles.forward_m != ProjectileLook.DEFAULTS["muzzle_forward_m"] \
+			or view.impact_flashes.radius_m != ProjectileLook.DEFAULTS["impact_flash_radius_m"]:
 		result = "a missing file did not restore the default look"
 	if result == "" and view.load_look() != "":
 		result = "the shipped look file was rejected: %s" % view.look_error
@@ -225,19 +230,18 @@ func test_defaults_match_the_shipped_file() -> String:
 		FileAccess.get_file_as_string(ProjectileView.DEFAULT_LOOK_FILE))
 	if values.has("error"):
 		return str(values["error"])
-	if not is_equal_approx(values["bolt_length_m"], ProjectileView.DEFAULT_BOLT_LENGTH_M) \
-			or not is_equal_approx(values["bolt_radius_m"], ProjectileView.DEFAULT_BOLT_RADIUS_M) \
-			or not (values["emission_color"] as Color).is_equal_approx(ProjectileView.DEFAULT_EMISSION_COLOR) \
-			or values["max_lights"] != ProjectileView.DEFAULT_MAX_LIGHTS \
-			or not is_equal_approx(values["light_range"], ProjectileView.DEFAULT_LIGHT_RANGE_M) \
-			or not is_equal_approx(values["light_energy"], ProjectileView.DEFAULT_LIGHT_ENERGY):
-		return "shipped look %s differs from the defaults" % values
+	for key: String in ProjectileLook.KEYS:
+		var shipped: Variant = values[key]
+		var default: Variant = ProjectileLook.DEFAULTS[key]
+		var same: bool = (shipped as Color).is_equal_approx(default) if shipped is Color \
+			else is_equal_approx(float(shipped), float(default))
+		if not same or typeof(shipped) != typeof(default):
+			return "shipped %s is %s, the default %s" % [key, shipped, default]
 	return ""
 
 
 ## `view/` may read `core/` and nothing in `xr/`, `meta/` or `net/`.
 func test_reads_no_layer_above_core() -> String:
-	var source: String = FileAccess.get_file_as_string(SCRIPT_PATH)
 	var found_any: bool = false
 	for root: String in OUTSIDE_DIRS:
 		for file: String in DirAccess.get_files_at(root):
@@ -248,8 +252,10 @@ func test_reads_no_layer_above_core() -> String:
 			if found == null:
 				continue
 			found_any = true
-			if RegEx.create_from_string("\\b%s\\b" % found.get_string(1)).search(source) != null:
-				return "%s references %s from %s" % [SCRIPT_PATH, found.get_string(1), root]
+			var name_pattern: RegEx = RegEx.create_from_string("\\b%s\\b" % found.get_string(1))
+			for path: String in SCRIPT_PATHS:
+				if name_pattern.search(FileAccess.get_file_as_string(path)) != null:
+					return "%s references %s from %s" % [path, found.get_string(1), root]
 	if not found_any:
 		return "no classes were read from %s" % [OUTSIDE_DIRS]
 	return ""

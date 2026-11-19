@@ -24,7 +24,10 @@ A run that was given no lane behaves as `lane-a`.
 4. Add the `in-progress` label and comment "Builder run started".
 5. Create branch `issue-<number>-<short-slug>` from the latest `main`.
 6. Implement the acceptance criteria and nothing beyond them. Follow the layer rules in
-   `CLAUDE.md`. Add or update unit tests for every criterion that can be tested.
+   `CLAUDE.md`. Add or update unit tests for every criterion that can be tested. If the
+   issue adds behaviour an acceptance suite can drive (a replay or scripted input), add
+   or update its step in the milestone's suite under `game/acceptance/suites/`; if no
+   suite can drive it yet, say so in the pull request (decision record 0005).
 7. Run the tests exactly as CI does. Fix until green.
 8. If the issue turns out too large for one run, implement the smallest coherent part,
    say so in the pull request, and open follow-up issues labelled `triage` for the rest.

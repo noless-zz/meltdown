@@ -162,3 +162,24 @@ func test_bad_tuning_lines_are_rejected() -> String:
 		if Replay.from_text(cases[name]).error == "":
 			return "accepted a tuning line %s" % name
 	return ""
+
+
+## A replay read from text holds its weapons on their own lines, with the
+## tuning's loadout unresolved; the session it starts must still be armed with
+## them, or a flown replay would never fire (#270).
+func test_a_given_loadout_replaces_the_tunings() -> String:
+	var tuning: ShipTuning = LocalSession.load_tuning(SHIP_FILE)
+	var replay: Replay = Replay.from_text(LocalSession.new(3, null, null, tuning).replay.to_text())
+	if replay.error != "" or replay.loadout == null:
+		return "the recorded replay has no weapons: %s" % replay.error
+	if replay.tuning.loadout.is_armed():
+		return "the parsed tuning's loadout is already resolved; this test checks nothing"
+	var unarmed: LocalSession = LocalSession.new(3, null, null, replay.tuning)
+	if unarmed.sim.ships[0].primary_slots[0] != null:
+		return "the unresolved tuning armed the ship"
+	var session: LocalSession = LocalSession.new(3, null, null, replay.tuning, [], replay.loadout)
+	if session.sim.ships[0].primary_slots[0] == null:
+		return "the given loadout did not arm the ship"
+	if session.replay.loadout != replay.loadout:
+		return "the given loadout was not recorded"
+	return ""

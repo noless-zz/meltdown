@@ -14,11 +14,18 @@ extends RefCounted
 ## - left grip rolls left, right grip rolls right
 ## - right trigger fires the primary weapon (CMB-1); the left trigger is kept
 ##   for the secondary weapon and is unbound until secondaries exist
-## - B (right upper) moves up, X (left lower) moves down
+## - B (right upper) moves up, Y (left upper) moves down, so the two mirror
+##   (#613); both are on/off for now and may change
 ## - A (right lower) holds the afterburner (FLT-2), which also gives full
 ##   forward thrust unless the stick is pulled back
-## - Y (left upper) is the comfort preset button, read outside this mapping;
-##   the left stick click is kept for showing and hiding labels (not wired yet)
+## - the right stick click slots the part in the hold into a primary slot
+##   (SLV-1, #312), a stand-in until a hand gesture is designed
+## - X (left lower) is the comfort preset button (`PRESET_BUTTON`), read
+##   outside this mapping; the left stick click shows and hides the labels,
+##   also read outside this mapping (#181)
+## - holding the left stick click for `MapHologram.HOLD_SECONDS` shows the
+##   map hologram (`show_map`, MAP-1, #314); a shorter click still toggles
+##   the labels, on release
 ##
 ## Ship axes use the pilot's view, each -1..1 before scaling:
 ## `strafe` (+ right), `lift` (+ up), `forward` (+ ahead), `pitch` (+ nose up),
@@ -31,8 +38,8 @@ extends RefCounted
 ## left stick turns. Stick x keeps its direction, so pushing right still means
 ## right.
 ##
-## Besides the six axes the layout holds button actions, `afterburner` and
-## `fire_primary`. They are bound like an axis, so the settings menu remaps
+## Besides the six axes the layout holds button actions, `afterburner`,
+## `fire_primary` and `slot_part`. They are bound like an axis, so the settings menu remaps
 ## them the same way, and each counts as held when its bound controls add up
 ## to at least `BUTTON_THRESHOLD`. Left-handed mode moves them to the other
 ## hand like everything else.
@@ -40,6 +47,10 @@ extends RefCounted
 ## While the afterburner is held, forward thrust is full, so boost alone
 ## moves the ship (#149). A stick pulled back still wins: the pilot asked to
 ## slow down, and reversing under boost must stay possible.
+##
+## `show_map` is a view action: bound in the layout like the others, so it is
+## remapped and swapped the same way, but never part of `ShipInput` (ARC-3).
+## `action_held` reads it.
 ##
 ## Layouts are data files (ARC-4) under `res://xr/layouts/`, one JSON object
 ## of the same shape as `layout`. `from_file` and `from_json` validate them;
@@ -54,7 +65,9 @@ const MAX_ROLL_RATE: float = PI * 0.75
 
 const AXES: Array[String] = ["strafe", "lift", "forward", "pitch", "yaw", "roll"]
 ## On/off actions held while their controls are pressed.
-const BUTTON_ACTIONS: Array[String] = ["afterburner", "fire_primary"]
+const BUTTON_ACTIONS: Array[String] = ["afterburner", "fire_primary", "slot_part"]
+## Actions bound in the layout that only the view reads; never in `ShipInput`.
+const VIEW_ACTIONS: Array[String] = ["show_map"]
 ## Half way, so an action bound to a trigger or grip fires at half pull.
 const BUTTON_THRESHOLD: float = 0.5
 ## Physical controls a layout may bind. Buttons are named by position rather
@@ -70,6 +83,11 @@ const BUTTONS: Array[String] = [
 	"left_button_lower", "left_button_upper", "right_button_lower", "right_button_upper",
 	"left_stick_click", "right_stick_click",
 ]
+
+## The comfort preset button in right-handed mode: X, the lower face button of
+## the hand that does not turn (decision record 0004, #613). It is not a
+## flight control, so no layout binds it; `preset_button` swaps its hand.
+const PRESET_BUTTON: String = "left_button_lower"
 
 const LAYOUTS_DIR: String = "res://xr/layouts"
 ## Today's built-in layout as a file; must equal `default_layout()`.
@@ -99,11 +117,16 @@ static func default_layout() -> Dictionary:
 		"yaw": {"right_stick_x": 1.0},
 		"pitch": {"right_stick_y": 1.0},
 		"roll": {"left_grip": -1.0, "right_grip": 1.0},
-		# Face buttons rather than triggers, which fire (decision record 0004).
-		"lift": {"left_button_lower": -1.0, "right_button_upper": 1.0},
+		# The upper face buttons, rather than triggers, which fire: down on Y
+		# mirrors up on B (decision record 0004, #613).
+		"lift": {"left_button_upper": -1.0, "right_button_upper": 1.0},
 		# A, away from the thumb that holds the left stick forward (#149).
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
+		# The one control decision record 0004 left free (#312).
+		"slot_part": {"right_stick_click": 1.0},
+		# Shares the label toggle's click; a hold tells them apart (#314).
+		"show_map": {"left_stick_click": 1.0},
 	}
 
 
@@ -117,7 +140,7 @@ static func from_file(path: String) -> ThumbstickMapping:
 
 ## A mapping with the layout parsed from the text of a layout file: a JSON
 ## object of axis or action name -> {control name: weight}. Every name must
-## be one of `AXES`, `BUTTON_ACTIONS` or `CONTROLS` and every weight a number
+## be one of `AXES`, `BUTTON_ACTIONS`, `VIEW_ACTIONS` or `CONTROLS` and every weight a number
 ## in -1..1. A name outside the lists is rejected rather than ignored, so a
 ## typo cannot silently leave a control unbound. On failure the mapping has
 ## the built-in default layout and `error` names what was wrong.
@@ -132,7 +155,7 @@ static func from_json(text: String) -> ThumbstickMapping:
 	var parsed: Dictionary = {}
 	for action: Variant in data:
 		if typeof(action) != TYPE_STRING \
-				or not (AXES.has(action) or BUTTON_ACTIONS.has(action)):
+				or not (AXES.has(action) or BUTTON_ACTIONS.has(action) or VIEW_ACTIONS.has(action)):
 			return _default_with_error("unknown axis or action \"%s\"" % str(action))
 		if typeof(data[action]) != TYPE_DICTIONARY:
 			return _default_with_error("\"%s\" must map controls to weights" % action)
@@ -209,7 +232,42 @@ func map_controls(left_stick: Vector2, right_stick: Vector2,
 		thrust.z = -1.0
 	var input: ShipInput = ShipInput.from_floats(thrust, turn, afterburner)
 	input.fire_primary = _axis_value(controls, "fire_primary") >= BUTTON_THRESHOLD
+	input.slot_held = _axis_value(controls, "slot_part") >= BUTTON_THRESHOLD
 	return input
+
+
+## True when the controls bound to `action` add up to at least
+## `BUTTON_THRESHOLD`. `buttons` maps names from `BUTTONS` to pressed, as in
+## `map_controls`; left-handed mode swaps hands the same way. For view actions
+## such as `show_map`, which never reach `ShipInput`.
+func action_held(action: String, buttons: Dictionary) -> bool:
+	var controls: Dictionary = {}
+	for button: String in BUTTONS:
+		controls[button] = 1.0 if buttons.get(button, false) else 0.0
+	if left_handed:
+		controls = _swap_hands(controls)
+	return _axis_value(controls, action) >= BUTTON_THRESHOLD
+
+
+## The physical comfort preset button for this hand setting: X, or A when
+## left-handed.
+func preset_button() -> String:
+	return str(_swap_hands({PRESET_BUTTON: 0.0}).keys()[0]) if left_handed else PRESET_BUTTON
+
+
+## The physical controls that drive `action`, after left-handed mode moves
+## them to the other hand; only bindings with a non-zero weight count.
+func physical_controls(action: String) -> Array[String]:
+	var result: Array[String] = []
+	var bindings: Dictionary = layout.get(action, {})
+	for control: Variant in bindings:
+		if is_zero_approx(float(bindings[control])):
+			continue
+		var name: String = str(control)
+		if left_handed:
+			name = str(_swap_hands({name: 0.0}).keys()[0])
+		result.append(name)
+	return result
 
 
 func _axis_value(controls: Dictionary, axis_name: String) -> float:

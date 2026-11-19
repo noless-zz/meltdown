@@ -1,0 +1,10 @@
+{
+	"id": "straight_tunnel",
+	"boxes": [
+		{"min": [-5.0, -5.0, -30.0], "max": [5.0, 5.0, 0.0]}
+	],
+	"connectors": [
+		{"position": [0.0, 0.0, 0.0], "axis": "+z", "size": "small"},
+		{"position": [0.0, 0.0, -30.0], "axis": "-z", "size": "small"}
+	]
+}

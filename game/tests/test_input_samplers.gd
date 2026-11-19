@@ -170,6 +170,9 @@ func test_keyboard_forward_flies_the_main_scene_ship() -> String:
 		return "main.tscn did not load"
 	var main: Node = scene.instantiate()
 	var keyboard: KeyboardSampler = main.get("keyboard")
+	# Flying forward wakes the tunnel's robots (#301) and their hits shake the
+	# rig; this checks the rig follows the ship alone.
+	(main.get("session") as LocalSession).sim.robots.clear()
 	main.call("apply_controls", keyboard.sample([KEY_W]))
 	var flown: ShipInput = (main.get("input_source") as LatestInputSource).latest_input()
 	for i: int in 90:

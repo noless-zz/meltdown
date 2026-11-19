@@ -8,7 +8,7 @@ extends RefCounted
 const M1_HASH: int = 861662111
 const REPLAY: String = "res://acceptance/replays/basic_flight.replay"
 ## More frames than any suite here needs; a runner still going after this hangs.
-const FRAME_LIMIT: int = 5000
+const FRAME_LIMIT: int = 10000
 
 var _quit_codes: Array[int] = []
 
@@ -86,6 +86,21 @@ func test_m1_suite_passes_in_the_flat_main_scene() -> String:
 		problem = _check_report_file(runner)
 	if problem == "" and not runner.main.is_processing():
 		problem = "the scene was left with its processing switched off"
+	_done(runner)
+	return problem
+
+
+## The m2 replay starts with weapons and robots; the runner must give its
+## session both, or the bot's shots and the robots are missing and the hash
+## differs on every device (#270).
+func test_m2_suite_passes_in_the_flat_main_scene() -> String:
+	var runner: AcceptanceRunner = _run(AcceptanceSuite.load_named("m2"))
+	var problem: String = ""
+	if runner.exit_code != AcceptanceRunner.EXIT_PASS or runner.reports.size() != 1 \
+			or not runner.reports[0].passed():
+		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
+	elif not (runner.main.get("session") as LocalSession).sim.robots.is_empty():
+		problem = "robots are left after the m2 replay"
 	_done(runner)
 	return problem
 

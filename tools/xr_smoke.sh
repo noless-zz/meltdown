@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Runs the game against Monado with a simulated headset and checks that an
-# OpenXR session with two views came up (issue #26, PLT-2).
+# Runs the game against Monado with a simulated headset and two simulated
+# controllers, and checks that an OpenXR session with two views came up
+# (issue #26, PLT-2) and that both hands tracked (issue #571, PLT-5). Also
+# reports how often XR_ERROR_SESSION_NOT_STOPPING was logged (issue #575).
 #
 # Usage: tools/xr_smoke.sh [frames]
 # Needs: godot, monado-service, xvfb-run, python3 and a software Vulkan driver
@@ -23,6 +25,15 @@ export XR_RUNTIME_JSON="${XR_RUNTIME_JSON:-/usr/share/openxr/1/openxr_monado.jso
 # headset attached Monado creates its "Simulated HMD" by itself.
 export XRT_COMPOSITOR_NULL=1
 export XRT_LOG="${XRT_LOG:-info}"
+# Simulated controllers for both hands (issue #559). Monado 25 reads
+# SIMULATED_ENABLE, SIMULATED_LEFT and SIMULATED_RIGHT. Of the hand values,
+# simple, wmr and ml2 were tried and all create two controllers; "simple"
+# offers /interaction_profiles/khr/simple_controller, which the game's action map
+# binds (issue #571), so both hands must track; see the addenda in
+# docs/decisions/0002-monado-in-ci.md.
+export SIMULATED_ENABLE=1
+export SIMULATED_LEFT="${SIMULATED_LEFT:-simple}"
+export SIMULATED_RIGHT="${SIMULATED_RIGHT:-simple}"
 
 # The service watches stdin for a quit key and fails to start when stdin is
 # not pollable (as with /dev/null), so it is given a pipe that stays open.
@@ -63,12 +74,33 @@ if [ -z "$line" ]; then
 fi
 echo "$line"
 echo "$line" > "$log_dir/result.txt"
+# Reported, never a failure: Godot 4.7.2 cannot end the session before
+# quitting (#558), so the count shows whether a later fix removes the error
+# (issue #575, decision record 0002, limit 5).
+not_stopping="$("$root/tools/count_session_not_stopping.sh" "$log_dir/godot.log")"
+echo "MELTDOWN_XR_SMOKE_SHUTDOWN {\"session_not_stopping_errors\":$not_stopping}"
 
 json="${line#MELTDOWN_XR_SMOKE }"
 session="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["session"])')"
 views="$(printf '%s' "$json" | python3 -c 'import json,sys; print(int(json.load(sys.stdin)["views"]))')"
+left="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("left_tracked") is True)')"
+right="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("right_tracked") is True)')"
+echo "xr_smoke: simulated controllers left_tracked=$left right_tracked=$right"
 if [ "$session" != "True" ] || [ "$views" -lt 2 ]; then
 	echo "xr_smoke: no OpenXR session with two views (session=$session views=$views)" >&2
+	exit 1
+fi
+# Each hand is named so a failure says which one lost its binding (issue #571).
+untracked=0
+for hand in left right; do
+	value="$left"
+	[ "$hand" = right ] && value="$right"
+	if [ "$value" != "True" ]; then
+		echo "xr_smoke: the $hand hand never tracked (${hand}_tracked=false)" >&2
+		untracked=1
+	fi
+done
+if [ "$untracked" -ne 0 ]; then
 	exit 1
 fi
 if [ "$status" -ne 0 ]; then

@@ -1,0 +1,18 @@
+{
+	"name": "m2",
+	"steps": [
+		{
+			"id": "bot_clears_test_tunnel",
+			"replay": "res://acceptance/replays/bot_test_tunnel.replay",
+			"checks": ["final_hash"],
+			"expected_hash": 2840574003
+		},
+		{
+			"id": "bot_clears_g2_level",
+			"level": "g2",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": ["final_hash", "robots_cleared", "ship_alive"],
+			"expected_hash": 2642121026
+		}
+	]
+}
