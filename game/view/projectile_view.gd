@@ -14,56 +14,41 @@ extends Node3D
 ## the tunnel walls (LGT-1). The lights have a fixed budget and are pooled, so a
 ## burst of fire cannot blow the Quest 3 frame budget (PRF-1).
 ##
-## The look (length, radius, colour, light budget) is a guess for the first
-## headset session and lives in `res://view/projectile_look.json` so the owner
-## can change it.
+## A ship's bolts are drawn from its muzzles, not its centre where the eye is
+## (`BoltMuzzles`, #602), with a flash there; a bolt that ends on something
+## gets an impact flash (`BoltFlashes`).
+##
+## The look is a guess for the headset and lives in
+## `res://view/projectile_look.json` (`ProjectileLook`) so the owner can change it.
 
 const NODE_NAME: String = "ProjectileView"
 const BOLT_PREFIX: String = "Bolt"
 const LIGHT_PREFIX: String = "BoltLight"
-const DEFAULT_LOOK_FILE: String = "res://view/projectile_look.json"
+const DEFAULT_LOOK_FILE: String = ProjectileLook.DEFAULT_FILE
+const MUZZLE_FLASHES_NAME: String = "MuzzleFlashes"
+const IMPACT_FLASHES_NAME: String = "ImpactFlashes"
+## A robot's bolt that ends this close to a ship hit the ship, not a wall: the
+## ship's radius (1 m) with some room for the ship having moved. Its impact is
+## the pilot's own hit, shown by the cockpit shake, so it gets no flash in the
+## pilot's face.
+const SHIP_HIT_RADIUS_M: float = 1.5
 
-const DEFAULT_BOLT_LENGTH_M: float = 0.6
-const DEFAULT_BOLT_RADIUS_M: float = 0.03
-const DEFAULT_EMISSION_COLOR: Color = Color(1.0, 0.55, 0.15)
-const DEFAULT_MAX_LIGHTS: int = 4
-const DEFAULT_LIGHT_RANGE_M: float = 6.0
-const DEFAULT_LIGHT_ENERGY: float = 1.5
-
-## Every key of the look file, with the same name as the field it sets.
-const KEYS: Array[String] = [
-	"bolt_length_m", "bolt_radius_m", "emission_color", "max_lights", "light_range", "light_energy",
-]
-## Keys that must hold a whole number.
-const WHOLE_KEYS: Array[String] = ["max_lights"]
-
-## Allowed range of each number, inclusive: [minimum, maximum]. For
-## `emission_color` the range holds for each of its red, green and blue parts.
-const RANGES: Dictionary[String, Array] = {
-	"bolt_length_m": [0.05, 5.0],
-	"bolt_radius_m": [0.005, 0.5],
-	"emission_color": [0.0, 1.0],
-	# The mobile renderer the Quest uses lights a mesh with at most 8 omni
-	# lights, so a larger budget would only cost time without lighting more.
-	"max_lights": [0, 8],
-	"light_range": [0.5, 30.0],
-	"light_energy": [0.0, 16.0],
-}
-
-## Bolt length along its flight direction, metres, 0.05..5.
-var bolt_length_m: float = DEFAULT_BOLT_LENGTH_M
-## Bolt radius, metres, 0.005..0.5.
-var bolt_radius_m: float = DEFAULT_BOLT_RADIUS_M
-## Colour the bolt glows with; each part 0..1.
-var emission_color: Color = DEFAULT_EMISSION_COLOR
-## Most bolts that carry a light at once, 0..8; 0 turns the lights off.
-var max_lights: int = DEFAULT_MAX_LIGHTS
-## How far each bolt light reaches, metres, 0.5..30.
-var light_range: float = DEFAULT_LIGHT_RANGE_M
-## Brightness of each bolt light, 0..16. The light uses `emission_color`.
-var light_energy: float = DEFAULT_LIGHT_ENERGY
+# The fields below, `muzzles` and the two flash pools are set from the look
+# file; see `ProjectileLook` for each key's meaning and range.
+var bolt_length_m: float = ProjectileLook.DEFAULTS["bolt_length_m"]
+var bolt_radius_m: float = ProjectileLook.DEFAULTS["bolt_radius_m"]
+var emission_color: Color = ProjectileLook.DEFAULTS["emission_color"]
+## Most bolts that carry a light at once; 0 turns the lights off.
+var max_lights: int = ProjectileLook.DEFAULTS["max_lights"]
+var light_range: float = ProjectileLook.DEFAULTS["light_range"]
+## Brightness of each bolt light. The light uses `emission_color`.
+var light_energy: float = ProjectileLook.DEFAULTS["light_energy"]
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
+## Flashes at the muzzles, riding on the ship.
+var muzzle_flashes: BoltFlashes = BoltFlashes.new(MUZZLE_FLASHES_NAME)
+## Flashes where a bolt ended on something before its range ran out.
+var impact_flashes: BoltFlashes = BoltFlashes.new(IMPACT_FLASHES_NAME)
 
 var _bolts: Array[MeshInstance3D] = []
 var _lights: Array[OmniLight3D] = []
@@ -71,9 +56,13 @@ var _lights: Array[OmniLight3D] = []
 var _lit: Array[int] = []
 var _viewer: Vector3 = Vector3.ZERO
 ## Each projectile shown on the last call, with the position it had when it
-## was first shown. Holding the projectile keeps its identity from being
-## reused by a new one while it is still remembered.
+## was first shown. Holding it keeps its identity from being reused meanwhile.
 var _first_seen: Dictionary[Projectile, Vector3] = {}
+## Each ship bolt's muzzle offset from the simulated line, in this node's
+## space, fixed when it was first shown; zero for robot bolts.
+var _offsets: Dictionary[Projectile, Vector3] = {}
+## The muzzles ship bolts are drawn from, shaped by the look file.
+var muzzles: BoltMuzzles = BoltMuzzles.new()
 var _mesh: CylinderMesh = CylinderMesh.new()
 var _material: StandardMaterial3D = StandardMaterial3D.new()
 
@@ -86,73 +75,35 @@ func _init() -> void:
 	_mesh.radial_segments = 6
 	_mesh.rings = 1
 	_mesh.material = _material
+	add_child(muzzle_flashes)
+	add_child(impact_flashes)
 	load_look()
 
 
-## Parses the text of a look file: one JSON object holding every key in
-## `KEYS`, the numbers in their ranges and `emission_color` as three numbers.
-## Returns the values by key, or a dictionary holding only `"error"`, which
-## names the field.
+## Parses the text of a look file; see `ProjectileLook.parse`.
 static func parse_look(text: String) -> Dictionary:
-	var json: JSON = JSON.new()
-	if json.parse(text) != OK:
-		return _rejected("invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()])
-	if typeof(json.data) != TYPE_DICTIONARY:
-		return _rejected("top level must be a JSON object")
-	var data: Dictionary = json.data
-	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
-			return _rejected("unknown key \"%s\"" % str(key))
-	var values: Dictionary = {}
-	for key: String in KEYS:
-		if not data.has(key):
-			return _rejected("missing key \"%s\"" % key)
-		var parts: Array = [data[key]]
-		if key == "emission_color":
-			if typeof(data[key]) != TYPE_ARRAY or (data[key] as Array).size() != 3:
-				return _rejected("key \"%s\" must be [red, green, blue]" % key)
-			parts = data[key]
-		for value: Variant in parts:
-			# A bool must not pass as 0 or 1.
-			if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
-				return _rejected("key \"%s\" must hold numbers" % key)
-			if WHOLE_KEYS.has(key) and float(value) != floorf(float(value)):
-				return _rejected("key \"%s\" must be a whole number" % key)
-			var low: float = RANGES[key][0]
-			var high: float = RANGES[key][1]
-			if float(value) < low or float(value) > high:
-				return _rejected("key \"%s\" has %s, must be within %s..%s" % [key, value, low, high])
-		if key == "emission_color":
-			values[key] = Color(float(parts[0]), float(parts[1]), float(parts[2]))
-		elif WHOLE_KEYS.has(key):
-			values[key] = int(data[key])
-		else:
-			values[key] = float(data[key])
-	return values
+	return ProjectileLook.parse(text)
 
 
 ## Applies the look file at `path`. A missing or rejected file leaves the
 ## default look, sets `look_error` and pushes a warning naming the field.
 ## Returns `look_error`.
 func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
-	var values: Dictionary = {}
+	var values: Dictionary = {"error": "file not found"}
 	if FileAccess.file_exists(path):
-		values = parse_look(FileAccess.get_file_as_string(path))
-	else:
-		values = _rejected("file not found")
-	bolt_length_m = DEFAULT_BOLT_LENGTH_M
-	bolt_radius_m = DEFAULT_BOLT_RADIUS_M
-	emission_color = DEFAULT_EMISSION_COLOR
-	max_lights = DEFAULT_MAX_LIGHTS
-	light_range = DEFAULT_LIGHT_RANGE_M
-	light_energy = DEFAULT_LIGHT_ENERGY
+		values = ProjectileLook.parse(FileAccess.get_file_as_string(path))
 	look_error = ""
+	var look: Dictionary = values
 	if values.has("error"):
 		look_error = "%s: %s" % [path, values["error"]]
 		push_warning("ProjectileView uses the default look; %s" % look_error)
-	else:
-		for key: String in KEYS:
-			set(key, values[key])
+		look = ProjectileLook.DEFAULTS
+	for key: String in ["bolt_length_m", "bolt_radius_m", "emission_color", "max_lights",
+			"light_range", "light_energy"]:
+		set(key, look[key])
+	muzzles.set_look(look)
+	muzzle_flashes.set_look(look["muzzle_flash_radius_m"], look["muzzle_flash_s"], emission_color)
+	impact_flashes.set_look(look["impact_flash_radius_m"], look["impact_flash_s"], look["impact_color"])
 	_apply_look()
 	return look_error
 
@@ -161,11 +112,19 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 ## tick to the current one. A projectile that has not moved since it was first
 ## shown was fired on the current tick and has no previous position, so it is
 ## drawn where it is. Never writes to `projectiles` (MP-2).
-func show_projectiles(projectiles: Array[Projectile], alpha: float) -> void:
+##
+## `ship_poses[i]`, when given, is ship `i`'s pose this frame, with the eye at
+## its origin. A bolt that ship fires is drawn from its muzzles, left and right
+## in turn, and closes onto the simulated line within `converge_m` (#602); the
+## simulation still fires from the ship's centre. A bolt that vanishes with
+## range left ended on something and gets an impact flash.
+func show_projectiles(projectiles: Array[Projectile], alpha: float,
+		ship_poses: Array[Transform3D] = []) -> void:
 	var blend: float = clampf(alpha, 0.0, 1.0)
 	while _bolts.size() < projectiles.size():
 		_add_bolt()
 	var seen: Dictionary[Projectile, Vector3] = {}
+	var offsets: Dictionary[Projectile, Vector3] = {}
 	for index: int in projectiles.size():
 		var projectile: Projectile = projectiles[index]
 		var bolt: MeshInstance3D = _bolts[index]
@@ -174,15 +133,24 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float) -> void:
 			continue
 		var first_position: Vector3 = _first_seen.get(projectile, projectile.position)
 		seen[projectile] = first_position
+		offsets[projectile] = _offsets[projectile] if _offsets.has(projectile) \
+			else _new_bolt_offset(projectile, ship_poses)
 		var drawn: Vector3 = projectile.position
 		if first_position != projectile.position:
 			drawn += projectile.velocity * ShipState.TICK_DT * (blend - 1.0)
+		drawn += offsets[projectile] * muzzles.weight(drawn.distance_to(first_position))
 		bolt.transform = Transform3D(bolt_basis(projectile.velocity), drawn)
 		bolt.visible = true
 	for index: int in range(projectiles.size(), _bolts.size()):
 		_bolts[index].visible = false
+	for gone: Projectile in _first_seen:
+		if not seen.has(gone):
+			_on_bolt_gone(gone, ship_poses)
 	_first_seen = seen
+	_offsets = offsets
+	muzzle_flashes.follow(ship_poses)
 	_light_nearest(projectiles)
+
 
 
 ## Where the camera is, in this node's space; the bolts nearest to it get the
@@ -310,5 +278,29 @@ func _apply_look() -> void:
 	_material.emission = emission_color
 
 
-static func _rejected(message: String) -> Dictionary:
-	return {"error": message}
+## The muzzle offset of a bolt shown for the first time: the next muzzle of
+## the ship that fired it, turned by that ship's pose, or none. Starts that
+## muzzle's flash.
+func _new_bolt_offset(projectile: Projectile, ship_poses: Array[Transform3D]) -> Vector3:
+	var ship: int = projectile.owner_index
+	if projectile.is_robot_owned() or ship >= ship_poses.size():
+		return Vector3.ZERO
+	var local: Vector3 = muzzles.take(ship)
+	muzzle_flashes.flash(ship_poses[ship] * local, ship, local)
+	return ship_poses[ship].basis * local
+
+
+## A bolt shown last call is gone. With a tick of range left it ended on
+## something: a robot, the reactor, debris or a wall. The simulation does not
+## say where along that tick, so the flash goes half a tick on from where it
+## was last seen. A robot's bolt that ends on a ship gets no flash.
+func _on_bolt_gone(gone: Projectile, ship_poses: Array[Transform3D]) -> void:
+	if gone.ticks_left <= 1:
+		return  # Its range ran out in open space.
+	var step: Vector3 = gone.velocity * ShipState.TICK_DT
+	if gone.is_robot_owned():
+		for pose: Transform3D in ship_poses:
+			if Projectile.segment_entry(gone.position, gone.position + step, pose.origin,
+					SHIP_HIT_RADIUS_M) >= 0.0:
+				return
+	impact_flashes.flash(gone.position + step * 0.5)

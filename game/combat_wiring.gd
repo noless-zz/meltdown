@@ -43,7 +43,11 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) ->
 		return
 	if camera != null:
 		projectile_view.set_viewer(point_in(projectile_view, camera))
-	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction)
+	# The eye sits at the ship's centre, so the muzzles hang off this frame's pose.
+	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
+		session.current_ship(), session.interpolation_fraction)
+	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction,
+		[pose] as Array[Transform3D])
 	robot_view.show_robots(session.previous_robots(), session.current_robots(),
 		session.interpolation_fraction)
 	salvage_view.show_salvage(session.previous_salvage(), session.current_salvage(),
