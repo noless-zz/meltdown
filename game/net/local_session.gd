@@ -180,6 +180,7 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 		robot_dir, robot_weapon_dir)
 	var session: LocalSession = LocalSession.new(run_seed, input_source, null, tuning, robots,
 		null, load_parts(weapon_dir))
+	session.use_salvage_rules(SpawnLoader.load_salvage_rules())
 	var mins: Array[Vector3i] = []
 	var maxs: Array[Vector3i] = []
 	for box: BoxBounds in level.union.boxes:
@@ -202,6 +203,16 @@ static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInpu
 		session.sim.set_debris(level.debris.fresh_copy())
 	session.reset_ship_snapshots()
 	return session
+
+
+## Gives the run `rules` for picking up, pulling and dropping parts and records
+## them in the replay (#600). Before the first tick only; null keeps the
+## defaults. Sessions in a level get the shipped file from `for_level`.
+## Returns this session, so a field can be built and given rules in one line.
+func use_salvage_rules(rules: SalvageRules) -> LocalSession:
+	if rules != null and sim.set_salvage_rules(rules) == "":
+		replay.salvage_rules = rules
+	return self
 
 
 ## Takes the ship's snapshots again from the sim. Call it after moving the ship

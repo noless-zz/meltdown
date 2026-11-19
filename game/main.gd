@@ -20,10 +20,11 @@ const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  #
 var input_source: LatestInputSource = LatestInputSource.new()
 ## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
 ## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults,
-## and every weapon file as a part a held part can be slotted from (#320).
+## and every weapon file as a part a held part can be slotted from (#320),
+## picked up and pulled as the salvage file says (#600).
 var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET),
 		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
-		null, LocalSession.load_parts())
+		null, LocalSession.load_parts()).use_salvage_rules(SpawnLoader.load_salvage_rules())
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()

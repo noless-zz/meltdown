@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 15       format name and version
+##     meltdown-replay 16       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -44,6 +44,8 @@ extends RefCounted
 ##                              optional (version 10), one per part of the
 ##                              catalogue, sorted by id: part id and the
 ##                              weapon's data file on one line (`Sim.set_parts`)
+##     salvage {"pickup_reach":2.5,...}
+##                              optional (version 16): `ReplaySalvageLine`
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1 0
 ##                              one line per tick: thrust x y z, turn x y z,
@@ -52,22 +54,14 @@ extends RefCounted
 ##     0 0 -1000 0 0 0 0 0 0 0 | ...
 ##                              further ships follow after " | "
 ##
-## Version 1 has no afterburner column: six numbers per ship, read with the
-## afterburner off. Versions 1 to 3 have no reset column and are read with it
-## off. Versions 1 to 5 have no fire column and are read with it off. Versions
-## 1 to 10 have no slot column and are read with it off. Versions
-## 1 and 2 have no box line, versions 3 to 11 at most one, versions 1 to 4 no
-## tuning line, versions 1 to 6 no weapon lines, versions 1 to 7 no robot
-## lines, versions 1 to 9 no part lines, versions 1 to 12 no reactor line,
-## versions 1 to 13 no start line, versions 1 to 14 no debris line. Version 8 robot lines hold the robot's
-## data file alone, with no "robot" or "weapon" key, and read as unarmed. Files
-## are always written as the current version.
+## Older versions lack some columns and lines; `ReplayHeader` lists which.
+## Files are always written as the current version.
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 15
+const FORMAT_VERSION: int = 16
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -103,6 +97,8 @@ var loadout: ShipLoadout = null
 var robots: Array[RobotSpawn] = []
 ## The part catalogue the run starts with: part id to resolved weapon.
 var parts: Dictionary[String, WeaponDef] = {}
+## How parts are picked up, pulled and dropped, or null for the defaults.
+var salvage_rules: SalvageRules = null
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -148,6 +144,8 @@ func run() -> Sim:
 	if parts_problem != "":
 		run_error = parts_problem
 		return null
+	if salvage_rules != null:
+		sim.set_salvage_rules(salvage_rules)
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -246,6 +244,8 @@ func to_text() -> String:
 	for spawn: RobotSpawn in robots:
 		lines.append(ReplayLines.robot_text(spawn))
 	lines.append_array(ReplayPartLines.part_lines(parts))
+	if salvage_rules != null:
+		lines.append(ReplaySalvageLine.text(salvage_rules))
 	lines.append("inputs")
 	for frame: Array in frames:
 		lines.append(ReplayLines.tick_text(frame))

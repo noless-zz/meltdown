@@ -15,6 +15,12 @@
 			"expected_hash": 517117812
 		},
 		{
+			"id": "pickup_in_test_tunnel",
+			"replay": "res://acceptance/replays/pickup_test_tunnel.replay",
+			"checks": ["final_hash", "part_held", "ship_alive"],
+			"expected_hash": 2257458082
+		},
+		{
 			"id": "bot_clears_g2_level",
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_level.replay",

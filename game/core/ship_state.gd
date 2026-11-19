@@ -86,6 +86,13 @@ var fire_cooldown: int = 0
 const HOLD_CAPACITY: int = 1
 ## Part ids in the order they were taken, at most HOLD_CAPACITY.
 var hold: Array[String] = []
+## Whether the slot control was held on the last tick this ship was stepped.
+## Slotting needs a fresh press (#600): with the click held while flying
+## through a part, the part would otherwise be swapped in on the very next
+## tick and the old weapon dropped, which looked like nothing was taken. Not
+## hashed: it is the last tick's input, which a replay already holds, and a
+## held control with an empty hold must not change the run.
+var slot_was_held: bool = false
 ## Set by `ExitRule` when the ship leaves through the exit during the meltdown
 ## (RUN-3); `Sim` then stops stepping it and nothing can hit it. Not in this
 ## state's hash: `Sim` hashes it with the reactor, so levels without one keep

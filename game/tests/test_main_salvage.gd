@@ -122,3 +122,26 @@ func test_a_fresh_session_has_no_salvage() -> String:
 	if not session.previous_salvage().is_empty() or not session.current_salvage().is_empty():
 		return "a session with no robots reports salvage"
 	return ""
+
+
+## The owner could not pick up a part (#600): destroy a robot, stop the ship
+## 3.3 m from its part, beyond the old 2.5 m reach, and the shipped salvage
+## file has it pulled in and taken, with the hold row naming it.
+func test_a_part_three_metres_off_is_taken_and_the_hold_row_names_it() -> String:
+	var main: Node = _main()
+	_destroy_first_robot(main)
+	var session: LocalSession = main.get("session")
+	var part: SalvageItem = session.current_salvage()[0]
+	var ship: ShipState = session.sim.ships[0]
+	ship.position = part.position + Vector3(0.0, 0.0, 3.3)
+	ship.velocity = Vector3.ZERO
+	_fly(main, 30, ShipInput.new())
+	var hold: Array[String] = session.current_ship().hold.duplicate()
+	var panel: StatusPanel = main.get("status_panel")
+	var row: String = (panel.get_node(StatusPanel.HOLD_NAME) as Label3D).text if panel != null else ""
+	main.free()
+	if hold != [part.part_id]:
+		return "the hold is %s, expected [%s]" % [hold, part.part_id]
+	if not row.contains(part.part_id):
+		return "the hold row reads '%s'" % row
+	return ""

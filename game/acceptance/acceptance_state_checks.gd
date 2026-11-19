@@ -38,6 +38,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return door_fallen(step.id, session.sim, measurements)
 		AcceptanceStep.CHECK_NO_HIDDEN_HITS:
 			return no_hidden_hits(session.replay, measurements)
+		AcceptanceStep.CHECK_PART_HELD:
+			return part_held(session.sim, measurements)
 		AcceptanceStep.CHECK_SHIP_DESTROYED_INERT:
 			return AcceptanceWreckCheck.run(session.replay, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
@@ -64,6 +66,16 @@ static func robots_cleared(sim: Sim, measurements: Dictionary) -> Array:
 	if not alive.is_empty():
 		return [AcceptanceReport.RESULT_FAIL, "%d robots still alive: %s" % [alive.size(), ", ".join(alive)]]
 	return [AcceptanceReport.RESULT_PASS, "no robot left"]
+
+
+## Passes when the first ship's hold names a part (#600), and says which.
+static func part_held(sim: Sim, measurements: Dictionary) -> Array:
+	var held: String = "" if sim.ships.is_empty() or sim.ships[0].hold.is_empty() \
+		else sim.ships[0].hold[0]
+	measurements["part_held"] = held
+	if held == "":
+		return [AcceptanceReport.RESULT_FAIL, "the ship's hold is empty"]
+	return [AcceptanceReport.RESULT_PASS, "holds %s" % held]
 
 
 static func ship_alive(sim: Sim, measurements: Dictionary) -> Array:
