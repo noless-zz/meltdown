@@ -31,6 +31,7 @@ func new_session() -> LocalSession:
 		session.replay.start_positions_mm[ship] = _replay.start_positions_mm[ship]
 		session.replay.start_facings_mm[ship] = _replay.start_facings_mm[ship]
 	ReplayStartLine.apply(session.replay, session.sim)
+	session.use_salvage_rules(_replay.salvage_rules)
 	session.reset_ship_snapshots()
 	# A level's reactor stops shots and counts down, so a replay recorded with
 	# one flies differently without it (#332).

@@ -25,11 +25,11 @@ var source: String = ""
 ## The test tunnel's session: inside the walls the tunnel is drawn around
 ## (FLT-3), with the tuning file's values or, if it is rejected, the defaults,
 ## the tunnel's robots, and every weapon file as a part a held part can be
-## slotted from (#320).
+## slotted from (#320), picked up and pulled as the salvage file says (#600).
 static func tunnel_session(input: ShipInputSource) -> LocalSession:
 	return LocalSession.new(0, input, TestTunnel.interior_box(TUNNEL_OFFSET),
 		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
-		null, LocalSession.load_parts())
+		null, LocalSession.load_parts()).use_salvage_rules(SpawnLoader.load_salvage_rules())
 
 
 ## The session for the level file or seed at `path`, from the level's start

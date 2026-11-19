@@ -15,6 +15,8 @@ const WEAPON_DIR: String = "res://data/weapons/"
 const ROBOT_DIR: String = "res://data/robots/"
 ## Where the weapons robot types fire are read from, by id (#612).
 const ROBOT_WEAPON_DIR: String = "res://data/robot_weapons/"
+## How parts are picked up, pulled and dropped (#600).
+const SALVAGE_FILE: String = "res://data/salvage.json"
 
 
 ## Reads a ship data file. Returns null, after printing why, when the file is
@@ -141,3 +143,17 @@ static func parts_from_files(weapon_dir: String, names: PackedStringArray) -> Di
 			continue
 		parts[id] = weapon
 	return parts
+
+
+## Reads the salvage data file (`SalvageRules`, #600). Returns null, after
+## printing why, when it is missing or rejected, so the run keeps the built-in
+## rules rather than refusing to start.
+static func load_salvage_rules(path: String = SALVAGE_FILE) -> SalvageRules:
+	var problem: String = "file not found"
+	if FileAccess.file_exists(path):
+		var rules: SalvageRules = SalvageRules.parse_json(FileAccess.get_file_as_string(path))
+		if rules.error == "":
+			return rules
+		problem = rules.error
+	print("Meltdown: salvage rules %s rejected (%s); using the built-in rules" % [path, problem])
+	return null

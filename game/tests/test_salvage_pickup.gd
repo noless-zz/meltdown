@@ -69,7 +69,7 @@ func test_flying_through_a_dropped_cannon_takes_it() -> String:
 		return "%d SALVAGE_COLLECTED events, expected 1" % collected.size()
 	if not collected[0].equals(SimEvent.new(SimEvent.Kind.SALVAGE_COLLECTED, 0, 0.0, DRONE_AT)):
 		return "event %s, expected ship 0 taking item 0 at %s" % [collected[0], DRONE_AT]
-	var reach: float = sim.ships[0].radius + SalvagePickup.PICKUP_RADIUS
+	var reach: float = sim.ships[0].radius + sim.salvage_rules.pickup_reach
 	if sim.ships[0].position.distance_to(DRONE_AT) > reach + 1.0:
 		return "taken from %f m away" % sim.ships[0].position.distance_to(DRONE_AT)
 	return ""
@@ -82,7 +82,7 @@ func test_fast_pass_between_ticks_still_takes_it() -> String:
 	# About 10 m per tick: the ship starts 5 m short of the item and ends the
 	# tick 5 m past it, never within reach at a tick boundary.
 	sim.ships[0].velocity = Vector3(0.0, 0.0, -600.0)
-	var reach: float = sim.ships[0].radius + SalvagePickup.PICKUP_RADIUS
+	var reach: float = sim.ships[0].radius + sim.salvage_rules.pickup_reach
 	_step(sim)
 	if sim.ships[0].position.distance_to(at) <= reach:
 		return "test is wrong: the tick ended within reach"
@@ -114,7 +114,7 @@ func test_tie_goes_to_the_lower_ship_index() -> String:
 	sim.ships[1].velocity = Vector3(-60.0, 0.0, 0.0)
 	sim.salvage.append(SalvageItem.new("pulse_cannon", Vector3.ZERO))
 	_step(sim)
-	var reach: float = sim.ships[0].radius + SalvagePickup.PICKUP_RADIUS
+	var reach: float = sim.ships[0].radius + sim.salvage_rules.pickup_reach
 	for ship: ShipState in sim.ships:
 		if ship.position.length() > reach:
 			return "test is wrong: a ship did not reach the item on the first tick"
