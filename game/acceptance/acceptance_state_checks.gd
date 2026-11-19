@@ -5,7 +5,8 @@ extends RefCounted
 ## the final hash, whether every robot is destroyed and whether the ship
 ## survived (gate G2, #334), how the run ended (#376) and whether any debris
 ## came down and the level was the pinned one (#460), and whether a blast door
-## did (#516). Kept apart from `AcceptanceRunner`, which drives
+## did (#516), and whether any robot fired at the ship from behind a wall
+## (#615). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
 ## The record switch a changed level hash names. Only the m3 suite pins level
@@ -35,6 +36,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return level_hash(step, session.replay, measurements)
 		AcceptanceStep.CHECK_DOOR_FALLEN:
 			return door_fallen(step.id, session.sim, measurements)
+		AcceptanceStep.CHECK_NO_HIDDEN_HITS:
+			return no_hidden_hits(session.replay, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -134,3 +137,46 @@ static func level_hash(step: AcceptanceStep, replay: Replay, measurements: Dicti
 		return [AcceptanceReport.RESULT_FAIL, "level hash %d, expected %d: the level's data changed; if intended, re-record from the repository root with %s" % [
 			actual, step.expected_level_hash, record_command(step.id)]]
 	return [AcceptanceReport.RESULT_PASS, "level hash %d" % actual]
+
+
+## Flies `replay` again from its header, tick by tick, and fails on the first
+## robot shot fired with no clear line (`LineOfSight`) from the robot to the
+## ship it fired at, or that crossed a wall on its way (#615). The final state
+## cannot tell, so this re-flies; the hash check already pins the flight.
+static func no_hidden_hits(replay: Replay, measurements: Dictionary) -> Array:
+	# `Replay.run` with no frames is the sim set up from the header, before its
+	# first tick; the frames are put back at once and stepped here.
+	var frames: Array[Array] = replay.frames
+	replay.frames = []
+	var sim: Sim = replay.run()
+	replay.frames = frames
+	if sim == null:
+		return [AcceptanceReport.RESULT_FAIL, "the replay could not start: %s" % replay.run_error]
+	var shots: int = 0
+	var hits: int = 0
+	var last: Dictionary[Projectile, Vector3] = {}
+	for frame: Array in frames:
+		var inputs: Array[ShipInput] = []
+		inputs.assign(frame)
+		sim.step(inputs)
+		for event: SimEvent in sim.last_events:
+			if event.kind == SimEvent.Kind.SHIP_HIT:
+				hits += 1
+		var now: Dictionary[Projectile, Vector3] = {}
+		for projectile: Projectile in sim.projectiles:
+			if not projectile.is_robot_owned():
+				continue
+			now[projectile] = projectile.position
+			if last.has(projectile):
+				if not LineOfSight.clear(sim.walls, last[projectile], projectile.position):
+					return [AcceptanceReport.RESULT_FAIL, "tick %d: a robot shot crossed a wall" % sim.tick]
+				continue
+			# Fired this tick, from the robot's centre, at the nearest live ship.
+			shots += 1
+			var target: ShipState = sim.nearest_live_ship(projectile.position)
+			if target != null and not LineOfSight.clear(sim.walls, projectile.position, target.position):
+				return [AcceptanceReport.RESULT_FAIL, "tick %d: a robot fired with no line to the ship" % sim.tick]
+		last = now
+	measurements["robot_shots"] = shots
+	measurements["ship_hits"] = hits
+	return [AcceptanceReport.RESULT_PASS, "%d robot shots, %d hits, none from behind a wall" % [shots, hits]]

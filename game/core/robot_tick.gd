@@ -10,8 +10,10 @@ extends RefCounted
 ## Wakes each sleeping robot a ship has come near, then moves every awake
 ## robot in `sim.robots` one tick towards its target, keeps it
 ## inside the box of `sim.walls` picked where it ends up, and fires at its
-## target if it can. The shot leaves the robot's centre along its facing at the
-## weapon's speed, like a ship's.
+## target if it can: only with a clear line from its centre to the target's
+## through open space (`LineOfSight`, #615), so a robot behind a wall holds its
+## fire. The shot leaves the robot's centre along its facing at the weapon's
+## speed, like a ship's.
 static func advance(sim: Sim) -> void:
 	for r: int in sim.robots.size():
 		var robot: RobotState = sim.robots[r]
@@ -21,7 +23,10 @@ static func advance(sim: Sim) -> void:
 		robot.step(sim.nearest_live_ship(robot.position))
 		if sim.walls != null:
 			robot.keep_inside(sim.walls.box_for(robot.position, robot.def.radius))
-		var weapon: WeaponDef = robot.fire_at(sim.nearest_live_ship(robot.position))
+		var target: ShipState = sim.nearest_live_ship(robot.position)
+		var in_sight: bool = target == null or robot.weapon == null \
+			or LineOfSight.clear(sim.walls, robot.position, target.position)
+		var weapon: WeaponDef = robot.fire_at(target, in_sight)
 		if weapon != null:
 			sim.projectiles.append(Projectile.new(robot.position,
 				robot.forward() * weapon.projectile_speed, Projectile.robot_owner(r),

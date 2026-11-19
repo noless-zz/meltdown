@@ -49,6 +49,13 @@ var strafe_radial_gain: float = 0.5
 ## place robots that wait for the ship to come to them (#301). Zero means the
 ## file has no such key: the robot is awake from the first tick, as before.
 var wake_range: float = 0.0
+## Seconds without a clear line to its target after which the robot drops it
+## (#615): when it next sees the ship it has to aim again, so its next shot
+## waits one full fire interval. 0.1..60; 2 s by default.
+var lose_target_seconds: float = LOSE_TARGET_DEFAULT_SECONDS
+
+## Default of `lose_target_seconds`, for files that leave the key out.
+const LOSE_TARGET_DEFAULT_SECONDS: float = 2.0
 
 ## Movement behaviours the simulation knows:
 ## hover: hold position near its spawn, turning to face the target.
@@ -68,7 +75,7 @@ const KEYS: Array[String] = [
 ## Keys a file may leave out; each falls back to its field's default above.
 const OPTIONAL_KEYS: Array[String] = [
 	"standoff_radii", "strafe_min_distance", "strafe_max_distance", "strafe_radial_gain",
-	"wake_range",
+	"wake_range", "lose_target_seconds",
 ]
 
 ## Keys whose value is an id string rather than a number.
@@ -88,6 +95,7 @@ const RANGES: Dictionary = {
 	"strafe_radial_gain": [0.0, 10.0],
 	# One millimetre is the smallest wake range above zero.
 	"wake_range": [0.001, 10000.0],
+	"lose_target_seconds": [0.1, 60.0],
 }
 
 ## Millimetres per metre, for keys read in whole millimetres.
@@ -170,13 +178,21 @@ func has_wake_range() -> bool:
 	return wake_range > 0.0
 
 
+## Ticks without a clear line after which the robot drops its target.
+func lose_target_ticks() -> int:
+	return int(roundf(lose_target_seconds * float(ShipState.TICK_RATE)))
+
+
 ## Hash of the values, so a replay can record which robot data it ran with.
-## The wake range joins only when set, so robots without one keep their hashes.
+## The wake range joins only when set, and the time to drop a target only when
+## it is not the default, so robots without them keep their hashes.
 func values_hash() -> int:
 	var values: Array = [id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon,
 		salvage, standoff_radii, strafe_min_distance, strafe_max_distance, strafe_radial_gain]
 	if has_wake_range():
 		values.append_array(["wake_range", wake_range])
+	if lose_target_seconds != LOSE_TARGET_DEFAULT_SECONDS:
+		values.append_array(["lose_target_seconds", lose_target_seconds])
 	return hash(values)
 
 
