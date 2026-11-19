@@ -1,7 +1,16 @@
 {
 	"wall_color": [0.16, 0.15, 0.14],
+	"floor_color": [0.22, 0.19, 0.15],
+	"ceiling_color": [0.1, 0.11, 0.13],
 	"roughness": 0.9,
 	"edge_color": [0.25, 0.45, 0.6],
 	"edge_energy": 0.4,
-	"edge_width_m": 0.15
+	"edge_width_m": 0.15,
+	"grid_spacing_m": 2.0,
+	"grid_line_width_m": 0.06,
+	"grid_line_factor": 2.2,
+	"fog_color": [0.01, 0.012, 0.016],
+	"fog_density": 0.035,
+	"ambient_color": [0.25, 0.27, 0.3],
+	"ambient_energy": 0.12
 }

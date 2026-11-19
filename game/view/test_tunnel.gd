@@ -7,6 +7,9 @@ extends Node3D
 ##
 ## The player stands at the origin looking down negative z. Reference
 ## markers sit at known distances so depth errors are easy to spot.
+##
+## Walls, fog and ambient light come from the same look file as every other
+## level (`LevelLook`, #609), so the tunnel reads like the mines do.
 
 const LENGTH: float = 30.0
 const WIDTH: float = 4.0
@@ -31,6 +34,7 @@ const LIGHT_COLORS: Array[Color] = [
 ]
 
 var _built: bool = false
+var _look: Dictionary = {}
 
 
 ## The open space inside the walls, floor and ceiling, as the box ships fly in
@@ -51,6 +55,7 @@ func build() -> void:
 	if _built:
 		return
 	_built = true
+	_look = LevelLook.load_or_fallback()
 	_add_environment()
 	_add_shell()
 	_add_lights()
@@ -58,16 +63,7 @@ func build() -> void:
 
 
 func _add_environment() -> void:
-	var environment: Environment = Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.01, 0.01, 0.02)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.25, 0.27, 0.3)
-	environment.ambient_light_energy = 0.4
-	var world: WorldEnvironment = WorldEnvironment.new()
-	world.name = "Environment"
-	world.environment = environment
-	add_child(world)
+	add_child(LevelLook.world_environment(_look, "Environment"))
 
 
 func _add_shell() -> void:
@@ -75,14 +71,17 @@ func _add_shell() -> void:
 	shell.name = "Shell"
 	add_child(shell)
 	var center_z: float = START_Z - LENGTH / 2.0
-	var rock: Color = Color(0.35, 0.33, 0.3)
+	# Each box is tinted by the way its inner face points, as level walls are.
+	var floor_look: Material = LevelLook.wall_material(_look, LevelLook.tint_for(_look, Vector3.UP))
+	var ceiling_look: Material = LevelLook.wall_material(_look, LevelLook.tint_for(_look, Vector3.DOWN))
+	var wall_look: Material = LevelLook.wall_material(_look, LevelLook.tint_for(_look, Vector3.RIGHT))
 	var side_x: float = (WIDTH + WALL) / 2.0
-	_add_box(shell, "Floor", Vector3(WIDTH + 2.0 * WALL, WALL, LENGTH), Vector3(0.0, -WALL / 2.0, center_z), rock)
-	_add_box(shell, "Ceiling", Vector3(WIDTH + 2.0 * WALL, WALL, LENGTH), Vector3(0.0, HEIGHT + WALL / 2.0, center_z), rock)
-	_add_box(shell, "LeftWall", Vector3(WALL, HEIGHT, LENGTH), Vector3(-side_x, HEIGHT / 2.0, center_z), rock)
-	_add_box(shell, "RightWall", Vector3(WALL, HEIGHT, LENGTH), Vector3(side_x, HEIGHT / 2.0, center_z), rock)
-	_add_box(shell, "FarEnd", Vector3(WIDTH, HEIGHT, WALL), Vector3(0.0, HEIGHT / 2.0, START_Z - LENGTH - WALL / 2.0), rock)
-	_add_box(shell, "NearEnd", Vector3(WIDTH, HEIGHT, WALL), Vector3(0.0, HEIGHT / 2.0, START_Z + WALL / 2.0), rock)
+	_add_shell_box(shell, "Floor", Vector3(WIDTH + 2.0 * WALL, WALL, LENGTH), Vector3(0.0, -WALL / 2.0, center_z), floor_look)
+	_add_shell_box(shell, "Ceiling", Vector3(WIDTH + 2.0 * WALL, WALL, LENGTH), Vector3(0.0, HEIGHT + WALL / 2.0, center_z), ceiling_look)
+	_add_shell_box(shell, "LeftWall", Vector3(WALL, HEIGHT, LENGTH), Vector3(-side_x, HEIGHT / 2.0, center_z), wall_look)
+	_add_shell_box(shell, "RightWall", Vector3(WALL, HEIGHT, LENGTH), Vector3(side_x, HEIGHT / 2.0, center_z), wall_look)
+	_add_shell_box(shell, "FarEnd", Vector3(WIDTH, HEIGHT, WALL), Vector3(0.0, HEIGHT / 2.0, START_Z - LENGTH - WALL / 2.0), wall_look)
+	_add_shell_box(shell, "NearEnd", Vector3(WIDTH, HEIGHT, WALL), Vector3(0.0, HEIGHT / 2.0, START_Z + WALL / 2.0), wall_look)
 	# Floor stripes every few metres give a steady depth cue along the tunnel.
 	var stripe_color: Color = Color(0.9, 0.75, 0.1)
 	var stripe_count: int = int(LENGTH / STRIPE_SPACING)
@@ -147,6 +146,10 @@ func _add_box(parent: Node3D, box_name: String, size: Vector3, at: Vector3, colo
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = 0.9
+	_add_shell_box(parent, box_name, size, at, material)
+
+
+func _add_shell_box(parent: Node3D, box_name: String, size: Vector3, at: Vector3, material: Material) -> void:
 	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = size
 	mesh.material = material

@@ -14,6 +14,12 @@ extends XROrigin3D
 ##
 ## Each hand's labels fade out after the hand has stayed away from the centre
 ## of view for a while and fade back in when it comes near (#147, `LabelFade`).
+##
+## The ship's headlight hangs under the rig origin (#609, `Headlight`). It is
+## fixed to the ship, not the head, so it sits where the cockpit frame sits:
+## at the recentred head point, which is the ship's centre with the ship's
+## axes. The main scene places the frame there every frame before the rig
+## runs, so the rig only copies that placement.
 
 const LEFT_COLOR: Color = Color(0.2, 0.6, 1.0)
 const RIGHT_COLOR: Color = Color(1.0, 0.5, 0.2)
@@ -21,6 +27,9 @@ const MODEL_NAME: String = "Controller"
 ## Logs what the runtime offers for controller models (#145).
 const REPORT_NAME: String = "RenderModelReport"
 const CAMERA_NAME: String = "Camera"
+## The authored eye height, used for the headlight before any cockpit frame
+## exists (a rig built on its own, as the tests do).
+const DEFAULT_EYE_HEIGHT_M: float = 1.6
 
 ## The mapping whose bindings the labels show. The scene that owns the real
 ## mapping assigns it here; until then the default layout is shown.
@@ -57,6 +66,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _signature() != _shown_signature:
 		refresh_labels()
+	place_headlight()
 	var camera: Node3D = get_node_or_null(CAMERA_NAME) as Node3D
 	if camera == null or not is_inside_tree():
 		return
@@ -87,7 +97,32 @@ func build() -> void:
 		var report: RenderModelReport = RenderModelReport.new()
 		report.name = REPORT_NAME
 		add_child(report)
+	if headlight() == null:
+		add_child(Headlight.new())
+	place_headlight()
 	refresh_labels()
+
+
+## The ship's headlight, or null before `build`.
+func headlight() -> Headlight:
+	return get_node_or_null(Headlight.NODE_NAME) as Headlight
+
+
+## The ship's centre and axes in the rig's space: the cockpit frame's
+## placement when the rig has one, otherwise the authored eye point facing -Z.
+func ship_frame() -> Transform3D:
+	for child: Node in get_children():
+		if child is CockpitFrame:
+			return (child as CockpitFrame).transform
+	return Transform3D(Basis.IDENTITY, Vector3(0.0, DEFAULT_EYE_HEIGHT_M, 0.0))
+
+
+## Puts the headlight on the ship for this frame. View only: reads the frame
+## the main scene placed, writes nothing but the light's own transform.
+func place_headlight() -> void:
+	var lamp: Headlight = headlight()
+	if lamp != null:
+		lamp.place(ship_frame())
 
 
 ## The node that logs the runtime's render models, or null before `build`.
