@@ -3,7 +3,8 @@
 # Usage: tools/build.sh quest|server|desktop
 # Needs `godot` (matching export templates installed) on PATH. The quest
 # target also needs the Android SDK, JDK 17 and a debug keystore configured
-# in Godot's editor settings or the GODOT_ANDROID_KEYSTORE_DEBUG_* variables.
+# in Godot's editor settings or the GODOT_ANDROID_KEYSTORE_DEBUG_* variables,
+# and the OpenXR Vendors plugin from tools/fetch_vendors_plugin.sh.
 set -euo pipefail
 
 target="${1:-}"
@@ -38,6 +39,12 @@ export_preset() {
 
 case "$target" in
 	quest)
+		# The Meta export options and controller models come from this
+		# plugin; without it the APK would lack com.oculus.supportedDevices.
+		if [ ! -f "$root/game/addons/godotopenxrvendors/plugin.gdextension" ]; then
+			echo "Run tools/fetch_vendors_plugin.sh once before a Quest build (#10)" >&2
+			exit 1
+		fi
 		export_preset "Android Quest" "$root/build/meltdown-quest-debug.apk" \
 			--install-android-build-template
 		;;

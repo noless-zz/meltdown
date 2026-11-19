@@ -59,16 +59,18 @@ func test_session_line_with_extension_list_and_missing_info() -> String:
 
 func test_models_line_shape() -> String:
 	var paths: PackedStringArray = PackedStringArray(["/user/hand/left", "/user/hand/right"])
-	var report: Variant = _parse(RenderModelReport.format_models_line(paths, 2, "added"))
+	var report: Variant = _parse(RenderModelReport.format_models_line(paths, 2, "added", 1))
 	if not report is Dictionary:
 		return "models line is not prefix + JSON object"
-	var keys: String = _keys_are(report, ["phase", "models", "paths", "added_signals", "trigger"])
+	var keys: String = _keys_are(report, ["phase", "models", "paths", "added_signals", "trigger", "vendor_models"])
 	if keys != "":
 		return keys
 	if report["phase"] != "models" or int(report["models"]) != 2 or int(report["added_signals"]) != 2:
 		return "wrong counts: %s" % report
 	if report["paths"] != ["/user/hand/left", "/user/hand/right"] or report["trigger"] != "added":
 		return "wrong paths or trigger: %s" % report
+	if int(report["vendor_models"]) != 1:
+		return "vendor model count not passed through: %s" % report
 	return ""
 
 
@@ -76,6 +78,8 @@ func test_models_line_with_none_says_zero() -> String:
 	var line: String = RenderModelReport.format_models_line(PackedStringArray(), 0, "timeout")
 	if not line.contains("\"models\":0"):
 		return "no-model line lacks \"models\":0: %s" % line
+	if not line.contains("\"vendor_models\":0"):
+		return "line without the plugin lacks \"vendor_models\":0: %s" % line
 	return ""
 
 
