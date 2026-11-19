@@ -6,7 +6,7 @@ extends RefCounted
 
 const FLIGHT_TICKS: int = 90
 const G2_REPLAY: String = "res://acceptance/replays/bot_g2_level.replay"
-const G2_HASH: int = 2107444575
+const G2_HASH: int = 2642121026
 ## Off the origin and turned 90 degrees (facing +x), with room ahead to fly into.
 const TURNED_LEVEL: String = '{"boxes": [{"min": [-10, -10, -10], "max": [100, 20, 30]}],' \
 	+ ' "start": {"position": [3, 2, 10], "facing": [1, 0, 0]}, "robots": []}'

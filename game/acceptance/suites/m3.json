@@ -6,7 +6,7 @@
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_escape.replay",
 			"checks": ["final_hash", "robots_cleared", "outcome"],
-			"expected_hash": 582427376,
+			"expected_hash": 3742362026,
 			"expected_outcome": "ESCAPED"
 		},
 		{
@@ -14,8 +14,8 @@
 			"seed": 43,
 			"replay": "res://acceptance/replays/bot_generated_escape.replay",
 			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "debris_fallen"],
-			"expected_hash": 1812555912,
-			"expected_level_hash": 949868369,
+			"expected_hash": 699980457,
+			"expected_level_hash": 2781903703,
 			"expected_outcome": "ESCAPED"
 		},
 		{
@@ -23,8 +23,17 @@
 			"seed": 26,
 			"replay": "res://acceptance/replays/bot_generated_door_escape.replay",
 			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "door_fallen"],
-			"expected_hash": 1644261416,
-			"expected_level_hash": 1291906052,
+			"expected_hash": 3028657320,
+			"expected_level_hash": 2101968296,
+			"expected_outcome": "ESCAPED"
+		},
+		{
+			"id": "bot_generated_sight",
+			"seed": 31,
+			"replay": "res://acceptance/replays/bot_generated_sight.replay",
+			"checks": ["final_hash", "level_hash", "outcome", "no_hidden_hits"],
+			"expected_hash": 2244039636,
+			"expected_level_hash": 4083707172,
 			"expected_outcome": "ESCAPED"
 		}
 	]

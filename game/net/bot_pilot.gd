@@ -47,6 +47,10 @@ const OUTNUMBERED: int = 2
 ## A robot out of sight that closes on the ship faster than this, metres per
 ## second, is waited for where the bot stands rather than met round a corner.
 const CLOSING_ROBOT_SPEED: float = 0.5
+## The longest the bot waits in a row for robots out of sight, ticks (10 s).
+## Robots behind a wall no longer fire through it (#615), so one held against
+## the wall can creep along it for good; the bot then goes to meet it.
+const MAX_WAIT_TICKS: int = 600
 
 var _sim: Sim = null
 var _ship_index: int = 0
@@ -68,6 +72,8 @@ var _escape: BotEscape = null
 var _dodge: BotDodge = null
 ## Places out of every robot's line of fire (#492); null without a level.
 var _cover: BotCover = null
+## Ticks in a row the bot has waited for robots out of sight (`MAX_WAIT_TICKS`).
+var _waited_ticks: int = 0
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -164,8 +170,12 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var offset: Vector3 = waypoint - ship.position
 	var distance: float = offset.length()
 	var wanted: Vector3 = Vector3.ZERO
+	if in_sight or threatened:
+		_waited_ticks = 0
 	var waiting: bool = target != null and not in_sight and not threatened and not flanking \
-		and (robots_closing(ship) or ship.shield < ship.max_shield)
+		and (robots_closing(ship) or ship.shield < ship.max_shield) and _waited_ticks < MAX_WAIT_TICKS
+	if waiting:
+		_waited_ticks += 1
 	if not waiting and distance > 0.0:
 		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
 		wanted = offset / distance * speed
@@ -240,9 +250,9 @@ func _target_in_level(ship: ShipState, nearest: RobotState) -> RobotState:
 
 
 ## Whether a shot from `ship`'s selected primary weapon, fired straight at
-## `point`, would reach it inside the walls. A shot is dropped once it ends a
-## tick outside every box (`ProjectileHits`), so this checks the same points:
-## one per tick of flight. An intact reactor in the way takes the shot, so
+## `point`, would reach it inside the walls: a shot ends where it leaves open
+## space (`ProjectileHits`, `LineOfSight`), so this checks the same line. An
+## intact reactor in the way takes the shot, so
 ## a robot behind it is out of reach too. An empty slot never reaches anything.
 func shot_reaches(ship: ShipState, point: Vector3) -> bool:
 	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
@@ -253,8 +263,7 @@ func shot_reaches(ship: ShipState, point: Vector3) -> bool:
 	return _reaches(ship.position, point, weapon.projectile_speed)
 
 
-## Whether a shot at `speed` from `from` straight at `point` stays inside the
-## walls at the end of every tick of its flight.
+## Whether a shot from `from` straight at `point` stays in open space.
 func _reaches(from: Vector3, point: Vector3, speed: float) -> bool:
 	return BotFlank.reaches_walls(_walls, from, point, speed)
 

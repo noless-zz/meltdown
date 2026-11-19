@@ -35,9 +35,10 @@ const TICK_LIMIT: int = 12000
 const LEFT_WAY: Array[Vector3] = [Vector3(-8, 0, -60), Vector3(-8, 0, -8), Vector3.ZERO]
 const RIGHT_WAY: Array[Vector3] = [Vector3(8, 0, -60), Vector3(8, 0, -8), Vector3.ZERO]
 ## `Sim.state_hash` once the bot has escaped the ring level without its fire,
-## recorded on `main` before #498 (at ecf07d4).
-const NO_FIRE_FINAL_HASH: int = 1145033555
-const NO_FIRE_FINAL_TICK: int = 1251
+## recorded on `main` before #498 (at ecf07d4), and again after #615, when
+## robots stopped firing without a clear line to the ship.
+const NO_FIRE_FINAL_HASH: int = 2546833378
+const NO_FIRE_FINAL_TICK: int = 1257
 
 
 class BotSource extends ShipInputSource:

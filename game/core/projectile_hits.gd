@@ -8,10 +8,12 @@ extends RefCounted
 
 ## Moves every projectile in `sim.projectiles` one tick and removes those that
 ## hit a robot or the reactor (ship shots) or a ship or the reactor (robot
-## shots, which do it no harm), that meet solid debris, whose lifetime is over
-## or that have left the walls. The hit test runs on the whole segment flown this
-## tick, before the other two, so a shot on its last tick or leaving through a
-## wall still hits what it passed on the way. Hit events go to `hit_events`;
+## shots, which do it no harm), that meet solid debris or a wall, or whose
+## lifetime is over. A shot ends where its segment first meets solid debris or
+## leaves open space (`LineOfSight`: from one box into another only through
+## the volume they share, #615), and the hit test runs only on the part before
+## that point, so nothing behind a wall is hit; a shot on its last tick still
+## hits what it passed on the way. Hit events go to `hit_events`;
 ## each robot destroyed is recorded in `killers` as robot index to the ship
 ## whose shot destroyed it.
 static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) -> void:
@@ -23,6 +25,11 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 		# what lies before it can be hit; then the shot is gone.
 		var stopped: float = -1.0 if sim.debris == null \
 			else sim.debris.segment_entry(from, projectile.position)
+		# A wall ends the segment the same way (#615): the part past it is
+		# behind the wall, where nothing may be hit.
+		var exit: float = LineOfSight.exit_fraction(sim.walls, from, projectile.position)
+		if exit >= 0.0 and (stopped < 0.0 or exit < stopped):
+			stopped = exit
 		if stopped >= 0.0:
 			projectile.position = from.lerp(projectile.position, stopped)
 		var hit: bool = (_hit_ship(sim, projectile, from, hit_events)
@@ -31,8 +38,6 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 		if hit or stopped >= 0.0:
 			continue
 		if not alive:
-			continue
-		if sim.walls != null and not sim.walls.holds(projectile.position, 0.0):
 			continue
 		kept.append(projectile)
 	sim.projectiles = kept

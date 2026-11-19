@@ -20,13 +20,14 @@ const G2_START_HASH: int = 4279815811
 const G2_SHIP_HASH: int = 2896393452
 ## The whole simulation after the #340 flight, robots included. CI measured it
 ## with `angle_to` before #381; with `StableAngle` a Builder's sandbox, whose
-## `atan2f` gave the other value, reaches it too.
-const G2_FLIGHT_HASH: int = 2263984340
+## `atan2f` gave the other value, reaches it too. Re-measured after #615, when
+## robots stopped firing without a clear line to the ship.
+const G2_FLIGHT_HASH: int = 4096291506
 ## The three values above are for G2 with its `debris` key taken out. Since
 ## #439 a session carries the level's debris, which joins the state hash, so G2
 ## as shipped starts and flies to these instead; only the debris term differs.
 const G2_DEBRIS_START_HASH: int = 3715211062
-const G2_DEBRIS_FLIGHT_HASH: int = 1112183472
+const G2_DEBRIS_FLIGHT_HASH: int = 2246267612
 
 
 ## The #340 devlog's input: forward thrust with a slow yaw and pitch.

@@ -121,18 +121,10 @@ func line_clears_reactor(from: Vector3, to: Vector3) -> bool:
 		reactor.radius() + REACTOR_CLEARANCE) < 0.0
 
 
-## Whether a shot at `speed` from `from` straight at `point` stays inside
-## `walls` at the end of every tick of its flight, as `ProjectileHits` drops
-## it otherwise. Without walls everything is reached.
-static func reaches_walls(walls: BoxUnion, from: Vector3, point: Vector3, speed: float) -> bool:
-	var offset: Vector3 = point - from
-	var distance: float = offset.length()
-	var step: float = speed * ShipState.TICK_DT
-	if walls == null or distance == 0.0 or step <= 0.0:
-		return true
-	var travelled: float = step
-	while travelled < distance:
-		if not walls.holds(from + offset * (travelled / distance), 0.0):
-			return false
-		travelled += step
-	return true
+## Whether a shot from `from` straight at `point` stays in open space all the
+## way, as `ProjectileHits` ends it where it leaves (`LineOfSight`, #615); the
+## same line decides whether a robot sees and fires. The shot's `speed` no
+## longer matters: a wall stops it wherever a tick ends. Without walls
+## everything is reached.
+static func reaches_walls(walls: BoxUnion, from: Vector3, point: Vector3, _speed: float) -> bool:
+	return LineOfSight.clear(walls, from, point)

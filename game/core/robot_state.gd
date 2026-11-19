@@ -25,6 +25,9 @@ var fire_cooldown: int = 0
 ## False while a robot with a wake range waits for a ship; it neither moves
 ## nor fires until `wake_if_near` or a hit wakes it, and then stays awake (#301).
 var awake: bool = true
+## Ticks in a row it has had no clear line to its target, up to
+## `def.lose_target_ticks()`, where it has dropped the target (#615).
+var unseen_ticks: int = 0
 
 ## The chase stand-off, the strafe band and its radial gain come from `def`
 ## (`standoff_radii`, `strafe_min_distance`, `strafe_max_distance`,
@@ -217,14 +220,27 @@ func weapon_range() -> float:
 	return weapon.projectile_speed * float(weapon.lifetime_ticks()) * ShipState.TICK_DT
 
 
-## Counts the fire interval down and fires when ready, if `target` is within
-## `weapon_range` and within `FIRE_CONE_HALF_ANGLE_DEG` of the facing. Returns
-## the weapon that fired, or null. Call once per tick, after `step`, as ships
-## call `ShipState.fire_primary`.
-func fire_at(target: ShipState) -> WeaponDef:
+## Counts the fire interval down and fires when ready, if `in_sight` (a clear
+## line from its centre to the target's through open space, `LineOfSight`) and
+## `target` is within `weapon_range` and within `FIRE_CONE_HALF_ANGLE_DEG` of
+## the facing. Returns the weapon that fired, or null. Call once per tick, after
+## `step`, as ships call `ShipState.fire_primary`.
+##
+## Without a line for `def.lose_target_ticks()` in a row it drops the target
+## (#615); when the line clears again it aims afresh, so its next shot waits a
+## full fire interval. Moving is not affected.
+func fire_at(target: ShipState, in_sight: bool = true) -> WeaponDef:
 	if fire_cooldown > 0:
 		fire_cooldown -= 1
-	if weapon == null or target == null or fire_cooldown > 0 or not is_alive():
+	if weapon == null or target == null or not is_alive():
+		return null
+	if not in_sight:
+		unseen_ticks = mini(unseen_ticks + 1, def.lose_target_ticks())
+		return null
+	if unseen_ticks > 0 and unseen_ticks >= def.lose_target_ticks():
+		fire_cooldown = maxi(fire_cooldown, weapon.fire_interval_ticks)
+	unseen_ticks = 0
+	if fire_cooldown > 0:
 		return null
 	var offset: Vector3 = target.position - position
 	var distance: float = offset.length()
@@ -255,4 +271,7 @@ func state_hash() -> int:
 	# Only robots with a wake range carry the flag, so pinned hashes stand (#301).
 	if def.has_wake_range():
 		parts.append_array(["awake", awake])
+	# Only while the line is lost, so robots that always see keep their hashes.
+	if unseen_ticks > 0:
+		parts.append_array(["unseen_ticks", unseen_ticks])
 	return hash(parts)
