@@ -6,6 +6,10 @@
 # (`sticky` keeps failing after the uninstall).
 # $STUB_ADB_BLANK makes `install` fail with an empty reason, as seen in #210:
 # `always` on every attempt, `streamed` only without --no-streaming.
+# $STUB_ADB_SEQUENCE, a space-separated list, scripts `install` attempt by
+# attempt (#589): `blank`, `notfound`, `offline` or `ok`; attempts past the
+# end of the list repeat its last entry. `wait-for-device` returns at once,
+# or never when $STUB_ADB_WAIT is `hang`.
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
 serial=""
@@ -19,7 +23,42 @@ case "${1:-}" in
 		printf '%b' "${STUB_ADB_DEVICES:-}"
 		echo
 		;;
+	wait-for-device)
+		if [ "${STUB_ADB_WAIT:-}" = "hang" ]; then
+			# exec, so the script's timeout stops the sleep itself.
+			exec sleep 600
+		fi
+		;;
 	install)
+		if [ -n "${STUB_ADB_SEQUENCE:-}" ]; then
+			read -r -a steps <<< "$STUB_ADB_SEQUENCE"
+			count_file="$STUB_ADB_STATE/$serial.attempts"
+			attempt="$(cat "$count_file" 2> /dev/null || echo 0)"
+			echo $((attempt + 1)) > "$count_file"
+			if [ "$attempt" -ge "${#steps[@]}" ]; then
+				attempt=$((${#steps[@]} - 1))
+			fi
+			case "${steps[$attempt]}" in
+				blank)
+					echo "Performing Streamed Install"
+					echo "adb: failed to install ${*: -1}: " >&2
+					exit 1
+					;;
+				notfound)
+					echo "adb: error: failed to get feature set: device '$serial' not found" >&2
+					echo "Performing Push Install"
+					exit 1
+					;;
+				offline)
+					echo "adb: error: failed to get feature set: device offline" >&2
+					echo "Performing Push Install"
+					exit 1
+					;;
+			esac
+			echo "Performing Streamed Install"
+			echo "Success"
+			exit 0
+		fi
 		streaming=1
 		for arg in "$@"; do
 			if [ "$arg" = "--no-streaming" ]; then
