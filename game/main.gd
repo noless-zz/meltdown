@@ -256,7 +256,7 @@ func place_rig() -> void:
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped)
 	rig.transform = head_recentre.rig_transform(pose * comfort.shake_offset)
-	RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
+	RigViews.place_guarded(head_recentre, comfort, status_panel, camera, session.current_ship(), _xr_running)
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:

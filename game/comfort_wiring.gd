@@ -40,6 +40,11 @@ var hit_shake: HitShake = load_hit_shake(HitShake.DEFAULT_FILE)
 ## The shake's offset for this frame, in the cockpit's frame; the identity
 ## when nothing shows. `advance_hit_shake` sets it, the rig applies it.
 var shake_offset: Transform3D = Transform3D.IDENTITY
+## Keeps the window in front of the eyes (#651); `RigViews.place_guarded`
+## feeds it each frame and places the frame and panel where it says.
+var view_guard: ViewGuard = ViewGuard.new()
+## The `MELTDOWN_VIEW` diagnostic lines, off unless asked for (#651).
+var view_log: ViewLog = ViewLog.from_run()
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
@@ -81,6 +86,7 @@ func set_preset(p_number: int) -> void:
 	if hit_shake != null:
 		hit_shake.preset = preset
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
+	view_log.event("preset=%d rebuilt=cockpit_frame,input_filter,hit_shake frame_point=unchanged" % p_number)
 
 
 ## Builds the active preset's cockpit frame under `rig`, the rig origin, not
