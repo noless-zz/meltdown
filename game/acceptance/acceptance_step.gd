@@ -36,16 +36,20 @@ const CHECK_DOOR_FALLEN: String = "door_fallen"
 ## robot shot crossed a wall, on any tick of the replay (#615, CMB-2, CMB-3):
 ## a pilot is never hit from where he cannot see the robot.
 const CHECK_NO_HIDDEN_HITS: String = "no_hidden_hits"
+## The ship's hold names a part when the replay ends (#600, SLV-1): flying
+## through a destroyed robot's drop took it.
+const CHECK_PART_HELD: String = "part_held"
 ## The display runs at no less than the active comfort preset's refresh rate
 ## (#598, CMF-1, PRF-1); skipped without an OpenXR runtime.
 const CHECK_REFRESH_RATE: String = "refresh_rate"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
-	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE]
+	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_PART_HELD]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
-	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS]
+	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS,
+	CHECK_PART_HELD]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0

@@ -81,7 +81,8 @@ static func parse_look(text: String) -> Dictionary:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not TOP_KEYS.has(key):
+		# The ring's entry is `SalvageRing`'s to read (#600).
+		if typeof(key) != TYPE_STRING or not (TOP_KEYS.has(key) or key == SalvageRing.LOOK_KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	for key: String in TOP_KEYS:
 		if not data.has(key):

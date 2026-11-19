@@ -4,7 +4,19 @@ extends RefCounted
 ## Reads one header line of a replay (everything before `inputs`) into the
 ## replay. Split out of `Replay` to keep it short; the format is documented
 ## there. Data lines go to `ReplayLines`, `ReplayBoxLine`, `ReplayPartLines`,
-## `ReplayReactorLine`, `ReplayDebrisLine` and `ReplayStartLine`.
+## `ReplayReactorLine`, `ReplayDebrisLine`, `ReplaySalvageLine` and
+## `ReplayStartLine`.
+##
+## Version 1 has no afterburner column: six numbers per ship, read with the
+## afterburner off. Versions 1 to 3 have no reset column and are read with it
+## off. Versions 1 to 5 have no fire column and are read with it off. Versions
+## 1 to 10 have no slot column and are read with it off. Versions 1 and 2 have
+## no box line, versions 3 to 11 at most one, versions 1 to 4 no tuning line,
+## versions 1 to 6 no weapon lines, versions 1 to 7 no robot lines, versions 1
+## to 9 no part lines, versions 1 to 12 no reactor line, versions 1 to 13 no
+## start line, versions 1 to 14 no debris line, versions 1 to 15 no salvage
+## line. Version 8 robot lines hold the robot's data file alone, with no
+## "robot" or "weapon" key, and read as unarmed.
 
 
 ## Returns "" with the value stored on `replay`, or a problem without the line
@@ -20,6 +32,8 @@ static func parse_line(replay: Replay, line: String, seen: Dictionary[String, bo
 		return ReplayReactorLine.parse(replay, line.substr(8), seen, replay.parse_version)
 	if line.begins_with("debris "):
 		return ReplayDebrisLine.parse(replay, line.substr(7), seen, replay.parse_version)
+	if line.begins_with("salvage "):
+		return ReplaySalvageLine.parse(replay, line.substr(8), seen, replay.parse_version)
 	if line.begins_with("part "):
 		return ReplayPartLines.parse_part_line(replay, line, seen, replay.parse_version)
 	var words: PackedStringArray = line.split(" ", false)

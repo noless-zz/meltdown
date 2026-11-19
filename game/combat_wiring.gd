@@ -16,6 +16,8 @@ var projectile_view: ProjectileView = null
 var robot_view: RobotView = null
 ## The floating parts, beside the robots once `attach` has run, null before.
 var salvage_view: SalvageView = null
+## The rings that show when a part is within reach (#600), beside the parts.
+var salvage_ring: SalvageRing = null
 
 
 ## Puts the projectile, robot and salvage views under `world`, the node whose space is
@@ -30,6 +32,8 @@ func attach(world: Node3D) -> void:
 	world.add_child(robot_view)
 	salvage_view = SalvageView.new()
 	world.add_child(salvage_view)
+	salvage_ring = SalvageRing.new()
+	world.add_child(salvage_ring)
 
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
@@ -52,6 +56,9 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) ->
 		session.interpolation_fraction)
 	salvage_view.show_salvage(session.previous_salvage(), session.current_salvage(),
 		session.interpolation_fraction)
+	# The rules are fixed before the first tick; reading them writes nothing.
+	salvage_ring.show_rings(session.previous_salvage(), session.current_salvage(),
+		session.interpolation_fraction, session.current_ship(), session.sim.salvage_rules)
 
 
 ## Hands `panel` the shield and hull of `ship`, a session copy, as fractions

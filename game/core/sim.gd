@@ -52,6 +52,10 @@ var debris: MeltdownDebris = null
 ## by `set_parts` and read-only afterwards, through `part`. Part of the hash
 ## while non-empty.
 var _parts: Dictionary[String, WeaponDef] = {}
+## How parts are picked up, pulled and dropped; see `set_salvage_rules`. Not
+## part of the hash: fixed for the run and recorded in the replay's header,
+## like the walls; what they do to the parts shows in the parts' own state.
+var salvage_rules: SalvageRules = SalvageRules.new()
 ## Projectile hit events of the tick being stepped. Hits are found when
 ## projectiles move, before the ships, but their events follow the ship events.
 var _hit_events: Array[SimEvent] = []
@@ -112,21 +116,14 @@ func step(inputs: Array[ShipInput]) -> bool:
 		if ship.afterburner_locked and not was_locked:
 			last_events.append(SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, i))
 		ShipContact.apply(self, i, last_events)
-		if inputs[i].slot_held:
+		if inputs[i].slot_held and not ship.slot_was_held:
 			PartSlotting.slot_held(self, i, slot_drops)
+		ship.slot_was_held = inputs[i].slot_held
 		ProjectileHits.fire(self, i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
 	RobotTick.advance(self)
-	# Items already floating move before this tick's drops, so a part appears
-	# exactly where its robot died or its ship swapped it out. Each is held by
-	# the box picked where it ends up, as ships are, so it can drift through
-	# an opening.
-	for item: SalvageItem in salvage:
-		item.advance(null)
-		if walls != null:
-			item.keep_inside(walls.box_for(item.position, SalvageItem.RADIUS))
-	salvage.append_array(slot_drops)
+	SalvagePickup.drift(self, slot_drops)
 	RobotTick.remove_destroyed(self, _killers)
 	ExitRule.apply(self, last_events)
 	_stepping = false
@@ -216,6 +213,18 @@ func set_parts(parts: Dictionary) -> String:
 			return "part \"%s\" is not a resolved weapon" % id
 		checked[id] = weapon
 	_parts = checked
+	return ""
+
+
+## Sets how parts are picked up, pulled and dropped (`SalvageRules`, #600).
+## Only before the first tick, like the catalogue, so a replay can set the same
+## rules from its header. Returns "" on success, or the problem, changing nothing.
+func set_salvage_rules(rules: SalvageRules) -> String:
+	if tick != 0 or _stepping:
+		return "the salvage rules are set before the first tick"
+	if rules == null or rules.error != "":
+		return "the salvage rules are not resolved"
+	salvage_rules = rules
 	return ""
 
 

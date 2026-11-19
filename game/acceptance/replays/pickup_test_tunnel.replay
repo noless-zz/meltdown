@@ -1,0 +1,128 @@
+# The bot destroying a test tunnel robot and flying through its part (#600).
+# Re-record from the repository root, then copy the printed hash into m2.json:
+#     MELTDOWN_RECORD_M2=pickup_in_test_tunnel godot --headless --path game -s res://tests/run_tests.gd
+meltdown-replay 16
+seed 0
+ships 1
+hash 2257458082
+box -2000 -1000 -28000 2000 3000 2000
+tuning {"max_speed":20.0,"acceleration":40.0,"damping":2.0,"max_energy":100.0,"afterburner_max_speed":35.0,"afterburner_acceleration":80.0,"afterburner_drain":25.0,"energy_recharge":12.5,"afterburner_restart_energy":25.0,"max_hull":100.0,"radius":1.0,"wall_restitution":0.5,"wall_damage_per_speed":0.5,"wall_damage_min_speed":4.0,"max_shield":50.0,"shield_recharge":5.0,"shield_energy_cost":1.0}
+weapon primary 1 pulse_cannon {"fire_interval_ticks":10,"projectile_speed":120.0,"lifetime":1.5,"damage":8.0,"energy_cost":2.0}
+robot -1000 0 -14000 0 0 1000 {"robot":{"id":"needler","hull":20.0,"radius":0.5,"max_speed":22.0,"acceleration":40.0,"turn_rate":240.0,"movement":"chase","weapon":"robot_needle","salvage":"needle_gun","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5,"wake_range":9.0,"lose_target_seconds":2.0},"weapon":{"fire_interval_ticks":4,"projectile_speed":180.0,"lifetime":0.8,"damage":3.0,"energy_cost":0.0,"burst_shots":5,"burst_pause_ticks":40,"windup_ticks":24}}
+robot 1000 1500 -16000 0 0 1000 {"robot":{"id":"drone","hull":20.0,"radius":0.8,"max_speed":8.0,"acceleration":16.0,"turn_rate":120.0,"movement":"hover","weapon":"robot_pulse","salvage":"pulse_cannon","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5,"wake_range":8.0,"lose_target_seconds":2.0},"weapon":{"fire_interval_ticks":8,"projectile_speed":120.0,"lifetime":1.5,"damage":6.0,"energy_cost":0.0,"burst_shots":3,"burst_pause_ticks":54,"windup_ticks":30}}
+robot -800 1500 -18000 0 0 1000 {"robot":{"id":"skimmer","hull":30.0,"radius":1.0,"max_speed":14.0,"acceleration":24.0,"turn_rate":180.0,"movement":"strafe","weapon":"robot_needle","salvage":"needle_gun","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5,"wake_range":8.0,"lose_target_seconds":2.0},"weapon":{"fire_interval_ticks":4,"projectile_speed":180.0,"lifetime":0.8,"damage":3.0,"energy_cost":0.0,"burst_shots":5,"burst_pause_ticks":40,"windup_ticks":24}}
+robot 600 600 -20000 0 0 1000 {"robot":{"id":"glider","hull":40.0,"radius":1.2,"max_speed":18.0,"acceleration":30.0,"turn_rate":150.0,"movement":"strafe","weapon":"robot_arc","salvage":"arc_lance","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5,"wake_range":8.0,"lose_target_seconds":2.0},"weapon":{"fire_interval_ticks":20,"projectile_speed":300.0,"lifetime":0.4,"damage":10.0,"energy_cost":0.0,"burst_shots":2,"burst_pause_ticks":60,"windup_ticks":30}}
+robot 0 1000 -22000 0 0 1000 {"robot":{"id":"hauler","hull":40.0,"radius":1.6,"max_speed":6.0,"acceleration":8.0,"turn_rate":60.0,"movement":"chase","weapon":"robot_slug","salvage":"slug_thrower","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5,"wake_range":8.0,"lose_target_seconds":2.0},"weapon":{"fire_interval_ticks":30,"projectile_speed":60.0,"lifetime":3.0,"damage":10.0,"energy_cost":0.0,"burst_shots":1,"burst_pause_ticks":0,"windup_ticks":24}}
+robot 0 1000 -25500 0 0 1000 {"robot":{"id":"warden","hull":90.0,"radius":2.0,"max_speed":2.0,"acceleration":4.0,"turn_rate":45.0,"movement":"hover","weapon":"robot_slug","salvage":"slug_thrower","standoff_radii":4.0,"strafe_min_distance":10.0,"strafe_max_distance":20.0,"strafe_radial_gain":0.5,"wake_range":10.0,"lose_target_seconds":2.0},"weapon":{"fire_interval_ticks":30,"projectile_speed":60.0,"lifetime":3.0,"damage":10.0,"energy_cost":0.0,"burst_shots":1,"burst_pause_ticks":0,"windup_ticks":24}}
+part arc_lance {"fire_interval_ticks":20,"projectile_speed":300.0,"lifetime":0.4,"damage":14.0,"energy_cost":4.0}
+part needle_gun {"fire_interval_ticks":4,"projectile_speed":180.0,"lifetime":0.8,"damage":3.0,"energy_cost":1.0}
+part pulse_cannon {"fire_interval_ticks":10,"projectile_speed":120.0,"lifetime":1.5,"damage":8.0,"energy_cost":2.0}
+part slug_thrower {"fire_interval_ticks":40,"projectile_speed":60.0,"lifetime":3.0,"damage":30.0,"energy_cost":6.0}
+salvage {"pickup_reach":2.5,"pull_reach":9.0,"pull_speed":8.0,"swap_drop_distance":4.0}
+inputs
+17 0 240 0 428 0 0 0 1 0
+13 0 201 0 385 0 0 0 1 0
+10 0 169 0 347 0 0 0 1 0
+7 0 143 0 312 0 0 0 1 0
+6 0 121 0 281 0 0 0 1 0
+4 0 103 0 253 0 0 0 1 0
+3 0 88 0 227 0 0 0 1 0
+3 0 76 0 205 0 0 0 1 0
+2 0 67 0 184 0 0 0 1 0
+2 0 58 0 166 0 0 0 1 0
+1 0 52 0 149 0 0 0 1 0
+1 0 46 0 134 0 0 0 1 0
+1 0 42 0 121 0 0 0 1 0
+1 0 38 0 109 0 0 0 1 0
+1 0 34 0 98 0 0 0 1 0
+0 0 32 0 88 0 0 0 1 0
+0 0 30 0 79 0 0 0 1 0
+0 0 28 0 72 0 0 0 1 0
+0 0 29 0 64 0 0 0 1 0
+0 0 33 0 58 0 0 0 1 0
+0 0 39 0 52 0 0 0 1 0
+0 0 46 0 47 0 0 0 1 0
+0 0 55 0 42 0 0 0 1 0
+0 0 66 0 38 0 0 0 1 0
+0 0 78 0 34 0 0 0 1 0
+0 0 90 0 31 0 0 0 1 0
+0 0 104 0 28 0 0 0 1 0
+0 0 118 0 25 0 0 0 1 0
+1 0 133 0 23 0 0 0 1 0
+1 0 148 0 20 0 0 0 1 0
+1 0 164 0 18 0 0 0 1 0
+0 0 180 0 17 0 0 0 1 0
+0 0 197 0 15 0 0 0 1 0
+0 0 214 0 13 0 0 0 1 0
+0 0 231 0 12 0 0 0 1 0
+0 0 249 0 11 0 0 0 1 0
+0 0 267 0 10 0 0 0 1 0
+0 0 -600 0 9 0 0 0 0 0
+0 0 -600 0 8 0 0 0 0 0
+0 0 -600 0 7 0 0 0 0 0
+0 0 -600 0 6 0 0 0 0 0
+0 0 -600 0 6 0 0 0 0 0
+0 0 -600 0 5 0 0 0 0 0
+0 0 -600 0 5 0 0 0 0 0
+0 0 -600 0 4 0 0 0 0 0
+0 0 -600 0 4 0 0 0 0 0
+0 0 -600 0 4 0 0 0 0 0
+0 0 -600 0 3 0 0 0 0 0
+0 0 -600 0 3 0 0 0 0 0
+0 0 -600 0 3 0 0 0 0 0
+0 0 -600 0 2 0 0 0 0 0
+0 0 -600 0 2 0 0 0 0 0
+0 0 -600 0 2 0 0 0 0 0
+0 0 -600 0 2 0 0 0 0 0
+0 0 -600 0 2 0 0 0 0 0
+0 0 -600 0 2 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 0 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 0 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 -600 0 1 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0
