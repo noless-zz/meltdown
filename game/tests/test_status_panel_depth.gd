@@ -7,9 +7,6 @@ extends RefCounted
 
 const COCKPIT_DIR: String = "res://xr/cockpits"
 const SHIPPED_COCKPITS: Array[String] = ["anchored.json", "guided.json", "glass.json", "open.json"]
-## What the panel's placement was before #199; it must not move.
-const EXPECTED_POSITION: Vector3 = Vector3(0.0, -0.3, -0.55)
-const EXPECTED_TILT_DEGREES: float = 30.0
 
 
 ## The render priorities of every material the panel draws with, by node name.
@@ -113,9 +110,13 @@ func test_the_filled_bar_draws_over_its_track() -> String:
 	return ""
 
 
-func test_the_panel_keeps_its_place() -> String:
-	if StatusPanel.COCKPIT_POSITION != EXPECTED_POSITION:
-		return "the panel moved to %s" % StatusPanel.COCKPIT_POSITION
-	if not is_equal_approx(StatusPanel.TILT_DEGREES, EXPECTED_TILT_DEGREES):
-		return "the tilt changed to %.1f" % StatusPanel.TILT_DEGREES
+## The panel sits where the look file says (#605 moved it there from code).
+func test_the_panel_sits_where_the_look_file_says() -> String:
+	var look: Dictionary = StatusPanelLook.load_file()
+	var at: Transform3D = StatusPanel.rig_transform(Transform3D.IDENTITY)
+	if not at.origin.is_equal_approx(look["position_m"]):
+		return "the panel sits at %s, not the look's %s" % [at.origin, look["position_m"]]
+	var tilt: float = rad_to_deg(Vector3.UP.angle_to(at.basis.y))
+	if not is_equal_approx(snappedf(tilt, 0.01), snappedf(float(look["tilt_deg"]), 0.01)):
+		return "the panel is tilted %.2f degrees, not the look's %.2f" % [tilt, look["tilt_deg"]]
 	return ""

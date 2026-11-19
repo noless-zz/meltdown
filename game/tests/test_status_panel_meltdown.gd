@@ -118,7 +118,7 @@ func test_the_row_sits_at_the_top_above_energy() -> String:
 		StatusPanel.PRESET_NAME, StatusPanel.SPEED_NAME, StatusPanel.BOOST_NAME,
 		StatusPanel.ENERGY_LABEL_NAME, StatusPanel.ENERGY_BAR_NAME,
 		StatusPanel.SHIELD_LABEL_NAME, StatusPanel.HULL_LABEL_NAME,
-		StatusPanel.HOLD_NAME, StatusPanel.BUILD_NAME,
+		StatusPanel.HOLD_NAME, StatusPanel.WEAPON_NAME,
 	]
 	var lower: Dictionary = {}
 	for node_name: String in others:

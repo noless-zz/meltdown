@@ -1,11 +1,12 @@
 class_name StatusPanel
 extends Node3D
 
-## A small panel fixed in the cockpit, low and ahead of the eye point, that
+## A small panel fixed in the cockpit, below and ahead of the eye point, that
 ## shows at a glance what the owner could not tell in the headset (#146): the
 ## active comfort preset, the ship's speed, the energy pool, the shield and
 ## hull (#227), whether the afterburner is boosting or locked out, the part in
-## the hold (#290), the meltdown countdown (#315), which build is running, and
+## the hold (#290) and what was just picked up or slotted, the weapon that
+## fires (#605), the meltdown countdown (#315), which build is running, and
 ## how the level ended (#361).
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
@@ -29,6 +30,7 @@ const HULL_LABEL_NAME: String = "HullLabel"
 const HULL_BAR_NAME: String = "HullBar"
 const HULL_TRACK_NAME: String = "HullTrack"
 const HOLD_NAME: String = "Hold"
+const WEAPON_NAME: String = "Weapon"
 const MELTDOWN_NAME: String = "Meltdown"
 const OUTCOME_NAME: String = "Outcome"
 const ESCAPED_TEXT: String = "ESCAPED"
@@ -36,22 +38,16 @@ const LOST_TEXT: String = "SHIP LOST"
 ## The hold line reads "Hold <part>" or this, so an empty hold is said, not
 ## left blank: a blank line looks the same as an unwired panel.
 const HOLD_EMPTY: String = "Hold empty"
+## The weapon row reads "Weapon <part>" or this when the active slot is empty.
+const WEAPON_NONE: String = "Weapon none"
 const BOOST_ON: String = "BOOST"
 const BOOST_RECHARGING: String = "recharging"
 
 ## How long a new preset is shown large. Two seconds is long enough to read
 ## the name after pressing Y without leaving a big label in view during flight.
 const PRESET_LARGE_SECONDS: float = 2.0
-## Where the panel sits in the cockpit, from the eye point: 0.3 m down and
-## 0.55 m ahead, about 30 degrees below straight ahead, so it is read by
-## glancing down and leaves the tunnel ahead clear. Inside the ship's 1 m
-## collision sphere, so no wall can come between it and the eyes.
-const COCKPIT_POSITION: Vector3 = Vector3(0.0, -0.3, -0.55)
-## Tilted back (top away from the eyes) by about the same angle, so its face
-## points up at the eyes rather than straight back along the ship.
-const TILT_DEGREES: float = 30.0
 ## Metres per font pixel. With `SMALL_FONT` the text is about 1.3 cm tall,
-## roughly 1.3 degrees at 0.63 m: comfortably readable on Quest 3.
+## roughly 1.4 degrees at 0.55 m: comfortably readable on Quest 3.
 const PIXEL_SIZE: float = 0.0004
 const SMALL_FONT: int = 32
 const LARGE_FONT: int = 96
@@ -63,31 +59,36 @@ const BAR_COLOR: Color = Color(0.3, 0.85, 1.0)
 ## amber. Read by colour at a glance, not by the small labels (#227).
 const SHIELD_COLOR: Color = Color(0.4, 0.5, 1.0)
 const HULL_COLOR: Color = Color(1.0, 0.72, 0.3)
-## At or below this hull fraction the hull label and bar turn
-## `HULL_WARNING_COLOR`, unless the look file's `low_hull_fraction` says otherwise (#616).
+## At or below this hull fraction the hull label turns `HULL_WARNING_COLOR`.
 const HULL_WARNING_FRACTION: float = 0.25
 const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
 ## Under this many seconds the meltdown row turns `HULL_WARNING_COLOR`: the
 ## same red as a failing hull, so red on the panel always means "act now".
 const MELTDOWN_WARNING_SECONDS: float = 30.0
-## Rows, top to bottom, 3 cm apart: the bars sit under the energy bar, the
-## hold line under the hull bar (#290), and the build line moves down below it.
-## The meltdown row sits above them all, so it is the first line read (RUN-2),
-## and still clear of the large preset label centred at 0.11.
-const MELTDOWN_Y: float = 0.075
-const PRESET_Y: float = 0.045
-const SPEED_Y: float = 0.015
-const ENERGY_Y: float = -0.015
-const SHIELD_Y: float = -0.045
-const HULL_Y: float = -0.075
-const HOLD_Y: float = -0.105
-const BUILD_Y: float = -0.135
+## Rows, top to bottom, 2.7 cm apart and centred on the panel's origin (#605):
+## what decides the next seconds comes first, nearest the line of sight. The
+## meltdown countdown (RUN-2, hidden without one), hull, shield and energy,
+## then the weapon that fires and the part in the hold (CMB-1, SLV-1), then
+## speed and the preset. Eight rows keep the bottom one within a glance down.
+const ROW_PITCH: float = 0.027
+const MELTDOWN_Y: float = 3.5 * ROW_PITCH
+const HULL_Y: float = 2.5 * ROW_PITCH
+const SHIELD_Y: float = 1.5 * ROW_PITCH
+const ENERGY_Y: float = 0.5 * ROW_PITCH
+const WEAPON_Y: float = -0.5 * ROW_PITCH
+const HOLD_Y: float = -1.5 * ROW_PITCH
+const SPEED_Y: float = -2.5 * ROW_PITCH
+const PRESET_Y: float = -3.5 * ROW_PITCH
 const LABEL_X: float = -0.12
-## The large preset label is centred here.
-const PRESET_LARGE_Y: float = 0.11
-## The large, centred outcome row sits above all rows, nearest the line of
-## sight, and clear of the large preset label even if both show.
-const OUTCOME_Y: float = 0.165
+## The large preset label is centred here, above the rows.
+const PRESET_LARGE_Y: float = 0.13
+## The build line only needs to be findable, so it costs no row: it shows above
+## the large preset label, while that label shows (at start and on each preset
+## change), in a smaller font.
+const BUILD_Y: float = 0.165
+## The large, centred outcome row sits above everything, nearest the line of
+## sight, and clear of the large preset label and build line even if all show.
+const OUTCOME_Y: float = 0.2
 ## The panel draws without a depth test, over whatever lies between it and the
 ## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
 ## (#199). Its render priority sits above the cockpit frame's materials, which
@@ -99,13 +100,17 @@ const RENDER_PRIORITY: int = 10
 ## track never covers them now that depth no longer decides.
 const RENDER_PRIORITY_TOP: int = RENDER_PRIORITY + 1
 
-## How many times the hold label's text was replaced. Only tests read it: it
-## shows that a per-frame call with the same part leaves the glyphs alone.
-var hold_text_changes: int = 0
-## How many times the meltdown label's text was replaced; read by tests only.
-var meltdown_text_changes: int = 0
-## How many times the outcome label's text was replaced; read by tests only.
-var outcome_text_changes: int = 0
+## How many times each row's text was replaced. Only tests read them: they
+## show that a per-frame call with the same value leaves the glyphs alone.
+var hold_text_changes: int:
+	get:
+		return _hold_row.text_changes if _hold_row != null else 0
+var meltdown_text_changes: int:
+	get:
+		return _meltdown_row.text_changes if _meltdown_row != null else 0
+var outcome_text_changes: int:
+	get:
+		return _outcome_row.text_changes if _outcome_row != null else 0
 ## Seconds the large preset label has left; 0 when it is hidden.
 var large_seconds_left: float = 0.0
 
@@ -117,14 +122,10 @@ var _preset_large: Label3D
 var _speed: Label3D
 var _boost: Label3D
 var _build: Label3D
-var _hold: Label3D
-var _meltdown: Label3D
-var _outcome: Label3D
-var _shown_outcome: int = ExitRule.Outcome.RUNNING
-## From the look file (ARC-4).
-var _escaped_color: Color = StatusPanelLook.FALLBACK["escaped_color"]
-## From the look file: the hull fraction that turns the hull row red (#616).
-var low_hull_fraction: float = HULL_WARNING_FRACTION
+var _hold_row: StatusPanelHoldRow
+var _weapon: Label3D
+var _meltdown_row: StatusPanelMeltdownRow
+var _outcome_row: StatusPanelOutcomeRow
 var _hull_label: Label3D
 var _energy_bar: PanelBar
 var _shield_bar: PanelBar
@@ -140,23 +141,24 @@ func _init() -> void:
 	_hull_label = StatusPanelLabels.make(self, HULL_LABEL_NAME, Vector3(LABEL_X, HULL_Y, 0.0), SMALL_FONT)
 	_hull_label.text = "Hull"
 	_boost = StatusPanelLabels.make(self, BOOST_NAME, Vector3(0.04, SPEED_Y, 0.0), SMALL_FONT)
-	_hold = StatusPanelLabels.make(self, HOLD_NAME, Vector3(LABEL_X, HOLD_Y, 0.0), SMALL_FONT)
-	_hold.text = HOLD_EMPTY
-	_meltdown = StatusPanelLabels.make(self, MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT)
-	# Hidden until a meltdown starts: most of a run has no countdown.
-	_meltdown.visible = false
+	_hold_row = StatusPanelHoldRow.new(
+		StatusPanelLabels.make(self, HOLD_NAME, Vector3(LABEL_X, HOLD_Y, 0.0), SMALL_FONT),
+		float(StatusPanelLook.shared()["message_seconds"]))
+	_weapon = StatusPanelLabels.make(self, WEAPON_NAME, Vector3(LABEL_X, WEAPON_Y, 0.0), SMALL_FONT)
+	_weapon.text = WEAPON_NONE
+	_meltdown_row = StatusPanelMeltdownRow.new(
+		StatusPanelLabels.make(self, MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT))
 	_build = StatusPanelLabels.make(self, BUILD_NAME, Vector3(LABEL_X, BUILD_Y, 0.0), SMALL_FONT)
 	_build.font_size = SMALL_FONT * 3 / 4
+	_build.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_build.position.x = 0.0
+	_build.visible = false
 	_preset_large = StatusPanelLabels.make(self, PRESET_LARGE_NAME, Vector3(0.0, PRESET_LARGE_Y, 0.0), LARGE_FONT)
 	_preset_large.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_preset_large.visible = false
-	_outcome = StatusPanelLabels.make(self, OUTCOME_NAME, Vector3(0.0, OUTCOME_Y, 0.0), LARGE_FONT)
-	_outcome.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# Hidden while the level runs, which is nearly always.
-	_outcome.visible = false
-	var look: Dictionary = StatusPanelLook.load_file()
-	_escaped_color = look["escaped_color"]
-	low_hull_fraction = look["low_hull_fraction"]
+	_outcome_row = StatusPanelOutcomeRow.new(
+		StatusPanelLabels.make(self, OUTCOME_NAME, Vector3(0.0, OUTCOME_Y, 0.0), LARGE_FONT),
+		StatusPanelLook.shared()["escaped_color"])
 	_energy_bar = PanelBar.new(self, ENERGY_TRACK_NAME, ENERGY_BAR_NAME, BAR_COLOR, ENERGY_Y, RENDER_PRIORITY)
 	_shield_bar = PanelBar.new(self, SHIELD_TRACK_NAME, SHIELD_BAR_NAME, SHIELD_COLOR, SHIELD_Y, RENDER_PRIORITY)
 	_hull_bar = PanelBar.new(self, HULL_TRACK_NAME, HULL_BAR_NAME, HULL_COLOR, HULL_Y, RENDER_PRIORITY)
@@ -185,75 +187,68 @@ func show_values(preset_number: int, preset_name: String, speed_mps: float,
 
 
 ## Shows the shield and hull as fractions of their maximums, each clamped to
-## 0..1. A hull at or below `low_hull_fraction` turns the hull label and bar
-## `HULL_WARNING_COLOR` (#616).
+## 0..1. A hull at or below the look's `low_hull_fraction` (#616) turns the hull label and bar
+## `HULL_WARNING_COLOR`.
 func show_defence(shield_fraction: float, hull_fraction: float) -> void:
 	_shield_bar.set_fraction(shield_fraction)
-	var low: bool = _hull_bar.set_fraction(hull_fraction) <= low_hull_fraction
+	var hull: float = _hull_bar.set_fraction(hull_fraction)
+	var low: bool = hull <= float(StatusPanelLook.shared()["low_hull_fraction"])
 	_hull_label.modulate = HULL_WARNING_COLOR if low else TEXT_COLOR
 	_hull_bar.set_color(HULL_WARNING_COLOR if low else HULL_COLOR)
 
 
 ## Shows the part in the hold by name; an empty string shows `HOLD_EMPTY`.
+## While a message from `show_hold_message` is up, the row keeps the message.
 ## Safe to call every frame: the label is only rebuilt when the text changes.
 func show_hold(part_name: String) -> void:
-	if StatusPanelLabels.set_text(_hold, HOLD_EMPTY if part_name.is_empty() else "Hold %s" % part_name):
-		hold_text_changes += 1
+	_hold_row.show_part(part_name)
 
 
-## Shows the meltdown countdown as "Meltdown m:ss"; a negative value hides the
-## row (no meltdown). Whole seconds are floored, so the row reads 0:00 only in
-## the last second. Safe to call every frame: the glyphs are rebuilt only when
-## the shown second changes.
+## Puts `message` on the hold row for the look's `message_seconds` (#605).
+func show_hold_message(message: String) -> void:
+	_hold_row.show_message(message)
+
+
+## Seconds the hold message has left; 0 when the row shows the hold.
+func hold_message_seconds_left() -> float:
+	return _hold_row.seconds_left
+
+
+## Shows the weapon in the active primary slot by part id; an empty string
+## shows `WEAPON_NONE`. Safe to call every frame.
+func show_weapon(part_name: String) -> void:
+	StatusPanelLabels.set_text(_weapon, WEAPON_NONE if part_name.is_empty() else "Weapon %s" % part_name)
+
+
+## Shows the meltdown countdown (#315); a negative value hides the row. See
+## `StatusPanelMeltdownRow.show`. Safe to call every frame.
 func show_meltdown(seconds_left: float) -> void:
-	if seconds_left < 0.0:
-		_meltdown.visible = false
-		return
-	_meltdown.visible = true
-	var whole: int = floori(seconds_left)
-	if StatusPanelLabels.set_text(_meltdown, "Meltdown %d:%02d" % [floori(whole / 60.0), whole % 60]):
-		meltdown_text_changes += 1
-	_meltdown.modulate = HULL_WARNING_COLOR if seconds_left < MELTDOWN_WARNING_SECONDS else TEXT_COLOR
+	_meltdown_row.show(seconds_left)
 
 
 func meltdown_visible() -> bool:
-	return _meltdown.visible
+	return _meltdown_row.visible()
 
 
 ## Whether the meltdown row shows the warning colour.
 func meltdown_warning_shown() -> bool:
-	return _meltdown.modulate == HULL_WARNING_COLOR
+	return _meltdown_row.warning_shown()
 
 
-## Shows how the level ended, from `ExitRule.Outcome`: `RUNNING` hides the
-## row, `ESCAPED` reads `ESCAPED_TEXT` in the look's colour and `LOST` reads
-## `LOST_TEXT` in the hull-warning red. Safe to call every frame: nothing is
-## touched unless the outcome changed. The row never moves or animates (CMF-3).
+## Shows how the level ended, from `ExitRule.Outcome` (#361); see
+## `StatusPanelOutcomeRow.show`. Safe to call every frame.
 func show_outcome(outcome: int) -> void:
-	if outcome == _shown_outcome:
-		return
-	_shown_outcome = outcome
-	if outcome == ExitRule.Outcome.ESCAPED:
-		_set_outcome(ESCAPED_TEXT, _escaped_color)
-	elif outcome == ExitRule.Outcome.LOST:
-		_set_outcome(LOST_TEXT, HULL_WARNING_COLOR)
-	else:
-		_outcome.visible = false
+	_outcome_row.show(outcome)
 
 
 func outcome_visible() -> bool:
-	return _outcome.visible
+	return _outcome_row.visible()
 
 
-func _set_outcome(text: String, color: Color) -> void:
-	if StatusPanelLabels.set_text(_outcome, text):
-		outcome_text_changes += 1
-	_outcome.modulate = color
-	_outcome.visible = true
-
-
-## Runs the large preset label's timer by `delta` seconds.
+## Runs the large preset label's and the hold message's timers by `delta`
+## seconds.
 func advance(delta: float) -> void:
+	_hold_row.advance(delta)
 	if large_seconds_left <= 0.0:
 		return
 	large_seconds_left = maxf(large_seconds_left - maxf(delta, 0.0), 0.0)
@@ -292,14 +287,25 @@ func hull_warning_shown() -> bool:
 
 
 ## Large and small never show together, so the preset is not read twice.
+## The build line shows with the large label.
 func _show_large(large: bool) -> void:
 	_preset_large.visible = large
 	_preset.visible = not large
+	_build.visible = large
 
 
 ## The panel's transform under the rig origin. `cockpit` is where the ship's
 ## centre (the eye point) sits in the rig's tracked space, so the panel moves
-## with the ship and not with the head.
+## with the ship and not with the head. Where it sits and its tilt toward the
+## eye come from the look file (#605).
 static func rig_transform(cockpit: Transform3D) -> Transform3D:
-	var local: Transform3D = Transform3D(Basis(Vector3.RIGHT, -deg_to_rad(TILT_DEGREES)), COCKPIT_POSITION)
+	var look: Dictionary = StatusPanelLook.shared()
+	var tilt: float = deg_to_rad(float(look["tilt_deg"]))
+	var local: Transform3D = Transform3D(Basis(Vector3.RIGHT, -tilt), look["position_m"] as Vector3)
 	return cockpit * local
+
+
+## Where a row at panel height `row_y` sits from the eye point, in the
+## cockpit's space.
+static func row_point(row_y: float) -> Vector3:
+	return rig_transform(Transform3D.IDENTITY) * Vector3(0.0, row_y, 0.0)

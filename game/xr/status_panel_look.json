@@ -1,4 +1,8 @@
 {
 	"escaped_color": [0.35, 1.0, 0.45],
+	"position_m": [0.0, -0.179, -0.52],
+	"tilt_deg": 19,
+	"max_row_angle_deg": 30,
+	"message_seconds": 2,
 	"low_hull_fraction": 0.25
 }

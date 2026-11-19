@@ -90,7 +90,9 @@ func test_the_mark_is_the_status_panel_look_value() -> String:
 		return "the shipped mark is %s, not 0.25" % look["low_hull_fraction"]
 	if DefenceHaptics.load_shipped().low_hull_fraction != look["low_hull_fraction"]:
 		return "the pulses use a different mark from the panel"
-	var bad: Dictionary = StatusPanelLook.parse('{"escaped_color": [0, 1, 0], "low_hull_fraction": 2}')
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(StatusPanelLook.DEFAULT_FILE))
+	data["low_hull_fraction"] = 2
+	var bad: Dictionary = StatusPanelLook.parse(JSON.stringify(data))
 	if not bad.has("error") or not String(bad["error"]).contains("low_hull_fraction"):
 		return "an out-of-range mark was accepted: %s" % bad
 	return ""

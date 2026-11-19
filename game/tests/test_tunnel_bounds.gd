@@ -98,6 +98,10 @@ func test_twenty_seconds_of_full_thrust_stay_inside_and_moving() -> String:
 	if main == null:
 		return "main.tscn did not load"
 	var session: LocalSession = main.get("session")
+	# About the walls, not survival: since #601 a ship the tunnel's robots or
+	# twenty seconds of wall hits destroy stops, so it gets a hull they cannot.
+	session.sim.ships[0].max_hull *= 100.0
+	session.sim.ships[0].hull = session.sim.ships[0].max_hull
 	(main.get("input_source") as LatestInputSource).set_input(ShipInput.new(Vector3i(0, 0, -1000)))
 	# The drawn tunnel, not the session's own walls: a session without walls
 	# must fail here too.
