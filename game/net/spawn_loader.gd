@@ -13,6 +13,8 @@ extends RefCounted
 const WEAPON_DIR: String = "res://data/weapons/"
 ## Where the robot types a spawn file names are read from, by id (#228).
 const ROBOT_DIR: String = "res://data/robots/"
+## Where the weapons robot types fire are read from, by id (#612).
+const ROBOT_WEAPON_DIR: String = "res://data/robot_weapons/"
 
 
 ## Reads a ship data file. Returns null, after printing why, when the file is

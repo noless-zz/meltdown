@@ -16,8 +16,9 @@ const PLAIN_LEVEL: String = """{
 }"""
 const PLAIN_TICKS: int = 120
 ## The hash of PLAIN_LEVEL after PLAIN_TICKS of ForwardSource, taken on `main`
-## before #332; a level without a reactor must keep it.
-const PLAIN_HASH: int = 602634668
+## before #332; a level without a reactor must keep it. Re-measured after #612
+## gave the drone its own bursting weapon.
+const PLAIN_HASH: int = 1663502524
 
 
 ## Full thrust ahead with a slow yaw, so the ship moves and turns.

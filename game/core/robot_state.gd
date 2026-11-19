@@ -28,6 +28,10 @@ var awake: bool = true
 ## Ticks in a row it has had no clear line to its target, up to
 ## `def.lose_target_ticks()`, where it has dropped the target (#615).
 var unseen_ticks: int = 0
+## Shots left in the burst under way; 0 between bursts (#612).
+var burst_shots_left: int = 0
+## Ticks spent winding up for the next burst's first shot; 0 when not.
+var windup_elapsed: int = 0
 
 ## The chase stand-off, the strafe band and its radial gain come from `def`
 ## (`standoff_radii`, `strafe_min_distance`, `strafe_max_distance`,
@@ -226,32 +230,55 @@ func weapon_range() -> float:
 ## the facing. Returns the weapon that fired, or null. Call once per tick, after
 ## `step`, as ships call `ShipState.fire_primary`.
 ##
-## Without a line for `def.lose_target_ticks()` in a row it drops the target
-## (#615); when the line clears again it aims afresh, so its next shot waits a
-## full fire interval. Moving is not affected.
+## Shots come in bursts (#612): a burst's first shot follows
+## `weapon.windup_ticks` ticks in which it could fire (any tick it could not
+## starts the wind-up over), and its last is followed by
+## `weapon.burst_cooldown_ticks()`. Moving is not affected. Without a line for
+## `def.lose_target_ticks()` in a row it drops the target (#615); when the line
+## clears it aims afresh: a full fire interval, then a new burst.
 func fire_at(target: ShipState, in_sight: bool = true) -> WeaponDef:
 	if fire_cooldown > 0:
 		fire_cooldown -= 1
 	if weapon == null or target == null or not is_alive():
+		windup_elapsed = 0
 		return null
 	if not in_sight:
 		unseen_ticks = mini(unseen_ticks + 1, def.lose_target_ticks())
+		windup_elapsed = 0
 		return null
 	if unseen_ticks > 0 and unseen_ticks >= def.lose_target_ticks():
 		fire_cooldown = maxi(fire_cooldown, weapon.fire_interval_ticks)
+		burst_shots_left = 0
 	unseen_ticks = 0
-	if fire_cooldown > 0:
+	if fire_cooldown > 0 or not _can_hit(target):
+		windup_elapsed = 0
 		return null
+	if burst_shots_left == 0 and windup_elapsed < weapon.windup_ticks:
+		windup_elapsed += 1
+		return null
+	windup_elapsed = 0
+	if burst_shots_left == 0:
+		burst_shots_left = weapon.burst_shots
+	burst_shots_left -= 1
+	fire_cooldown = weapon.fire_interval_ticks if burst_shots_left > 0 \
+		else weapon.burst_cooldown_ticks()
+	return weapon
+
+
+## True while it winds up for a burst, so the view can show it coming (#604).
+func is_winding_up() -> bool:
+	return windup_elapsed > 0
+
+
+## True when `target` is within `weapon_range` and the fire cone.
+func _can_hit(target: ShipState) -> bool:
 	var offset: Vector3 = target.position - position
 	var distance: float = offset.length()
 	if distance > weapon_range():
-		return null
+		return false
 	# A target exactly on the centre is straight ahead whichever way it faces.
 	var cone: float = deg_to_rad(FIRE_CONE_HALF_ANGLE_DEG)
-	if distance > 0.0 and StableAngle.between(forward(), offset) > cone:
-		return null
-	fire_cooldown = weapon.fire_interval_ticks
-	return weapon
+	return distance <= 0.0 or StableAngle.between(forward(), offset) <= cone
 
 
 ## Tagged fields, so a value moving from one field to another changes the hash.
@@ -274,4 +301,7 @@ func state_hash() -> int:
 	# Only while the line is lost, so robots that always see keep their hashes.
 	if unseen_ticks > 0:
 		parts.append_array(["unseen_ticks", unseen_ticks])
+	# Only for weapons that fire in bursts, so other robots keep their hashes.
+	if weapon != null and weapon.has_bursts():
+		parts.append_array(["burst_shots_left", burst_shots_left, "windup_elapsed", windup_elapsed])
 	return hash(parts)

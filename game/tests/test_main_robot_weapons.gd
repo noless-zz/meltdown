@@ -5,10 +5,11 @@ extends RefCounted
 ## (#269, CMB-2, CMB-3, ARC-4, MP-2).
 
 const SPAWN_FILE: String = "res://data/levels/test_tunnel_robots.json"
-const WEAPONS_DIR: String = "res://data/weapons"
+const WEAPONS_DIR: String = "res://data/robot_weapons"
 ## A scratch weapon folder with one good, one broken and the rest missing.
 const PARTIAL_DIR: String = "user://test_main_robot_weapons"
-const TICKS: int = 120
+## Long enough for the drone to wake, turn and wind up its first burst (#612).
+const TICKS: int = 240
 ## Forward flight that brings the drone's wake range over the ship.
 const WAKE_TICKS: int = 60
 
@@ -54,7 +55,7 @@ func test_the_drone_fires_at_the_ship_and_the_replay_reproduces_it() -> String:
 		main.free()
 		return "no drone in the main scene"
 	# The ship starts about 16 m from the drone and in front of it, well
-	# inside the pulse cannon's 180 m. The drone waits for the ship to come
+	# inside the robot pulse gun's 180 m. The drone waits for the ship to come
 	# within its wake range (#301), so the ship flies forward for WAKE_TICKS
 	# and then lets go of the stick.
 	var distance: float = session.sim.robots[drone].position.distance_to(session.sim.ships[0].position)
@@ -106,10 +107,10 @@ func test_a_missing_or_broken_weapon_file_disarms_only_its_robots() -> String:
 	DirAccess.make_dir_recursive_absolute(PARTIAL_DIR)
 	for file: String in DirAccess.get_files_at(PARTIAL_DIR):
 		DirAccess.remove_absolute(PARTIAL_DIR.path_join(file))
-	var good: FileAccess = FileAccess.open(PARTIAL_DIR.path_join("pulse_cannon.json"), FileAccess.WRITE)
-	good.store_string(FileAccess.get_file_as_string(WEAPONS_DIR.path_join("pulse_cannon.json")))
+	var good: FileAccess = FileAccess.open(PARTIAL_DIR.path_join("robot_pulse.json"), FileAccess.WRITE)
+	good.store_string(FileAccess.get_file_as_string(WEAPONS_DIR.path_join("robot_pulse.json")))
 	good.close()
-	var broken: FileAccess = FileAccess.open(PARTIAL_DIR.path_join("arc_lance.json"), FileAccess.WRITE)
+	var broken: FileAccess = FileAccess.open(PARTIAL_DIR.path_join("robot_arc.json"), FileAccess.WRITE)
 	broken.store_string("{\"damage\": ")
 	broken.close()
 	var spawns: Array[RobotSpawn] = LocalSession.load_spawns(SPAWN_FILE, LocalSession.ROBOT_DIR, PARTIAL_DIR)
@@ -117,7 +118,7 @@ func test_a_missing_or_broken_weapon_file_disarms_only_its_robots() -> String:
 		return "%d robots loaded, expected all 6" % spawns.size()
 	for spawn: RobotSpawn in spawns:
 		var armed: bool = spawn.weapon != null
-		if armed != (spawn.def.weapon == "pulse_cannon"):
+		if armed != (spawn.def.weapon == "robot_pulse"):
 			return "%s (fires %s) loaded %s" % [spawn.id, spawn.def.weapon, "armed" if armed else "unarmed"]
 	var session: LocalSession = LocalSession.new(0, null, null, null, spawns)
 	if session.sim.robots.size() != 6:

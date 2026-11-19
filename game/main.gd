@@ -9,7 +9,6 @@ extends Node3D
 ## simulated motion (CMF-8). The rig reads copies of the ship and never writes
 ## simulation state (MP-2, ARC-3).
 
-const TARGET_REFRESH_RATE: float = 90.0
 ## Where the test tunnel sits relative to the simulation origin, where the ship starts:
 ## 1 m below, the ship's radius, so the first tick does not push it off the floor.
 const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
@@ -58,6 +57,10 @@ var combat: CombatWiring = CombatWiring.new()
 var map: MapWiring = MapWiring.new()
 ## The reactor, the meltdown countdown and the outcome row (#359, RUN-2, RUN-5).
 var meltdown: MeltdownWiring = MeltdownWiring.new()
+## When the slot label says to fly through a part to pick it up (#606, #600).
+var pickup_hint: PickupHint = PickupHint.load_file()
+## Asks the headset for the preset's refresh rate and reads back the rate in use (#598).
+var refresh_rate: RefreshRate = RefreshRate.new()
 
 
 func _ready() -> void:
@@ -103,6 +106,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	apply_controls(sample_controls())
 	advance_frame(delta)
+	refresh_rate.advance_frame()
 	if _smoke_probe != null and _smoke_probe.is_enabled():
 		_smoke_probe.watch_hands(boost_haptics.left_controller, boost_haptics.right_controller)
 	if _smoke_probe != null and _smoke_probe.tick():
@@ -163,6 +167,7 @@ func advance_frame(delta_seconds: float) -> void:
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 	place_rig()
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
+	$XRRig.pickup_hint = pickup_hint.is_due(session.current_ship(), session.current_salvage())  # View only.
 	map.update(session, delta_seconds, comfort.shared_click_hold())
 	meltdown.update(session, status_panel)
 	update_status_panel(delta_seconds)
@@ -171,6 +176,7 @@ func advance_frame(delta_seconds: float) -> void:
 ## Makes preset `number` (1..4) the active one; see `ComfortWiring.set_preset`.
 func set_comfort_preset(number: int) -> void:
 	comfort.set_preset(number)
+	refresh_rate.apply(comfort.preset)  # Display only; the tick stays at 60 Hz (ARC-3).
 
 
 ## Runs after every `session.advance`. The ticks' wall impacts reach the hit
@@ -232,7 +238,7 @@ func attach_status_panel() -> void:
 func update_status_panel(delta_seconds: float) -> void:
 	if status_panel != null:
 		RigViews.show_ship(status_panel, session.current_ship(), comfort.number,
-			comfort.preset.display_name, build_info.describe(), delta_seconds)
+			comfort.preset.display_name, refresh_rate.beside(build_info.describe()), delta_seconds)
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at
@@ -257,11 +263,7 @@ func _on_session_begun(openxr: OpenXRInterface) -> void:
 	_session_begun = true
 	_xr_running = true
 	head_recentre.request()
-	# PRF-1: 90 Hz by default when the headset offers it.
-	var rates: Array = openxr.get_available_display_refresh_rates()
-	if rates.has(TARGET_REFRESH_RATE):
-		openxr.display_refresh_rate = TARGET_REFRESH_RATE
-	print("Meltdown: refresh rate ", openxr.display_refresh_rate, " Hz, available ", rates)
+	refresh_rate.begin(openxr, comfort.preset)  # PRF-1, CMF-1 (#598).
 
 
 ## The app is shown but has lost input focus: the headset was taken off or the

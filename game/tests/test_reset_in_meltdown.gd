@@ -126,6 +126,8 @@ func test_m1_and_m2_suite_replays_end_on_their_pinned_hashes() -> String:
 			return "suite %s did not load" % suite_name
 		var suite: AcceptanceSuite = loaded[0]
 		for step: AcceptanceStep in suite.steps:
+			if step.replay_path == "":
+				continue  # A headset-only step such as m1's refresh_rate (#598) flies nothing.
 			var replay: Replay = Replay.from_text(FileAccess.get_file_as_string(step.replay_path))
 			var sim: Sim = null if replay.error != "" else replay.run()
 			if sim == null:

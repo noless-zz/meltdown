@@ -6,6 +6,6 @@
 	"acceleration": 16.0,
 	"turn_rate": 120.0,
 	"movement": "hover",
-	"weapon": "pulse_cannon",
+	"weapon": "robot_pulse",
 	"salvage": "pulse_cannon"
 }

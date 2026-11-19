@@ -22,6 +22,7 @@ const TICK_EPSILON: float = 1.0e-6
 ## Forwards to `SpawnLoader`, which reads the data files (#296).
 const WEAPON_DIR: String = SpawnLoader.WEAPON_DIR
 const ROBOT_DIR: String = SpawnLoader.ROBOT_DIR
+const ROBOT_WEAPON_DIR: String = SpawnLoader.ROBOT_WEAPON_DIR
 
 var sim: Sim
 ## Every input fed to `sim`, in order; running it reproduces `sim` (ARC-2).
@@ -157,16 +158,16 @@ static func load_parts(weapon_dir: String = WEAPON_DIR) -> Dictionary[String, We
 ## `SpawnLoader.load_spawns`. The robots are spawned armed, so the main scene's
 ## robots shoot back (CMB-2, #269).
 static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
-		weapon_dir: String = WEAPON_DIR) -> Array[RobotSpawn]:
+		weapon_dir: String = ROBOT_WEAPON_DIR) -> Array[RobotSpawn]:
 	return SpawnLoader.load_spawns(path, robot_dir, weapon_dir)
 
 
 ## A session in `level`'s walls (GEN-5): every box goes into the replay, so a
 ## replay meets the same walls (ARC-2), the ship starts at the level's start
 ## pose, and the level's robots are resolved and armed from `robot_dir` and
-## `weapon_dir` as `load_spawns` does (CMB-3, #269, #291). Its part catalogue
-## is every weapon in `weapon_dir`, so parts the robots drop can be slotted
-## (SLV-1, #320). The level's start pose is written to the replay's start
+## `robot_weapon_dir` as `load_spawns` does (CMB-3, #269, #291, #612). Its
+## part catalogue is every weapon in `weapon_dir`, so parts the robots drop can
+## be slotted (SLV-1, #320). The level's start pose is written to the replay's start
 ## line and the ship is placed from what the line reads back, so a level that
 ## does not start at the origin facing -z replays to the same hash (#340).
 ## The level's reactor, if any, is armed on the sim and recorded in the replay
@@ -174,9 +175,9 @@ static func load_spawns(path: String, robot_dir: String = ROBOT_DIR,
 ## so is its debris (RUN-4, #439). `level` must have parsed without an error.
 static func for_level(level: LevelDef, run_seed: int = 0, input_source: ShipInputSource = null,
 		tuning: ShipTuning = null, robot_dir: String = ROBOT_DIR,
-		weapon_dir: String = WEAPON_DIR) -> LocalSession:
+		weapon_dir: String = WEAPON_DIR, robot_weapon_dir: String = ROBOT_WEAPON_DIR) -> LocalSession:
 	var robots: Array[RobotSpawn] = SpawnLoader.resolve_list(level.robots, "in the level",
-		robot_dir, weapon_dir)
+		robot_dir, robot_weapon_dir)
 	var session: LocalSession = LocalSession.new(run_seed, input_source, null, tuning, robots,
 		null, load_parts(weapon_dir))
 	var mins: Array[Vector3i] = []
