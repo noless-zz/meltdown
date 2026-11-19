@@ -6,6 +6,10 @@
 			"replay": "res://acceptance/replays/basic_flight.replay",
 			"checks": ["final_hash"],
 			"expected_hash": 861662111
+		},
+		{
+			"id": "refresh_rate",
+			"checks": ["refresh_rate"]
 		}
 	]
 }

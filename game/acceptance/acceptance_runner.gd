@@ -19,7 +19,7 @@ const INTENT_EXTRA: String = "meltdown_acceptance"
 const REPORT_DIR: String = "user://acceptance"
 const EXIT_PASS: int = 0
 const EXIT_FAIL: int = 1
-## How long a step waits for the OpenXR session to begin: 10 s at 90 Hz.
+## How long a step waits for the session to begin or the rate in use (#598): 10 s at 90 Hz.
 const XR_WAIT_FRAMES: int = 900
 const LOG_PREFIX: String = "Meltdown: acceptance"
 
@@ -180,11 +180,19 @@ func _step_ready(step: AcceptanceStep) -> bool:
 			main.call("advance_frame", ShipState.TICK_DT)
 			return false
 		main.set_process(true)
-	if step.has_check(AcceptanceStep.CHECK_XR_SESSION) and _xr_available() and not _xr_begun \
-			and _xr_waited < XR_WAIT_FRAMES:
+	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
 		_xr_waited += 1
 		return false
 	return true
+
+
+## Whether a check of `step` still waits on the headset's session or refresh rate.
+func _waits_for_xr(step: AcceptanceStep) -> bool:
+	if not _xr_available():
+		return false
+	if step.has_check(AcceptanceStep.CHECK_XR_SESSION) and not _xr_begun:
+		return true
+	return step.has_check(AcceptanceStep.CHECK_REFRESH_RATE) and not AcceptanceRefreshCheck.settled(main)
 
 
 func _record_step(step: AcceptanceStep) -> void:
@@ -230,6 +238,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			if not seen.is_empty():
 				return [AcceptanceReport.RESULT_FAIL, "%d script errors, first: %s" % [seen.size(), seen[0]]]
 			return [AcceptanceReport.RESULT_PASS, "none"]
+		AcceptanceStep.CHECK_REFRESH_RATE:
+			return AcceptanceRefreshCheck.run(main, _xr_available(), step.required, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
