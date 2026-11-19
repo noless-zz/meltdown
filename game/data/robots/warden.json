@@ -6,6 +6,6 @@
 	"acceleration": 4.0,
 	"turn_rate": 45.0,
 	"movement": "hover",
-	"weapon": "slug_thrower",
+	"weapon": "robot_slug",
 	"salvage": "slug_thrower"
 }

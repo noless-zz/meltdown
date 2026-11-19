@@ -6,6 +6,6 @@
 	"acceleration": 30.0,
 	"turn_rate": 150.0,
 	"movement": "strafe",
-	"weapon": "arc_lance",
+	"weapon": "robot_arc",
 	"salvage": "arc_lance"
 }

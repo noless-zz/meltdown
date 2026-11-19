@@ -14,16 +14,17 @@ func test_drone_file_parses() -> String:
 		return "drone.json rejected: %s" % robot.error
 	if robot.id != "drone":
 		return "id \"%s\" does not match the file name" % robot.id
-	if robot.weapon != "pulse_cannon" or robot.salvage != "pulse_cannon":
+	if robot.weapon != "robot_pulse" or robot.salvage != "pulse_cannon":
 		return "drone fires \"%s\" and drops \"%s\"" % [robot.weapon, robot.salvage]
 	return ""
 
 
-## The drone's weapon and salvage resolve to a weapon file that itself parses.
+## The drone's weapon resolves to a robot weapon file that itself parses, and
+## its salvage to a ship weapon file (#612).
 func test_drone_weapon_resolves() -> String:
 	var robot: RobotDef = RobotDef.parse_json(FileAccess.get_file_as_string(DRONE))
 	var path: String = robot.weapon_path()
-	if path != "res://data/weapons/pulse_cannon.json" or not FileAccess.file_exists(path):
+	if path != "res://data/robot_weapons/robot_pulse.json" or not FileAccess.file_exists(path):
 		return "weapon path \"%s\" does not resolve" % path
 	if WeaponDef.parse_json(FileAccess.get_file_as_string(path)).error != "":
 		return "the drone's weapon file does not parse"
