@@ -101,6 +101,10 @@ func next_input(_tick: int) -> ShipInput:
 	if _sim == null or _ship_index < 0 or _ship_index >= _sim.ships.size():
 		return ShipInput.new()
 	var ship: ShipState = _sim.ships[_ship_index]
+	# A destroyed ship takes no input (#601); sending none keeps replays of a
+	# lost run honest about what the pilot could still do.
+	if ship.is_destroyed():
+		return ShipInput.new()
 	var target: RobotState = nearest_robot(ship.position)
 	if _route != null:
 		return _routed_input(ship, _target_in_level(ship, target))

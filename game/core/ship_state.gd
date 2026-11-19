@@ -100,7 +100,16 @@ const MIN_WALL_RESTITUTION: float = 0.05
 ## is negative, matching Godot's camera convention).
 ## `turn` is pitch, yaw and roll rate in radians per second.
 ## `afterburner` is whether the afterburner is held this tick.
+## A destroyed ship (`is_destroyed`) ignores all three and stays where it is,
+## at rest, with its pools frozen (RUN-7, #601).
 func step(thrust: Vector3, turn: Vector3, afterburner: bool = false) -> void:
+	if is_destroyed():
+		# Stopped rather than left to drift down by damping: a wreck that slid
+		# on would read as a ship still flying, and damping never quite reaches
+		# zero, so the pilot could not tell it had stopped (#601).
+		velocity = Vector3.ZERO
+		afterburner_active = false
+		return
 	if turn != Vector3.ZERO:
 		orientation = orientation.rotated(orientation.x.normalized(), turn.x * TICK_DT)
 		orientation = orientation.rotated(orientation.y.normalized(), turn.y * TICK_DT)
@@ -154,9 +163,9 @@ func _recharge_shield() -> void:
 
 
 ## The one way any damage reaches a ship: the shield absorbs what it can and
-## the rest comes off the hull. Neither drops below zero; what happens at zero
-## hull is not decided yet. Negative amounts are ignored, so damage can never
-## repair.
+## the rest comes off the hull. Neither drops below zero; at zero hull the
+## ship is destroyed (`is_destroyed`). Negative amounts are ignored, so damage
+## can never repair.
 func apply_damage(amount: float) -> void:
 	if amount <= 0.0:
 		return
@@ -168,8 +177,11 @@ func apply_damage(amount: float) -> void:
 ## Counts the fire interval down and, if `held`, fires the selected primary
 ## weapon when it is ready and the pool holds its energy cost. Returns the
 ## weapon that fired, or null. Call once per tick, after `step`, so a shot
-## spends what is left after the afterburner and the shield.
+## spends what is left after the afterburner and the shield. A destroyed ship
+## never fires, and its cooldown stays where it was.
 func fire_primary(held: bool) -> WeaponDef:
+	if is_destroyed():
+		return null
 	if fire_cooldown > 0:
 		fire_cooldown -= 1
 	if not held or fire_cooldown > 0:
@@ -180,6 +192,13 @@ func fire_primary(held: bool) -> WeaponDef:
 	energy -= weapon.energy_cost
 	fire_cooldown = weapon.fire_interval_ticks
 	return weapon
+
+
+## Hull at zero: the ship is lost (RUN-7). It takes no input, fires, picks up
+## and slots nothing, and no robot engages it. An escaped ship is not
+## destroyed; it keeps its hull.
+func is_destroyed() -> bool:
+	return hull <= 0.0
 
 
 func hold_has_room() -> bool:

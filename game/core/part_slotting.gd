@@ -14,10 +14,11 @@ extends RefCounted
 ## dropped as a `SalvageItem` at the ship's position and velocity, appended
 ## to `drops` for `Sim` to add once the tick's items have moved. Does
 ## nothing when the hold is empty or the catalogue has no such part: an
-## unknown part stays in the hold. Adds a PART_SLOTTED event when it slots.
+## unknown part stays in the hold, and so does any part of a destroyed ship
+## (#601). Adds a PART_SLOTTED event when it slots.
 static func slot_held(sim: Sim, index: int, drops: Array[SalvageItem]) -> void:
 	var ship: ShipState = sim.ships[index]
-	if ship.hold.is_empty():
+	if ship.is_destroyed() or ship.hold.is_empty():
 		return
 	var id: String = ship.hold[0]
 	var weapon: WeaponDef = sim.part(id)

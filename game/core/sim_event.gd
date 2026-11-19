@@ -71,6 +71,12 @@ enum Kind {
 	## and `vector` its centre. Reported before every other event of the tick,
 	## in file order (`DebrisRouteGuard`).
 	DEBRIS_HELD,
+	## The ship's hull reached zero this tick, whatever did it: a robot's shot,
+	## a wall, fire, debris or the meltdown running out (RUN-7, #601). From now
+	## on it takes no input and does not move. Reported once per ship, after
+	## every other event of the tick, SHIP_LOST_IN_MELTDOWN included, in ship
+	## order (`ExitRule`). `vector` is where the ship ended the tick.
+	SHIP_DESTROYED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
