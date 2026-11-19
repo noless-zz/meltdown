@@ -126,17 +126,18 @@ func test_the_bars_use_the_energy_bars_priorities() -> String:
 	return ""
 
 
-func test_the_bars_sit_under_the_energy_bar_and_above_the_build() -> String:
+## Hull, shield and energy are the first rows under the meltdown row (#605).
+func test_the_bars_sit_hull_shield_energy_above_the_weapon() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var energy_y: float = (panel.get_node(StatusPanel.ENERGY_BAR_NAME) as Node3D).position.y
 	var shield_y: float = (panel.get_node(StatusPanel.SHIELD_BAR_NAME) as Node3D).position.y
 	var hull_y: float = (panel.get_node(StatusPanel.HULL_BAR_NAME) as Node3D).position.y
-	var build_y: float = (panel.get_node(StatusPanel.BUILD_NAME) as Node3D).position.y
+	var weapon_y: float = (panel.get_node(StatusPanel.WEAPON_NAME) as Node3D).position.y
 	var shield_colour: Color = ((panel.get_node(StatusPanel.SHIELD_BAR_NAME) as MeshInstance3D).material_override as BaseMaterial3D).albedo_color
 	var hull_colour: Color = ((panel.get_node(StatusPanel.HULL_BAR_NAME) as MeshInstance3D).material_override as BaseMaterial3D).albedo_color
 	panel.free()
-	if not (energy_y > shield_y and shield_y > hull_y and hull_y > build_y):
-		return "rows out of order: energy %.3f, shield %.3f, hull %.3f, build %.3f" % [energy_y, shield_y, hull_y, build_y]
+	if not (hull_y > shield_y and shield_y > energy_y and energy_y > weapon_y):
+		return "rows out of order: hull %.3f, shield %.3f, energy %.3f, weapon %.3f" % [hull_y, shield_y, energy_y, weapon_y]
 	if shield_colour != StatusPanel.SHIELD_COLOR or hull_colour != StatusPanel.HULL_COLOR:
 		return "the bars are not drawn in the named colours"
 	# Cool shield: more blue than red. Warm hull: more red than blue.

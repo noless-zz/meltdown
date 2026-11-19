@@ -168,16 +168,22 @@ func test_show_outcome_leaves_the_other_rows_alone() -> String:
 	return ""
 
 
+## A whole look file around `escaped`, the text of the escaped colour.
+static func _look_text(escaped: String, extra: String = "") -> String:
+	return '{"escaped_color": %s, "position_m": [0, -0.2, -0.5], "tilt_deg": 20, ' % escaped \
+		+ '"max_row_angle_deg": 30, "message_seconds": 2%s}' % extra
+
+
 func test_the_look_file_sets_the_escaped_colour() -> String:
-	var parsed: Dictionary = StatusPanelLook.parse('{"escaped_color": [0.1, 0.2, 0.3]}')
+	var parsed: Dictionary = StatusPanelLook.parse(_look_text("[0.1, 0.2, 0.3]"))
 	if parsed.has("error") or not (parsed["escaped_color"] as Color).is_equal_approx(Color(0.1, 0.2, 0.3)):
 		return "a valid look parses to %s" % parsed
 	var bad: Dictionary = {
-		'{"escaped_color": [0.1, 0.2]}': "escaped_color",
-		'{"escaped_color": [0.1, 0.2, 1.5]}': "escaped_color",
-		'{"escaped_color": [true, 0.2, 0.3]}': "escaped_color",
+		_look_text("[0.1, 0.2]"): "escaped_color",
+		_look_text("[0.1, 0.2, 1.5]"): "escaped_color",
+		_look_text("[true, 0.2, 0.3]"): "escaped_color",
 		'{}': "escaped_color",
-		'{"escaped_color": [0.1, 0.2, 0.3], "colour": 1}': "colour",
+		_look_text("[0.1, 0.2, 0.3]", ', "colour": 1'): "colour",
 		'[1]': "object",
 	}
 	for text: String in bad:

@@ -65,11 +65,20 @@ func test_destroys_a_drone_30_degrees_off_the_nose() -> String:
 	return ""
 
 
+## About turning from one target to the other, not about surviving: two drones
+## at once destroy the shipped ship in about 3.5 s (#612's tuning), and since
+## #601 a destroyed ship stops and cannot fire. Before #601 this passed only
+## because the ship fought on at zero hull. The ship gets ten times its hull,
+## and the test checks it is still alive at the end.
 func test_destroys_two_drones_on_opposite_sides() -> String:
 	var sim: Sim = _sim([Vector3(-40.0, 0.0, 0.0), Vector3(40.0, 0.0, 0.0)])
+	sim.ships[0].max_hull *= 10.0
+	sim.ships[0].hull = sim.ships[0].max_hull
 	var ticks: int = _fly(sim, BotPilot.new(sim, 0), TICK_LIMIT)
 	if not sim.robots.is_empty():
 		return "%d drones still alive after %d ticks" % [sim.robots.size(), ticks]
+	if sim.ships[0].is_destroyed():
+		return "the ship was destroyed"
 	return ""
 
 

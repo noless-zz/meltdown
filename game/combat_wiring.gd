@@ -3,8 +3,8 @@ extends RefCounted
 
 ## Joins the session's combat state to what the main scene shows (CMB-1,
 ## CMB-2, CMB-3, LGT-1, SLV-1): the projectiles, the robots (#228), the
-## floating salvage (#287), the shield and hull bars and the hold row (#316) on
-## the status panel.
+## floating salvage (#287), the shield and hull bars, the hold row (#316), and
+## the weapon row and the pickup and slot messages (#605) on the status panel.
 ##
 ## It sits beside `main.gd`, like `ComfortWiring`, because it reads the `net/`
 ## session, which `view/` may not depend on. It hands the view copies from
@@ -18,6 +18,8 @@ var robot_view: RobotView = null
 var salvage_view: SalvageView = null
 ## The rings that show when a part is within reach (#600), beside the parts.
 var salvage_ring: SalvageRing = null
+## Says on the hold row what was just picked up or slotted (#605).
+var hold_messages: HoldMessages = HoldMessages.new()
 
 
 ## Puts the projectile, robot and salvage views under `world`, the node whose space is
@@ -38,11 +40,15 @@ func attach(world: Node3D) -> void:
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
-## `panel`, if given, shows the ship's shield, hull and the part in its hold.
+## `panel`, if given, shows the ship's shield, hull, weapon and the part in its
+## hold, and what just happened to the hold.
 func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) -> void:
 	if panel != null:
-		show_defence(panel, session.current_ship())
-		panel.show_hold(held_part(session.current_ship()))
+		var ship: ShipState = session.current_ship()
+		show_defence(panel, ship)
+		panel.show_hold(held_part(ship))
+		panel.show_weapon(active_weapon(ship))
+		panel.show_hold_message(hold_messages.update(ship.hold, ship.primary_ids))
 	if projectile_view == null:
 		return
 	if camera != null:
@@ -74,6 +80,15 @@ static func show_defence(panel: StatusPanel, ship: ShipState) -> void:
 ## so the id is what the panel shows.
 static func held_part(ship: ShipState) -> String:
 	return ship.hold[0] if not ship.hold.is_empty() else ""
+
+
+## The part id of the weapon in `ship`'s selected primary slot, or "" when
+## that slot is empty. Like the hold, the id is the name shown.
+static func active_weapon(ship: ShipState) -> String:
+	var slot: int = ship.selected_primary
+	if slot < 0 or slot >= ship.primary_slots.size() or ship.primary_slots[slot] == null:
+		return ""
+	return ship.primary_ids[slot] if slot < ship.primary_ids.size() else ""
 
 
 ## Where `node` is, in `space`'s coordinates: its global position seen from

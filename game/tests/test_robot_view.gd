@@ -85,7 +85,8 @@ func test_a_removed_robot_is_hidden_and_nodes_are_pooled() -> String:
 	var two: Array[RobotState] = [three[0], three[2]]
 	view.show_robots(three, two, 0.5)
 	var result: String = ""
-	if view.node_count() != 3 or view.get_child_count() != 3:
+	# One child per pooled robot node, and the holder of the destruction bursts.
+	if view.node_count() != 3 or view.get_child_count() != 4:
 		result = "pool changed size: %d nodes, %d children" % [view.node_count(), view.get_child_count()]
 	for index: int in 3:
 		if result == "" and view.node(index).get_instance_id() != ids[index]:
@@ -136,7 +137,7 @@ func test_unknown_id_uses_the_default_look() -> String:
 func test_bad_look_file_is_rejected_with_the_field_named() -> String:
 	var cases: Array[Array] = []
 	var bad_shape: Dictionary = _valid_look()
-	bad_shape["robots"]["drone"]["shape"] = "torus"
+	bad_shape["robots"]["drone"]["shape"] = "pyramid"
 	cases.append([bad_shape, "robots.drone.shape"])
 	var bad_scale: Dictionary = _valid_look()
 	bad_scale["robots"]["drone"]["scale"] = 9.0

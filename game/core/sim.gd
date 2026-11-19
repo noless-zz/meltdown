@@ -87,6 +87,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	_hit_events = []
 	_killers = {}
 	_stepping = true
+	var live_before: Array[bool] = ExitRule.live_ships(self)
 	if tick == 0:
 		_reset.record(ships)
 	if reactor != null:
@@ -125,7 +126,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	RobotTick.advance(self)
 	SalvagePickup.drift(self, slot_drops)
 	RobotTick.remove_destroyed(self, _killers)
-	ExitRule.apply(self, last_events)
+	ExitRule.apply(self, last_events, live_before)
 	_stepping = false
 	tick += 1
 	return true

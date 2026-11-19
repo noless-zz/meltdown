@@ -13,9 +13,18 @@ const BOTH_CLICKS: Dictionary = {"left_stick_click": true, "right_stick_click": 
 const KEY: Dictionary = {ResetHold.KEYBOARD_BUTTON: true}
 
 
+## The main scene with a ship the tunnel's robots cannot destroy in these
+## tests: they are about the reset gesture, and since #601 a destroyed ship
+## refuses the reset.
 func _main() -> Node:
 	var scene: PackedScene = load("res://main.tscn") as PackedScene
-	return scene.instantiate() if scene != null else null
+	if scene == null:
+		return null
+	var main: Node = scene.instantiate()
+	var ship: ShipState = _session(main).sim.ships[0]
+	ship.max_hull *= 100.0
+	ship.hull = ship.max_hull
+	return main
 
 
 static func _values(left_stick: Vector2 = Vector2.ZERO, buttons: Dictionary = {}) -> Dictionary:

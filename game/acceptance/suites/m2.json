@@ -2,6 +2,13 @@
 	"name": "m2",
 	"steps": [
 		{
+			"id": "ship_destroyed_in_test_tunnel",
+			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
+			"checks": ["final_hash", "outcome", "ship_destroyed_inert"],
+			"expected_outcome": "LOST",
+			"expected_hash": 3298909347
+		},
+		{
 			"id": "bot_clears_test_tunnel",
 			"replay": "res://acceptance/replays/bot_test_tunnel.replay",
 			"checks": ["final_hash"],
