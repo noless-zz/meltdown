@@ -63,7 +63,8 @@ const BAR_COLOR: Color = Color(0.3, 0.85, 1.0)
 ## amber. Read by colour at a glance, not by the small labels (#227).
 const SHIELD_COLOR: Color = Color(0.4, 0.5, 1.0)
 const HULL_COLOR: Color = Color(1.0, 0.72, 0.3)
-## At or below this hull fraction the hull label turns `HULL_WARNING_COLOR`.
+## At or below this hull fraction the hull label and bar turn
+## `HULL_WARNING_COLOR`, unless the look file's `low_hull_fraction` says otherwise (#616).
 const HULL_WARNING_FRACTION: float = 0.25
 const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
 ## Under this many seconds the meltdown row turns `HULL_WARNING_COLOR`: the
@@ -91,7 +92,7 @@ const OUTCOME_Y: float = 0.165
 ## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
 ## (#199). Its render priority sits above the cockpit frame's materials, which
 ## keep the default 0, so the panel lands on top of the shell, and well below
-## the reset fade quad (`Material.RENDER_PRIORITY_MAX`), so the fade still
+## the reset fade quad (`Material.RENDER_PRIORITY_MAX - 1`), so the fade still
 ## covers the panel.
 const RENDER_PRIORITY: int = 10
 ## Labels and the filled bar draw one step above the bar's track, so the
@@ -122,6 +123,8 @@ var _outcome: Label3D
 var _shown_outcome: int = ExitRule.Outcome.RUNNING
 ## From the look file (ARC-4).
 var _escaped_color: Color = StatusPanelLook.FALLBACK["escaped_color"]
+## From the look file: the hull fraction that turns the hull row red (#616).
+var low_hull_fraction: float = HULL_WARNING_FRACTION
 var _hull_label: Label3D
 var _energy_bar: PanelBar
 var _shield_bar: PanelBar
@@ -151,7 +154,9 @@ func _init() -> void:
 	_outcome.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Hidden while the level runs, which is nearly always.
 	_outcome.visible = false
-	_escaped_color = StatusPanelLook.load_file()["escaped_color"]
+	var look: Dictionary = StatusPanelLook.load_file()
+	_escaped_color = look["escaped_color"]
+	low_hull_fraction = look["low_hull_fraction"]
 	_energy_bar = PanelBar.new(self, ENERGY_TRACK_NAME, ENERGY_BAR_NAME, BAR_COLOR, ENERGY_Y, RENDER_PRIORITY)
 	_shield_bar = PanelBar.new(self, SHIELD_TRACK_NAME, SHIELD_BAR_NAME, SHIELD_COLOR, SHIELD_Y, RENDER_PRIORITY)
 	_hull_bar = PanelBar.new(self, HULL_TRACK_NAME, HULL_BAR_NAME, HULL_COLOR, HULL_Y, RENDER_PRIORITY)
@@ -180,12 +185,13 @@ func show_values(preset_number: int, preset_name: String, speed_mps: float,
 
 
 ## Shows the shield and hull as fractions of their maximums, each clamped to
-## 0..1. A hull at or below `HULL_WARNING_FRACTION` turns the hull label
-## `HULL_WARNING_COLOR`.
+## 0..1. A hull at or below `low_hull_fraction` turns the hull label and bar
+## `HULL_WARNING_COLOR` (#616).
 func show_defence(shield_fraction: float, hull_fraction: float) -> void:
 	_shield_bar.set_fraction(shield_fraction)
-	var hull: float = _hull_bar.set_fraction(hull_fraction)
-	_hull_label.modulate = HULL_WARNING_COLOR if hull <= HULL_WARNING_FRACTION else TEXT_COLOR
+	var low: bool = _hull_bar.set_fraction(hull_fraction) <= low_hull_fraction
+	_hull_label.modulate = HULL_WARNING_COLOR if low else TEXT_COLOR
+	_hull_bar.set_color(HULL_WARNING_COLOR if low else HULL_COLOR)
 
 
 ## Shows the part in the hold by name; an empty string shows `HOLD_EMPTY`.

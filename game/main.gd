@@ -18,12 +18,8 @@ const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  #
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
-## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
-## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults,
-## and every weapon file as a part a held part can be slotted from (#320).
-var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET),
-		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
-		null, LocalSession.load_parts())
+## The test tunnel's walls (FLT-3), tuning file, robots and parts (#320); `tunnel_session`.
+var session: LocalSession = tunnel_session(input_source)
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
@@ -61,6 +57,9 @@ var meltdown: MeltdownWiring = MeltdownWiring.new()
 var pickup_hint: PickupHint = PickupHint.load_file()
 ## Asks the headset for the preset's refresh rate and reads back the rate in use (#598).
 var refresh_rate: RefreshRate = RefreshRate.new()
+## SHIP DESTROYED, the restart, and the low-hull and shield-break pulses (#616).
+var destroyed: DestroyedWiring = DestroyedWiring.new()
+var _level_source: String = ""
 
 
 func _ready() -> void:
@@ -90,7 +89,8 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	use_level(LevelSwitch.requested_path())  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	_level_source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	use_level(_level_source)
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
@@ -98,6 +98,7 @@ func _ready() -> void:
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping)
 	meltdown.attach(self, session)
+	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
@@ -126,6 +127,8 @@ func sample_controls() -> Dictionary:
 	var values: Dictionary = keyboard.sample(pressed)
 	if Input.is_physical_key_pressed(ResetHold.KEYBOARD_KEY):
 		values["buttons"][ResetHold.KEYBOARD_BUTTON] = true
+	if Input.is_physical_key_pressed(DestroyedWiring.KEYBOARD_KEY):
+		values["buttons"][DestroyedWiring.KEYBOARD_BUTTON] = true
 	return values
 
 
@@ -136,6 +139,7 @@ func apply_controls(values: Dictionary) -> void:
 	if comfort.read_label_button(values.get("buttons", {})):
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
 	map.buttons = values.get("buttons", {})
+	destroyed.read_buttons(values.get("buttons", {}))
 	reset_hold.press(ResetHold.is_held(values))
 	comfort.hand_input(ControllerSampler.map_values(mapping, values),
 		session.current_ship().orientation, reset_hold.reset_due())
@@ -161,8 +165,10 @@ func advance_frame(delta_seconds: float) -> void:
 		_end_one_tick_if_flown()
 	# A paused view holds still (CMF-8), shake included.
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
+	if destroyed.update(session, delta_seconds, head_recentre, _xr_running):
+		restart_level()
 	if fade_overlay != null:
-		fade_overlay.set_alpha(reset_hold.alpha)
+		fade_overlay.set_alpha(maxf(reset_hold.alpha, destroyed.fade_alpha()))
 	# Logs afterburner starts and stops and pulses the boosting hand (#146, #170).
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 	place_rig()
@@ -200,6 +206,22 @@ func use_level(path: String) -> bool:
 	session = LocalSession.for_level(level, 0, input_source, LocalSession.load_tuning(SHIP_TUNING_PATH))
 	LevelSwitch.show_level(self, level)
 	return true
+
+
+## Flies the level again from its start (#616) through the launch's loading path (MP-2).
+func restart_level() -> void:
+	var paused: bool = session.paused
+	if not use_level(_level_source):
+		session = tunnel_session(input_source)
+	session.paused = paused
+	meltdown.attach(self, session)
+	head_recentre.request()
+
+
+static func tunnel_session(source: LatestInputSource) -> LocalSession:
+	return LocalSession.new(0, source, TestTunnel.interior_box(TUNNEL_OFFSET),
+		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
+		null, LocalSession.load_parts())
 
 
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.

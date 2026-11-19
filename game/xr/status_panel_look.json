@@ -1,3 +1,4 @@
 {
-	"escaped_color": [0.35, 1.0, 0.45]
+	"escaped_color": [0.35, 1.0, 0.45],
+	"low_hull_fraction": 0.25
 }
