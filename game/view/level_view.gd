@@ -3,44 +3,29 @@ extends Node3D
 
 ## Draws the inside of a box-union level (GEN-5): every box's walls, facing
 ## into the box, with the openings where boxes overlap left open
-## (`LevelFaces`). The walls are dark and unlit by themselves; dim emissive
-## strips along the box edges let the shape read in the dark. The view adds
-## no lights of its own: the ship's lights, weapons and flares light the mine
+## (`LevelFaces`). Floor, ceiling and walls are tinted apart and carry a
+## world-space grid; dim emissive strips along the box edges let the shape
+## read in the dark; the walls darken with distance (#609). The view adds no
+## lights of its own: the ship's headlight, weapons and flares light the mine
 ## (LGT-1).
 ##
 ## It only reads the union it is given and never writes to it (MP-2).
 ##
-## The look lives in `res://view/level_look.json`, so it can be retuned
-## without code (ARC-4):
-##
-##     {"wall_color": [r, g, b], "roughness": 0..1, "edge_color": [r, g, b],
-##      "edge_energy": 0..1, "edge_width_m": 0.02..1}
+## The look lives in `res://view/level_look.json` and is parsed by
+## `LevelLook`, so it can be retuned without code (ARC-4).
 
 const NODE_NAME: String = "LevelView"
 const WALLS_NAME: String = "Walls"
 const EDGES_NAME: String = "Edges"
-const DEFAULT_LOOK_FILE: String = "res://view/level_look.json"
+const ENVIRONMENT_NAME: String = "Environment"
+const DEFAULT_LOOK_FILE: String = LevelLook.DEFAULT_FILE
 
-const LOOK_KEYS: Array[String] = ["wall_color", "roughness", "edge_color", "edge_energy", "edge_width_m"]
-## Inclusive ranges of the number keys. Edge energy stays at or below 1 so the
-## strips stay dim: they outline the mine, they do not light it.
-const RANGES: Dictionary[String, Array] = {
-	"roughness": [0.0, 1.0],
-	"edge_energy": [0.0, 1.0],
-	"edge_width_m": [0.02, 1.0],
-}
 ## How far edge strips sit off the wall, into the box, so they never share the
 ## wall's plane and flicker against it.
 const EDGE_LIFT_M: float = 0.01
 
 ## Look used when the file is missing or rejected.
-const FALLBACK_LOOK: Dictionary = {
-	"wall_color": Color(0.16, 0.15, 0.14),
-	"roughness": 0.9,
-	"edge_color": Color(0.25, 0.45, 0.6),
-	"edge_energy": 0.4,
-	"edge_width_m": 0.15,
-}
+const FALLBACK_LOOK: Dictionary = LevelLook.FALLBACK
 
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
@@ -55,58 +40,20 @@ func _init() -> void:
 	load_look()
 
 
-## Parses the text of a look file. Returns the look with colours as `Color`
-## and numbers as floats, or a dictionary holding only `"error"`, which names
-## the field.
+## Parses the text of a look file; see `LevelLook.parse`.
 static func parse_look(text: String) -> Dictionary:
-	var json: JSON = JSON.new()
-	if json.parse(text) != OK:
-		return _rejected("invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()])
-	if typeof(json.data) != TYPE_DICTIONARY:
-		return _rejected("top level must be a JSON object")
-	var data: Dictionary = json.data
-	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not LOOK_KEYS.has(key):
-			return _rejected("unknown key \"%s\"" % str(key))
-	for key: String in LOOK_KEYS:
-		if not data.has(key):
-			return _rejected("missing key \"%s\"" % key)
-	var look: Dictionary = {}
-	for key: String in ["wall_color", "edge_color"]:
-		var parts: Variant = data[key]
-		if typeof(parts) != TYPE_ARRAY or (parts as Array).size() != 3:
-			return _rejected("\"%s\" must be [red, green, blue]" % key)
-		for part: Variant in parts:
-			if typeof(part) != TYPE_FLOAT and typeof(part) != TYPE_INT:
-				return _rejected("\"%s\" must hold numbers" % key)
-			if float(part) < 0.0 or float(part) > 1.0:
-				return _rejected("\"%s\" has %s, must be within 0..1" % [key, part])
-		look[key] = Color(float(parts[0]), float(parts[1]), float(parts[2]))
-	for key: String in RANGES:
-		var value: Variant = data[key]
-		# A bool must not pass as 0 or 1.
-		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
-			return _rejected("\"%s\" must be a number" % key)
-		var bounds: Array = RANGES[key]
-		if float(value) < float(bounds[0]) or float(value) > float(bounds[1]):
-			return _rejected("\"%s\" is %s, must be within %s..%s" % [key, value, bounds[0], bounds[1]])
-		look[key] = float(value)
-	return look
+	return LevelLook.parse(text)
 
 
 ## Applies the look file at `path`. A missing or rejected file leaves the
 ## fallback look, sets `look_error` and pushes a warning naming the field.
 ## Takes effect on the next `build`. Returns `look_error`.
 func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
-	var values: Dictionary = {}
-	if FileAccess.file_exists(path):
-		values = parse_look(FileAccess.get_file_as_string(path))
-	else:
-		values = _rejected("file not found")
+	var values: Dictionary = LevelLook.load_file(path)
 	_look = FALLBACK_LOOK
 	look_error = ""
 	if values.has("error"):
-		look_error = "%s: %s" % [path, values["error"]]
+		look_error = values["error"]
 		push_warning("LevelView uses the fallback look; %s" % look_error)
 	else:
 		_look = values
@@ -128,17 +75,32 @@ func build(union: BoxUnion) -> void:
 	var width: float = float(_look["edge_width_m"])
 	for quad: Dictionary in _quads:
 		_strips.append_array(LevelFaces.edge_strips(quad, union.boxes[quad["box"]], width, EDGE_LIFT_M))
-	var walls: StandardMaterial3D = StandardMaterial3D.new()
-	walls.albedo_color = _look["wall_color"]
-	walls.roughness = float(_look["roughness"])
 	var edges: StandardMaterial3D = StandardMaterial3D.new()
 	var edge_color: Color = _look["edge_color"]
 	edges.albedo_color = edge_color
 	edges.emission_enabled = true
 	edges.emission = edge_color
 	edges.emission_energy_multiplier = float(_look["edge_energy"])
-	add_child(_instance(WALLS_NAME, _quads, walls))
-	add_child(_instance(EDGES_NAME, _strips, edges))
+	var groups: Array[Array] = []
+	var materials: Array[Material] = []
+	for surface: String in LevelLook.CLASSES:
+		var group: Array[Dictionary] = []
+		for quad: Dictionary in _quads:
+			if LevelLook.surface_class(quad["normal"]) == surface:
+				group.append(quad)
+		if group.is_empty():
+			continue
+		groups.append(group)
+		materials.append(LevelLook.wall_material(_look, _look["%s_color" % surface]))
+	var walls: MeshInstance3D = _instance(WALLS_NAME, groups, materials)
+	# Walls block the headlight (the one shadow-casting light, GFX-4), so it
+	# cannot shine through a wall into the next room.
+	walls.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	add_child(walls)
+	var strips: Array[Array] = [_strips]
+	var edge_materials: Array[Material] = [edges]
+	add_child(_instance(EDGES_NAME, strips, edge_materials))
+	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
 
 
 ## The wall quads of the last `build`, in `LevelFaces` layout.
@@ -172,28 +134,28 @@ static func triangles(quad: Dictionary) -> Array[Vector3]:
 	return [c00, c10, c11, c00, c11, c01]
 
 
-static func _instance(node_name: String, list: Array[Dictionary], material: StandardMaterial3D) -> MeshInstance3D:
+## One mesh with a surface per list in `lists`, drawn in the matching material.
+static func _instance(node_name: String, lists: Array[Array], materials: Array[Material]) -> MeshInstance3D:
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = node_name
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if list.is_empty():
-		return instance
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
-	for quad: Dictionary in list:
-		for corner: Vector3 in triangles(quad):
-			vertices.append(corner)
-			normals.append(quad["normal"])
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
 	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh.surface_set_material(0, material)
-	instance.mesh = mesh
+	for index: int in lists.size():
+		var list: Array = lists[index]
+		if list.is_empty():
+			continue
+		var vertices: PackedVector3Array = PackedVector3Array()
+		var normals: PackedVector3Array = PackedVector3Array()
+		for quad: Dictionary in list:
+			for corner: Vector3 in triangles(quad):
+				vertices.append(corner)
+				normals.append(quad["normal"])
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = vertices
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		mesh.surface_set_material(mesh.get_surface_count() - 1, materials[index])
+	if mesh.get_surface_count() > 0:
+		instance.mesh = mesh
 	return instance
-
-
-static func _rejected(message: String) -> Dictionary:
-	return {"error": message}

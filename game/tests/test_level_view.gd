@@ -6,7 +6,8 @@ extends RefCounted
 ## data with a fallback, and the view adds no lights and reads no upper layer.
 
 const LEVEL_FILE: String = "res://data/levels/g2_level.json"
-const SCRIPT_PATHS: Array[String] = ["res://view/level_view.gd", "res://view/level_faces.gd"]
+const SCRIPT_PATHS: Array[String] = ["res://view/level_view.gd", "res://view/level_faces.gd",
+	"res://view/level_look.gd", "res://view/headlight.gd"]
 const OUTSIDE_DIRS: Array[String] = ["res://xr", "res://meta", "res://net"]
 const EPSILON: float = 1e-3
 
@@ -129,8 +130,9 @@ func test_every_quad_faces_into_its_box() -> String:
 			if result == "" and drawn.dot(quad["normal"]) <= 0.0:
 				result = "quad of box %d at %s is drawn facing out" % [quad["box"], _centre(quad)]
 	var walls: MeshInstance3D = view.get_node(LevelView.WALLS_NAME)
-	var arrays: Array = walls.mesh.surface_get_arrays(0)
-	var vertex_count: int = (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var vertex_count: int = 0
+	for surface: int in walls.mesh.get_surface_count():
+		vertex_count += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 	if result == "" and vertex_count != view.quads().size() * 6:
 		result = "wall mesh has %d vertices for %d quads" % [vertex_count, view.quads().size()]
 	view.free()
@@ -182,21 +184,28 @@ func test_the_look_is_dark_dim_and_adds_no_lights() -> String:
 	view.build(_g2())
 	for child: Node in view.find_children("*", "Light3D", true, false):
 		result = "the level view adds a light: %s" % child.name
-	var walls: StandardMaterial3D = (view.get_node(LevelView.WALLS_NAME) as MeshInstance3D).mesh.surface_get_material(0)
+	var wall_mesh: Mesh = (view.get_node(LevelView.WALLS_NAME) as MeshInstance3D).mesh
 	var edges: StandardMaterial3D = (view.get_node(LevelView.EDGES_NAME) as MeshInstance3D).mesh.surface_get_material(0)
-	if result == "" and walls.emission_enabled:
-		result = "walls glow; only the edge strips may"
+	for surface: int in wall_mesh.get_surface_count():
+		var shader: Shader = (wall_mesh.surface_get_material(surface) as ShaderMaterial).shader
+		# Walls are lit, never glowing: only the edge strips may emit.
+		if result == "" and (shader.code.contains("EMISSION") or shader.code.contains("unshaded")):
+			result = "walls glow or ignore light; only the edge strips may"
 	if result == "" and (not edges.emission_enabled or edges.emission_energy_multiplier > 1.0):
 		result = "edge strips are not dimly emissive (energy %s)" % edges.emission_energy_multiplier
-	if result == "" and walls.albedo_color != view.look()["wall_color"]:
-		result = "wall colour %s is not the look's %s" % [walls.albedo_color, view.look()["wall_color"]]
+	var world: WorldEnvironment = view.get_node(LevelView.ENVIRONMENT_NAME) as WorldEnvironment
+	if result == "" and world.environment.ambient_light_energy > 0.3:
+		result = "ambient light %s is not dark (LGT-1)" % world.environment.ambient_light_energy
 	view.free()
 	return result
 
 
 func test_a_bad_or_missing_look_falls_back_naming_the_field() -> String:
 	var good: Dictionary = {"wall_color": [0.1, 0.1, 0.1], "roughness": 0.5, "edge_color": [0.2, 0.3, 0.4],
-			"edge_energy": 0.3, "edge_width_m": 0.1}
+			"edge_energy": 0.3, "edge_width_m": 0.1, "floor_color": [0.2, 0.2, 0.2],
+			"ceiling_color": [0.05, 0.05, 0.05], "grid_spacing_m": 2.0, "grid_line_width_m": 0.05,
+			"grid_line_factor": 2.0, "fog_color": [0.0, 0.0, 0.0], "fog_density": 0.03,
+			"ambient_color": [0.2, 0.2, 0.2], "ambient_energy": 0.1}
 	if LevelView.parse_look(JSON.stringify(good)).has("error"):
 		return "a valid look was rejected: %s" % LevelView.parse_look(JSON.stringify(good))["error"]
 	var cases: Dictionary[String, Variant] = {
