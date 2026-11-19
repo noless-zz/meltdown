@@ -72,9 +72,9 @@ func test_left_handed_mirrors_boost_and_fire() -> String:
 	if not boost.afterburner or boost.thrust_q.z != -ShipInput.SCALE:
 		return "left-handed: X should boost forward, got %s" % boost.thrust_q
 	var up: ShipInput = m.map_controls(Z, Z, 0.0, 0.0, 0.0, 0.0, {"left_button_upper": true})
-	var down: ShipInput = m.map_controls(Z, Z, 0.0, 0.0, 0.0, 0.0, {"right_button_lower": true})
+	var down: ShipInput = m.map_controls(Z, Z, 0.0, 0.0, 0.0, 0.0, {"right_button_upper": true})
 	if up.thrust_q != Vector3i(0, ShipInput.SCALE, 0) or down.thrust_q != Vector3i(0, -ShipInput.SCALE, 0):
-		return "left-handed: Y should lift up and A down, got %s / %s" % [up.thrust_q, down.thrust_q]
+		return "left-handed: Y should lift up and B down, got %s / %s" % [up.thrust_q, down.thrust_q]
 	return ""
 
 

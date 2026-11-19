@@ -47,14 +47,14 @@ func test_each_axis_at_full_deflection() -> String:
 		["yaw left", _map(m, Vector2.ZERO, Vector2(-1, 0)), _expect(Vector3.ZERO, Vector3(0, yaw, 0))],
 		["pitch up", _map(m, Vector2.ZERO, Vector2(0, 1)), _expect(Vector3.ZERO, Vector3(pitch, 0, 0))],
 		["pitch down", _map(m, Vector2.ZERO, Vector2(0, -1)), _expect(Vector3.ZERO, Vector3(-pitch, 0, 0))],
-		["down", _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0, {"left_button_lower": true}),
+		["down", _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0, {"left_button_upper": true}),
 			_expect(Vector3(0, -1, 0), Vector3.ZERO)],
 		["up", _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0, {"right_button_upper": true}),
 			_expect(Vector3(0, 1, 0), Vector3.ZERO)],
 		["roll left", _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 1.0), _expect(Vector3.ZERO, Vector3(0, 0, roll))],
 		["roll right", _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 1.0), _expect(Vector3.ZERO, Vector3(0, 0, -roll))],
 		["both lift buttons cancel", _map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
-			{"left_button_lower": true, "right_button_upper": true}), ShipInput.new()],
+			{"left_button_upper": true, "right_button_upper": true}), ShipInput.new()],
 	]
 	for c: Array in cases:
 		var problem: String = _diff(c[1], c[2], c[0])
@@ -194,9 +194,9 @@ func test_a_holds_the_afterburner() -> String:
 		{"right_button_lower": false}), ShipInput.new(), "released")
 	if problem != "":
 		return problem
-	# The stick clicks and Y do nothing in the flight layout.
+	# The stick clicks and X (the comfort preset, #613) do nothing in the flight layout.
 	problem = _diff(_map(m, Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0, 0.0,
-		{"right_stick_click": true, "left_stick_click": true, "left_button_upper": true}),
+		{"right_stick_click": true, "left_stick_click": true, "left_button_lower": true}),
 		ShipInput.new(), "other buttons")
 	if problem != "":
 		return problem
