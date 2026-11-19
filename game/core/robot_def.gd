@@ -24,9 +24,12 @@ var turn_rate: float = 90.0
 ## Named movement behaviour, one of `MOVEMENTS`. The simulation maps each name
 ## to a behaviour, so a new type needs no new code unless it needs a new name.
 var movement: String = "hover"
-## Id of the weapon it fires: a file `<weapon>.json` in `WEAPONS_DIR`.
+## Id of the weapon it fires: a file `<weapon>.json` in `ROBOT_WEAPONS_DIR`.
+## Robot weapons are their own files, so tuning a robot's fire never changes
+## the ship's guns, and they are not parts a ship can slot (#612).
 var weapon: String = ""
-## Id of the weapon or part it drops when destroyed (SLV-1).
+## Id of the weapon or part it drops when destroyed (SLV-1): a file in
+## `WEAPONS_DIR`, the ship's part catalogue.
 var salvage: String = ""
 
 ## Optional movement tuning. A file may leave any of these out and gets the
@@ -63,8 +66,10 @@ const LOSE_TARGET_DEFAULT_SECONDS: float = 2.0
 ## strafe: keep its distance and circle the target sideways.
 const MOVEMENTS: Array[String] = ["hover", "chase", "strafe"]
 
-## Folder holding weapon data files, for resolving `weapon` and `salvage`.
+## Folder holding the ship's weapon data files, for resolving `salvage`.
 const WEAPONS_DIR: String = "res://data/weapons"
+## Folder holding the robots' own weapon files, for resolving `weapon`.
+const ROBOT_WEAPONS_DIR: String = "res://data/robot_weapons"
 
 ## Every key of the data file, in the order the file lists them.
 const KEYS: Array[String] = [
@@ -170,7 +175,7 @@ func set_wake_range(value: Variant) -> String:
 ## Path of the weapon data file this robot fires; the caller reads it and
 ## parses it with `WeaponDef.parse_json`.
 func weapon_path() -> String:
-	return "%s/%s.json" % [WEAPONS_DIR, weapon]
+	return "%s/%s.json" % [ROBOT_WEAPONS_DIR, weapon]
 
 
 ## True when the data gives a wake range, so the robot starts idle.

@@ -1,0 +1,10 @@
+{
+	"fire_interval_ticks": 30,
+	"projectile_speed": 60.0,
+	"lifetime": 3.0,
+	"damage": 10.0,
+	"energy_cost": 0.0,
+	"burst_shots": 1,
+	"burst_pause_ticks": 0,
+	"windup_ticks": 24
+}

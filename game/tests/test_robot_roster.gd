@@ -41,14 +41,14 @@ func test_ids_match_file_names_and_are_unique() -> String:
 	return ""
 
 
-## Every weapon a robot fires or drops is a weapon file that parses (SLV-1).
+## Every weapon a robot fires is a robot weapon file and every part it drops a
+## ship weapon file, and each parses (SLV-1, #612).
 func test_weapon_and_salvage_resolve() -> String:
 	for file: String in _robot_files():
 		var robot: RobotDef = _load(file)
-		for id: String in [robot.weapon, robot.salvage]:
-			var path: String = "%s/%s.json" % [RobotDef.WEAPONS_DIR, id]
+		for path: String in [robot.weapon_path(), "%s/%s.json" % [RobotDef.WEAPONS_DIR, robot.salvage]]:
 			if not FileAccess.file_exists(path):
-				return "%s: \"%s\" does not resolve to %s" % [file, id, path]
+				return "%s: %s does not exist" % [file, path]
 			var weapon: WeaponDef = WeaponDef.parse_json(FileAccess.get_file_as_string(path))
 			if weapon.error != "":
 				return "%s: %s" % [path, weapon.error]

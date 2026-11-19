@@ -6,6 +6,6 @@
 	"acceleration": 24.0,
 	"turn_rate": 180.0,
 	"movement": "strafe",
-	"weapon": "needle_gun",
+	"weapon": "robot_needle",
 	"salvage": "needle_gun"
 }

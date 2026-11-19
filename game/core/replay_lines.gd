@@ -159,6 +159,11 @@ static func weapon_data(weapon: WeaponDef) -> Dictionary:
 	var data: Dictionary = {}
 	for key: String in WeaponDef.KEYS:
 		data[key] = weapon.get(key)
+	# Burst keys only when set, so lines for weapons without them read exactly
+	# as before (#612).
+	if weapon.has_bursts():
+		for key: String in WeaponDef.OPTIONAL_KEYS:
+			data[key] = weapon.get(key)
 	return data
 
 
