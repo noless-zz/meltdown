@@ -1,32 +1,85 @@
 #!/usr/bin/env bash
 # Stub adb for tools/test_device_acceptance.sh. Every call is appended to
-# $STUB_ADB_LOG. `adb devices` prints $STUB_ADB_DEVICES; `logcat -d` prints
-# $STUB_GODOT_LOG; `pidof` succeeds unless $STUB_ADB_DEAD is 1. With
-# $STUB_ADB_BLANK_INSTALL=1 a streamed install fails with no reason, as in
-# playtest #210, and an install with --no-streaming succeeds.
+# $STUB_ADB_LOG; per-run counters live next to it.
+#
+# - `adb devices` prints $STUB_ADB_DEVICES.
+# - `logcat -d ... godot:V` prints $STUB_GODOT_EARLY_LOG for the first
+#   $STUB_GODOT_EARLY_POLLS polls (a suite still running), then $STUB_GODOT_LOG.
+#   Any other `logcat -d`, and the streamed `logcat -v threadtime`, print
+#   $STUB_GODOT_LOG, the stream after a "stub stream" line.
+# - `install` follows $STUB_ADB_INSTALL_SEQUENCE, a space-separated list, one
+#   entry per attempt (the last repeats): `ok`, `blank` (fails with no reason,
+#   as in #210) or `notfound` (the headset dropped off, as in #589).
+# - `wait-for-device` returns at once, or never when $STUB_ADB_WAIT is `hang`.
+# - $STUB_ADB_LOCKED: `asleep` or `keyguard` makes dumpsys say so.
+# - $STUB_ADB_BACKGROUND=1: the game's activity is never the resumed one.
+# - `pidof` succeeds unless $STUB_ADB_DEAD is 1.
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
+state="$(dirname "$STUB_ADB_LOG")"
+serial=""
 if [ "${1:-}" = "-s" ]; then
+	serial="$2"
 	shift 2
 fi
+
+# Increments the named counter and prints its new value.
+count() {
+	local file="$state/stub-$1.count" value=0
+	if [ -f "$file" ]; then
+		value="$(cat "$file")"
+	fi
+	value=$((value + 1))
+	echo "$value" > "$file"
+	echo "$value"
+}
+
 case "${1:-}" in
 	devices)
 		echo "List of devices attached"
 		printf '%b' "${STUB_ADB_DEVICES:-}"
 		echo
 		;;
-	install)
-		if [ "${STUB_ADB_BLANK_INSTALL:-0}" = "1" ] && [[ " $* " != *" --no-streaming "* ]]; then
-			echo "Performing Streamed Install"
-			echo "adb: failed to install meltdown-quest-debug.apk:" >&2
-			exit 1
+	wait-for-device)
+		if [ "${STUB_ADB_WAIT:-}" = "hang" ]; then
+			exec sleep 600
 		fi
+		;;
+	install)
+		read -r -a steps <<< "${STUB_ADB_INSTALL_SEQUENCE:-ok}"
+		attempt="$(count install)"
+		index=$((attempt - 1))
+		if [ "$index" -ge "${#steps[@]}" ]; then
+			index=$((${#steps[@]} - 1))
+		fi
+		case "${steps[$index]}" in
+			blank)
+				echo "Performing Streamed Install"
+				echo "adb: failed to install meltdown-quest-debug.apk:" >&2
+				exit 1
+				;;
+			notfound)
+				echo "adb: error: failed to get feature set: device '$serial' not found" >&2
+				echo "Performing Push Install"
+				exit 1
+				;;
+		esac
 		echo "Performing Streamed Install"
 		echo "Success"
 		;;
 	logcat)
-		if [ "${2:-}" = "-d" ] && [ -f "${STUB_GODOT_LOG:-}" ]; then
-			cat "$STUB_GODOT_LOG"
+		if [[ " $* " == *" -d "* ]]; then
+			if [[ " $* " == *" godot:V "* ]] && [ -n "${STUB_GODOT_EARLY_LOG:-}" ] \
+				&& [ "$(count poll)" -le "${STUB_GODOT_EARLY_POLLS:-0}" ]; then
+				cat "$STUB_GODOT_EARLY_LOG"
+			elif [ -f "${STUB_GODOT_LOG:-}" ]; then
+				cat "$STUB_GODOT_LOG"
+			fi
+		elif [[ " $* " == *" threadtime "* ]]; then
+			echo "stub stream"
+			if [ -f "${STUB_GODOT_LOG:-}" ]; then
+				cat "$STUB_GODOT_LOG"
+			fi
 		fi
 		;;
 	pull)
@@ -45,6 +98,31 @@ case "${1:-}" in
 					exit 1
 				fi
 				echo "4242"
+				;;
+			dumpsys)
+				case "${3:-}" in
+					power)
+						if [ "${STUB_ADB_LOCKED:-}" = "asleep" ]; then
+							echo "  mWakefulness=Asleep"
+						else
+							echo "  mWakefulness=Awake"
+						fi
+						;;
+					window)
+						if [ "${STUB_ADB_LOCKED:-}" = "keyguard" ]; then
+							echo "    isKeyguardShowing=true"
+						else
+							echo "    isKeyguardShowing=false"
+						fi
+						;;
+					activity)
+						if [ "${STUB_ADB_BACKGROUND:-0}" = "1" ]; then
+							echo "    mResumedActivity: ActivityRecord{1a2b u0 com.oculus.vrshell/.MainActivity t3}"
+						else
+							echo "    mResumedActivity: ActivityRecord{1a2b u0 io.github.nolesszz.meltdown/com.godot.game.GodotApp t12}"
+						fi
+						;;
+				esac
 				;;
 			cmd)
 				echo "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true"

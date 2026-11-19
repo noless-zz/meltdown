@@ -11,8 +11,10 @@ extra, waits for the runner's exit line in the log, and writes the reports,
 screenshots and device log to -OutDir with a result.json (see
 acceptance_common.ps1).
 
-Exit codes: 0 when the suite passed or no headset is connected (a clean skip,
-said in the output), 1 when anything failed or the report is missing.
+Exit codes: 0 when the suite passed, or nothing could run (no headset
+connected, or the headset locked or asleep: a clean skip, said in the output),
+1 when anything failed or the report is missing. What an unattended nightly
+run needs from the headset is in docs/device-acceptance.md.
 
 Runs in Windows PowerShell 5.1 with nothing beyond adb. By hand:
   powershell -ExecutionPolicy Bypass -File tools\device_acceptance.ps1 -Suite m1
@@ -26,10 +28,20 @@ param(
 	[string]$OutDir = 'build/device-acceptance/headset',
 	[int]$TimeoutSeconds = 900,
 	[int]$PollSeconds = 5,
-	[int]$ScreenshotEverySeconds = 30,
-	[int]$MaxScreenshots = 10,
+	# One more on each step line; none before the first step or after the exit line.
+	[int]$ScreenshotEverySeconds = 5,
+	[int]$MaxScreenshots = 60,
 	# A process that is gone this long after the start, with no exit line, crashed.
-	[int]$StartGraceSeconds = 30
+	[int]$StartGraceSeconds = 30,
+	# A game never in the foreground this long after the start, with no step
+	# line, is behind a lock screen or a system dialog: the run skips.
+	[int]$ForegroundGraceSeconds = 60,
+	# How long to wait for the headset to reappear on adb around an install (#589).
+	[int]$DeviceWaitSeconds = 20,
+	# Time for the display to come on after the wake-up key, before the lock check.
+	[int]$WakeSeconds = 3,
+	# The headset's log buffer, raised so start-up lines survive a busy log (#599).
+	[string]$LogBufferSize = '16M'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,6 +49,9 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 . (Join-Path $PSScriptRoot 'acceptance_common.ps1')
+. (Join-Path $PSScriptRoot 'acceptance_headset.ps1')
+$script:deviceWaitSeconds = $DeviceWaitSeconds
+$script:warnings = New-Object System.Collections.Generic.List[string]
 
 # Overridable for testing without the network or a headset (test_device_acceptance.sh).
 $releaseUrl = if ($env:MELTDOWN_RELEASE_URL) { $env:MELTDOWN_RELEASE_URL } else { 'https://github.com/noless-zz/meltdown/releases/download/main-latest' }
@@ -58,6 +73,11 @@ function Stop-Run {
 		$lines += ''
 		$lines += $Table
 	}
+	foreach ($warning in $script:warnings) {
+		$lines += ''
+		$lines += "Warning: $warning"
+		Write-Host "::warning title=Device acceptance::$warning"
+	}
 	Write-JobSummary $lines
 	if ($Status -eq 'skipped') {
 		Write-Host "::notice title=Device acceptance skipped::$Reason"
@@ -68,26 +88,6 @@ function Stop-Run {
 		exit 1
 	}
 	exit 0
-}
-
-# adb with its output as text and whether it succeeded. Errors are collected as
-# text because 5.1 would turn adb's stderr into a terminating error under 'Stop'.
-function Invoke-Adb {
-	param([string[]]$AdbArgs)
-	$previous = $ErrorActionPreference
-	$ErrorActionPreference = 'Continue'
-	try {
-		$lines = & adb @AdbArgs 2>&1 | ForEach-Object { "$_" }
-		$ok = ($LASTEXITCODE -eq 0)
-	} finally {
-		$ErrorActionPreference = $previous
-	}
-	return [pscustomobject]@{ Ok = $ok; Text = (@($lines) -join "`n") }
-}
-
-function Invoke-Device {
-	param([string[]]$AdbArgs)
-	return Invoke-Adb (@('-s', $script:serial) + $AdbArgs)
 }
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -134,39 +134,47 @@ if ($expected -ne $actual) {
 }
 Write-Host "Checksum verified: $actual"
 
-# 3. Install over the existing copy. A failure without a reason from the
-# package manager is retried once without streaming (as in playtest #210).
-$install = Invoke-Device @('install', '-r', $apkPath)
-if (-not $install.Ok -and $install.Text -notmatch 'Failure \[') {
-	Write-Host 'Install failed without a reason; retrying once with --no-streaming.'
-	$install = Invoke-Device @('install', '-r', '--no-streaming', $apkPath)
-}
+# 3. Install over the existing copy, after the headset answers on adb. A
+# failure with no reason or with the headset gone is waited out and retried
+# (#210, #589); see Install-Apk.
+$install = Install-Apk -Path $apkPath
 if (-not $install.Ok) {
-	$reason = [regex]::Match($install.Text, 'Failure \[[^\]]*\]').Value
-	if (-not $reason) {
-		$reason = 'adb gave no reason'
-	}
 	Write-Host $install.Text
-	Stop-Run 'failed' "Install failed on ${script:serial}: $reason. By hand: adb -s $script:serial install -r $apkName"
+	Stop-Run 'failed' "Install failed on ${script:serial}: $(Get-InstallFailureReason $install.Text). By hand: adb -s $script:serial install -r $apkName"
 }
 Write-Host 'Installed.'
 Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
+
+# Said whenever the headset cannot show the game, with what an unattended run needs.
+$lockAdvice = 'Put the headset on and unlock it, then run again. An unattended nightly run needs the headset left unlocked on its charger; with a lock pattern set it skips (docs/device-acceptance.md).'
 
 # 4. Keep the headset awake for the run; the finally block below restores it.
 $stayOn = (Invoke-Device @('shell', 'settings', 'get', 'global', 'stay_on_while_plugged_in')).Text.Trim()
 if ($stayOn -notmatch '^\d+$') {
 	$stayOn = '0'
 }
+$deviceLogPath = Join-Path $OutDir 'device.log'
+$stream = $null
 $godotLines = @()
 $exitCode = $null
 $shots = 0
+$foregroundShots = 0
+$blocked = $null
 try {
 	Invoke-Device @('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '7') | Out-Null
 	Invoke-Device @('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP') | Out-Null
 	# The proximity sensor would blank the display with nobody wearing the headset.
 	Invoke-Device @('shell', 'am', 'broadcast', '-a', 'com.oculus.vrpowermanager.prox_close') | Out-Null
+	Start-Sleep -Seconds $WakeSeconds
 
-	# 5. Start the game with the acceptance extra and a clean log.
+	# A locked or sleeping headset never lets the game run (#599): skip, do not hang.
+	$lock = Get-HeadsetLockReason
+	if ($lock) {
+		Stop-Run 'skipped' "Nothing ran: $lock. $lockAdvice"
+	}
+
+	# 5. Start the game with the acceptance extra, the log cleared and streamed
+	# from before the start so the engine banner and start-up lines are kept.
 	$activity = $fallbackActivity
 	$resolved = Invoke-Device @('shell', 'cmd', 'package', 'resolve-activity', '--brief', $package)
 	$last = ($resolved.Text -split "`n" | Where-Object { $_.Trim() -match '^[\w.]+/[\w.$]+$' } | Select-Object -Last 1)
@@ -174,7 +182,11 @@ try {
 		$activity = $last.Trim()
 	}
 	Invoke-Device @('shell', 'am', 'force-stop', $package) | Out-Null
+	if (-not (Invoke-Device @('logcat', '-G', $LogBufferSize)).Ok) {
+		Write-Host "The headset refused a $LogBufferSize log buffer; keeping its own size."
+	}
 	Invoke-Device @('logcat', '-c') | Out-Null
+	$stream = Start-LogStream -Path $deviceLogPath
 	Write-Host "Starting $activity with $intentExtra=$Suite"
 	$started = Invoke-Device @('shell', 'am', 'start', '-n', $activity, '--es', $intentExtra, $Suite)
 	if (-not $started.Ok -or $started.Text -match 'Error') {
@@ -182,27 +194,42 @@ try {
 		Stop-Run 'failed' "The game did not start: $(Format-Cell $started.Text)"
 	}
 
-	# 6. Wait for the exit line, taking screenshots along the way.
+	# 6. Wait for the exit line. Screenshots are taken while the suite runs:
+	# on each new step line and every $ScreenshotEverySeconds, never before the
+	# first poll or after the exit line (the owner's first run only caught the
+	# room after the game had exited, #599).
 	New-Item -ItemType Directory -Force -Path $shotDir | Out-Null
 	$clock = [Diagnostics.Stopwatch]::StartNew()
-	$nextShot = 0
+	$nextShot = $ScreenshotEverySeconds
+	$stepLines = 0
+	$seenForeground = $false
 	$crashed = $false
 	while ($true) {
 		$godotLines = (Invoke-Device @('logcat', '-d', '-v', 'raw', 'godot:V', '*:S')).Text -split "`n"
 		$exitCode = Get-AcceptanceExitCode $godotLines
+		if ($null -ne $exitCode) {
+			break
+		}
 		$elapsed = $clock.Elapsed.TotalSeconds
-		if ($shots -lt $MaxScreenshots -and ($null -ne $exitCode -or $elapsed -ge $nextShot)) {
+		$steps = @($godotLines | Where-Object { $_ -match 'Meltdown: acceptance: step ' }).Count
+		$foreground = Test-GameForeground -Package $package
+		if ($foreground) {
+			$seenForeground = $true
+		}
+		if ($shots -lt $MaxScreenshots -and ($steps -gt $stepLines -or $elapsed -ge $nextShot)) {
 			$remote = '/sdcard/meltdown-acceptance.png'
-			$shot = Join-Path $shotDir ('{0:D2}-{1:D4}s.png' -f ($shots + 1), [int]$elapsed)
+			$suffix = if ($foreground) { '' } else { '-background' }
+			$shot = Join-Path $shotDir ('{0:D2}-{1:D4}s{2}.png' -f ($shots + 1), [int]$elapsed, $suffix)
 			if ((Invoke-Device @('shell', 'screencap', '-p', $remote)).Ok -and (Invoke-Device @('pull', $remote, $shot)).Ok) {
 				$shots += 1
+				if ($foreground) {
+					$foregroundShots += 1
+				}
 			}
 			Invoke-Device @('shell', 'rm', '-f', $remote) | Out-Null
 			$nextShot = $elapsed + $ScreenshotEverySeconds
 		}
-		if ($null -ne $exitCode) {
-			break
-		}
+		$stepLines = $steps
 		if ($elapsed -ge $TimeoutSeconds) {
 			break
 		}
@@ -210,18 +237,39 @@ try {
 			$crashed = $true
 			break
 		}
+		if ($elapsed -ge $ForegroundGraceSeconds -and -not $seenForeground -and $steps -eq 0) {
+			$blocked = Get-HeadsetLockReason
+			if (-not $blocked) {
+				$blocked = 'the headset is probably locked or showing a system dialog'
+			}
+			$blocked = "the game never reached the foreground within $ForegroundGraceSeconds s ($blocked)"
+			break
+		}
 		Start-Sleep -Seconds $PollSeconds
 	}
 } finally {
 	# 7. Whatever happened: the full log, the game stopped, the headset as it was.
-	$deviceLog = Invoke-Device @('logcat', '-d', '-v', 'threadtime')
-	Write-Utf8File -Path (Join-Path $OutDir 'device.log') -Text $deviceLog.Text
+	Stop-LogStream -Process $stream -Path $deviceLogPath
+	if (-not (Test-Path -LiteralPath $deviceLogPath) -or (Get-Item -LiteralPath $deviceLogPath).Length -eq 0) {
+		# No stream (it could not start, or the run stopped before the game did):
+		# what the headset's buffer still holds.
+		$deviceLog = Invoke-Device @('logcat', '-d', '-v', 'threadtime')
+		Write-Utf8File -Path $deviceLogPath -Text $deviceLog.Text
+	}
 	Invoke-Device @('shell', 'am', 'force-stop', $package) | Out-Null
 	Invoke-Device @('shell', 'am', 'broadcast', '-a', 'com.oculus.vrpowermanager.automation_disable') | Out-Null
 	Invoke-Device @('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', $stayOn) | Out-Null
 }
 
+if ($blocked) {
+	Stop-Run 'skipped' "Nothing ran: $blocked. $lockAdvice"
+}
+
 # 8. The verdict.
+Write-Host "Screenshots: $shots, $foregroundShots with the game in the foreground"
+if ($foregroundShots -eq 0) {
+	$script:warnings.Add("no screenshot was taken while the game was in the foreground ($shots taken); the suite may have ended before the first one, or the headset showed something else.")
+}
 $problems = New-Object System.Collections.Generic.List[string]
 $reports = ConvertFrom-ReportBlocks -Blocks (Get-ReportBlocks $godotLines) -Problems $problems
 if ($null -eq $exitCode -and $reports.Count -eq 0) {
@@ -236,5 +284,4 @@ $table = $null
 if ($reports.Count -gt 0) {
 	$table = Format-ResultTable @([pscustomobject]@{ target = 'headset'; status = $verdict.Status; reason = $verdict.Reason; suites = $reports })
 }
-Write-Host "Screenshots: $shots"
 Stop-Run $verdict.Status $verdict.Reason $reports $table
