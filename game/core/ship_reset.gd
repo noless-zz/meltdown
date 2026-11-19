@@ -37,10 +37,11 @@ static func allowed(reactor: ReactorState) -> bool:
 
 
 ## Moves `ship` (index `index`) to its start at rest, unless `reactor` is in its
-## meltdown. Pose and velocity only: hull, shield and energy are kept, so a
-## reset is a way home and not a free repair. Returns whether the ship moved.
+## meltdown or destroyed (a wreck stays where it was lost, #601). Pose and
+## velocity only: hull, shield and energy are kept, so a reset is a way home
+## and not a free repair. Returns whether the ship moved.
 func apply(ship: ShipState, index: int, reactor: ReactorState) -> bool:
-	if not allowed(reactor):
+	if ship.is_destroyed() or not allowed(reactor):
 		return false
 	ship.position = positions[index]
 	ship.orientation = orientations[index]

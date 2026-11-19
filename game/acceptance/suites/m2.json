@@ -13,6 +13,13 @@
 			"replay": "res://acceptance/replays/bot_g2_level.replay",
 			"checks": ["final_hash", "robots_cleared", "ship_alive"],
 			"expected_hash": 2642121026
+		},
+		{
+			"id": "ship_destroyed_in_test_tunnel",
+			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
+			"checks": ["final_hash", "outcome", "ship_destroyed_inert"],
+			"expected_outcome": "LOST",
+			"expected_hash": 3967221294
 		}
 	]
 }

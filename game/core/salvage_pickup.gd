@@ -34,7 +34,7 @@ static func _take(sim: Sim, from: Array[Vector3]) -> void:
 	var any: bool = false
 	for i: int in sim.ships.size():
 		var ship: ShipState = sim.ships[i]
-		if ship.hull <= 0.0 or ship.escaped:
+		if ship.is_destroyed() or ship.escaped:
 			continue
 		while ship.hold_has_room():
 			var best: int = _first_reached(sim.salvage, taken, from[i], ship, i)
