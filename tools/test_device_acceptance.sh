@@ -59,6 +59,13 @@ write_log() {
 	fi
 }
 
+# The same game's log while the suite is still running: no report, no exit line.
+write_running_log() {
+	echo "Godot Engine v4.7.2.stable.official"
+	echo "Meltdown: refresh rate 90 Hz"
+	echo "Meltdown: acceptance: step basic_flight"
+}
+
 # Runs device_acceptance.ps1 in a fresh scenario. Sets $output, $status, $log
 # (the adb calls, one per line) and $out (the output folder).
 run_headset() {
@@ -72,6 +79,9 @@ run_headset() {
 			> "$dir/release/meltdown-quest-debug.apk.sha256"
 	fi
 	printf '%s\n' "$game_log" > "$dir/godot.log"
+	if [ -n "${EARLY_LOG:-}" ]; then
+		printf '%s\n' "$EARLY_LOG" > "$dir/early.log"
+	fi
 	: > "$dir/adb.log"
 	out="$dir/out"
 	status=0
@@ -81,10 +91,16 @@ run_headset() {
 		STUB_ADB_DEVICES="$devices" \
 		STUB_GODOT_LOG="$dir/godot.log" \
 		STUB_ADB_DEAD="${DEAD:-0}" \
-		STUB_ADB_BLANK_INSTALL="${BLANK_INSTALL:-0}" \
+		STUB_ADB_INSTALL_SEQUENCE="${INSTALLS:-ok}" \
+		STUB_ADB_WAIT="${WAIT:-}" \
+		STUB_ADB_LOCKED="${LOCKED:-}" \
+		STUB_ADB_BACKGROUND="${BACKGROUND:-0}" \
+		STUB_GODOT_EARLY_LOG="${EARLY_LOG:+$dir/early.log}" \
+		STUB_GODOT_EARLY_POLLS="${EARLY_POLLS:-0}" \
 		GITHUB_STEP_SUMMARY="$dir/summary.md" \
 		pwsh -NoProfile -NonInteractive -File "$tools/device_acceptance.ps1" \
-		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds 3 2>&1)" || status=$?
+		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds 3 \
+		-WakeSeconds 0 -ForegroundGraceSeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
 }
 
@@ -109,19 +125,72 @@ else
 	fail "checksum mismatch: fails and installs nothing"
 fi
 
-# A passing suite.
-run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+# Line number of the first adb call matching $1, or 999999 when there is none.
+line_of() {
+	local found
+	found="$(grep -n -m 1 -- "$1" <<< "$log" | cut -d: -f1)"
+	echo "${found:-999999}"
+}
+
+# A passing suite, still running for two polls. Screenshots come while it runs
+# and show the game; the log is cleared, enlarged and streamed before the start.
+EARLY_LOG="$(write_running_log)" EARLY_POLLS=2 \
+	run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
 if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] && [ -f "$out/m1.json" ] \
-	&& [ -f "$out/device.log" ] && compgen -G "$out/screenshots/*.png" > /dev/null \
+	&& compgen -G "$out/screenshots/01-*s.png" > /dev/null \
+	&& ! compgen -G "$out/screenshots/*-background.png" > /dev/null \
+	&& ! grep -q "no screenshot was taken" <<< "$output" \
+	&& grep -q "stub stream" "$out/device.log" && grep -q "Godot Engine" "$out/device.log" \
+	&& [ "$(line_of "wait-for-device")" -lt "$(line_of "install -r")" ] \
+	&& [ "$(line_of "logcat -G 16M")" -lt "$(line_of "logcat -c")" ] \
+	&& [ "$(line_of "logcat -c")" -lt "$(line_of "logcat -v threadtime")" ] \
+	&& [ "$(line_of "logcat -v threadtime")" -lt "$(line_of "am start")" ] \
 	&& grep -q -- "-s SERIAL1 install -r" <<< "$log" \
 	&& grep -q -- "am start -n io.github.nolesszz.meltdown/com.godot.game.GodotApp --es meltdown_acceptance m1" <<< "$log" \
 	&& grep -q -- "settings put global stay_on_while_plugged_in 7" <<< "$log" \
 	&& grep -q -- "settings put global stay_on_while_plugged_in 2" <<< "$log" \
 	&& grep -q -- "automation_disable" <<< "$log" \
 	&& grep -q "| m1 | basic_flight | pass |" <<< "$output"; then
-	pass "passing suite: report, log, screenshot, table, headset restored"
+	pass "passing suite: report, streamed log, screenshot in game, table, headset restored"
 else
-	fail "passing suite: report, log, screenshot, table, headset restored"
+	fail "passing suite: report, streamed log, screenshot in game, table, headset restored"
+fi
+
+# A suite that ends before the first screenshot: no picture of whatever the
+# headset shows after the game exits, and the summary warns.
+run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
+	&& ! compgen -G "$out/screenshots/*.png" > /dev/null \
+	&& grep -q "Warning: no screenshot was taken while the game was in the foreground" "$(dirname "$out")/summary.md" \
+	&& grep -q "::warning" <<< "$output"; then
+	pass "suite ends before the first screenshot: none taken after the exit, summary warns"
+else
+	fail "suite ends before the first screenshot: none taken after the exit, summary warns"
+fi
+
+# A locked or sleeping headset: a clean skip that says so, nothing started, the headset restored.
+for lock in keyguard asleep; do
+	LOCKED="$lock" run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+	if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "skipped" ] \
+		&& grep -q "Put the headset on and unlock it" <<< "$output" \
+		&& grep -q "unattended nightly run needs the headset left unlocked" <<< "$output" \
+		&& ! grep -q "am start" <<< "$log" && grep -q -- "stay_on_while_plugged_in 2" <<< "$log"; then
+		pass "headset $lock: skipped with exit 0, nothing started, headset restored"
+	else
+		fail "headset $lock: skipped with exit 0, nothing started, headset restored"
+	fi
+done
+
+# A lock the dumpsys flags miss: the game never reaches the foreground and no
+# step starts, so the run skips instead of waiting out the timeout.
+BACKGROUND=1 EARLY_LOG="Godot Engine v4.7.2.stable.official" EARLY_POLLS=99 \
+	run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "skipped" ] \
+	&& grep -q "never reached the foreground" <<< "$output" \
+	&& grep -q -- "stay_on_while_plugged_in 2" <<< "$log"; then
+	pass "game never in the foreground: skipped with exit 0, headset restored"
+else
+	fail "game never in the foreground: skipped with exit 0, headset restored"
 fi
 
 # A failing step fails the job and is named.
@@ -141,12 +210,36 @@ else
 	fail "no report: exit 1 and the headset is restored"
 fi
 
-# An install that fails without a reason is retried once without streaming.
-BLANK_INSTALL=1 run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
-if [ "$status" -eq 0 ] && grep -q -- "install -r --no-streaming" <<< "$log"; then
-	pass "blank install failure: retried with --no-streaming"
+# An install that fails without a reason, then with the headset gone (#589,
+# #590), waits for the headset each time and goes on to the suite.
+INSTALLS="blank notfound ok" run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
+	&& [ "$(grep -c -- "install -r --no-streaming" <<< "$log")" -eq 2 ] \
+	&& [ "$(grep -c -- "wait-for-device" <<< "$log")" -eq 3 ] \
+	&& grep -q "dropped off USB for a moment; waiting" <<< "$output" \
+	&& grep -q "am start" <<< "$log"; then
+	pass "blank, then not found, then installed: waits, retries and runs the suite"
 else
-	fail "blank install failure: retried with --no-streaming"
+	fail "blank, then not found, then installed: waits, retries and runs the suite"
+fi
+
+# A headset that stays gone fails the install with the plain message, not the suite.
+INSTALLS="notfound" run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 1 ] && [ "$(status_of "$out")" = "failed" ] \
+	&& grep -q "Install failed on SERIAL1: the headset dropped off USB for a moment and was not back in time" <<< "$output" \
+	&& [ "$(grep -c -- "install -r" <<< "$log")" -eq 3 ] && ! grep -q "am start" <<< "$log"; then
+	pass "headset never back: install fails with the plain message after two retries"
+else
+	fail "headset never back: install fails with the plain message after two retries"
+fi
+
+# A headset that never reappears for wait-for-device is given up on in time.
+WAIT=hang DEVICE_WAIT=1 run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 1 ] && grep -q "Install failed on SERIAL1: the headset dropped off USB" <<< "$output" \
+	&& ! grep -q "install -r" <<< "$log"; then
+	pass "wait-for-device hangs: gives up after the wait, installs nothing"
+else
+	fail "wait-for-device hangs: gives up after the wait, installs nothing"
 fi
 
 # The simulator job skips cleanly away from Windows.
