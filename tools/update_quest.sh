@@ -17,6 +17,12 @@ set -euo pipefail
 # Overridable so tools/test_update_quest.sh can run without the network.
 release_url="${MELTDOWN_RELEASE_URL:-https://github.com/noless-zz/meltdown/releases/download/main-latest}"
 release_api="${MELTDOWN_RELEASE_API:-https://api.github.com/repos/noless-zz/meltdown/releases/tags/main-latest}"
+# How long to wait for a headset to (re)appear on adb before an install
+# attempt (#589). A headset just plugged in or woken drops off adb for a few
+# seconds; 20 s covers that without hanging on one that is really gone.
+device_wait_seconds="${MELTDOWN_DEVICE_WAIT_SECONDS:-20}"
+# Retries after a failure with no reason, `not found` or `offline` (#589).
+install_retries=2
 
 apk_name="meltdown-quest-debug.apk"
 package="io.github.nolesszz.meltdown"
@@ -99,20 +105,65 @@ if curl -fsSL -o "$work/release.json" "$release_api" 2> /dev/null; then
 	built="${built:-Built: unknown}"
 fi
 
-# A failure with no `Failure [...]` part has been seen once on a headset that
-# then took the same APK by hand (#210), so it is retried once without
-# streaming. A failure with a reason is not retried: the reason will not
-# change. Sets $output to the last attempt's text.
+# Waits up to $device_wait_seconds for adb to list the headset again, then
+# runs a trivial shell command to wake the connection (#589). `adb
+# wait-for-device` has no timeout of its own, and macOS has no `timeout`, so
+# it runs in the background and is stopped when time is up.
+wait_for_device() {
+	local serial="$1"
+	local ticks=$((device_wait_seconds * 5))
+	local pid
+	adb -s "$serial" wait-for-device > /dev/null 2>&1 &
+	pid=$!
+	while kill -0 "$pid" 2> /dev/null; do
+		if [ "$ticks" -le 0 ]; then
+			kill "$pid" 2> /dev/null || true
+			wait "$pid" 2> /dev/null || true
+			return 1
+		fi
+		sleep 0.2
+		ticks=$((ticks - 1))
+	done
+	wait "$pid" || return 1
+	adb -s "$serial" shell true > /dev/null 2>&1
+}
+
+# adb's text when the headset was not on adb at that moment (#589).
+dropped_off() {
+	grep -qE "device( '[^']*')? not found|device offline|did not come back" <<< "$1"
+}
+
+# A failure with no `Failure [...]` part (#210), or with the headset `not
+# found` or `offline` (#589), is the headset dropping off adb for a moment
+# after being plugged in or woken. So the script waits for the headset and
+# retries without streaming, up to $install_retries times. A failure with a
+# reason is not retried: the reason will not change. Sets $output to the last
+# attempt's text.
 install_apk() {
 	local serial="$1"
+	local attempt=0
 	if output="$(adb -s "$serial" install -r "$work/$apk_name" 2>&1)"; then
 		return 0
 	fi
-	if grep -q 'Failure \[' <<< "$output"; then
-		return 1
-	fi
-	echo "  adb gave no reason; trying once more with --no-streaming..."
-	output="$(adb -s "$serial" install -r --no-streaming "$work/$apk_name" 2>&1)"
+	while [ "$attempt" -lt "$install_retries" ]; do
+		if grep -q 'Failure \[' <<< "$output"; then
+			return 1
+		fi
+		attempt=$((attempt + 1))
+		if dropped_off "$output"; then
+			echo "  The headset dropped off USB for a moment; waiting for it, then trying again with --no-streaming..."
+		else
+			echo "  adb gave no reason; waiting for the headset, then trying again with --no-streaming..."
+		fi
+		if ! wait_for_device "$serial"; then
+			output="$output"$'\n'"The headset did not come back within $device_wait_seconds s."
+			return 1
+		fi
+		if output="$(adb -s "$serial" install -r --no-streaming "$work/$apk_name" 2>&1)"; then
+			return 0
+		fi
+	done
+	return 1
 }
 
 # Always ends with adb's reason, or a plain statement that it gave none, and
@@ -127,6 +178,9 @@ report_failure() {
 	reason="$(grep -o 'Failure \[.*\]' <<< "$output" | head -n 1 || true)"
 	if [ -n "$reason" ]; then
 		echo "  Reason: $reason" >&2
+	elif dropped_off "$output"; then
+		echo "  Reason: the headset dropped off USB for a moment and was not back in time." >&2
+		echo "  Check the cable and that the headset is awake, then run this again." >&2
 	else
 		echo "  adb gave no reason." >&2
 	fi
@@ -138,6 +192,10 @@ failed=0
 installed=()
 for serial in "${serials[@]}"; do
 	echo "Installing on $serial..."
+	# Wakes the connection first: the first install after plugging in or
+	# waking the headset used to land in its drop-off gap (#589). A headset
+	# that does not answer still gets the install attempt and its retries.
+	wait_for_device "$serial" || true
 	if install_apk "$serial"; then
 		installed+=("$serial")
 		echo "  Installed."

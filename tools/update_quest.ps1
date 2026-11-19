@@ -36,6 +36,13 @@ $ProgressPreference = 'SilentlyContinue'
 $releaseUrl = if ($env:MELTDOWN_RELEASE_URL) { $env:MELTDOWN_RELEASE_URL } else { 'https://github.com/noless-zz/meltdown/releases/download/main-latest' }
 $releaseApi = if ($env:MELTDOWN_RELEASE_API) { $env:MELTDOWN_RELEASE_API } else { 'https://api.github.com/repos/noless-zz/meltdown/releases/tags/main-latest' }
 
+# How long to wait for a headset to (re)appear on adb before an install
+# attempt (#589). A headset just plugged in or woken drops off adb for a few
+# seconds; 20 s covers that without hanging on one that is really gone.
+$deviceWaitSeconds = if ($env:MELTDOWN_DEVICE_WAIT_SECONDS) { [int]$env:MELTDOWN_DEVICE_WAIT_SECONDS } else { 20 }
+# Retries after a failure with no reason, `not found` or `offline` (#589).
+$installRetries = 2
+
 $apkName = 'meltdown-quest-debug.apk'
 $package = 'io.github.nolesszz.meltdown'
 
@@ -60,18 +67,57 @@ function Invoke-Adb {
 	return [pscustomobject]@{ Ok = $ok; Text = ($lines -join "`n") }
 }
 
-# A failure with no `Failure [...]` part has been seen once on a headset that
-# then took the same APK by hand (#210), so it is retried once without
-# streaming. A failure with a reason is not retried: the reason will not change.
-# Returns the last attempt's result.
+# Waits up to $deviceWaitSeconds for adb to list the headset again, then runs a
+# trivial shell command to wake the connection (#589). `adb wait-for-device`
+# has no timeout of its own, so it runs as a process that is stopped when time
+# is up. Returns whether the headset answered.
+function Wait-Device {
+	param([string]$Serial)
+	$info = New-Object System.Diagnostics.ProcessStartInfo
+	$info.FileName = (Get-Command adb).Path
+	$info.Arguments = "-s $Serial wait-for-device"
+	$info.UseShellExecute = $false
+	$info.CreateNoWindow = $true
+	$process = [System.Diagnostics.Process]::Start($info)
+	if (-not $process.WaitForExit($deviceWaitSeconds * 1000)) {
+		try { $process.Kill() } catch { }
+		return $false
+	}
+	if ($process.ExitCode -ne 0) {
+		return $false
+	}
+	return (Invoke-Adb @('-s', $Serial, 'shell', 'true')).Ok
+}
+
+# adb's text when the headset was not on adb at that moment (#589).
+function Test-DroppedOff {
+	param([string]$Text)
+	return ($Text -match "device( '[^']*')? not found|device offline|did not come back")
+}
+
+# A failure with no `Failure [...]` part (#210), or with the headset `not found`
+# or `offline` (#589), is the headset dropping off adb for a moment after being
+# plugged in or woken. So it waits for the headset and retries without
+# streaming, up to $installRetries times. A failure with a reason is not
+# retried: the reason will not change. Returns the last attempt's result.
 function Install-Apk {
 	param([string]$Serial, [string]$Path)
 	$result = Invoke-Adb @('-s', $Serial, 'install', '-r', $Path)
-	if ($result.Ok -or $result.Text -match 'Failure \[') {
-		return $result
+	for ($attempt = 1; $attempt -le $installRetries; $attempt++) {
+		if ($result.Ok -or $result.Text -match 'Failure \[') {
+			return $result
+		}
+		if (Test-DroppedOff $result.Text) {
+			Write-Host '  The headset dropped off USB for a moment; waiting for it, then trying again with --no-streaming...' -ForegroundColor Yellow
+		} else {
+			Write-Host '  adb gave no reason; waiting for the headset, then trying again with --no-streaming...' -ForegroundColor Yellow
+		}
+		if (-not (Wait-Device -Serial $Serial)) {
+			return [pscustomobject]@{ Ok = $false; Text = ($result.Text + "`nThe headset did not come back within $deviceWaitSeconds s.") }
+		}
+		$result = Invoke-Adb @('-s', $Serial, 'install', '-r', '--no-streaming', $Path)
 	}
-	Write-Host '  adb gave no reason; trying once more with --no-streaming...' -ForegroundColor Yellow
-	return Invoke-Adb @('-s', $Serial, 'install', '-r', '--no-streaming', $Path)
+	return $result
 }
 
 # Always ends with adb's reason, or a plain statement that it gave none, and
@@ -85,6 +131,9 @@ function Write-InstallFailure {
 	$match = [regex]::Match($Text, 'Failure \[.*\]')
 	if ($match.Success) {
 		Write-Host "  Reason: $($match.Value)" -ForegroundColor Red
+	} elseif (Test-DroppedOff $Text) {
+		Write-Host '  Reason: the headset dropped off USB for a moment and was not back in time.' -ForegroundColor Red
+		Write-Host '  Check the cable and that the headset is awake, then run this again.' -ForegroundColor Red
 	} else {
 		Write-Host '  adb gave no reason.' -ForegroundColor Red
 	}
@@ -145,6 +194,10 @@ try {
 	$installed = @()
 	foreach ($serial in $serials) {
 		Write-Host "Installing on $serial..."
+		# Wakes the connection first: the first install after plugging in or
+		# waking the headset used to land in its drop-off gap (#589). A headset
+		# that does not answer still gets the install attempt and its retries.
+		Wait-Device -Serial $serial | Out-Null
 		$result = Install-Apk -Serial $serial -Path $apkPath
 		if (-not $result.Ok -and $result.Text -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
 			Write-Host "  The copy on $serial has a different signature, so it cannot be updated in place." -ForegroundColor Yellow

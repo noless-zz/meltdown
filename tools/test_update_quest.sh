@@ -53,6 +53,9 @@ run_scenario() {
 		STUB_ADB_DEVICES="$devices" \
 		STUB_ADB_INCOMPATIBLE="${INCOMPATIBLE:-0}" \
 		STUB_ADB_BLANK="${BLANK:-}" \
+		STUB_ADB_SEQUENCE="${SEQUENCE:-}" \
+		STUB_ADB_WAIT="${WAIT:-}" \
+		MELTDOWN_DEVICE_WAIT_SECONDS=1 \
 		TMPDIR="$tmp" \
 		"$script" "$@" 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
@@ -146,17 +149,18 @@ else
 	fail "a failure with a reason prints it and the manual command (status $status)"
 fi
 
-# #210: adb fails with a blank reason on both attempts.
+# #210: adb fails with a blank reason on every attempt. Since #589 it is
+# retried twice, not once.
 BLANK=always run_scenario "$one"
 kept="$(find "$tmp" -name meltdown-quest-debug.apk)"
 if [ "$status" -ne 0 ] \
 	&& [ "$(count_lines "^-s QUEST3A install -r /")" -eq 1 ] \
-	&& [ "$(count_lines "^-s QUEST3A install -r --no-streaming /")" -eq 1 ] \
+	&& [ "$(count_lines "^-s QUEST3A install -r --no-streaming /")" -eq 2 ] \
 	&& grep -qxF "  adb gave no reason." <<< "$output" \
 	&& ! grep -qxF "  Installed." <<< "$output"; then
-	pass "a blank failure is retried once without streaming, then says adb gave no reason"
+	pass "a blank failure is retried twice without streaming, then says adb gave no reason"
 else
-	fail "a blank failure is retried once without streaming, then says adb gave no reason (status $status)"
+	fail "a blank failure is retried twice without streaming, then says adb gave no reason (status $status)"
 fi
 if [ -n "$kept" ] && grep -qxF "  To try by hand: adb -s QUEST3A install -r \"$kept\"" <<< "$output"; then
 	pass "a failed install prints the manual command and keeps the APK it names"
@@ -175,6 +179,58 @@ if [ "$status" -eq 0 ] \
 	pass "a blank streamed failure that works without streaming reports Installed."
 else
 	fail "a blank streamed failure that works without streaming reports Installed. (status $status)"
+fi
+
+# #589: the connection is woken before the first install: wait, wake, install.
+run_scenario "$one"
+order="$(grep -E "^-s QUEST3A (wait-for-device|shell true|install)" <<< "$log" | cut -d' ' -f3- | cut -d' ' -f1-2)"
+if [ "$status" -eq 0 ] && [ "$order" = $'wait-for-device\nshell true\ninstall -r' ]; then
+	pass "waits for the headset and wakes it before the first install"
+else
+	fail "waits for the headset and wakes it before the first install (order: ${order//$'\n'/, })"
+fi
+
+# #589: blank, then `not found`, then success, as on the owner's headset.
+SEQUENCE="blank notfound ok" run_scenario "$one"
+order="$(grep -E "^-s QUEST3A (wait-for-device|install)" <<< "$log" | cut -d' ' -f3)"
+if [ "$status" -eq 0 ] \
+	&& [ "$(count_lines " install -r ")" -eq 3 ] \
+	&& [ "$order" = $'wait-for-device\ninstall\nwait-for-device\ninstall\nwait-for-device\ninstall' ] \
+	&& grep -qxF "  Installed." <<< "$output" \
+	&& ! grep -q "Install failed" <<< "$output"; then
+	pass "a headset that drops off and comes back is waited for and installed"
+else
+	fail "a headset that drops off and comes back is waited for and installed (status $status)"
+fi
+
+# #589: the headset stays `not found`: the plain reason, the manual command
+# and the kept download; never more than two retries.
+for gone in notfound offline; do
+	SEQUENCE="$gone" run_scenario "$one"
+	kept="$(find "$tmp" -name meltdown-quest-debug.apk)"
+	if [ "$status" -ne 0 ] \
+		&& [ "$(count_lines " install -r ")" -eq 3 ] \
+		&& grep -q "the headset dropped off USB for a moment" <<< "$output" \
+		&& ! grep -q "adb gave no reason" <<< "$output" \
+		&& [ -n "$kept" ] \
+		&& grep -qxF "  To try by hand: adb -s QUEST3A install -r \"$kept\"" <<< "$output"; then
+		pass "a headset that stays $gone gets the plain reason and the manual command"
+	else
+		fail "a headset that stays $gone gets the plain reason and the manual command (status $status)"
+	fi
+done
+
+# #589: the wait is bounded; a headset that never comes back does not hang.
+started="$(date +%s)"
+SEQUENCE="notfound" WAIT=hang run_scenario "$one"
+took=$(($(date +%s) - started))
+if [ "$status" -ne 0 ] && [ "$took" -lt 10 ] \
+	&& [ "$(count_lines " install -r ")" -eq 1 ] \
+	&& grep -q "did not come back within 1 s" <<< "$output" \
+	&& grep -q "the headset dropped off USB for a moment" <<< "$output"; then
+	pass "the wait for the headset gives up after the named time"
+else
+	fail "the wait for the headset gives up after the named time (status $status, ${took} s)"
 fi
 
 # No headset at all.
