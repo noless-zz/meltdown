@@ -9,17 +9,15 @@ extends Node3D
 ## simulated motion (CMF-8). The rig reads copies of the ship and never writes
 ## simulation state (MP-2, ARC-3).
 
-## Where the test tunnel sits relative to the simulation origin, where the ship starts:
-## 1 m below, the ship's radius, so the first tick does not push it off the floor.
-const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
-## The ship's feel values, tuned after headset sessions without code changes.
-const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
-const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  # (#228)
+## Kept here, where tests read them, since #616 moved them to `LevelStart`.
+const TUNNEL_OFFSET: Vector3 = LevelStart.TUNNEL_OFFSET
+const SHIP_TUNING_PATH: String = LevelStart.SHIP_TUNING_PATH
+const ROBOT_SPAWNS_PATH: String = LevelStart.ROBOT_SPAWNS_PATH
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
-## The test tunnel's walls (FLT-3), tuning file, robots and parts (#320); `tunnel_session`.
-var session: LocalSession = tunnel_session(input_source)
+## The test tunnel's session until `use_level` replaces it (`LevelStart.tunnel_session`).
+var session: LocalSession = LevelStart.tunnel_session(input_source)
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
@@ -57,9 +55,9 @@ var meltdown: MeltdownWiring = MeltdownWiring.new()
 var pickup_hint: PickupHint = PickupHint.load_file()
 ## Asks the headset for the preset's refresh rate and reads back the rate in use (#598).
 var refresh_rate: RefreshRate = RefreshRate.new()
-## SHIP DESTROYED, the restart, and the low-hull and shield-break pulses (#616).
+## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
 var destroyed: DestroyedWiring = DestroyedWiring.new()
-var _level_source: String = ""
+var level_start: LevelStart = LevelStart.new()
 
 
 func _ready() -> void:
@@ -89,8 +87,8 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	_level_source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
-	use_level(_level_source)
+	level_start.source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	use_level(level_start.source)
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
@@ -127,8 +125,6 @@ func sample_controls() -> Dictionary:
 	var values: Dictionary = keyboard.sample(pressed)
 	if Input.is_physical_key_pressed(ResetHold.KEYBOARD_KEY):
 		values["buttons"][ResetHold.KEYBOARD_BUTTON] = true
-	if Input.is_physical_key_pressed(DestroyedWiring.KEYBOARD_KEY):
-		values["buttons"][DestroyedWiring.KEYBOARD_BUTTON] = true
 	return values
 
 
@@ -200,28 +196,18 @@ func _end_one_tick_if_flown() -> void:
 ## level drawn where the tunnel was. Call it before the first frame. Returns
 ## false, leaving the tunnel and its session, for "" or a rejected file.
 func use_level(path: String) -> bool:
-	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
-	if level == null:
-		return false
-	session = LocalSession.for_level(level, 0, input_source, LocalSession.load_tuning(SHIP_TUNING_PATH))
-	LevelSwitch.show_level(self, level)
-	return true
+	var fresh: LocalSession = LevelStart.level_session(self, path, input_source)
+	session = fresh if fresh != null else session
+	return fresh != null
 
 
 ## Flies the level again from its start (#616) through the launch's loading path (MP-2).
 func restart_level() -> void:
 	var paused: bool = session.paused
-	if not use_level(_level_source):
-		session = tunnel_session(input_source)
+	session = level_start.fresh_session(self, input_source)
 	session.paused = paused
 	meltdown.attach(self, session)
 	head_recentre.request()
-
-
-static func tunnel_session(source: LatestInputSource) -> LocalSession:
-	return LocalSession.new(0, source, TestTunnel.interior_box(TUNNEL_OFFSET),
-		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
-		null, LocalSession.load_parts())
 
 
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.

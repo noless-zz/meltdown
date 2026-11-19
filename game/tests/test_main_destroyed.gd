@@ -79,7 +79,7 @@ func test_a_restart_keeps_the_level_the_launch_flew() -> String:
 	var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	main.get_node("XRRig").call("build")
 	main.call("_ready")
-	main.set("_level_source", "res://data/levels/g2_level.json")
+	(main.get("level_start") as LevelStart).source = "res://data/levels/g2_level.json"
 	main.call("restart_level")
 	var session: LocalSession = main.get("session")
 	var has_view: bool = main.get_node_or_null(LevelView.NODE_NAME) != null

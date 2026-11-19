@@ -11,8 +11,8 @@ extends RefCounted
 
 ## The A button, on the right Touch controller in either hand mode.
 const RESTART_BUTTON: String = "right_button_lower"
-## The flat build's restart key, and the button name `main.gd` sets while it
-## is held, the way `ResetHold` reads Backspace.
+## The flat build's restart key, read here so `main.gd` stays short, and the
+## button name that counts as it, so tests can press it without a keyboard.
 const KEYBOARD_KEY: Key = KEY_ENTER
 const KEYBOARD_BUTTON: String = "restart_key"
 
@@ -37,7 +37,8 @@ func attach(rig: Node3D, left: XRController3D, right: XRController3D) -> void:
 
 ## Reads this frame's buttons: A, or Enter in the flat build, restarts.
 func read_buttons(buttons: Dictionary) -> void:
-	_restart_held = bool(buttons.get(RESTART_BUTTON, false)) or bool(buttons.get(KEYBOARD_BUTTON, false))
+	_restart_held = bool(buttons.get(RESTART_BUTTON, false)) or bool(buttons.get(KEYBOARD_BUTTON, false)) \
+		or Input.is_physical_key_pressed(KEYBOARD_KEY)
 
 
 ## Once per frame after the ticks. Runs the warnings and the sequence from a
