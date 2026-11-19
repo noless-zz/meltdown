@@ -58,6 +58,8 @@ var combat: CombatWiring = CombatWiring.new()
 var map: MapWiring = MapWiring.new()
 ## The reactor, the meltdown countdown and the outcome row (#359, RUN-2, RUN-5).
 var meltdown: MeltdownWiring = MeltdownWiring.new()
+## When the slot label says to fly through a part to pick it up (#606, #600).
+var pickup_hint: PickupHint = PickupHint.load_file()
 
 
 func _ready() -> void:
@@ -163,6 +165,7 @@ func advance_frame(delta_seconds: float) -> void:
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 	place_rig()
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
+	$XRRig.pickup_hint = pickup_hint.is_due(session.current_ship(), session.current_salvage())  # View only.
 	map.update(session, delta_seconds, comfort.shared_click_hold())
 	meltdown.update(session, status_panel)
 	update_status_panel(delta_seconds)
