@@ -14,14 +14,15 @@ extends RefCounted
 ## - left grip rolls left, right grip rolls right
 ## - right trigger fires the primary weapon (CMB-1); the left trigger is kept
 ##   for the secondary weapon and is unbound until secondaries exist
-## - B (right upper) moves up, X (left lower) moves down
+## - B (right upper) moves up, Y (left upper) moves down, so the two mirror
+##   (#613); both are on/off for now and may change
 ## - A (right lower) holds the afterburner (FLT-2), which also gives full
 ##   forward thrust unless the stick is pulled back
 ## - the right stick click slots the part in the hold into a primary slot
 ##   (SLV-1, #312), a stand-in until a hand gesture is designed
-## - Y (left upper) is the comfort preset button, read outside this mapping;
-##   the left stick click shows and hides the labels, also read outside this
-##   mapping (#181)
+## - X (left lower) is the comfort preset button (`PRESET_BUTTON`), read
+##   outside this mapping; the left stick click shows and hides the labels,
+##   also read outside this mapping (#181)
 ## - holding the left stick click for `MapHologram.HOLD_SECONDS` shows the
 ##   map hologram (`show_map`, MAP-1, #314); a shorter click still toggles
 ##   the labels, on release
@@ -83,6 +84,11 @@ const BUTTONS: Array[String] = [
 	"left_stick_click", "right_stick_click",
 ]
 
+## The comfort preset button in right-handed mode: X, the lower face button of
+## the hand that does not turn (decision record 0004, #613). It is not a
+## flight control, so no layout binds it; `preset_button` swaps its hand.
+const PRESET_BUTTON: String = "left_button_lower"
+
 const LAYOUTS_DIR: String = "res://xr/layouts"
 ## Today's built-in layout as a file; must equal `default_layout()`.
 const DEFAULT_LAYOUT_FILE: String = LAYOUTS_DIR + "/thumbsticks_default.json"
@@ -111,8 +117,9 @@ static func default_layout() -> Dictionary:
 		"yaw": {"right_stick_x": 1.0},
 		"pitch": {"right_stick_y": 1.0},
 		"roll": {"left_grip": -1.0, "right_grip": 1.0},
-		# Face buttons rather than triggers, which fire (decision record 0004).
-		"lift": {"left_button_lower": -1.0, "right_button_upper": 1.0},
+		# The upper face buttons, rather than triggers, which fire: down on Y
+		# mirrors up on B (decision record 0004, #613).
+		"lift": {"left_button_upper": -1.0, "right_button_upper": 1.0},
 		# A, away from the thumb that holds the left stick forward (#149).
 		"afterburner": {"right_button_lower": 1.0},
 		"fire_primary": {"right_trigger": 1.0},
@@ -240,6 +247,12 @@ func action_held(action: String, buttons: Dictionary) -> bool:
 	if left_handed:
 		controls = _swap_hands(controls)
 	return _axis_value(controls, action) >= BUTTON_THRESHOLD
+
+
+## The physical comfort preset button for this hand setting: X, or A when
+## left-handed.
+func preset_button() -> String:
+	return str(_swap_hands({PRESET_BUTTON: 0.0}).keys()[0]) if left_handed else PRESET_BUTTON
 
 
 ## The physical controls that drive `action`, after left-handed mode moves

@@ -3,7 +3,7 @@
 	"forward": {"left_stick_y": 1.0},
 	"yaw": {"right_stick_x": 1.0},
 	"pitch": {"right_stick_y": 1.0},
-	"roll": {"left_button_lower": -1.0, "left_grip": 1.0},
+	"roll": {"left_button_upper": -1.0, "left_grip": 1.0},
 	"lift": {"right_button_upper": 1.0, "right_grip": -1.0},
 	"afterburner": {"right_button_lower": 1.0},
 	"fire_primary": {"right_trigger": 1.0},

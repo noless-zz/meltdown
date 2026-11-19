@@ -67,11 +67,11 @@ func test_the_preset_button_swaps_the_frame_at_once() -> String:
 	var frame_before: CockpitFrame = comfort.cockpit_frame
 	var spec_before: CockpitSpec = frame_before.spec
 	var values: Dictionary = ControllerSampler.idle_values()
-	values["buttons"] = {"left_button_upper": true}
+	values["buttons"] = {"left_button_lower": true}
 	main.call("apply_controls", values)
 	var message: String = ""
 	if comfort.number != 2:
-		message = "Y on preset 1 gave preset %d" % comfort.number
+		message = "X on preset 1 gave preset %d" % comfort.number
 	elif comfort.cockpit_frame != frame_before:
 		message = "the switch replaced the frame node instead of rebuilding it"
 	elif comfort.cockpit_frame.spec == spec_before:

@@ -9,7 +9,7 @@ extends RefCounted
 ## shape:
 ## - W / S: forward / back (left stick y)
 ## - A / D: strafe left / right (left stick x)
-## - R / F: up / down (B / X, decision record 0004)
+## - R / F: up / down (B / Y, decision record 0004)
 ## - Up / Down arrow: nose up / down (right stick y; `invert_pitch` flips it)
 ## - Left / Right arrow: yaw left / right (right stick x)
 ## - Q / E: roll left / right (left / right grip)
@@ -35,7 +35,7 @@ static func default_bindings() -> Dictionary[int, Array]:
 		KEY_D: ["left_stick_x", 1.0],
 		KEY_A: ["left_stick_x", -1.0],
 		KEY_R: ["right_button_upper", 1.0],
-		KEY_F: ["left_button_lower", 1.0],
+		KEY_F: ["left_button_upper", 1.0],
 		KEY_SPACE: ["right_trigger", 1.0],
 		KEY_UP: ["right_stick_y", 1.0],
 		KEY_DOWN: ["right_stick_y", -1.0],

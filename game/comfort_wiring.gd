@@ -104,11 +104,11 @@ func cockpit_spec() -> CockpitSpec:
 	return spec
 
 
-## The development preset switch: the upper face button of the hand that does
-## not turn (Y, or B when left-handed). Read here rather than bound in the
-## mapping, since it is not a flight control and a settings menu replaces it.
+## The development preset switch: the lower face button of the hand that does
+## not turn (X, or A when left-handed; #613). Read here rather than bound in
+## the layout, since it is not a flight control and a settings menu replaces it.
 func preset_button() -> String:
-	return "right_button_upper" if _mapping.left_handed else "left_button_upper"
+	return _mapping.preset_button()
 
 
 ## Moves to the next preset on the frame the preset button goes down.

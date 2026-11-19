@@ -55,8 +55,8 @@ func test_control_labels_are_inside_the_anchored_window() -> String:
 	# Each label's rectangle in tangent units, eye at the origin looking along -z.
 	var rects: Dictionary = LABEL_LAYOUT._view_rects(rig)
 	rig.free()
-	if rects.size() != 13:
-		return "want the 13 default labels, measured %d" % rects.size()
+	if rects.size() != 14:
+		return "want the 14 default labels, measured %d" % rects.size()
 	for key: Variant in rects:
 		var rect: Rect2 = rects[key]
 		for corner: Vector2 in [rect.position, rect.end, Vector2(rect.position.x, rect.end.y),

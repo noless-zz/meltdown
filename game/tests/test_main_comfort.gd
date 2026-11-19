@@ -128,7 +128,7 @@ func test_the_preset_button_cycles_once_per_press_and_wraps() -> String:
 	var seen: Array[int] = []
 	for press: int in 4:
 		for i: int in 5:
-			main.call("apply_controls", _values(Vector2.ZERO, {"left_button_upper": true}))
+			main.call("apply_controls", _values(Vector2.ZERO, {"left_button_lower": true}))
 		main.call("apply_controls", _values())
 		seen.append(int((main.get("comfort") as ComfortWiring).number))
 	var name_after: String = ((main.get("comfort") as ComfortWiring).preset as ComfortPreset).display_name
@@ -140,16 +140,16 @@ func test_the_preset_button_cycles_once_per_press_and_wraps() -> String:
 	return ""
 
 
-func test_left_handed_uses_the_right_upper_button() -> String:
+func test_left_handed_uses_the_right_lower_button() -> String:
 	var main: Node = _main()
 	(main.get("mapping") as ThumbstickMapping).left_handed = true
-	main.call("apply_controls", _values(Vector2.ZERO, {"left_button_upper": true}))
+	main.call("apply_controls", _values(Vector2.ZERO, {"left_button_lower": true}))
 	var after_left: int = (main.get("comfort") as ComfortWiring).number
-	main.call("apply_controls", _values(Vector2.ZERO, {"right_button_upper": true}))
+	main.call("apply_controls", _values(Vector2.ZERO, {"right_button_lower": true}))
 	var after_right: int = (main.get("comfort") as ComfortWiring).number
 	main.free()
 	if after_left != 2 or after_right != 3:
-		return "left-handed: Y gave %d, B gave %d (expected 2 then 3)" % [after_left, after_right]
+		return "left-handed: X gave %d, A gave %d (expected 2 then 3)" % [after_left, after_right]
 	return ""
 
 
@@ -177,7 +177,7 @@ func test_switching_presets_leaves_the_ship_alone() -> String:
 	var ship_before: int = session.current_ship().state_hash()
 	for number: int in [1, 3, 4, 2]:
 		main.call("set_comfort_preset", number)
-	main.call("apply_controls", _values(Vector2.ZERO, {"left_button_upper": true}))
+	main.call("apply_controls", _values(Vector2.ZERO, {"left_button_lower": true}))
 	var hash_after: int = session.sim.state_hash()
 	var ship_after: int = session.current_ship().state_hash()
 	var tick: int = session.sim.tick
