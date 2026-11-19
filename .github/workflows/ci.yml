@@ -40,6 +40,11 @@ jobs:
       - name: Check the Quest manifest check
         run: tools/test_check_quest_manifest.sh
 
+      - name: Check the device acceptance workflow and its scripts
+        run: |
+          tools/check_device_workflow.sh
+          tools/test_device_acceptance.sh
+
       - name: Download Godot
         run: |
           curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"

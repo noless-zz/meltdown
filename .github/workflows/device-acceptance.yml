@@ -1,0 +1,132 @@
+name: Device acceptance
+
+# The automated half of every milestone gate and the nightly regression run
+# (#154, DEV-6, decision record 0005). Runs on the owner's PC with the Quest 3
+# attached. Never on pull requests or pushes: the repository is public and
+# these jobs run on his machine. Only the owner merges changes to this file
+# (decision record 0003). tools/check_device_workflow.sh asserts the triggers.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Acceptance suite to run (m0, m1, ... or all)
+        required: true
+        default: all
+        type: string
+  schedule:
+    # 03:23 in Israel (winter time): nightly, when nobody is wearing the headset.
+    - cron: '23 1 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  # One run at a time: there is one headset.
+  group: device-acceptance
+  cancel-in-progress: false
+
+env:
+  # A scheduled run has no inputs, so it runs every suite.
+  SUITE: ${{ inputs.suite || 'all' }}
+
+jobs:
+  headset:
+    name: Quest 3 (headset)
+    # A manual dispatch may pick any branch; only main runs here.
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, quest-pc]
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check the suite name
+        run: |
+          if ($env:SUITE -notmatch '^[A-Za-z0-9_-]+$') {
+            Write-Host "::error::Suite name '$env:SUITE' may only hold letters, digits, - and _."
+            exit 1
+          }
+
+      - name: Install the newest build and run the suite
+        run: tools\device_acceptance.ps1 -Suite $env:SUITE -OutDir build\device-acceptance\headset
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-acceptance-headset
+          path: build/device-acceptance/headset/
+          if-no-files-found: warn
+
+  simulator:
+    name: Meta XR Simulator (from source)
+    needs: headset
+    # Runs after the headset job whatever its result: both use the one runner.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: [self-hosted, quest-pc]
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    env:
+      GODOT_PATH: ${{ vars.GODOT_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check the suite name
+        run: |
+          if ($env:SUITE -notmatch '^[A-Za-z0-9_-]+$') {
+            Write-Host "::error::Suite name '$env:SUITE' may only hold letters, digits, - and _."
+            exit 1
+          }
+
+      - name: Run the suite under the simulator, or skip if it cannot start
+        run: tools\simulator_acceptance.ps1 -Suite $env:SUITE -OutDir build\device-acceptance\simulator
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-acceptance-simulator
+          path: build/device-acceptance/simulator/
+          if-no-files-found: warn
+
+  report:
+    name: Result table and issue comments
+    needs: [headset, simulator]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    # On a GitHub runner, so the token with issue access never reaches the PC.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: device-acceptance-headset
+          path: results/headset
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: device-acceptance-simulator
+          path: results/simulator
+
+      - name: Write the table; on the nightly run, comment on the gate and regression issues
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: tools/post_acceptance.ps1 -ResultsDir results -Suite $env:SUITE -RunUrl $env:RUN_URL
