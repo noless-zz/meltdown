@@ -19,6 +19,8 @@ and the requirements only.
       - No new dependency or asset without an entry in `docs/licences.md`.
       - Nothing from the original Descent games (NAM-3); no secrets.
       - The tests would fail if the feature were broken.
+      - A feature pull request adds or updates its step in the milestone's acceptance
+        suite, or says why no suite can drive the behaviour yet (decision record 0005).
    4. Post one verdict as a pull request comment starting with `Reviewer: approved` or
       `Reviewer: changes requested`, the latter with a numbered list of specific,
       checkable items. Add the label `approved` or remove it to match. Scheduled runs
@@ -30,8 +32,10 @@ and the requirements only.
    `Reviewer: changes requested` asking for a rebase.
    - A change under `.github/workflows/` may also be merged when all of these hold: the
      linked issue explicitly permits editing workflows; no job runs on a self-hosted
-     runner (`self-hosted` or `quest-pc` appears nowhere in the diff); the diff adds no
-     use of secrets, no `pull_request_target` trigger and no wider `permissions`.
+     runner (`self-hosted` or `quest-pc` appears nowhere in the changed files under
+     `.github/workflows/`; the words in documentation, scripts or tests do not count);
+     the diff adds no use of secrets, no `pull_request_target` trigger and no wider
+     `permissions`.
    - Any other protected path (`CLAUDE.md`, `docs/requirements.md`, `docs/routines/`,
      `.github/CODEOWNERS`), and any workflow change that fails a condition above, is
      labelled `needs-human` and waits for the owner.
