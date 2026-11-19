@@ -68,7 +68,7 @@ enum CockpitKind { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL_
 @export_group("Cockpit")
 @export var cockpit_frame: CockpitKind = CockpitKind.MINIMAL_GLASS
 ## The cockpit data file (`CockpitSpec`) that gives `cockpit_frame` its
-## shape: window sizes, struts, distance and glass.
+## shape: window sizes, distance, glass, shapes and colours.
 @export_file("*.json") var cockpit_file: String = "res://xr/cockpits/glass.json"
 
 @export_group("Acceleration feel")

@@ -2,34 +2,41 @@ class_name CockpitFrame
 extends Node3D
 
 ## The cockpit frame around the eye point, built from a `CockpitSpec` with
-## primitive meshes only: no imported models, no collision (CMF-1, NAM-3).
+## code-built meshes only: no imported models, no collision (CMF-1, NAM-3).
 ##
 ## This node's origin is the eye point and -Z is straight ahead. The frame is
-## a shell over the forward half of the view at `frame_distance_m`: solid
-## panels outside the window, tinted glass inside it, and struts along the
-## window's edges. Each kind is one `MultiMeshInstance3D`, so the whole frame
-## costs three draw calls on the headset.
+## a shell over the forward half of the view at `frame_distance_m`, solid
+## outside the window in the interior colour, with one seamless sheet of
+## tinted glass inside it. In front of the shell sit a few large shapes that
+## make it read as a ship (#607): a dashboard ledge below the window, a canopy
+## pillar on each side and a rim above. Every piece lies outside the window.
+## Each part is one `MultiMeshInstance3D`, one draw call on the headset.
 ##
 ## The frame reads only its spec. It never reads or writes simulation state
 ## (ARC-3, MP-2); a preset change rebuilds it and touches nothing else.
 
-## Largest angle one shell panel or strut segment spans, degrees. Smaller
-## panels follow the curve more closely and cost more instances.
+## Largest angle one shell panel or shape segment spans, degrees. Smaller
+## pieces follow the curve more closely and cost more instances.
 const CELL_DEG: float = 10.0
-## Panels are drawn this much larger than their cell so neighbours overlap
-## and no gap shows between them.
+## Opaque pieces are drawn this much larger than their cell so neighbours
+## overlap and no gap shows between them.
 const OVERLAP: float = 1.05
-## Gap between the struts and the shell, metres, so they never z-fight.
-const STRUT_GAP_M: float = 0.002
+## Nearest the shapes go to the poles, degrees: past it a yaw cell is too
+## thin to place a piece in.
+const MAX_SHAPE_PITCH_DEG: float = 80.0
+## Every part a frame can build. Shapes with zero size are left out.
+const PARTS: Array[String] = ["Solid", "Glass", "Ledge", "Pillars", "Rim"]
+## The parts that are boxes; the others are flat.
+const BOX_PARTS: Array[String] = ["Ledge", "Pillars", "Rim"]
 
-const SOLID_COLOR: Color = Color(0.16, 0.17, 0.19)
-const STRUT_COLOR: Color = Color(0.3, 0.32, 0.36)
 const GLASS_COLOR: Color = Color(0.55, 0.75, 0.85)
 
 var spec: CockpitSpec = null
 ## Instance transforms of each built part, by part name. Kept here because a
 ## headless renderer does not store multimesh transforms for reading back.
 var _transforms: Dictionary[String, Array] = {}
+## The glass mesh's points, in this node's space, for the same reason.
+var _glass_points: PackedVector3Array = []
 
 
 func _init(p_spec: CockpitSpec = null) -> void:
@@ -42,14 +49,15 @@ func _init(p_spec: CockpitSpec = null) -> void:
 func set_spec(p_spec: CockpitSpec) -> void:
 	spec = p_spec
 	_transforms.clear()
+	_glass_points = PackedVector3Array()
 	for child: Node in get_children():
 		remove_child(child)
 		child.free()
 	_build()
 
 
-## The built part named `part_name` ("Solid", "Glass" or "Struts"), or null
-## when this frame has none.
+## The built part named `part_name` (one of `PARTS`), or null when this frame
+## has none.
 func part(part_name: String) -> MultiMeshInstance3D:
 	return get_node_or_null(part_name) as MultiMeshInstance3D
 
@@ -66,110 +74,143 @@ func instance_transforms(part_name: String) -> Array[Transform3D]:
 	return result
 
 
+## The points of the glass mesh in this node's space; empty with no glass.
+func glass_points() -> PackedVector3Array:
+	return _glass_points
+
+
+## Unit vector from the eye at `yaw` degrees right and `pitch` degrees up.
+static func direction(yaw: float, pitch: float) -> Vector3:
+	return CockpitGeometry.direction(yaw, pitch)
+
+
 func _build() -> void:
-	var yaw_breaks: PackedFloat32Array = _breaks(spec.window_half_angle_h_deg)
-	var pitch_breaks: PackedFloat32Array = _breaks(spec.window_half_angle_v_deg)
+	var h: float = spec.window_half_angle_h_deg
+	var v: float = spec.window_half_angle_v_deg
+	var yaw_breaks: PackedFloat32Array = _shell_breaks(h)
+	var pitch_breaks: PackedFloat32Array = _shell_breaks(v)
 	var solid: Array[Transform3D] = []
-	var glass: Array[Transform3D] = []
 	for i: int in yaw_breaks.size() - 1:
 		for j: int in pitch_breaks.size() - 1:
-			var yaw_a: float = yaw_breaks[i]
-			var yaw_b: float = yaw_breaks[i + 1]
-			var pitch_a: float = pitch_breaks[j]
-			var pitch_b: float = pitch_breaks[j + 1]
-			var inside: bool = absf((yaw_a + yaw_b) * 0.5) < spec.window_half_angle_h_deg \
-				and absf((pitch_a + pitch_b) * 0.5) < spec.window_half_angle_v_deg
-			var panel: Transform3D = _panel(yaw_a, yaw_b, pitch_a, pitch_b)
-			if inside:
-				glass.append(panel)
-			else:
-				solid.append(panel)
-	_add_part("Solid", _quad(), _material(SOLID_COLOR), solid)
+			var a: Vector2 = Vector2(yaw_breaks[i], pitch_breaks[j])
+			var b: Vector2 = Vector2(yaw_breaks[i + 1], pitch_breaks[j + 1])
+			var middle: Vector2 = (a + b) * 0.5
+			if absf(middle.x) < h and absf(middle.y) < v:
+				continue
+			var panel: Transform3D = CockpitGeometry.cell_piece(a, b, spec.frame_distance_m, 0.0, OVERLAP)
+			solid.append(_outside(panel, false, middle))
+	_add_part("Solid", _quad(), _material(spec.interior_color), solid)
 	if spec.glass_tint_alpha > 0.0:
-		var tint: Color = GLASS_COLOR
-		tint.a = spec.glass_tint_alpha
-		_add_part("Glass", _quad(), _material(tint), glass)
-	_add_part("Struts", _box(), _material(STRUT_COLOR), _struts(yaw_breaks, pitch_breaks))
+		_add_glass(CockpitGeometry.breaks(-h, h, CELL_DEG), CockpitGeometry.breaks(-v, v, CELL_DEG))
+	var structure: StandardMaterial3D = _material(spec.structure_color)
+	_add_part("Ledge", _box(), structure, _ledge())
+	_add_part("Pillars", _box(), structure, _pillars())
+	_add_part("Rim", _box(), structure, _rim())
+
+
+## The pitch band the ledge covers, as (top, bottom) degrees below straight
+## ahead; (0, 0) when there is no ledge. Its top never rises into the window.
+func ledge_band() -> Vector2:
+	var top: float = maxf(spec.ledge_top_deg, spec.window_half_angle_v_deg)
+	var bottom: float = minf(top + spec.ledge_height_deg, MAX_SHAPE_PITCH_DEG)
+	return Vector2(top, bottom) if spec.ledge_height_deg > 0.0 and bottom > top else Vector2.ZERO
+
+
+## The pitch band the rim covers, as (bottom, top) degrees above straight
+## ahead; (0, 0) when there is no rim.
+func rim_band() -> Vector2:
+	var bottom: float = spec.window_half_angle_v_deg
+	var top: float = minf(bottom + spec.rim_height_deg, MAX_SHAPE_PITCH_DEG)
+	return Vector2(bottom, top) if spec.rim_height_deg > 0.0 and top > bottom else Vector2.ZERO
+
+
+## The yaw band each pillar covers, as (inner, outer) degrees from straight
+## ahead; (0, 0) when there are no pillars.
+func pillar_band() -> Vector2:
+	var inner: float = spec.window_half_angle_h_deg
+	var outer: float = minf(inner + spec.pillar_width_deg, 90.0)
+	return Vector2(inner, outer) if spec.pillar_width_deg > 0.0 and outer > inner else Vector2.ZERO
+
+
+func _ledge() -> Array[Transform3D]:
+	var band: Vector2 = ledge_band()
+	if band == Vector2.ZERO:
+		return []
+	var half: float = spec.ledge_half_width_deg
+	return _row(CockpitGeometry.breaks(-half, half, CELL_DEG), Vector2(-band.y, -band.x),
+		spec.ledge_distance_m, -1.0, band.x)
+
+
+func _rim() -> Array[Transform3D]:
+	var band: Vector2 = rim_band()
+	if band == Vector2.ZERO:
+		return []
+	var half: float = spec.window_half_angle_h_deg
+	if pillar_band() != Vector2.ZERO:
+		half = pillar_band().y
+	return _row(CockpitGeometry.breaks(-half, half, CELL_DEG), band, spec.rim_distance_m, 1.0, band.x)
+
+
+## One box across `pitch_span` (low, high) for each yaw cell, kept beyond
+## pitch `edge` on side `side`.
+func _row(yaw_breaks: PackedFloat32Array, pitch_span: Vector2, distance: float, side: float,
+		edge: float) -> Array[Transform3D]:
+	var pieces: Array[Transform3D] = []
+	for i: int in yaw_breaks.size() - 1:
+		var box: Transform3D = CockpitGeometry.cell_piece(Vector2(yaw_breaks[i], pitch_span.x),
+			Vector2(yaw_breaks[i + 1], pitch_span.y), distance, spec.part_depth_m, OVERLAP)
+		pieces.append(CockpitGeometry.keep_out(box, true, CockpitGeometry.Edge.PITCH, side, edge))
+	return pieces
+
+
+## Each pillar runs from the bottom of the ledge to the top of the rim, so the
+## shapes join into one frame round the window.
+func _pillars() -> Array[Transform3D]:
+	var band: Vector2 = pillar_band()
+	if band == Vector2.ZERO:
+		return []
+	var v: float = spec.window_half_angle_v_deg
+	var low: float = -minf(maxf(v, ledge_band().y), MAX_SHAPE_PITCH_DEG)
+	var high: float = minf(maxf(v, rim_band().y), MAX_SHAPE_PITCH_DEG)
+	var pitch_breaks: PackedFloat32Array = CockpitGeometry.breaks(low, high, CELL_DEG)
+	var pieces: Array[Transform3D] = []
+	for side: float in [-1.0, 1.0]:
+		for j: int in pitch_breaks.size() - 1:
+			var a: Vector2 = Vector2(minf(side * band.x, side * band.y), pitch_breaks[j])
+			var b: Vector2 = Vector2(maxf(side * band.x, side * band.y), pitch_breaks[j + 1])
+			var box: Transform3D = CockpitGeometry.cell_piece(a, b, spec.pillar_distance_m, spec.part_depth_m, OVERLAP)
+			pieces.append(CockpitGeometry.keep_out(box, true, CockpitGeometry.Edge.YAW, side, band.x))
+	return pieces
+
+
+## `piece` of the shell cell centred on `middle`, turned clear of the window
+## edge it borders: a cell beside the window clears the side edge, any other
+## clears the top or bottom edge.
+func _outside(piece: Transform3D, deep: bool, middle: Vector2) -> Transform3D:
+	if absf(middle.x) > spec.window_half_angle_h_deg:
+		return CockpitGeometry.keep_out(piece, deep, CockpitGeometry.Edge.YAW, signf(middle.x), spec.window_half_angle_h_deg)
+	return CockpitGeometry.keep_out(piece, deep, CockpitGeometry.Edge.PITCH, signf(middle.y), spec.window_half_angle_v_deg)
 
 
 ## Edges of the shell's cells along one axis, degrees from -90 to 90. The
 ## window's edges at -`half` and `half` are always among them, so every cell
 ## lies wholly inside or wholly outside the window.
-static func _breaks(half: float) -> PackedFloat32Array:
-	var breaks: PackedFloat32Array = [-90.0]
+static func _shell_breaks(half: float) -> PackedFloat32Array:
+	var result: PackedFloat32Array = [-90.0]
 	for span: Vector2 in [Vector2(-90.0, -half), Vector2(-half, half), Vector2(half, 90.0)]:
-		var length: float = span.y - span.x
-		if length <= 0.0:
+		if span.y - span.x <= 0.0:
 			continue
-		var steps: int = ceili(length / CELL_DEG)
-		for k: int in range(1, steps + 1):
-			breaks.append(span.x + length * k / steps)
-	return breaks
+		var edges: PackedFloat32Array = CockpitGeometry.breaks(span.x, span.y, CELL_DEG)
+		result.append_array(edges.slice(1))
+	return result
 
 
-## Unit vector from the eye at `yaw` degrees right and `pitch` degrees up.
-static func direction(yaw: float, pitch: float) -> Vector3:
-	var y: float = deg_to_rad(yaw)
-	var p: float = deg_to_rad(pitch)
-	return Vector3(sin(y) * cos(p), sin(p), -cos(y) * cos(p))
-
-
-## A basis whose X runs along increasing yaw, Y along increasing pitch, and Z
-## back toward the eye, so a quad on it faces the eye.
-static func _facing_basis(yaw: float, pitch: float) -> Basis:
-	var y: float = deg_to_rad(yaw)
-	var p: float = deg_to_rad(pitch)
-	var along_yaw: Vector3 = Vector3(cos(y), 0.0, sin(y))
-	var along_pitch: Vector3 = Vector3(-sin(y) * sin(p), cos(p), cos(y) * sin(p))
-	return Basis(along_yaw, along_pitch, -direction(yaw, pitch))
-
-
-## One flat shell panel covering the cell, at the frame distance, facing the eye.
-func _panel(yaw_a: float, yaw_b: float, pitch_a: float, pitch_b: float) -> Transform3D:
-	var yaw: float = (yaw_a + yaw_b) * 0.5
-	var pitch: float = (pitch_a + pitch_b) * 0.5
-	var d: float = spec.frame_distance_m
-	# The cell is widest on the edge nearest the horizon.
-	var widest: float = cos(deg_to_rad(minf(absf(pitch_a), absf(pitch_b)))) \
-		if signf(pitch_a) == signf(pitch_b) else 1.0
-	var width: float = d * widest * deg_to_rad(yaw_b - yaw_a) * OVERLAP
-	var height: float = d * deg_to_rad(pitch_b - pitch_a) * OVERLAP
-	var basis: Basis = _facing_basis(yaw, pitch).scaled_local(Vector3(width, height, 1.0))
-	return Transform3D(basis, direction(yaw, pitch) * d)
-
-
-## Strut segments along the window's edges. An edge at 90 degrees is the rim
-## of the shell, so it gets no strut.
-func _struts(yaw_breaks: PackedFloat32Array, pitch_breaks: PackedFloat32Array) -> Array[Transform3D]:
-	var h: float = spec.window_half_angle_h_deg
-	var v: float = spec.window_half_angle_v_deg
-	var segments: Array[Transform3D] = []
-	for j: int in pitch_breaks.size() - 1:
-		if pitch_breaks[j] < -v or pitch_breaks[j + 1] > v or h >= 90.0:
-			continue
-		for side: float in [-h, h]:
-			segments.append(_strut(Vector2(side, pitch_breaks[j]), Vector2(side, pitch_breaks[j + 1])))
-	for i: int in yaw_breaks.size() - 1:
-		if yaw_breaks[i] < -h or yaw_breaks[i + 1] > h or v >= 90.0:
-			continue
-		for side: float in [-v, v]:
-			segments.append(_strut(Vector2(yaw_breaks[i], side), Vector2(yaw_breaks[i + 1], side)))
-	return segments
-
-
-## A square strut from angle `a` to angle `b` (x yaw, y pitch), just inside the shell.
-func _strut(a: Vector2, b: Vector2) -> Transform3D:
-	var w: float = spec.strut_width_m
-	var radius: float = spec.frame_distance_m - STRUT_GAP_M - w * 0.5
-	var start: Vector3 = direction(a.x, a.y) * radius
-	var end: Vector3 = direction(b.x, b.y) * radius
-	var middle: Vector3 = (start + end) * 0.5
-	var along: Vector3 = (end - start).normalized()
-	var back: Vector3 = -middle.normalized()
-	back = (back - along * back.dot(along)).normalized()
-	var basis: Basis = Basis(along, back.cross(along), back)
-	basis = basis.scaled_local(Vector3(start.distance_to(end) + w, w, w))
-	return Transform3D(basis, middle)
+func _add_glass(yaw_breaks: PackedFloat32Array, pitch_breaks: PackedFloat32Array) -> void:
+	_glass_points = CockpitGeometry.glass_points(yaw_breaks, pitch_breaks, spec.frame_distance_m)
+	var tint: Color = GLASS_COLOR
+	tint.a = spec.glass_tint_alpha
+	var single: Array[Transform3D] = [Transform3D.IDENTITY]
+	_add_part("Glass", CockpitGeometry.glass_mesh(_glass_points, yaw_breaks.size()), _material(tint), single)
 
 
 func _add_part(part_name: String, mesh: Mesh, material: Material, transforms: Array[Transform3D]) -> void:

@@ -4,8 +4,9 @@ extends RefCounted
 ## ahead (#212, CMF-1, CMF-3). In the headset the old 25 by 15 degree window
 ## felt like a slot: the 1 m marker and the controller labels sat behind the
 ## solid panels. Everything here is measured in the frame's own angles (yaw
-## right, pitch up from the horizon, see `CockpitFrame.direction`) and must
-## clear the strut on the window's edge, not just the edge itself.
+## right, pitch up from the horizon, see `CockpitFrame.direction`). Since #607
+## every piece of the frame lies outside the window, so the window's own edge
+## is the limit.
 
 const LABEL_LAYOUT: GDScript = preload("res://tests/test_label_layout.gd")
 ## The flat stand-in for a seated head, as in `test_head_recentre.gd`.
@@ -14,11 +15,10 @@ static func _anchored() -> CockpitSpec:
 	return CockpitSpec.for_preset(ComfortPresetFiles.load_number(1))
 
 
-## Angle in degrees the strut on the window's edge reaches into the window:
-## half its width seen from its inner face.
-static func strut_margin_deg(spec: CockpitSpec) -> float:
-	var inner: float = spec.frame_distance_m - CockpitFrame.STRUT_GAP_M - spec.strut_width_m
-	return rad_to_deg(atan(spec.strut_width_m * 0.5 / inner))
+## Angle in degrees the frame reaches into the window: none since #607, when
+## the struts on the window's edge gave way to shapes outside it.
+static func frame_margin_deg(_spec: CockpitSpec) -> float:
+	return 0.0
 
 
 ## (yaw, pitch) in degrees of `point`, seen from an eye at the origin looking along -z.
@@ -27,13 +27,13 @@ static func yaw_pitch(point: Vector3) -> Vector2:
 		rad_to_deg(atan2(point.y, Vector2(point.x, point.z).length())))
 
 
-## Empty when `point` is inside `spec`'s window and clear of its struts.
+## Empty when `point` is inside `spec`'s window and clear of its frame.
 static func outside_message(spec: CockpitSpec, point: Vector3, what: String) -> String:
 	var angles: Vector2 = yaw_pitch(point)
-	var margin: float = strut_margin_deg(spec)
+	var margin: float = frame_margin_deg(spec)
 	if absf(angles.x) > spec.window_half_angle_h_deg - margin \
 			or absf(angles.y) > spec.window_half_angle_v_deg - margin:
-		return "%s at yaw %.1f, pitch %.1f is outside the %.0f x %.0f window less %.1f for the strut" % [
+		return "%s at yaw %.1f, pitch %.1f is outside the %.0f x %.0f window less %.1f for the frame" % [
 			what, angles.x, angles.y, spec.window_half_angle_h_deg, spec.window_half_angle_v_deg, margin]
 	return ""
 
