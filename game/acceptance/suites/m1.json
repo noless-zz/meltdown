@@ -39,6 +39,20 @@
 			"preset": 4,
 			"checks": ["comfort_motion", "final_hash"],
 			"expected_hash": 2052785774
+		},
+		{
+			"id": "comfort_preset_1",
+			"replay": "res://acceptance/replays/m1_comfort_preset_1.replay",
+			"preset": 1,
+			"checks": ["final_hash", "comfort_motion", "no_script_errors"],
+			"expected_hash": 2402926166
+		},
+		{
+			"id": "comfort_preset_2",
+			"replay": "res://acceptance/replays/m1_comfort_preset_2.replay",
+			"preset": 2,
+			"checks": ["final_hash", "comfort_motion", "no_script_errors"],
+			"expected_hash": 2897442888
 		}
 	]
 }

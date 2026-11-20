@@ -4,11 +4,11 @@ extends RefCounted
 ## CMF-1, CMF-3, CMF-8, ARC-3, DEV-6, umbrella #153). The check is fed fake
 ## camera rotations here, then flown in the real main scene by the runner.
 ##
-## The steps for presets 1 and 2 are not in the suite: the runner hands a
+## Presets 1 and 2 do not fly `m1_flight_axes.replay`: the runner hands a
 ## replay's recorded inputs straight to the session, past the comfort filter,
-## so the smooth turns of `m1_flight_axes.replay` reach the view on every
-## preset. `test_the_raw_replay_breaks_presets_1_and_2` pins that, so the
-## follow-up that routes replays through the filter sees it change.
+## so its smooth turns reach the view on every preset.
+## `test_the_raw_replay_breaks_presets_1_and_2` pins that; their steps fly
+## replays recorded through the filter instead (#697, `test_m1_comfort_replays.gd`).
 
 const SUITE_PATH: String = "res://acceptance/suites/m1.json"
 const REPLAY_PATH: String = "res://acceptance/replays/m1_flight_axes.replay"
