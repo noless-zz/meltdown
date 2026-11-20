@@ -195,12 +195,12 @@ benchmark; human playtests.
 | Gate | Automated exit criteria | Human exit criteria |
 | --- | --- | --- |
 | G0 Pipeline | CI builds all three targets; a scheduled Builder run has merged a pull request end to end | APK installs and shows a stereo test scene |
-| G1 Flight and comfort | Comfort limit tests pass for all presets; on-device benchmark holds 90 Hz in an empty tunnel | 15 minutes at each preset; a VR-sensitive tester finishes 10 minutes on preset 1 |
+| G1 Flight and comfort | Comfort limit tests pass for all presets; on-device benchmark holds 90 Hz in an empty tunnel | 15 minutes at each preset |
 | G2 Combat | Bots beat a hand-built level against 6 robot types; replays stable | Shooting and being hit read clearly |
 | G3 Mine and escape | 10,000 seeds pass validators; bots escape 95% of cleared levels | Escape is tense and fair on three unseen seeds; map usable under pressure |
 | G4 Roguelike | Bots complete full runs; save and resume survive forced kills | Three runs feel different; a lost run still feels rewarded |
 | G5 Co-op | 30-minute soak at 150 ms and 2% loss, zero desyncs; hosting headset meets PRF-9 | Two headsets at home plus one remote finish a run with voice |
-| G6 Look, sound, speed | Stress scene meets PRF-1 to PRF-6 on device; screenshots approved | Quality accepted in the headset |
+| G6 Look, sound, speed | Stress scene meets PRF-1 to PRF-6 on device; screenshots approved | Quality accepted in the headset; a VR-sensitive tester finishes 10 minutes on preset 1 |
 | G7 Content complete | Bot completion rates per theme in band; no `needs-human` issues open | New player completes onboarding unaided |
 | G8 Release candidate | 20 hours of bot runs and soak with no crash; every Must traced to a test or signed playtest | Both households install and play the same build |
 
