@@ -1,0 +1,15 @@
+{
+	"enabled": true,
+	"position_m": [0.0, -0.085, -0.55],
+	"tilt_deg": 9,
+	"pixel_size": 0.0004,
+	"title_font": 40,
+	"body_font": 28,
+	"title_color": [1.0, 0.8, 0.45],
+	"body_color": [0.85, 0.95, 1.0],
+	"title_text": "Time for a break",
+	"flown_text": "You have flown for {minutes} minutes.",
+	"dismiss_xr": "Press A to dismiss",
+	"dismiss_flat": "Press Enter to dismiss",
+	"off_text": "These reminders can be switched off."
+}
