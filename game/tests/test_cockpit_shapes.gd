@@ -153,13 +153,14 @@ func test_the_interior_tint_differs_from_the_tunnel_walls() -> String:
 		var spec: CockpitSpec = _spec_for(number)
 		if _color_gap(spec.interior_color, wall) < 0.08:
 			return "preset %d interior %s is close to the walls' %s" % [number, spec.interior_color, wall]
-		if spec.interior_color.get_luminance() > 0.2:
-			return "preset %d interior %s is not dim" % [number, spec.interior_color]
+		# Lighter since #659, but still a quiet interior beside the bright shapes.
+		if spec.interior_color.get_luminance() > 0.45:
+			return "preset %d interior %s is too bright for an interior" % [number, spec.interior_color]
 		if _color_gap(spec.structure_color, spec.interior_color) < 0.15:
 			return "preset %d shapes do not stand out from the shell" % number
 		var frame: CockpitFrame = CockpitFrame.new(spec)
-		var solid: Color = (frame.part("Solid").material_override as StandardMaterial3D).albedo_color
-		var ledge: Color = (frame.part("Ledge").material_override as StandardMaterial3D).albedo_color
+		var solid: Color = (frame.part("Solid").material_override as ShaderMaterial).get_shader_parameter("base_color")
+		var ledge: Color = (frame.part("Ledge").material_override as ShaderMaterial).get_shader_parameter("base_color")
 		frame.free()
 		if solid != spec.interior_color or ledge != spec.structure_color:
 			return "preset %d does not draw with its file's colours" % number
