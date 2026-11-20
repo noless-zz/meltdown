@@ -16,6 +16,42 @@ func test_off_unless_the_switch_or_the_setting_turns_it_on() -> String:
 	return ""
 
 
+## #671 criterion 1: the intent extra alone turns it on.
+func test_the_intent_extra_turns_it_on() -> String:
+	for value: String in ["1", "true", "TRUE", " true "]:
+		if not ViewLog.enabled_by(PackedStringArray(), null, value):
+			return "intent value %s did not turn it on" % JSON.stringify(value)
+		if not ViewLog.enabled_by(PackedStringArray(), false, value):
+			return "intent value %s with the setting off did not turn it on" % JSON.stringify(value)
+	return ""
+
+
+## #671 criterion 2: an empty, `0` or `false` extra leaves it off.
+func test_an_off_or_missing_intent_extra_leaves_it_off() -> String:
+	for value: String in ["", "0", "false", "no", "2"]:
+		if ViewLog.enabled_by(PackedStringArray(["--comfort-preset=2"]), false, value):
+			return "intent value %s turned it on" % JSON.stringify(value)
+	if ViewLog.enabled_by(PackedStringArray(), null):
+		return "no intent value turned it on"
+	return ""
+
+
+## #671 criterion 3: the switch or the setting alone still turns it on,
+## whatever the intent says.
+func test_the_switch_or_setting_wins_over_the_intent_extra() -> String:
+	for value: String in ["", "0", "false", "1"]:
+		if not ViewLog.enabled_by(PackedStringArray([ViewLog.SWITCH]), false, value):
+			return "the switch with intent %s did not turn it on" % JSON.stringify(value)
+		if not ViewLog.enabled_by(PackedStringArray(), true, value):
+			return "the setting with intent %s did not turn it on" % JSON.stringify(value)
+	return ""
+
+
+## Off the headset there is no intent to read.
+func test_no_intent_value_off_android() -> String:
+	return "" if ViewLog.intent_value() == "" else "read an intent value off Android"
+
+
 func test_an_off_log_writes_nothing() -> String:
 	var view_log: ViewLog = ViewLog.new()
 	for i: int in 300:

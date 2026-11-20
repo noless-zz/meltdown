@@ -3,8 +3,9 @@ extends RefCounted
 
 ## A once-a-second `MELTDOWN_VIEW` line on the device log while flying, so
 ## the owner can send it if the view ever goes dark again (#651). Off unless
-## the `--view-log` command-line switch or the `meltdown/debug/view_log`
-## project setting turns it on: the log stays quiet otherwise.
+## the `--view-log` command-line switch, the `meltdown/debug/view_log`
+## project setting or, on the Quest, the `meltdown_view_log` intent extra
+## (#671) turns it on: the log stays quiet otherwise.
 ##
 ## It only formats copies of values it is handed; it never reads or writes
 ## simulation state (ARC-3, MP-2).
@@ -12,6 +13,11 @@ extends RefCounted
 const PREFIX: String = "MELTDOWN_VIEW"
 const SWITCH: String = "--view-log"
 const SETTING: String = "meltdown/debug/view_log"
+## The intent extra the headset is started with, as `meltdown_level` is:
+## `adb shell am start ... --es meltdown_view_log 1` (#671).
+const INTENT_EXTRA: String = "meltdown_view_log"
+## Intent values that turn the log on, compared without case.
+const INTENT_ON: Array[String] = ["1", "true"]
 ## Seconds between two sample lines.
 const PERIOD_S: float = 1.0
 
@@ -23,17 +29,33 @@ var lines: PackedStringArray = PackedStringArray()
 var _next_s: float = -1.0
 
 
-## On when `args` holds the switch or `setting` is true.
-static func enabled_by(args: PackedStringArray, setting: Variant) -> bool:
-	return args.has(SWITCH) or (typeof(setting) == TYPE_BOOL and bool(setting))
+## On when `args` holds the switch, `setting` is true or `intent` (the
+## intent extra's value, "" when absent) is `1` or `true`. Any one is enough.
+static func enabled_by(args: PackedStringArray, setting: Variant, intent: String = "") -> bool:
+	return args.has(SWITCH) or (typeof(setting) == TYPE_BOOL and bool(setting)) \
+		or INTENT_ON.has(intent.strip_edges().to_lower())
 
 
-## A log switched on or off from this run's command line and project setting.
+## A log switched on or off from this run's command line, project setting
+## and, on Android, the intent extra.
 static func from_run() -> ViewLog:
 	var view_log: ViewLog = ViewLog.new()
 	view_log.enabled = enabled_by(OS.get_cmdline_args() + OS.get_cmdline_user_args(),
-		ProjectSettings.get_setting(SETTING, false))
+		ProjectSettings.get_setting(SETTING, false), intent_value())
 	return view_log
+
+
+## The `meltdown_view_log` extra of the intent that started the game, or ""
+## off Android or when it is absent. The same reading as
+## `InstallerProbe.intent_extra`, repeated here because `xr/` may not depend
+## on `meta/` (CLAUDE.md layer table).
+static func intent_value() -> String:
+	if OS.get_name() != "Android" or not Engine.has_singleton("AndroidRuntime"):
+		return ""
+	var activity: Object = Engine.get_singleton("AndroidRuntime").call("getActivity")
+	var intent: Object = activity.call("getIntent") if activity != null else null
+	var value: Variant = intent.call("getStringExtra", INTENT_EXTRA) if intent != null else null
+	return value if value is String else ""
 
 
 ## Logs one sample line made from `values` if the log is on and a second has
