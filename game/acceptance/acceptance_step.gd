@@ -46,9 +46,13 @@ const CHECK_REFRESH_RATE: String = "refresh_rate"
 ## stays where it stopped while the replay keeps sending thrust and fire (#601,
 ## RUN-7; `AcceptanceWreckCheck`).
 const CHECK_SHIP_DESTROYED_INERT: String = "ship_destroyed_inert"
+## Frame times while the step runs hold the refresh rate in use, at least
+## 90 Hz (#643, PRF-1; `AcceptanceFrameBudgetCheck`); skipped off the headset.
+const CHECK_FRAME_BUDGET: String = "frame_budget"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
-	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD]
+	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
+	CHECK_FRAME_BUDGET]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -90,6 +94,13 @@ var expected_outcome: int = NO_OUTCOME
 ## is skipped; a required step fails instead, so a headset run cannot pass
 ## without the check it was started for.
 var required: bool = false
+## For the frame_budget check (`AcceptanceFrameBudgetCheck`): seconds not
+## measured after the step starts, seconds measured, the share of frames
+## allowed over budget and the slack added to the frame time.
+var settle_seconds: float = 0.0
+var measure_seconds: float = 0.0
+var max_over_budget_share: float = 0.0
+var budget_slack_ms: float = 0.0
 
 
 func has_check(check: String) -> bool:
