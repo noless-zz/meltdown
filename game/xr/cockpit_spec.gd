@@ -51,13 +51,22 @@ var part_depth_m: float = 0.03
 var interior_color: Color = Color(0.08, 0.1, 0.13)
 ## Colour of the ledge, pillars and rim.
 var structure_color: Color = Color(0.24, 0.27, 0.32)
+## How far past the window's edge the head may look before the view guard
+## counts it as lost, degrees, 10..90 (#651, `ViewGuard`).
+var guard_margin_deg: float = 40.0
+## How long the head may stay lost before the guard re-places the frame
+## around it, seconds, 0.5..10. Long enough that a glance aside never does.
+var guard_after_s: float = 3.0
+## How far the eye may be from the frame's centre before it counts as lost,
+## metres, 0.2..0.9. Beyond a seated lean (`HeadRecentre.HEAD_REACH`).
+var guard_distance_m: float = 0.45
 
 ## Every number key of the data file, with the same name as the field it sets.
 const KEYS: Array[String] = [
 	"window_half_angle_h_deg", "window_half_angle_v_deg", "frame_distance_m",
 	"glass_tint_alpha", "ledge_top_deg", "ledge_height_deg", "ledge_half_width_deg",
 	"ledge_distance_m", "pillar_width_deg", "pillar_distance_m", "rim_height_deg",
-	"rim_distance_m", "part_depth_m",
+	"rim_distance_m", "part_depth_m", "guard_margin_deg", "guard_after_s", "guard_distance_m",
 ]
 
 ## Every colour key: an array of three numbers, red, green and blue, 0..1.
@@ -79,6 +88,9 @@ const RANGES: Dictionary[String, Array] = {
 	"rim_height_deg": [0.0, 30.0],
 	"rim_distance_m": [0.3, 0.85],
 	"part_depth_m": [0.01, 0.08],
+	"guard_margin_deg": [10.0, 90.0],
+	"guard_after_s": [0.5, 10.0],
+	"guard_distance_m": [0.2, 0.9],
 }
 
 ## The shapes' distance keys: each shape must lie wholly in front of the shell.
