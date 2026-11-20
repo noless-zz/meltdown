@@ -117,21 +117,21 @@ func test_the_view_flashes_dims_and_bursts() -> String:
 	view.clock_s = 10.0
 	var a: Array[RobotState] = [_robot("drone", Vector3.ZERO), _robot("hauler", Vector3(6, 0, 0))]
 	view.show_robots(a, a, 1.0)
-	var calm: Color = view.body_material(0).emission
+	var calm: Color = RobotSkin.shown_color(view.body_material(0))
 	var b: Array[RobotState] = [_next(a[0], 5.0), _next(a[1], a[1].hull)]
 	var hashes: Array[int] = []
 	for robot: RobotState in a + b:
 		hashes.append(robot.state_hash())
 	view.show_robots(a, b, 0.0)
-	var flash: StandardMaterial3D = view.body_material(0)
+	var flash: ShaderMaterial = view.body_material(0)
 	var result: String = ""
-	if flash.emission_energy_multiplier <= 1.0 or flash.emission.get_luminance() <= calm.get_luminance():
+	if RobotSkin.energy(flash) <= 1.0 or RobotSkin.shown_color(flash).get_luminance() <= calm.get_luminance():
 		result = "the hit drone did not flash"
-	if result == "" and view.body_material(1).emission_energy_multiplier != 1.0:
+	if result == "" and RobotSkin.energy(view.body_material(1)) != 1.0:
 		result = "the unhurt hauler flashed"
 	view.clock_s = 11.0
 	view.show_robots(a, b, 1.0)
-	if result == "" and view.body_material(0).emission.get_luminance() >= calm.get_luminance():
+	if result == "" and RobotSkin.shown_color(view.body_material(0)).get_luminance() >= calm.get_luminance():
 		result = "the drone at a quarter hull is not dimmed"
 	var c: Array[RobotState] = [_next(b[1], b[1].hull)]
 	view.show_robots(b, c, 0.0)
@@ -210,7 +210,7 @@ func test_the_glow_grows_over_the_wind_up() -> String:
 		copy.windup_elapsed = elapsed
 		var robots: Array[RobotState] = [copy]
 		view.show_robots(robots, robots, 1.0)
-		energies.append(view.body_material(0).emission_energy_multiplier)
+		energies.append(RobotSkin.energy(view.body_material(0)))
 	view.free()
 	if not (energies[0] == 1.0 and energies[1] > energies[0] and energies[2] > energies[1]):
 		return "glow over the wind-up was %s, expected 1 then growing" % [energies]

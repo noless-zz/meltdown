@@ -92,9 +92,9 @@ func _eye_emission(view: RobotView) -> Color:
 	var parts: Array[Node] = view.node(0).get_children()
 	var body: Material = (parts[0] as MeshInstance3D).material_override
 	for child: Node in parts:
-		var material: StandardMaterial3D = (child as MeshInstance3D).material_override
+		var material: Material = (child as MeshInstance3D).material_override
 		if material != body:
-			return material.emission
+			return (material as StandardMaterial3D).emission
 	return Color.BLACK
 
 

@@ -4,7 +4,8 @@ extends Node3D
 ## Draws the simulation's robots as placeholder shapes, one look per robot type
 ## (CMB-3): a body and extra parts for a silhouette that reads at 20 m, a lean
 ## or skid drawn from the robot's velocity and an eye that dims when it loses
-## sight of its target (`RobotTells`, #638), a flash on every hit, a dim sputter below
+## sight of its target (`RobotTells`, #638), a surface pattern in an accent
+## colour and a face plate on its forward side (`RobotSkin`, #661), a flash on every hit, a dim sputter below
 ## half hull, a glow that grows over the wind-up before a burst of fire and a
 ## burst where one is destroyed (#604).
 ##
@@ -43,7 +44,7 @@ var _meshes: Dictionary[String, PrimitiveMesh] = {}
 ## children are the body and the parts of the type in `_node_ids`.
 var _nodes: Array[MeshInstance3D] = []
 var _node_ids: Array[String] = []
-var _body_materials: Array[StandardMaterial3D] = []
+var _body_materials: Array[ShaderMaterial] = []
 var _eye_materials: Array[StandardMaterial3D] = []
 var _bursts: RobotBursts = RobotBursts.new()
 var _tracker: RobotHitTracker = RobotHitTracker.new()
@@ -169,8 +170,8 @@ func node(index: int) -> MeshInstance3D:
 	return _nodes[index]
 
 
-## The body material of the robot node at `index`, for tests.
-func body_material(index: int) -> StandardMaterial3D:
+## The body material of the robot node at `index`, for tests; see `RobotSkin`.
+func body_material(index: int) -> ShaderMaterial:
 	return _body_materials[index]
 
 
@@ -230,6 +231,7 @@ func _mesh(shape: String) -> PrimitiveMesh:
 ## Rebuilds the children of node `index` for `look`: the body, then each part.
 func _build_parts(index: int, look: Dictionary) -> void:
 	var root: MeshInstance3D = _nodes[index]
+	RobotSkin.apply(_body_materials[index], look["skin"])
 	for child: Node in root.get_children():
 		root.remove_child(child)
 		child.free()
@@ -240,6 +242,9 @@ func _build_parts(index: int, look: Dictionary) -> void:
 		part.mesh = _mesh(piece["shape"])
 		part.transform = Transform3D(Basis.from_scale(piece["size"]), piece["offset"])
 		part.material_override = _eye_materials[index] if piece["eye"] else _body_materials[index]
+		# The skin's pattern and face plate are laid out in the robot's frame.
+		part.set_instance_shader_parameter("part_size", piece["size"])
+		part.set_instance_shader_parameter("part_offset", piece["offset"])
 		part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(part)
 
@@ -249,14 +254,10 @@ func _paint(index: int, look: Dictionary, glow: Dictionary, awake: bool, eye_sha
 	var base: Color = look["emission_color"]
 	var flash: float = glow["flash"]
 	var flash_color: Color = _effects["hit_flash_color"]
-	var body: StandardMaterial3D = _body_materials[index]
-	# Shaded, so the shape still reads under the ship's and the bolts' lights,
-	# and emissive, so the colour reads in a dark tunnel with no light on it.
-	body.albedo_color = (base * float(glow["brightness"])).lerp(flash_color, flash)
-	body.emission = body.albedo_color
 	# The glow grows over the wind-up, so the pilot sees a burst coming (#612).
 	var windup: float = float(glow["windup"]) * float(_effects["windup_energy"])
-	body.emission_energy_multiplier = 1.0 + FLASH_ENERGY * flash + windup
+	RobotSkin.paint(_body_materials[index], base, float(glow["brightness"]), flash, flash_color,
+			1.0 + FLASH_ENERGY * flash + windup)
 	var eye: Color = look["eye_color"]
 	_eye_materials[index].emission = eye * eye_share if awake else eye * ASLEEP_EYE
 	_eye_materials[index].albedo_color = _eye_materials[index].emission
@@ -270,9 +271,7 @@ func _add_node() -> void:
 	add_child(instance)
 	_nodes.append(instance)
 	_node_ids.append("")
-	var body: StandardMaterial3D = StandardMaterial3D.new()
-	body.emission_enabled = true
-	_body_materials.append(body)
+	_body_materials.append(RobotSkin.make_material())
 	var eye: StandardMaterial3D = StandardMaterial3D.new()
 	eye.emission_enabled = true
 	_eye_materials.append(eye)
