@@ -74,6 +74,8 @@ var _dodge: BotDodge = null
 var _cover: BotCover = null
 ## Ticks in a row the bot has waited for robots out of sight (`MAX_WAIT_TICKS`).
 var _waited_ticks: int = 0
+## Stalled (#658), the bot neither weaves nor turns to the robot; null without a level.
+var _stall: BotStall = null
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -88,6 +90,7 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 		_escape = BotEscape.new(sim, ship_index, _walls, _route)
 		_dodge = BotDodge.new(_walls)
 		_cover = BotCover.new(sim, level, _route)
+		_stall = BotStall.new()
 
 
 ## A point to fly to and stop at once no robot is left, such as a level's exit.
@@ -183,7 +186,8 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	if not waiting and distance > 0.0:
 		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
 		wanted = offset / distance * speed
-	if threatened:
+	var stalled: bool = _stall.update(ship.position)
+	if threatened and not stalled:
 		wanted += _dodge.velocity(ship, shooter.position)
 	else:
 		_dodge.reset()
@@ -194,7 +198,7 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 		# Nose on the robot, so the first tick the line opens is a shot.
 		lead = target.position - ship.position
 	var turn: Vector3 = turn_towards(basis_inverse * lead)
-	if in_sight and not flanking:
+	if in_sight and not flanking and not stalled:
 		turn = BotAim.track(ship, target)
 	var input: ShipInput = ShipInput.from_floats(basis_inverse * push, turn)
 	# Only when a shot gets there: one at a robot behind rock would hit the rock.
