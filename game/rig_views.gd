@@ -39,11 +39,36 @@ static func head_point(recentre: HeadRecentre) -> Transform3D:
 ## Puts `frame` and `panel` (either may be null) at the head point, so the
 ## head turns inside them and only a recentre moves them, both together.
 static func place(recentre: HeadRecentre, frame: CockpitFrame, panel: StatusPanel) -> void:
-	var at: Transform3D = head_point(recentre)
+	place_at(head_point(recentre), frame, panel)
+
+
+## Puts `frame` and `panel` (either may be null) at `at`, in the rig's space.
+static func place_at(at: Transform3D, frame: CockpitFrame, panel: StatusPanel) -> void:
 	if frame != null:
 		frame.transform = at
 	if panel != null:
 		panel.transform = StatusPanel.rig_transform(at)
+
+
+## Places `comfort`'s frame and `panel` where its `ViewGuard` says for the
+## head `camera` (#651): at the head point, unless the head has been lost
+## from the window long enough or tracking was just regained. Also writes
+## the `MELTDOWN_VIEW` line when that log is on. `ship` is a copy, read for
+## its hull only. Without a camera or a frame it places as `place` does.
+static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel: StatusPanel,
+		camera: Node3D, ship: ShipState, xr_running: bool) -> void:
+	var frame: CockpitFrame = comfort.cockpit_frame
+	if camera == null or frame == null or frame.spec == null:
+		place(recentre, frame, panel)
+		return
+	var tracked: bool = HeadRecentre.head_tracked() if xr_running else true
+	var now_s: float = float(comfort.clock.call())
+	var at: Transform3D = comfort.view_guard.update(head_point(recentre), camera.transform,
+		tracked, frame.spec, now_s)
+	place_at(at, frame, panel)
+	if comfort.view_log.enabled:
+		comfort.view_log.sample(now_s, ViewLog.values(comfort.view_guard, camera.transform,
+			comfort.shake_offset, comfort.number, ship.hull, tracked, now_s))
 
 
 ## Hands `panel` this frame's values from `ship`, a copy of the latest ship

@@ -44,6 +44,16 @@ func set_fraction(fraction: float) -> float:
 	return clamped
 
 
+## Paints the fill `value`; the track keeps its colour.
+func set_color(value: Color) -> void:
+	(fill.material_override as StandardMaterial3D).albedo_color = value
+
+
+## The fill's colour.
+func color() -> Color:
+	return (fill.material_override as StandardMaterial3D).albedo_color
+
+
 ## The fill's length as a fraction of the full bar, 0..1.
 func fraction() -> float:
 	return fill.scale.x

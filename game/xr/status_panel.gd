@@ -93,7 +93,7 @@ const OUTCOME_Y: float = 0.2
 ## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
 ## (#199). Its render priority sits above the cockpit frame's materials, which
 ## keep the default 0, so the panel lands on top of the shell, and well below
-## the reset fade quad (`Material.RENDER_PRIORITY_MAX`), so the fade still
+## the reset fade quad (`Material.RENDER_PRIORITY_MAX - 1`), so the fade still
 ## covers the panel.
 const RENDER_PRIORITY: int = 10
 ## Labels and the filled bar draw one step above the bar's track, so the
@@ -187,12 +187,14 @@ func show_values(preset_number: int, preset_name: String, speed_mps: float,
 
 
 ## Shows the shield and hull as fractions of their maximums, each clamped to
-## 0..1. A hull at or below `HULL_WARNING_FRACTION` turns the hull label
+## 0..1. A hull at or below the look's `low_hull_fraction` (#616) turns the hull label and bar
 ## `HULL_WARNING_COLOR`.
 func show_defence(shield_fraction: float, hull_fraction: float) -> void:
 	_shield_bar.set_fraction(shield_fraction)
 	var hull: float = _hull_bar.set_fraction(hull_fraction)
-	_hull_label.modulate = HULL_WARNING_COLOR if hull <= HULL_WARNING_FRACTION else TEXT_COLOR
+	var low: bool = hull <= float(StatusPanelLook.shared()["low_hull_fraction"])
+	_hull_label.modulate = HULL_WARNING_COLOR if low else TEXT_COLOR
+	_hull_bar.set_color(HULL_WARNING_COLOR if low else HULL_COLOR)
 
 
 ## Shows the part in the hold by name; an empty string shows `HOLD_EMPTY`.

@@ -114,12 +114,32 @@ func mean_ms() -> float:
 ## The 99th percentile by nearest rank: the smallest frame time that at least
 ## 99% of frames are no longer than. With fewer than 100 frames it is the max.
 func p99_ms() -> float:
+	return percentile_ms(0.99)
+
+
+## The 95th percentile by nearest rank, as `p99_ms` (#643).
+func p95_ms() -> float:
+	return percentile_ms(0.95)
+
+
+## The smallest frame time that at least `fraction` of frames are no longer
+## than (nearest rank); 0 with no frames.
+func percentile_ms(fraction: float) -> float:
 	if count() == 0:
 		return 0.0
 	var sorted: Array[float] = _frames_ms.duplicate()
 	sorted.sort()
-	var rank: int = ceili(0.99 * count())
+	var rank: int = ceili(fraction * count())
 	return sorted[clampi(rank, 1, count()) - 1]
+
+
+## Frames longer than `limit_ms` (#643: the frame time plus a stated slack).
+func count_over(limit_ms: float) -> int:
+	var total: int = 0
+	for ms: float in _frames_ms:
+		if ms > limit_ms:
+			total += 1
+	return total
 
 
 func max_ms() -> float:
@@ -127,12 +147,7 @@ func max_ms() -> float:
 
 
 func dropped() -> int:
-	var threshold: float = dropped_threshold_ms()
-	var total: int = 0
-	for ms: float in _frames_ms:
-		if ms > threshold:
-			total += 1
-	return total
+	return count_over(dropped_threshold_ms())
 
 
 func dropped_fraction() -> float:
@@ -165,6 +180,7 @@ func to_measurements() -> Dictionary:
 		"budget_ms": snappedf(budget_ms(), 0.01),
 		"dropped_threshold_ms": snappedf(dropped_threshold_ms(), 0.01),
 		"mean_ms": snappedf(mean_ms(), 0.01),
+		"p95_ms": snappedf(p95_ms(), 0.01),
 		"p99_ms": snappedf(p99_ms(), 0.01),
 		"max_ms": snappedf(max_ms(), 0.01),
 		"dropped": dropped(),

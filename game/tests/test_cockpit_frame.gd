@@ -23,6 +23,7 @@ static func valid_data() -> Dictionary:
 		"ledge_top_deg": 30.0, "ledge_height_deg": 12.0, "ledge_half_width_deg": 60.0,
 		"ledge_distance_m": 0.36, "pillar_width_deg": 8.0, "pillar_distance_m": 0.42,
 		"rim_height_deg": 8.0, "rim_distance_m": 0.42, "part_depth_m": 0.03,
+		"guard_margin_deg": 40.0, "guard_after_s": 3.0, "guard_distance_m": 0.45,
 		"interior_color": [0.08, 0.1, 0.13], "structure_color": [0.24, 0.27, 0.32],
 	}
 

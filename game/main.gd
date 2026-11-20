@@ -1,30 +1,20 @@
 extends Node3D
 
-## Entry scene. Starts an XR session when an OpenXR runtime is present and
-## falls back to a flat window otherwise, so the same build runs on the
-## headset, the desktop and headless CI (PLT-2, PLT-4).
-##
-## The scene also flies the local ship: `LocalSession` owns the simulation and
-## the rig follows the simulated ship, so the view moves only with the ship's
-## simulated motion (CMF-8). The rig reads copies of the ship and never writes
-## simulation state (MP-2, ARC-3).
+## Entry scene. Starts an XR session when an OpenXR runtime is present and falls back to a
+## flat window otherwise, so the same build runs on the headset, the desktop and headless CI
+## (PLT-2, PLT-4). The scene also flies the local ship: `LocalSession` owns the simulation and
+## the rig follows the simulated ship, so the view moves only with the ship's simulated
+## motion (CMF-8). The rig reads copies of the ship and never writes simulation state (MP-2, ARC-3).
 
-## Where the test tunnel sits relative to the simulation origin, where the ship starts:
-## 1 m below, the ship's radius, so the first tick does not push it off the floor.
-const TUNNEL_OFFSET: Vector3 = Vector3(0.0, -1.0, 0.0)
-## The ship's feel values, tuned after headset sessions without code changes.
-const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
-const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  # (#228)
+## Kept here, where tests read them, since #616 moved them to `LevelStart`.
+const TUNNEL_OFFSET: Vector3 = LevelStart.TUNNEL_OFFSET
+const SHIP_TUNING_PATH: String = LevelStart.SHIP_TUNING_PATH
+const ROBOT_SPAWNS_PATH: String = LevelStart.ROBOT_SPAWNS_PATH
 
 ## Where each frame's sampled input goes; every tick until the next frame flies it.
 var input_source: LatestInputSource = LatestInputSource.new()
-## Flies inside the test tunnel's walls, from the same box the tunnel is drawn
-## around (FLT-3), with the tuning file's values or, if it is rejected, the defaults,
-## and every weapon file as a part a held part can be slotted from (#320),
-## picked up and pulled as the salvage file says (#600).
-var session: LocalSession = LocalSession.new(0, input_source, TestTunnel.interior_box(TUNNEL_OFFSET),
-		LocalSession.load_tuning(SHIP_TUNING_PATH), LocalSession.load_spawns(ROBOT_SPAWNS_PATH),
-		null, LocalSession.load_parts()).use_salvage_rules(SpawnLoader.load_salvage_rules())
+## The test tunnel's session until `use_level` replaces it (`LevelStart.tunnel_session`).
+var session: LocalSession = LevelStart.tunnel_session(input_source)
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
@@ -62,8 +52,10 @@ var meltdown: MeltdownWiring = MeltdownWiring.new()
 var pickup_hint: PickupHint = PickupHint.load_file()
 ## Asks the headset for the preset's refresh rate and reads back the rate in use (#598).
 var refresh_rate: RefreshRate = RefreshRate.new()
-## Asks for a newer build on start and on a menu tap; debug headset builds only (#646).
-var update: UpdateWiring = UpdateWiring.new()
+var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headset builds (#646).
+## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
+var destroyed: DestroyedWiring = DestroyedWiring.new()
+var level_start: LevelStart = LevelStart.new()
 
 
 func _ready() -> void:
@@ -93,7 +85,8 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	use_level(LevelSwitch.requested_path())  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	level_start.source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	use_level(level_start.source)
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
@@ -101,6 +94,7 @@ func _ready() -> void:
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping)
 	meltdown.attach(self, session)
+	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
@@ -140,6 +134,7 @@ func apply_controls(values: Dictionary) -> void:
 	if comfort.read_label_button(values.get("buttons", {})):
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
 	map.buttons = values.get("buttons", {})
+	destroyed.read_buttons(values.get("buttons", {}))
 	reset_hold.press(ResetHold.is_held(values))
 	update.press_menu(ResetHold.is_held(values))  # A tap shorter than the reset hold.
 	comfort.hand_input(ControllerSampler.map_values(mapping, values),
@@ -166,8 +161,10 @@ func advance_frame(delta_seconds: float) -> void:
 		_end_one_tick_if_flown()
 	# A paused view holds still (CMF-8), shake included.
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
+	if destroyed.update(session, delta_seconds, head_recentre, _xr_running):
+		restart_level()
 	if fade_overlay != null:
-		fade_overlay.set_alpha(reset_hold.alpha)
+		fade_overlay.set_alpha(maxf(reset_hold.alpha, destroyed.fade_alpha()))
 	# Logs afterburner starts and stops and pulses the boosting hand (#146, #170).
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
 	place_rig()
@@ -199,12 +196,18 @@ func _end_one_tick_if_flown() -> void:
 ## level drawn where the tunnel was. Call it before the first frame. Returns
 ## false, leaving the tunnel and its session, for "" or a rejected file.
 func use_level(path: String) -> bool:
-	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
-	if level == null:
-		return false
-	session = LocalSession.for_level(level, 0, input_source, LocalSession.load_tuning(SHIP_TUNING_PATH))
-	LevelSwitch.show_level(self, level)
-	return true
+	var fresh: LocalSession = LevelStart.level_session(self, path, input_source)
+	session = fresh if fresh != null else session
+	return fresh != null
+
+
+## Flies the level again from its start (#616) through the launch's loading path (MP-2).
+func restart_level() -> void:
+	var paused: bool = session.paused
+	session = level_start.fresh_session(self, input_source)
+	session.paused = paused
+	meltdown.attach(self, session)
+	head_recentre.request()
 
 
 ## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
@@ -261,7 +264,7 @@ func place_rig() -> void:
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction, comfort.latest_tick_snapped)
 	rig.transform = head_recentre.rig_transform(pose * comfort.shake_offset)
-	RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
+	RigViews.place_guarded(head_recentre, comfort, status_panel, camera, session.current_ship(), _xr_running)
 
 
 func _on_session_begun(openxr: OpenXRInterface) -> void:

@@ -128,6 +128,8 @@ func test_m1_and_m2_suite_replays_end_on_their_pinned_hashes() -> String:
 		for step: AcceptanceStep in suite.steps:
 			if step.replay_path == "":
 				continue  # A headset-only step such as m1's refresh_rate (#598) flies nothing.
+			if not step.has_check(AcceptanceStep.CHECK_FINAL_HASH):
+				continue  # m1's frame_budget flight (#643) is timed on the headset, not pinned.
 			var replay: Replay = Replay.from_text(FileAccess.get_file_as_string(step.replay_path))
 			var sim: Sim = null if replay.error != "" else replay.run()
 			if sim == null:

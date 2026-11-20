@@ -29,6 +29,8 @@ var main: Node = null
 var suites: Array[AcceptanceSuite] = []
 ## The OpenXR interface, or null when there is none; tests pass their own.
 var xr_interface: XRInterface = null
+## Whether this is the Quest itself, where frame times count (#643); tests set it.
+var on_headset: bool = OS.get_name() == "Android"
 ## Called once with the exit code; quits the game unless a test replaces it.
 var quit_callback: Callable = Callable()
 ## One report per suite, in run order, and where each was written.
@@ -53,6 +55,8 @@ var _errors_at_step_start: int = 0
 var _source: ReplayInputSource = null
 ## Why the step's level could not be flown, or "".
 var _level_problem: String = ""
+## The frame times of a frame_budget step measured here, or null.
+var _frames: AcceptanceFrameBudgetCheck = null
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -96,19 +100,23 @@ func _notification(what: int) -> void:
 		_stop_logging()
 
 
-func _process(_delta: float) -> void:
-	process_frame()
+func _process(delta: float) -> void:
+	process_frame(delta)
 
 
-## One frame of work. Public so tests can drive the runner outside a tree.
-func process_frame() -> void:
+## One frame of work, which took `frame_seconds` to show. Public so tests can
+## drive the runner outside a tree.
+func process_frame(frame_seconds: float = 0.0) -> void:
 	if finished:
 		return
-	if _suite_index == 0 and _step_index == 0 and not _step_started and not _suites_readable():
-		_finish(EXIT_FAIL)
-		return
+	if _suite_index == 0 and _step_index == 0 and not _step_started:
+		var unreadable: String = AcceptanceSuite.unreadable(suites)
+		if unreadable != "":
+			_say("%s: %s" % [LOG_PREFIX, unreadable])
+			_finish(EXIT_FAIL)
+			return
 	if _suite_index >= suites.size():
-		_finish(EXIT_PASS if _all_passed() else EXIT_FAIL)
+		_finish(EXIT_PASS if AcceptanceReport.all_passed(reports) else EXIT_FAIL)
 		return
 	var suite: AcceptanceSuite = suites[_suite_index]
 	if _step_index >= suite.steps.size():
@@ -121,6 +129,8 @@ func process_frame() -> void:
 	var step: AcceptanceStep = suite.steps[_step_index]
 	if not _step_started:
 		_start_step(step)
+	elif _frames != null:
+		_frames.add(frame_seconds)
 	if not _step_ready(step):
 		return
 	_record_step(step)
@@ -128,24 +138,15 @@ func process_frame() -> void:
 	_step_started = false
 
 
-## Every suite must load before anything flies: a missing or rejected suite
-## ends the run with its message and exit code 1.
-func _suites_readable() -> bool:
-	if suites.is_empty():
-		_say("%s: no suite found" % LOG_PREFIX)
-		return false
-	for suite: AcceptanceSuite in suites:
-		if suite.error != "":
-			_say("%s: cannot run: %s" % [LOG_PREFIX, suite.error])
-			return false
-	return true
-
-
 func _start_step(step: AcceptanceStep) -> void:
 	_step_started = true
 	_xr_waited = 0
 	_source = null
 	_level_problem = ""
+	_frames = null
+	if step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET) \
+			and AcceptanceFrameBudgetCheck.measures_here(_xr_available(), on_headset):
+		_frames = AcceptanceFrameBudgetCheck.new(step)
 	_errors_at_step_start = _errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	if step.preset != AcceptanceStep.NO_PRESET:
@@ -171,8 +172,8 @@ func _start_step(step: AcceptanceStep) -> void:
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
-## False while the step still needs frames: flying its replay, or waiting for
-## the OpenXR session to begin.
+## False while the step still needs frames: flying its replay, measuring its
+## frame times, or waiting for the OpenXR session to begin.
 func _step_ready(step: AcceptanceStep) -> bool:
 	if _source != null:
 		var session: LocalSession = main.get("session")
@@ -180,6 +181,8 @@ func _step_ready(step: AcceptanceStep) -> bool:
 			main.call("advance_frame", ShipState.TICK_DT)
 			return false
 		main.set_process(true)
+	if _frames != null and not _frames.done():
+		return false
 	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
 		_xr_waited += 1
 		return false
@@ -192,7 +195,9 @@ func _waits_for_xr(step: AcceptanceStep) -> bool:
 		return false
 	if step.has_check(AcceptanceStep.CHECK_XR_SESSION) and not _xr_begun:
 		return true
-	return step.has_check(AcceptanceStep.CHECK_REFRESH_RATE) and not AcceptanceRefreshCheck.settled(main)
+	var reads_rate: bool = step.has_check(AcceptanceStep.CHECK_REFRESH_RATE) \
+		or step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET)
+	return reads_rate and not AcceptanceRefreshCheck.settled(main)
 
 
 func _record_step(step: AcceptanceStep) -> void:
@@ -208,11 +213,7 @@ func _record_step(step: AcceptanceStep) -> void:
 		var outcome: Array = _run_check(check, step, measurements)
 		outcomes.append(outcome[0])
 		notes.append("%s: %s" % [check, outcome[1]])
-	var result: String = AcceptanceReport.RESULT_SKIPPED
-	if outcomes.has(AcceptanceReport.RESULT_FAIL):
-		result = AcceptanceReport.RESULT_FAIL
-	elif outcomes.has(AcceptanceReport.RESULT_PASS):
-		result = AcceptanceReport.RESULT_PASS
+	var result: String = AcceptanceReport.combine(outcomes)
 	reports[_suite_index].add_step(step.id, result, "; ".join(notes), measurements)
 	_say("%s: step %s %s" % [LOG_PREFIX, step.id, result])
 
@@ -223,15 +224,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 		return AcceptanceStateChecks.run(check, step, main.get("session"), _source != null, measurements)
 	match check:
 		AcceptanceStep.CHECK_XR_SESSION:
-			if not _xr_available():
-				var outcome: String = AcceptanceReport.RESULT_FAIL if step.required \
-					else AcceptanceReport.RESULT_SKIPPED
-				return [outcome, "no OpenXR runtime"]
-			measurements["xr_wait_frames"] = _xr_waited
-			if not _xr_begun:
-				return [AcceptanceReport.RESULT_FAIL,
-					"the session did not begin within %d frames" % XR_WAIT_FRAMES]
-			return [AcceptanceReport.RESULT_PASS, "session began"]
+			return AcceptanceXrSessionCheck.run(_xr_available(), _xr_begun, _xr_waited, XR_WAIT_FRAMES,
+				step.required, measurements)
 		AcceptanceStep.CHECK_NO_SCRIPT_ERRORS:
 			var seen: PackedStringArray = _errors.errors().slice(_errors_at_step_start)
 			measurements["script_errors"] = seen.size()
@@ -240,6 +234,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			return [AcceptanceReport.RESULT_PASS, "none"]
 		AcceptanceStep.CHECK_REFRESH_RATE:
 			return AcceptanceRefreshCheck.run(main, _xr_available(), step.required, measurements)
+		AcceptanceStep.CHECK_FRAME_BUDGET:
+			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -251,24 +247,13 @@ func _on_xr_session_begun() -> void:
 	_xr_begun = true
 
 
-func _all_passed() -> bool:
-	for report: AcceptanceReport in reports:
-		if not report.passed():
-			return false
-	return not reports.is_empty()
-
-
-## Writes the report as `<suite>-<commit>.json` and echoes it to the log. A
-## write that fails is said, but the log copy still carries the result.
+## Writes the report to REPORT_DIR and echoes it to the log. A write that
+## fails is said, but the log copy still carries the result.
 func _write_report(report: AcceptanceReport) -> void:
-	var path: String = REPORT_DIR.path_join("%s-%s.json" % [report.suite_name, _build().short_commit()])
-	DirAccess.make_dir_recursive_absolute(REPORT_DIR)
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		_say("%s: cannot write %s: %s" % [LOG_PREFIX, path, error_string(FileAccess.get_open_error())])
+	var path: String = report.write_file(REPORT_DIR, _build().short_commit())
+	if path == "":
+		_say("%s: %s" % [LOG_PREFIX, report.write_error])
 	else:
-		file.store_string(report.to_json() + "\n")
-		file.close()
 		report_paths.append(path)
 	for line: String in report.to_log_lines():
 		_say(line)

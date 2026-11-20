@@ -21,6 +21,8 @@ var suite_name: String = ""
 ## One Dictionary per step, in the order the steps ran: id, result, message,
 ## measurements.
 var steps: Array[Dictionary] = []
+## Why the last `write_file` failed, or "".
+var write_error: String = ""
 
 
 func _init(p_suite_name: String = "", p_build_commit: String = "", p_device_name: String = "") -> void:
@@ -53,6 +55,37 @@ func passed() -> bool:
 		if step["result"] == RESULT_PASS:
 			ran = true
 	return ran
+
+
+## The step result from its checks' results: any fail fails, otherwise any
+## pass passes, otherwise (every check skipped, or none) it is skipped.
+static func combine(results: Array[String]) -> String:
+	if results.has(RESULT_FAIL):
+		return RESULT_FAIL
+	return RESULT_PASS if results.has(RESULT_PASS) else RESULT_SKIPPED
+
+
+## True only if there is a report and every report passed.
+static func all_passed(reports: Array[AcceptanceReport]) -> bool:
+	for report: AcceptanceReport in reports:
+		if not report.passed():
+			return false
+	return not reports.is_empty()
+
+
+## Writes the report as `<suite>-<commit>.json` in `dir`. Returns the path
+## written, or "" with the reason in `write_error`.
+func write_file(dir: String, short_commit: String) -> String:
+	var path: String = dir.path_join("%s-%s.json" % [suite_name, short_commit])
+	DirAccess.make_dir_recursive_absolute(dir)
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		write_error = "cannot write %s: %s" % [path, error_string(FileAccess.get_open_error())]
+		return ""
+	file.store_string(to_json() + "\n")
+	file.close()
+	write_error = ""
+	return path
 
 
 func to_dictionary() -> Dictionary:

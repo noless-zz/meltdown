@@ -5,7 +5,9 @@ extends RefCounted
 const FRAME: float = 1.0 / 90.0
 const VALID: String = """{
 	"boost_start": {"amplitude": 0.6, "duration_s": 0.08, "frequency_hz": 0},
-	"boost_stop": {"amplitude": 0.3, "duration_s": 0.05, "frequency_hz": 160}
+	"boost_stop": {"amplitude": 0.3, "duration_s": 0.05, "frequency_hz": 160},
+	"low_hull": {"amplitude": 0.9, "duration_s": 0.3, "frequency_hz": 0},
+	"shield_break": {"amplitude": 0.7, "duration_s": 0.06, "frequency_hz": 0}
 }"""
 
 
