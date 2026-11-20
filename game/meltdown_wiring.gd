@@ -13,6 +13,10 @@ extends RefCounted
 ## map with the route, because that is where the map is reached during the
 ## meltdown and `main.gd` must not grow.
 ##
+## `escape` adds the escape cues (#617): the large countdown and the arrow to
+## the exit in the cockpit, and the sign at the exit. It hangs here so that
+## `main.gd` need not change.
+##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
 ## reactor reaches the view as a `SessionSnapshots.reactor` copy and the outcome
@@ -23,6 +27,8 @@ extends RefCounted
 var reactor_view: ReactorView = null
 ## The debris, under the world node while the session has some, null otherwise.
 var debris_view: DebrisView = null
+## The countdown and arrow in the cockpit and the exit sign (#617).
+var escape: EscapeCueWiring = EscapeCueWiring.new()
 
 ## The node whose space is the simulation's; set by `attach`.
 var _world: Node3D = null
@@ -33,6 +39,7 @@ var _world: Node3D = null
 ## without a reactor (the test tunnel) gets no view.
 func attach(world: Node3D, session: LocalSession) -> void:
 	_world = world
+	escape.attach(world, session)
 	update(session, null)
 
 
@@ -50,6 +57,7 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 	if panel != null:
 		panel.show_meltdown(seconds_left(reactor) if reactor != null and reactor.destroyed else -1.0)
 		panel.show_outcome(session.sim.outcome())
+	escape.update(session, panel)
 
 
 ## Seconds of meltdown left on `reactor`, a session copy: its ticks at 60 a second.
