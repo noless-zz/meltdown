@@ -4,8 +4,9 @@ extends Node3D
 ## The in-app update notice on the status panel (#646). It offers a newer
 ## build with two choices, "Update" (a tap of the left menu button) and
 ## "Later" (let it go: it hides after `OFFER_SECONDS`), or shows a one-line
-## reason for a check the pilot asked for. It is handed plain text and only
-## emits the choice; it never starts a download or an install itself.
+## reason for a check the pilot asked for, or the download's progress and
+## outcome (#673). It is handed plain text and only emits the choice; it never
+## starts a download or an install itself.
 ##
 ## Drawn like the panel's own labels and placed above them, clear of the
 ## large outcome and preset labels. Text only, no motion (CMF-3).
@@ -22,6 +23,8 @@ const CHOICES_Y: float = -0.022
 ## Long enough to read and decide; the offer comes back on the next start.
 const OFFER_SECONDS: float = 20.0
 const REASON_SECONDS: float = 5.0
+## How long a download's outcome stays up once the download has ended.
+const OUTCOME_SECONDS: float = 5.0
 
 ## True while the "Update" / "Later" choice is open.
 var offering: bool = false
@@ -67,6 +70,17 @@ func tell(text: String) -> void:
 	_choices.visible = false
 
 
+## Shows a running download's `text` until the next `follow` or `outcome`:
+## it does not time out while the download runs.
+func follow(text: String) -> void:
+	_show_alone(text, 0.0)
+
+
+## Shows how a download ended for `OUTCOME_SECONDS`, replacing any offer.
+func outcome(text: String) -> void:
+	_show_alone(text, OUTCOME_SECONDS)
+
+
 ## The pilot chose "Update". Returns false, doing nothing, when no choice is open.
 func choose_update() -> bool:
 	if not offering:
@@ -100,4 +114,12 @@ func _hide() -> void:
 	offering = false
 	seconds_left = 0.0
 	_line.visible = false
+	_choices.visible = false
+
+
+func _show_alone(text: String, seconds: float) -> void:
+	StatusPanelLabels.set_text(_line, text)
+	offering = false
+	seconds_left = seconds
+	_line.visible = true
 	_choices.visible = false

@@ -4,8 +4,10 @@ extends RefCounted
 ## Joins the in-app update check to the main scene (#646, DEV-8, PLT-1): on
 ## start it asks once, a tap of the left menu button asks again, and a newer
 ## build is offered on the status panel with "Update" and "Later". Choosing
-## "Update" only emits `update_chosen` for now; the download is #647 and the
-## installer hand-off #648. Nothing is installed unless the pilot chooses.
+## "Update" emits `update_chosen` and downloads the build (#647, #673); the
+## notice follows the download, and a menu tap while it runs cancels it. A
+## checked download is passed on as `update_verified` for the installer
+## hand-off (#648). Nothing is installed unless the pilot chooses.
 ##
 ## Debug builds on the headset only. A release or store build never makes
 ## the request, and a desktop debug run only with `ARG`, so CI and the tests
@@ -13,12 +15,16 @@ extends RefCounted
 
 ## The release the pilot chose to install, as `UpdateCheck.evaluate` gave it.
 signal update_chosen(result: Dictionary)
+## The downloaded APK matched its published SHA-256; ready for the installer.
+signal update_verified(path: String)
 
 ## Desktop or editor: `godot ... -- --update-check`.
 const ARG: String = "--update-check"
 
 var request: UpdateRequest = null
 var notice: UpdateNotice = null
+## Null when the wiring was attached without one: then "Update" only emits.
+var download: UpdateDownload = null
 var tap: MenuTap = MenuTap.new()
 
 var _offered: Dictionary = {}
@@ -36,7 +42,8 @@ func attach(host: Node, panel: Node3D, running: BuildInfo) -> bool:
 	if not may_attach(OS.is_debug_build(), settings, platform_ok, suite):
 		return false
 	attach_with(panel if panel != null else host as Node3D,
-		UpdateRequest.new(settings, HttpUpdateTransport.new(host), running, true))
+		UpdateRequest.new(settings, HttpUpdateTransport.new(host), running, true),
+		UpdateDownload.new(HttpUpdateDownloader.new(host), UpdateDownload.default_directory()))
 	return true
 
 
@@ -49,10 +56,15 @@ static func may_attach(is_debug_build: bool, settings: UpdateSettings, platform_
 	return UpdateRequest.is_allowed(is_debug_build, settings, platform_ok)
 
 
-## The wiring with its parts passed in, so tests can fake the transport.
-## Sends the start-up check at once.
-func attach_with(notice_parent: Node3D, p_request: UpdateRequest) -> void:
+## The wiring with its parts passed in, so tests can fake the transport and
+## the downloader. Sends the start-up check at once.
+func attach_with(notice_parent: Node3D, p_request: UpdateRequest, p_download: UpdateDownload = null) -> void:
 	request = p_request
+	download = p_download
+	if download != null:
+		download.changed.connect(_on_download_changed)
+		download.ended.connect(_on_download_ended)
+		download.verified.connect(_on_download_verified)
 	request.finished.connect(_on_finished)
 	notice = UpdateNotice.new()
 	if notice_parent != null:
@@ -62,16 +74,26 @@ func attach_with(notice_parent: Node3D, p_request: UpdateRequest) -> void:
 	request.check_on_start()
 
 
-## Once per frame with whether the menu button (or Backspace) is down. A tap
-## chooses "Update" while the offer is up and asks for a check otherwise.
+## Once per frame with whether the menu button (or Backspace) is down. It also
+## steps a running download, since this is the wiring's one per-frame call. A
+## tap cancels a running download, chooses "Update" while the offer is up and
+## asks for a check otherwise.
 func press_menu(held: bool, now: float = MenuTap.steady_seconds()) -> void:
-	if request == null or not tap.feed(held, now):
+	if request == null:
 		return
-	if not notice.choose_update():
+	if download != null and download.is_busy():
+		download.step()
+	if not tap.feed(held, now):
+		return
+	if download != null and download.is_busy():
+		download.cancel()
+	elif not notice.choose_update():
 		request.check_on_request()
 
 
 func _on_finished(result: Dictionary, asked: bool) -> void:
+	if download != null and download.is_busy():
+		return  # The download's progress matters more than a check's answer.
 	var text: String = UpdateRequest.notice_text(result, asked)
 	if result.get("status", "") == UpdateCheck.STATUS_UPDATE_AVAILABLE:
 		_offered = result
@@ -83,7 +105,22 @@ func _on_finished(result: Dictionary, asked: bool) -> void:
 func _on_update_chosen() -> void:
 	print("%s chosen %s" % [UpdateRequest.LOG_PREFIX, _offered.get("commit", BuildInfo.UNKNOWN)])
 	update_chosen.emit(_offered)
+	if download != null:
+		download.start(_offered)
 
 
 func _on_later_chosen() -> void:
 	print("%s later %s" % [UpdateRequest.LOG_PREFIX, _offered.get("commit", BuildInfo.UNKNOWN)])
+
+
+func _on_download_changed(text: String) -> void:
+	if download.is_busy():
+		notice.follow(text)
+
+
+func _on_download_ended(_status: String, text: String) -> void:
+	notice.outcome(text)
+
+
+func _on_download_verified(path: String) -> void:
+	update_verified.emit(path)
