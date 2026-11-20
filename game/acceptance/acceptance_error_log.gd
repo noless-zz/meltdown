@@ -28,6 +28,16 @@ func count() -> int:
 	return result
 
 
+## [result, message] for the `no_script_errors` check: none since the
+## `since`-th error, adding the count to `measurements`.
+func judge(since: int, measurements: Dictionary) -> Array:
+	var seen: PackedStringArray = errors().slice(since)
+	measurements["script_errors"] = seen.size()
+	if not seen.is_empty():
+		return [AcceptanceReport.RESULT_FAIL, "%d script errors, first: %s" % [seen.size(), seen[0]]]
+	return [AcceptanceReport.RESULT_PASS, "none"]
+
+
 func _log_error(
 		function: String, file: String, line: int, code: String, rationale: String,
 		_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]
