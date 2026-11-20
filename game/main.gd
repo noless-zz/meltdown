@@ -93,7 +93,7 @@ func _ready() -> void:
 	attach_status_panel()
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping)
-	meltdown.attach(self, session)
+	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
 	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).

@@ -38,10 +38,14 @@ func _centre(box: BoxBounds) -> Vector3:
 
 
 ## G2 one tick in, the ship moved to the reactor room with every box explored
-## by both the map and the cue, and the reactor destroyed.
-func _g2_meltdown() -> Node:
+## by the map (and by the cue when `own_search`, the cue left without the map's
+## route wiring, as when it is built alone), and the reactor destroyed.
+func _g2_meltdown(own_search: bool = false) -> Node:
 	var main: Node = _main("g2")
 	var session: LocalSession = _session(main)
+	if own_search:
+		_escape(main).route_wiring = null
+		_escape(main).attach(main, session)
 	main.call("advance_frame", 0.0)
 	_ticks(main, 1)
 	var walls: BoxUnion = session.replay.walls()
@@ -49,7 +53,8 @@ func _g2_meltdown() -> Node:
 	session.sim.ships[0].velocity = Vector3.ZERO
 	for box: BoxBounds in walls.boxes:
 		(main.get("map") as MapWiring).explored.visit(_centre(box))
-		_escape(main).explored.visit(_centre(box))
+		if own_search:
+			_escape(main).explored.visit(_centre(box))
 	session.sim.reactor.apply_damage(session.sim.reactor.hull)
 	return main
 
@@ -135,6 +140,58 @@ func test_the_arrow_follows_the_maps_route() -> String:
 		return "the arrow is hidden with a route known"
 	if direction.angle_to(want) > 0.02:
 		return "the arrow points %s, the next corner is %s" % [direction, want]
+	return ""
+
+
+func test_one_route_search_per_interval_shared_by_map_and_arrow() -> String:
+	var main: Node = _g2_meltdown()
+	_ticks(main, 1)
+	var escape: EscapeCueWiring = _escape(main)
+	var map_wiring: MapRouteWiring = (main.get("map") as MapWiring).route_wiring
+	var session: LocalSession = _session(main)
+	var problem: String = ""
+	if escape.route_wiring != map_wiring:
+		problem = "the main scene did not hand the map's route wiring to the cue"
+	elif escape.explored != null:
+		problem = "the cue keeps its own explored boxes"
+	var intervals: int = 0
+	for interval: int in 8:
+		if problem != "":
+			break
+		var before: int = map_wiring.searches + escape.searches
+		var solid: int = MapRouteWiring.solid_count(session.sim.debris)
+		_ticks(main, MapRouteWiring.ROUTE_EVERY_TICKS)
+		var ran: int = map_wiring.searches + escape.searches - before
+		if escape.searches != 0:
+			problem = "the cue searched %d times itself" % escape.searches
+		elif escape.route == null or not is_same(escape.route, map_wiring.route):
+			problem = "the arrow does not read the map's route"
+		elif solid == MapRouteWiring.solid_count(session.sim.debris):
+			# Falling debris rightly forces a search; count only quiet intervals.
+			intervals += 1
+			if ran != 1:
+				problem = "interval %d ran %d route searches" % [interval, ran]
+	main.free()
+	if problem == "" and intervals == 0:
+		problem = "debris fell in every interval; no quiet interval was counted"
+	return problem
+
+
+func test_without_a_route_wiring_the_cue_searches_as_the_map_does() -> String:
+	var main: Node = _g2_meltdown(true)
+	_ticks(main, 2)
+	var escape: EscapeCueWiring = _escape(main)
+	var map_route: KnownRoute = (main.get("map") as MapWiring).route_wiring.route
+	var route: KnownRoute = escape.route
+	var searches: int = escape.searches
+	var shown: bool = escape.cue != null and escape.cue.arrow.visible
+	main.free()
+	if searches == 0 or route == null or map_route == null:
+		return "the cue alone did not search (%d searches)" % searches
+	if route.points_mm != map_route.points_mm:
+		return "the cue's own route %s is not the map's %s" % [route.points_mm, map_route.points_mm]
+	if not shown:
+		return "the arrow is hidden with a route known"
 	return ""
 
 
