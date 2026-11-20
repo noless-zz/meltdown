@@ -1,0 +1,15 @@
+{
+	"instructions": {
+		"snap_yaw": "Turn left and right. The view turns in steps.",
+		"snap_pitch": "Look up and down. The view turns in steps.",
+		"smooth_yaw": "Turn left and right, smoothly.",
+		"smooth_pitch": "Pitch the nose up and down, smoothly.",
+		"manual_roll": "Roll the ship both ways."
+	},
+	"question": "How did that feel?",
+	"answers": "Fine     Uneasy     Stop",
+	"time_left": "{seconds} s",
+	"result": "Comfort preset: {preset}",
+	"change_hint": "Change it any time with X",
+	"raise_m": 0.12
+}
