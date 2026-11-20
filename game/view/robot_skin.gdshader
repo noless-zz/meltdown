@@ -37,7 +37,7 @@ void vertex() {
 }
 
 // 1 on a line of `width` (a share of each cell) along `value`, 0 off it,
-// softened by the screen-space change so far lines do not shimmer (CMF-3).
+// softened by the screen-space change so far lines do not shimmer (GFX-2).
 float line(float value, float width) {
 	float to_centre = abs(fract(value) - 0.5);
 	float blur = max(fwidth(value), 1e-4);
