@@ -4,6 +4,10 @@
 		{
 			"id": "stereo_session",
 			"checks": ["xr_session"]
+		},
+		{
+			"id": "controllers_bound",
+			"checks": ["controllers_bound"]
 		}
 	]
 }

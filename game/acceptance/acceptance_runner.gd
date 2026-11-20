@@ -33,6 +33,8 @@ var xr_interface: XRInterface = null
 var on_headset: bool = OS.get_name() == "Android"
 ## Called once with the exit code; quits the game unless a test replaces it.
 var quit_callback: Callable = Callable()
+## Reads the hands for the controllers_bound check (#717); tests pass a fake.
+var controllers: AcceptanceControllersCheck = AcceptanceControllersCheck.live()
 ## One report per suite, in run order, and where each was written.
 var reports: Array[AcceptanceReport] = []
 var report_paths: Array[String] = []
@@ -194,11 +196,13 @@ func _step_ready(step: AcceptanceStep) -> bool:
 	return true
 
 
-## Whether a check of `step` still waits on the headset's session or refresh rate.
+## Whether a check of `step` still waits on the headset's session, controllers or refresh rate.
 func _waits_for_xr(step: AcceptanceStep) -> bool:
 	if not _xr_available():
 		return false
 	if step.has_check(AcceptanceStep.CHECK_XR_SESSION) and not _xr_begun:
+		return true
+	if step.has_check(AcceptanceStep.CHECK_CONTROLLERS_BOUND) and not controllers.settled():
 		return true
 	var reads_rate: bool = step.has_check(AcceptanceStep.CHECK_REFRESH_RATE) \
 		or step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET)
@@ -234,11 +238,9 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			return AcceptanceXrSessionCheck.run(_xr_available(), _xr_begun, _xr_waited, XR_WAIT_FRAMES,
 				step.required, measurements)
 		AcceptanceStep.CHECK_NO_SCRIPT_ERRORS:
-			var seen: PackedStringArray = _errors.errors().slice(_errors_at_step_start)
-			measurements["script_errors"] = seen.size()
-			if not seen.is_empty():
-				return [AcceptanceReport.RESULT_FAIL, "%d script errors, first: %s" % [seen.size(), seen[0]]]
-			return [AcceptanceReport.RESULT_PASS, "none"]
+			return _errors.judge(_errors_at_step_start, measurements)
+		AcceptanceStep.CHECK_CONTROLLERS_BOUND:
+			return controllers.run(_xr_available(), step.required, measurements)
 		AcceptanceStep.CHECK_REFRESH_RATE:
 			return AcceptanceRefreshCheck.run(main, _xr_available(), step.required, measurements)
 		AcceptanceStep.CHECK_FRAME_BUDGET:
