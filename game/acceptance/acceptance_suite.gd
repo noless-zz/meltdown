@@ -26,6 +26,8 @@ extends RefCounted
 ## goes with `final_hash`, and pins the level a seed builds. The
 ## `frame_budget` check needs `settle_seconds`, `measure_seconds`,
 ## `max_over_budget_share` and `budget_slack_ms` (`AcceptanceFrameBudgetCheck`).
+## `screenshot_at_ticks` and `screenshot_at_end` save screenshots while the
+## replay flies (`AcceptanceScreenshots`).
 ##
 ## Unknown keys, unknown checks and bad values are rejected with the field
 ## named, like `ShipTuning`: a mistyped key would otherwise switch a check off
@@ -39,7 +41,7 @@ const ALL: String = "all"
 const SUITE_KEYS: Array[String] = ["name", "steps"]
 const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
 	"level", "expected_outcome", "seed", "expected_level_hash", "settle_seconds", "measure_seconds",
-	"max_over_budget_share", "budget_slack_ms"]
+	"max_over_budget_share", "budget_slack_ms", AcceptanceScreenshots.KEY_TICKS, AcceptanceScreenshots.KEY_END]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -174,6 +176,8 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 		problem = _parse_expected_level_hash(data, field, step)
 	if problem == "":
 		problem = AcceptanceFrameBudgetCheck.parse_step(data, field, step)
+	if problem == "":
+		problem = AcceptanceScreenshots.parse_step(data, field, step)
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

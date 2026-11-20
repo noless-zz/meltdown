@@ -5,12 +5,11 @@ extends Node
 ## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
 ## is set, so a normal start never sees it.
 ##
-## Each step sets its comfort preset, switches the scene to its level (#334),
-## or builds the generated level its seed names (#460), flies its replay
-## through the scene's own `advance_frame` (one tick per frame, the replay's
-## inputs in place of the controllers), runs its checks and records them in an `AcceptanceReport`.
-## At the end every report is written to `user://acceptance/` and echoed to the
-## log, and the game quits with 0 if every suite passed and 1 otherwise.
+## Each step sets its comfort preset, switches to its level (#334) or builds its
+## seed's level (#460), flies its replay through the scene's `advance_frame` (one
+## tick per frame, replay inputs in place of the controllers), takes its screenshots
+## (#718), runs its checks and records them in an `AcceptanceReport`. Reports go to
+## `user://acceptance/` and the log; the game quits with 0 if every suite passed.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
 const ARG_PREFIX: String = "--acceptance="
@@ -35,6 +34,8 @@ var on_headset: bool = OS.get_name() == "Android"
 var quit_callback: Callable = Callable()
 ## Reads the hands for the controllers_bound check (#717); tests pass a fake.
 var controllers: AcceptanceControllersCheck = AcceptanceControllersCheck.live()
+## Saves a step's screenshots (#718); tests pass their own image source.
+var screenshots: AcceptanceScreenshots = AcceptanceScreenshots.live()
 ## One report per suite, in run order, and where each was written.
 var reports: Array[AcceptanceReport] = []
 var report_paths: Array[String] = []
@@ -129,7 +130,7 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 		_step_index = 0
 		return
 	if reports.size() <= _suite_index:
-		reports.append(AcceptanceReport.new(suite.name, _build().commit, _device_name()))
+		reports.append(AcceptanceReport.new(suite.name, _build().commit, "%s (%s)" % [OS.get_model_name(), OS.get_name()]))
 	var step: AcceptanceStep = suite.steps[_step_index]
 	if not _step_started:
 		_start_step(step)
@@ -153,6 +154,7 @@ func _start_step(step: AcceptanceStep) -> void:
 		_frames = AcceptanceFrameBudgetCheck.new(step)
 	_errors_at_step_start = _errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
+	screenshots.begin(suites[_suite_index].name, step)
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
 	_comfort = AcceptanceComfortCheck.for_step(step, main)
@@ -182,6 +184,7 @@ func _start_step(step: AcceptanceStep) -> void:
 func _step_ready(step: AcceptanceStep) -> bool:
 	if _source != null:
 		var session: LocalSession = main.get("session")
+		screenshots.take(session.sim.tick, _source.tick_count())
 		if session.sim.tick < _source.tick_count():
 			main.call("advance_frame", ShipState.TICK_DT)
 			if _comfort != null:
@@ -223,7 +226,7 @@ func _record_step(step: AcceptanceStep) -> void:
 		outcomes.append(outcome[0])
 		notes.append("%s: %s" % [check, outcome[1]])
 	var result: String = AcceptanceReport.combine(outcomes)
-	reports[_suite_index].add_step(step.id, result, "; ".join(notes), measurements)
+	reports[_suite_index].add_step(step.id, result, "; ".join(notes), measurements, screenshots.finish_step())
 	_say("%s: step %s %s" % [LOG_PREFIX, step.id, result])
 
 
@@ -289,9 +292,6 @@ func _build() -> BuildInfo:
 	var info: Variant = main.get("build_info") if main != null else null
 	return info if info is BuildInfo else BuildInfo.new()
 
-
-static func _device_name() -> String:
-	return "%s (%s)" % [OS.get_model_name(), OS.get_name()]
 
 
 func _say(line: String) -> void:

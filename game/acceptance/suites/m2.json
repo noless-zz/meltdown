@@ -6,7 +6,8 @@
 			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
 			"checks": ["final_hash", "outcome", "ship_destroyed_inert"],
 			"expected_outcome": "LOST",
-			"expected_hash": 3298909347
+			"expected_hash": 3298909347,
+			"screenshot_at_end": true
 		},
 		{
 			"id": "bot_clears_test_tunnel",

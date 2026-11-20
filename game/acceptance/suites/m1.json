@@ -24,7 +24,8 @@
 			"id": "flight_axes",
 			"replay": "res://acceptance/replays/m1_flight_axes.replay",
 			"checks": ["final_hash", "ship_alive", "wall_bounced", "no_script_errors"],
-			"expected_hash": 3139276631
+			"expected_hash": 3139276631,
+			"screenshot_at_end": true
 		},
 		{
 			"id": "comfort_preset_3",
