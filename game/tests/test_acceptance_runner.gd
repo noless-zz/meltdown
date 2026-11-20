@@ -8,7 +8,7 @@ extends RefCounted
 const M1_HASH: int = 861662111
 const REPLAY: String = "res://acceptance/replays/basic_flight.replay"
 ## More frames than any suite here needs; a runner still going after this hangs.
-const FRAME_LIMIT: int = 10000
+const FRAME_LIMIT: int = 20000  # m1 flies flight_axes three times (#686, #687).
 
 var _quit_codes: Array[int] = []
 

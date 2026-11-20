@@ -25,6 +25,20 @@
 			"replay": "res://acceptance/replays/m1_flight_axes.replay",
 			"checks": ["final_hash", "ship_alive", "wall_bounced", "no_script_errors"],
 			"expected_hash": 2052785774
+		},
+		{
+			"id": "comfort_preset_3",
+			"replay": "res://acceptance/replays/m1_flight_axes.replay",
+			"preset": 3,
+			"checks": ["comfort_motion", "final_hash"],
+			"expected_hash": 2052785774
+		},
+		{
+			"id": "comfort_preset_4",
+			"replay": "res://acceptance/replays/m1_flight_axes.replay",
+			"preset": 4,
+			"checks": ["comfort_motion", "final_hash"],
+			"expected_hash": 2052785774
 		}
 	]
 }
