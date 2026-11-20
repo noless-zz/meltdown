@@ -39,12 +39,15 @@ func may_install() -> int:
 func ask_install_permission() -> bool:
 	if not has_activity():
 		return false
+	var package: String = package_name()
+	if package == "":
+		return false
 	var settings_class: Object = wrap_class("android.provider.Settings")
 	var uri_class: Object = wrap_class("android.net.Uri")
 	var intent_class: Object = wrap_class("android.content.Intent")
 	if settings_class == null or uri_class == null or intent_class == null:
 		return false
-	var package_uri: Object = uri_class.call("parse", "package:" + str(activity.call("getPackageName")))
+	var package_uri: Object = uri_class.call("parse", "package:" + package)
 	if threw("Uri.parse") or package_uri == null:
 		if failure == "":
 			failure = "Uri.parse gave nothing"
@@ -64,13 +67,16 @@ func ask_install_permission() -> bool:
 func content_uri(target: String) -> String:
 	if not has_activity():
 		return ""
+	var package: String = package_name()
+	if package == "":
+		return ""
 	var provider_class: Object = wrap_class("androidx.core.content.FileProvider")
 	var file: Object = java_file(target)
 	if provider_class == null or file == null:
 		return ""
 	# The Godot Android template declares this FileProvider, serving the
 	# files directory ("files-path" at "/").
-	var authority: String = str(activity.call("getPackageName")) + PROVIDER_SUFFIX
+	var authority: String = package + PROVIDER_SUFFIX
 	_uri = provider_class.call("getUriForFile", activity, authority, file)
 	if threw("FileProvider.getUriForFile"):
 		return ""
@@ -111,6 +117,19 @@ func has_activity() -> bool:
 	return true
 
 
+## This app's package name, or "" with `failure` naming `getPackageName` when
+## the call threw or gave nothing. Asked before anything else is wrapped, so a
+## failure here is never reported under a later call (#719).
+func package_name() -> String:
+	var answer: Variant = activity.call("getPackageName")
+	if threw("getPackageName"):
+		return ""
+	var text: String = str(answer) if answer != null else ""
+	if text == "":
+		failure = "getPackageName gave nothing"
+	return text
+
+
 func wrap_class(class_path: String) -> Object:
 	var wrapped: Object = JavaClassWrapper.wrap(class_path)
 	if wrapped == null:
@@ -131,8 +150,14 @@ func java_file(path: String) -> Object:
 ## Whether the last Java call threw; when it did, `failure` names the call and
 ## the exception's own text, so the log shows exactly what Java said.
 func threw(call_name: String) -> bool:
-	var exception: Object = JavaClassWrapper.get_exception()
+	var exception: Object = pending_exception()
 	if exception == null:
 		return false
 	failure = "%s threw %s" % [call_name, str(exception.call("toString"))]
 	return true
+
+
+## The exception the last Java call left, or null. Its own method so the tests
+## can stand in for Java off Android.
+func pending_exception() -> Object:
+	return JavaClassWrapper.get_exception()
