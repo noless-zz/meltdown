@@ -18,12 +18,14 @@ extends RefCounted
 ##   chaser) and banked into a sideways move (a strafer). Optional
 ##   `yaw_deg_per_mps` turns the body into a sideways move instead, so it
 ##   skids flat (#638), and `watch_dim` (0..1) dims the eye by that much while
-##   the robot has no line to its target. See `RobotTells`.
+##   the robot has no line to its target. See `RobotTells`;
+## - `skin`: its surface pattern, accent colour and face plate (#661), see
+##   `RobotSkin`. Without one the body is plain.
 ## `effects` is optional; missing keys keep `DEFAULT_EFFECTS`.
 
 const SHAPES: Array[String] = ["sphere", "box", "capsule", "prism", "cylinder", "cone", "torus"]
 const ENTRY_KEYS: Array[String] = ["shape", "scale", "emission_color"]
-const OPTIONAL_ENTRY_KEYS: Array[String] = ["stretch", "parts", "eye_color", "tell"]
+const OPTIONAL_ENTRY_KEYS: Array[String] = ["stretch", "parts", "eye_color", "tell", "skin"]
 const TOP_KEYS: Array[String] = ["default", "robots"]
 const OPTIONAL_TOP_KEYS: Array[String] = ["effects"]
 const PART_KEYS: Array[String] = ["shape", "size", "offset"]
@@ -73,6 +75,7 @@ const NO_TELL: Dictionary = {
 const FALLBACK: Dictionary = {
 	"shape": "sphere", "scale": 1.0, "emission_color": Color(0.8, 0.8, 0.8),
 	"stretch": Vector3.ONE, "parts": [], "eye_color": Color(1.0, 1.0, 1.0), "tell": NO_TELL,
+	"skin": RobotSkin.PLAIN,
 }
 
 
@@ -149,6 +152,11 @@ static func _parse_entry(field: String, entry: Variant) -> Dictionary:
 		if tell.has("error"):
 			return tell
 		look["tell"] = NO_TELL.merged(tell, true)
+	if data.has("skin"):
+		var skin: Dictionary = RobotSkin.parse(field + ".skin", data["skin"])
+		if skin.has("error"):
+			return skin
+		look["skin"] = skin
 	return look
 
 
