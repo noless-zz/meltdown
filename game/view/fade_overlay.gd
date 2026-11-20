@@ -24,7 +24,8 @@ func _init() -> void:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.no_depth_test = true
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.render_priority = Material.RENDER_PRIORITY_MAX
+	# One step below the top, so the destroyed screen's words draw over it (#616).
+	material.render_priority = Material.RENDER_PRIORITY_MAX - 1
 	material.albedo_color = Color(0.0, 0.0, 0.0, 0.0)
 	material_override = material
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

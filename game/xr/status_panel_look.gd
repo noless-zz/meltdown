@@ -7,7 +7,10 @@ extends RefCounted
 ## row may need, and how long a hold message stays up (#605):
 ##
 ##     {"escaped_color": [r, g, b], "position_m": [x, y, z], "tilt_deg": t,
-##      "max_row_angle_deg": a, "message_seconds": s}
+##      "max_row_angle_deg": a, "message_seconds": s, "low_hull_fraction": f}
+##
+## `low_hull_fraction` may be left out: at or below it the hull row turns red
+## and the low-hull pulse fires (#616).
 ##
 ## `position_m` is in the cockpit's space from the eye point (x right, y up,
 ## -z ahead). `tilt_deg` turns the panel's top away from the eye.
@@ -21,6 +24,10 @@ const NUMBER_RANGES: Dictionary = {
 	"max_row_angle_deg": Vector2(0.0, 89.0),
 	"message_seconds": Vector2(0.0, 60.0),
 }
+## Number keys a file may leave out, with their ranges; `FALLBACK` gives the value.
+const OPTIONAL_NUMBER_RANGES: Dictionary = {
+	"low_hull_fraction": Vector2(0.0, 1.0),
+}
 ## The panel must stay inside the ship's 1 m collision sphere, so no wall can
 ## come between it and the eyes.
 const MAX_DISTANCE_M: float = 0.9
@@ -33,6 +40,7 @@ const FALLBACK: Dictionary = {
 	"tilt_deg": 19.0,
 	"max_row_angle_deg": 30.0,
 	"message_seconds": 2.0,
+	"low_hull_fraction": 0.25,
 }
 
 
@@ -68,7 +76,7 @@ static func parse(text: String) -> Dictionary:
 	var data: Dictionary = json.data
 	var known: Array[String] = keys()
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not known.has(key):
+		if typeof(key) != TYPE_STRING or not (known.has(key) or OPTIONAL_NUMBER_RANGES.has(key)):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	for key: String in known:
 		if not data.has(key):
@@ -87,9 +95,12 @@ static func parse(text: String) -> Dictionary:
 		if at.length() > MAX_DISTANCE_M:
 			return {"error": "\"%s\" is %.2f m from the eye, more than %.2f" % [key, at.length(), MAX_DISTANCE_M]}
 		look[key] = at
-	for key: String in NUMBER_RANGES:
+	var ranges: Dictionary = NUMBER_RANGES.merged(OPTIONAL_NUMBER_RANGES)
+	for key: String in ranges:
+		if not data.has(key):
+			continue  # Only an optional key can be missing here.
 		var value: Variant = data[key]
-		var range_: Vector2 = NUMBER_RANGES[key]
+		var range_: Vector2 = ranges[key]
 		# A bool must not pass as 0 or 1.
 		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
 			return {"error": "\"%s\" must be a number" % key}

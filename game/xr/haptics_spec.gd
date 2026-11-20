@@ -3,9 +3,9 @@ extends RefCounted
 
 ## Controller haptic pulses as data (PLT-6, ARC-4): which pulse each event
 ## kind asks for, read from `res://xr/haptics.json` so the owner can tune them
-## after a headset session without code changes. Today only the afterburner
-## starting and stopping have pulses (#170); weapons, impacts and the alarm
-## come later.
+## after a headset session without code changes. The afterburner starting and
+## stopping (#170), the hull falling to the low-hull mark and the shield
+## breaking (#616) have pulses; weapons, impacts and the alarm come later.
 ##
 ## It only answers which pulse to send and on which hand; it never reads or
 ## writes `ShipState` or `Sim` (ARC-3).
@@ -14,8 +14,12 @@ const DEFAULT_FILE: String = "res://xr/haptics.json"
 
 const BOOST_START: String = "boost_start"
 const BOOST_STOP: String = "boost_stop"
+## Sent on both hands once each time the hull falls to the low-hull mark (#616).
+const LOW_HULL: String = "low_hull"
+## Sent on both hands once each time the shield falls from above zero to zero (#616).
+const SHIELD_BREAK: String = "shield_break"
 ## Every event kind the data file holds, each one entry.
-const KINDS: Array[String] = [BOOST_START, BOOST_STOP]
+const KINDS: Array[String] = [BOOST_START, BOOST_STOP, LOW_HULL, SHIELD_BREAK]
 
 ## The keys of one entry, as `pulse_for` returns them.
 const PULSE_KEYS: Array[String] = ["amplitude", "duration_s", "frequency_hz"]
