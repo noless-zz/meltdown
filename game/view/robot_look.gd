@@ -15,7 +15,10 @@ extends RefCounted
 ## - `eye_color`: [r, g, b] of the eye parts;
 ## - `tell`: `{"pitch_deg_per_mps", "roll_deg_per_mps", "max_deg"}`, how far
 ##   the drawn body leans with its velocity: nose down when it closes (a
-##   chaser) and banked into a sideways move (a strafer).
+##   chaser) and banked into a sideways move (a strafer). Optional
+##   `yaw_deg_per_mps` turns the body into a sideways move instead, so it
+##   skids flat (#638), and `watch_dim` (0..1) dims the eye by that much while
+##   the robot has no line to its target. See `RobotTells`.
 ## `effects` is optional; missing keys keep `DEFAULT_EFFECTS`.
 
 const SHAPES: Array[String] = ["sphere", "box", "capsule", "prism", "cylinder", "cone", "torus"]
@@ -25,6 +28,7 @@ const TOP_KEYS: Array[String] = ["default", "robots"]
 const OPTIONAL_TOP_KEYS: Array[String] = ["effects"]
 const PART_KEYS: Array[String] = ["shape", "size", "offset"]
 const TELL_KEYS: Array[String] = ["pitch_deg_per_mps", "roll_deg_per_mps", "max_deg"]
+const OPTIONAL_TELL_KEYS: Array[String] = ["yaw_deg_per_mps", "watch_dim"]
 ## Size relative to the robot's collision radius, inclusive.
 const SCALE_RANGE: Array[float] = [0.1, 4.0]
 const STRETCH_RANGE: Array[float] = [0.1, 4.0]
@@ -35,6 +39,8 @@ const TELL_RANGES: Dictionary[String, Array] = {
 	"pitch_deg_per_mps": [0.0, 10.0],
 	"roll_deg_per_mps": [0.0, 10.0],
 	"max_deg": [0.0, 60.0],
+	"yaw_deg_per_mps": [0.0, 10.0],
+	"watch_dim": [0.0, 1.0],
 }
 const EFFECT_COLOR_KEYS: Array[String] = ["hit_flash_color", "burst_color"]
 const EFFECT_RANGES: Dictionary[String, Array] = {
@@ -60,7 +66,10 @@ const DEFAULT_EFFECTS: Dictionary = {
 	"burst_color": Color(1.0, 0.75, 0.35),
 	"windup_energy": 2.5,
 }
-const NO_TELL: Dictionary = {"pitch_deg_per_mps": 0.0, "roll_deg_per_mps": 0.0, "max_deg": 0.0}
+const NO_TELL: Dictionary = {
+	"pitch_deg_per_mps": 0.0, "roll_deg_per_mps": 0.0, "max_deg": 0.0,
+	"yaw_deg_per_mps": 0.0, "watch_dim": 0.0,
+}
 const FALLBACK: Dictionary = {
 	"shape": "sphere", "scale": 1.0, "emission_color": Color(0.8, 0.8, 0.8),
 	"stretch": Vector3.ONE, "parts": [], "eye_color": Color(1.0, 1.0, 1.0), "tell": NO_TELL,
@@ -136,10 +145,10 @@ static func _parse_entry(field: String, entry: Variant) -> Dictionary:
 			return _rejected(parts)
 		look["parts"] = parts
 	if data.has("tell"):
-		var tell: Dictionary = _parse_numbers(field + ".tell", data["tell"], TELL_RANGES, true)
+		var tell: Dictionary = _parse_numbers(field + ".tell", data["tell"], TELL_RANGES, TELL_KEYS)
 		if tell.has("error"):
 			return tell
-		look["tell"] = tell
+		look["tell"] = NO_TELL.merged(tell, true)
 	return look
 
 
@@ -190,15 +199,15 @@ static func _parse_effects(value: Variant) -> Dictionary:
 			effects[key] = _to_color(data[key])
 		else:
 			numbers[key] = data[key]
-	var parsed: Dictionary = _parse_numbers("effects", numbers, EFFECT_RANGES, false)
+	var parsed: Dictionary = _parse_numbers("effects", numbers, EFFECT_RANGES, [])
 	if parsed.has("error"):
 		return parsed
 	effects.merge(parsed, true)
 	return effects
 
 
-## Numbers of `value` checked against `ranges`; with `all`, every key is needed.
-static func _parse_numbers(field: String, value: Variant, ranges: Dictionary, all: bool) -> Dictionary:
+## Numbers of `value` checked against `ranges`; every key in `required` is needed.
+static func _parse_numbers(field: String, value: Variant, ranges: Dictionary, required: Array[String]) -> Dictionary:
 	if typeof(value) != TYPE_DICTIONARY:
 		return _rejected("\"%s\" must be an object" % field)
 	var data: Dictionary = value
@@ -210,10 +219,9 @@ static func _parse_numbers(field: String, value: Variant, ranges: Dictionary, al
 		if error != "":
 			return _rejected(error)
 		out[key] = float(data[key])
-	if all:
-		for key: String in ranges:
-			if not out.has(key):
-				return _rejected("\"%s\" is missing key \"%s\"" % [field, key])
+	for key: String in required:
+		if not out.has(key):
+			return _rejected("\"%s\" is missing key \"%s\"" % [field, key])
 	return out
 
 

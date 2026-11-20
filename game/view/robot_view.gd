@@ -3,7 +3,8 @@ extends Node3D
 
 ## Draws the simulation's robots as placeholder shapes, one look per robot type
 ## (CMB-3): a body and extra parts for a silhouette that reads at 20 m, a lean
-## drawn from the robot's velocity, a flash on every hit, a dim sputter below
+## or skid drawn from the robot's velocity and an eye that dims when it loses
+## sight of its target (`RobotTells`, #638), a flash on every hit, a dim sputter below
 ## half hull, a glow that grows over the wind-up before a burst of fire and a
 ## burst where one is destroyed (#604).
 ##
@@ -130,13 +131,12 @@ func show_robots(previous: Array[RobotState], current: Array[RobotState], alpha:
 		var from_rotation: Quaternion = before.orientation.orthonormalized().get_rotation_quaternion()
 		var to_rotation: Quaternion = robot.orientation.orthonormalized().get_rotation_quaternion()
 		var rotation: Quaternion = from_rotation.slerp(to_rotation, blend)
-		var lean: Vector2 = lean_degrees(robot, look["tell"])
-		var leaned: Basis = Basis(rotation) * Basis.from_euler(Vector3(deg_to_rad(lean.x), 0.0, deg_to_rad(lean.y)))
+		var leaned: Basis = RobotTells.drawn_basis(rotation, robot, look["tell"])
 		node.transform = Transform3D(leaned.scaled(Vector3.ONE * size),
 				before.position.lerp(robot.position, blend))
 		var hull_fraction: float = robot.hull / robot.def.hull if robot.def.hull > 0.0 else 1.0
 		_paint(index, look, RobotHitTracker.glow(_effects, hull_fraction, _tracker.since_hit(index, now), now,
-				RobotHitTracker.windup_fraction(robot)), robot.awake)
+				RobotHitTracker.windup_fraction(robot)), robot.awake, RobotTells.eye_share(robot, look["tell"]))
 		node.visible = true
 	for index: int in range(current.size(), _nodes.size()):
 		_nodes[index].visible = false
@@ -149,19 +149,9 @@ func now_s() -> float:
 	return clock_s if clock_s >= 0.0 else Time.get_ticks_usec() / 1_000_000.0
 
 
-## The lean of a robot's drawn body, degrees about its own axes: `x` pitch
-## (negative is nose down, as it closes on its target) and `y` roll (negative
-## banks to its right, as it slides right around its target). From the
-## velocity the snapshot already holds, so nothing is added to the simulation.
+## See `RobotTells.lean_degrees`.
 static func lean_degrees(robot: RobotState, tell: Dictionary) -> Vector2:
-	var limit: float = float(tell["max_deg"])
-	if limit <= 0.0:
-		return Vector2.ZERO
-	var local: Vector3 = robot.orientation.orthonormalized().inverse() * robot.velocity
-	var closing: float = -local.z
-	var pitch: float = -clampf(closing * float(tell["pitch_deg_per_mps"]), -limit, limit)
-	var roll: float = -clampf(local.x * float(tell["roll_deg_per_mps"]), -limit, limit)
-	return Vector2(pitch, roll)
+	return RobotTells.lean_degrees(robot, tell)
 
 
 ## See `RobotHitTracker.is_same_robot`.
@@ -254,7 +244,8 @@ func _build_parts(index: int, look: Dictionary) -> void:
 		root.add_child(part)
 
 
-func _paint(index: int, look: Dictionary, glow: Dictionary, awake: bool) -> void:
+## `eye_share` (0..1) scales an awake eye, from `RobotTells.eye_share`.
+func _paint(index: int, look: Dictionary, glow: Dictionary, awake: bool, eye_share: float = 1.0) -> void:
 	var base: Color = look["emission_color"]
 	var flash: float = glow["flash"]
 	var flash_color: Color = _effects["hit_flash_color"]
@@ -267,7 +258,7 @@ func _paint(index: int, look: Dictionary, glow: Dictionary, awake: bool) -> void
 	var windup: float = float(glow["windup"]) * float(_effects["windup_energy"])
 	body.emission_energy_multiplier = 1.0 + FLASH_ENERGY * flash + windup
 	var eye: Color = look["eye_color"]
-	_eye_materials[index].emission = eye if awake else eye * ASLEEP_EYE
+	_eye_materials[index].emission = eye * eye_share if awake else eye * ASLEEP_EYE
 	_eye_materials[index].albedo_color = _eye_materials[index].emission
 	_eye_materials[index].emission_energy_multiplier = 1.0 + 2.0 * windup
 
