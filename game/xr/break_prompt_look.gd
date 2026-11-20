@@ -45,8 +45,8 @@ const FALLBACK: Dictionary = {
 	"body_color": Color(0.85, 0.95, 1.0),
 	"title_text": "Time for a break",
 	"flown_text": "You have flown for {minutes} minutes.",
-	"dismiss_xr": "Press A to dismiss",
-	"dismiss_flat": "Press Enter to dismiss",
+	"dismiss_xr": "Tap the menu button to dismiss",
+	"dismiss_flat": "Tap Backspace to dismiss",
 	"off_text": "These reminders can be switched off.",
 }
 

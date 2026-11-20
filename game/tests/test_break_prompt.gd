@@ -144,7 +144,7 @@ func test_text_says_time_flown_how_to_dismiss_and_switch_off() -> String:
 		return "no title"
 	if not xr_text.contains("30 minutes"):
 		return "body does not say 30 minutes: %s" % xr_text
-	if not xr_text.contains("Press A") or not flat_text.contains("Press Enter"):
+	if not xr_text.contains("menu button") or not flat_text.contains("Backspace"):
 		return "dismiss line does not follow the input: %s / %s" % [xr_text, flat_text]
 	if not xr_text.contains("switched off"):
 		return "body does not say reminders can be switched off: %s" % xr_text

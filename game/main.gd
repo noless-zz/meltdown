@@ -32,12 +32,9 @@ var _smoke_probe: XrSmokeProbe = null
 var reset_hold: ResetHold = ResetHold.new()
 ## The black quad under the camera, added by `attach_fade_overlay`.
 var fade_overlay: FadeOverlay = null
-## Keeps the eye point at the ship's centre, inside its collision sphere (#102).
-var head_recentre: HeadRecentre = HeadRecentre.new()
-## Set when focus returns; the frame after a pause may run only one tick.
-var _resume_frame: bool = false
-## The panel under the rig, added by `attach_status_panel` (#146).
-var status_panel: StatusPanel = null
+var head_recentre: HeadRecentre = HeadRecentre.new()  # Eye point at the ship's centre (#102).
+var _resume_frame: bool = false  # Set when focus returns; the next frame may run one tick.
+var status_panel: StatusPanel = null  # Under the rig, added by `attach_status_panel` (#146).
 ## Which build this is, shown on the status panel; unknown in an editor run.
 var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
 ## Logs each afterburner start and stop and pulses the boosting hand (#170).
@@ -57,6 +54,7 @@ var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headse
 var destroyed: DestroyedWiring = DestroyedWiring.new()
 var level_start: LevelStart = LevelStart.new()
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
+var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
 
 
 func _ready() -> void:
@@ -100,6 +98,7 @@ func _ready() -> void:
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
+	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 
@@ -170,6 +169,7 @@ func advance_frame(delta_seconds: float) -> void:
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)  # #146, #170.
 	place_rig()
 	flight_test.update(delta_seconds, session.paused)
+	break_prompt.update(delta_seconds, BreakPromptWiring.is_flying(session, flight_test, destroyed), _xr_running)
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel, delta_seconds)
 	$XRRig.pickup_hint = pickup_hint.is_due(session.current_ship(), session.current_salvage())  # View only.
 	map.update(session, delta_seconds, comfort.shared_click_hold())
