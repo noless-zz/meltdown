@@ -1,4 +1,16 @@
 {
+	"look": {
+		"glow": 0.45,
+		"edge_color": [0.62, 0.72, 0.82],
+		"edge_width_m": 0.006,
+		"light_color": [0.75, 0.85, 1.0],
+		"light_energy": 0.4,
+		"light_range_m": 0.6,
+		"pattern_scale_m": 0.08,
+		"pattern_contrast": 0.15,
+		"rivet_size": 0.12,
+		"min_lit_brightness": 0.12
+	},
 	"window_half_angle_h_deg": 75,
 	"window_half_angle_v_deg": 55,
 	"frame_distance_m": 0.6,
@@ -15,6 +27,6 @@
 	"guard_margin_deg": 40,
 	"guard_after_s": 3,
 	"guard_distance_m": 0.45,
-	"interior_color": [0.08, 0.1, 0.13],
-	"structure_color": [0.24, 0.27, 0.32]
+	"interior_color": [0.3, 0.33, 0.38],
+	"structure_color": [0.44, 0.47, 0.52]
 }

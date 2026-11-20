@@ -10,7 +10,9 @@ extends Node3D
 ## tinted glass inside it. In front of the shell sit a few large shapes that
 ## make it read as a ship (#607): a dashboard ledge below the window, a canopy
 ## pillar on each side and a rim above. Every piece lies outside the window.
-## Each part is one `MultiMeshInstance3D`, one draw call on the headset.
+## Each part is one `MultiMeshInstance3D`, one draw call on the headset. Since
+## #659 the opaque parts are lit and patterned (`CockpitMaterials`) and the
+## frame carries its own dim light, so it shows in a dark mine.
 ##
 ## The frame reads only its spec. It never reads or writes simulation state
 ## (ARC-3, MP-2); a preset change rebuilds it and touches nothing else.
@@ -99,13 +101,20 @@ func _build() -> void:
 				continue
 			var panel: Transform3D = CockpitGeometry.cell_piece(a, b, spec.frame_distance_m, 0.0, OVERLAP)
 			solid.append(_outside(panel, false, middle))
-	_add_part("Solid", _quad(), _material(spec.interior_color), solid)
+	_add_part("Solid", _quad(), _surface("Solid", spec.interior_color), solid)
 	if spec.glass_tint_alpha > 0.0:
 		_add_glass(CockpitGeometry.breaks(-h, h, CELL_DEG), CockpitGeometry.breaks(-v, v, CELL_DEG))
-	var structure: StandardMaterial3D = _material(spec.structure_color)
-	_add_part("Ledge", _box(), structure, _ledge())
-	_add_part("Pillars", _box(), structure, _pillars())
-	_add_part("Rim", _box(), structure, _rim())
+	_add_part("Ledge", _box(), _surface("Ledge", spec.structure_color), _ledge())
+	_add_part("Pillars", _box(), _surface("Pillars", spec.structure_color), _pillars())
+	_add_part("Rim", _box(), _surface("Rim", spec.structure_color), _rim())
+	var light: OmniLight3D = CockpitMaterials.light(spec.look)
+	if light != null:
+		add_child(light)
+
+
+## The patterned, lit surface of part `part_name` in colour `base` (#659).
+func _surface(part_name: String, base: Color) -> ShaderMaterial:
+	return CockpitMaterials.surface(part_name, base, spec.look, OVERLAP)
 
 
 ## The pitch band the ledge covers, as (top, bottom) degrees below straight
@@ -243,6 +252,7 @@ static func _box() -> BoxMesh:
 	return mesh
 
 
+## The glass's flat tint.
 static func _material(color: Color) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = color

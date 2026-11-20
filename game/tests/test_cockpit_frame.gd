@@ -24,7 +24,18 @@ static func valid_data() -> Dictionary:
 		"ledge_distance_m": 0.36, "pillar_width_deg": 8.0, "pillar_distance_m": 0.42,
 		"rim_height_deg": 8.0, "rim_distance_m": 0.42, "part_depth_m": 0.03,
 		"guard_margin_deg": 40.0, "guard_after_s": 3.0, "guard_distance_m": 0.45,
-		"interior_color": [0.08, 0.1, 0.13], "structure_color": [0.24, 0.27, 0.32],
+		"interior_color": [0.3, 0.33, 0.38], "structure_color": [0.44, 0.47, 0.52],
+		"look": valid_look(),
+	}
+
+
+## A valid `"look"` object for a cockpit file (#659).
+static func valid_look() -> Dictionary:
+	return {
+		"glow": 0.45, "edge_color": [0.62, 0.72, 0.82], "edge_width_m": 0.006,
+		"light_color": [0.75, 0.85, 1.0], "light_energy": 0.4, "light_range_m": 0.6,
+		"pattern_scale_m": 0.12, "pattern_contrast": 0.08, "rivet_size": 0.0,
+		"min_lit_brightness": 0.12,
 	}
 
 
@@ -192,6 +203,9 @@ func test_frame_is_primitive_meshes_without_collision() -> String:
 	for child: Node in frame.find_children("*", "", true, false):
 		if child is CollisionObject3D or child is CollisionShape3D:
 			message = "%s is a collision node" % child.name
+		elif child is OmniLight3D and child.name == CockpitMaterials.LIGHT_NAME:
+			# The frame's own dim light (#659); `test_cockpit_look.gd` checks it.
+			continue
 		elif not child is MultiMeshInstance3D:
 			message = "%s is a %s" % [child.name, child.get_class()]
 		else:
@@ -271,7 +285,7 @@ func test_switching_preset_swaps_the_frame_without_touching_a_sim() -> String:
 	frame.free()
 	if solid_after >= solid_before:
 		return "solid panels %d before, %d after: the frame was not swapped" % [solid_before, solid_after]
-	if parts != ["Solid", "Glass"]:
+	if parts != ["Solid", "Glass", CockpitMaterials.LIGHT_NAME]:
 		return "parts %s after the swap; the old frame was not removed" % [parts]
 	if sim.state_hash() != hash_before:
 		return "switching the cockpit changed the simulation"

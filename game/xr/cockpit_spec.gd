@@ -46,11 +46,12 @@ var rim_height_deg: float = 0.0
 var rim_distance_m: float = 0.45
 ## Thickness of the ledge, pillars and rim, metres, 0.01..0.08.
 var part_depth_m: float = 0.03
-## Colour of the shell around the window: a dim interior tint, kept apart
-## from the tunnel's walls so the cockpit does not read as more tunnel.
-var interior_color: Color = Color(0.08, 0.1, 0.13)
+## Colour of the shell around the window: an interior tone kept apart from
+## the tunnel's walls so the cockpit does not read as more tunnel, and light
+## enough that it is never black on black (#659, `CockpitLook.floor_error`).
+var interior_color: Color = Color(0.3, 0.33, 0.38)
 ## Colour of the ledge, pillars and rim.
-var structure_color: Color = Color(0.24, 0.27, 0.32)
+var structure_color: Color = Color(0.44, 0.47, 0.52)
 ## How far past the window's edge the head may look before the view guard
 ## counts it as lost, degrees, 10..90 (#651, `ViewGuard`).
 var guard_margin_deg: float = 40.0
@@ -93,16 +94,23 @@ const RANGES: Dictionary[String, Array] = {
 	"guard_distance_m": [0.2, 0.9],
 }
 
+## The key of the surfaces' look object (`CockpitLook`).
+const LOOK_KEY: String = "look"
+
 ## The shapes' distance keys: each shape must lie wholly in front of the shell.
 const SHAPE_DISTANCE_KEYS: Array[String] = ["ledge_distance_m", "pillar_distance_m", "rim_distance_m"]
+
+## The surfaces' pattern, edge highlight and light: the file's `"look"`
+## object (#659).
+var look: CockpitLook = CockpitLook.new()
 
 ## Set when the text was rejected; empty otherwise.
 var error: String = ""
 
 
 ## Parses the text of a cockpit data file: one JSON object holding every key
-## in `KEYS` as a number in its range and every key in `COLOR_KEYS` as a
-## colour, and nothing else. A missing or unknown key is an error, so a typo
+## in `KEYS` as a number in its range, every key in `COLOR_KEYS` as a colour
+## and a `"look"` object for `CockpitLook`, and nothing else. A missing or unknown key is an error, so a typo
 ## cannot leave a value silently at its default. On failure the returned spec
 ## has `error` set, naming the field, and default values.
 static func parse_json(text: String) -> CockpitSpec:
@@ -113,7 +121,7 @@ static func parse_json(text: String) -> CockpitSpec:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key)):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == LOOK_KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	var spec: CockpitSpec = CockpitSpec.new()
 	for key: String in KEYS:
@@ -136,6 +144,15 @@ static func parse_json(text: String) -> CockpitSpec:
 			return _rejected("key \"%s\" %s" % [key, color_error])
 		var parts: Array = data[key]
 		spec.set(key, Color(float(parts[0]), float(parts[1]), float(parts[2])))
+	if not data.has(LOOK_KEY):
+		return _rejected("missing key \"%s\"" % LOOK_KEY)
+	spec.look = CockpitLook.parse(data[LOOK_KEY])
+	if spec.look.error != "":
+		return _rejected("key \"%s\": %s" % [LOOK_KEY, spec.look.error])
+	for key: String in COLOR_KEYS:
+		var too_dark: String = spec.look.floor_error(spec.get(key), key)
+		if too_dark != "":
+			return _rejected(too_dark)
 	for key: String in SHAPE_DISTANCE_KEYS:
 		if spec.get(key) + spec.part_depth_m > spec.frame_distance_m:
 			return _rejected("key \"%s\" is %s; with part_depth_m %s it reaches past frame_distance_m %s" % [
