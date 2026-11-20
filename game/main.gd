@@ -56,6 +56,7 @@ var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headse
 ## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
 var destroyed: DestroyedWiring = DestroyedWiring.new()
 var level_start: LevelStart = LevelStart.new()
+var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 
 
 func _ready() -> void:
@@ -91,6 +92,7 @@ func _ready() -> void:
 	attach_cockpit_frame()
 	attach_fade_overlay()
 	attach_status_panel()
+	flight_test.attach(self, comfort, level_start.source, $XRRig)  # After the panel it sits above.
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping)
 	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
@@ -130,19 +132,19 @@ func sample_controls() -> Dictionary:
 ## Maps raw values through the comfort filter to the input every tick flies
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
-	comfort.read_preset_button(values.get("buttons", {}))
-	if comfort.read_label_button(values.get("buttons", {})):
+	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
+	comfort.read_preset_button(buttons)
+	if comfort.read_label_button(buttons):
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
-	map.buttons = values.get("buttons", {})
-	destroyed.read_buttons(values.get("buttons", {}))
-	reset_hold.press(ResetHold.is_held(values))
+	map.buttons = buttons
+	destroyed.read_buttons(buttons)
+	reset_hold.press(ResetHold.is_held(values) and not flight_test.takes_menu_hold())  # Skips the test.
 	update.press_menu(ResetHold.is_held(values))  # A tap shorter than the reset hold.
-	comfort.hand_input(ControllerSampler.map_values(mapping, values),
+	comfort.hand_input(flight_test.held(ControllerSampler.map_values(mapping, values)),
 		session.current_ship().orientation, reset_hold.reset_due())
 
 
-## Runs the simulation for one frame of `delta_seconds` and moves the rig to
-## the ship. Public so tests can drive frames without a running scene tree.
+## Runs the simulation for one frame and moves the rig to the ship; public so tests can drive frames.
 ## A pending snap or reset gets a tick of its own: the frame is split where
 ## the next tick falls, so a hitch frame cannot fly it twice.
 func advance_frame(delta_seconds: float) -> void:
@@ -167,6 +169,7 @@ func advance_frame(delta_seconds: float) -> void:
 		fade_overlay.set_alpha(maxf(reset_hold.alpha, destroyed.fade_alpha()))
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)  # #146, #170.
 	place_rig()
+	flight_test.update(delta_seconds, session.paused)
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel, delta_seconds)
 	$XRRig.pickup_hint = pickup_hint.is_due(session.current_ship(), session.current_salvage())  # View only.
 	map.update(session, delta_seconds, comfort.shared_click_hold())
@@ -241,8 +244,7 @@ func attach_status_panel() -> void:
 		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
-## Hands the panel this frame's values, read from copies of the latest ship
-## state; the panel never sees the session itself (ARC-3).
+## Hands the panel copies of the latest ship state; it never sees the session itself (ARC-3).
 func update_status_panel(delta_seconds: float) -> void:
 	if status_panel != null:
 		RigViews.show_ship(status_panel, session.current_ship(), comfort.number,
@@ -281,8 +283,7 @@ func on_session_visible() -> void:
 	session.paused = true
 
 
-## Focus is back; the session limits the next frame to one tick, so the ship
-## does not jump (CMF-8).
+## Focus is back; the session limits the next frame to one tick, so the ship does not jump (CMF-8).
 func on_session_focussed() -> void:
 	session.paused = false
 	_resume_frame = true
@@ -293,8 +294,7 @@ func on_session_loss_pending() -> void:
 	session.paused = true
 
 
-## Pauses, and hands back to the keyboard so the input device matches what is
-## left. A stopped XR session only resumes through `on_session_focussed`.
+## Pauses and hands back to the keyboard; a stopped session resumes only through `on_session_focussed`.
 func on_session_stopping() -> void:
 	_xr_running = false
 	session.paused = true
