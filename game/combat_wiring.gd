@@ -20,14 +20,28 @@ var salvage_view: SalvageView = null
 var salvage_ring: SalvageRing = null
 ## Says on the hold row what was just picked up or slotted (#605).
 var hold_messages: HoldMessages = HoldMessages.new()
+## The hit cue on every preset (#618): which side and bar flash. Null when its
+## file was rejected; the pulses still go.
+var hit_flash: HitFlash = load_hit_flash(HitFlash.DEFAULT_FILE)
+## The hit and pickup pulses; the hands are found by `attach`.
+var hit_haptics: HitHaptics = HitHaptics.load_shipped()
+## The edge strips under the rig's camera, once `attach` found one.
+var hit_overlay: HitFlashOverlay = null
 
 
 ## Puts the projectile, robot and salvage views under `world`, the node whose space is
 ## the simulation's: both are drawn at the simulated positions as they are.
-## Calling it again adds nothing.
+## The hit cue finds the rig's hands and camera under `world`, as the main
+## scene names them. Calling it again adds nothing.
 func attach(world: Node3D) -> void:
 	if projectile_view != null:
 		return
+	hit_haptics.left_controller = world.get_node_or_null("XRRig/LeftHand") as XRController3D
+	hit_haptics.right_controller = world.get_node_or_null("XRRig/RightHand") as XRController3D
+	var camera: Node3D = world.get_node_or_null("XRRig/Camera") as Node3D
+	if camera != null and hit_flash != null:
+		hit_overlay = HitFlashOverlay.new(hit_flash)
+		camera.add_child(hit_overlay)
 	projectile_view = ProjectileView.new()
 	world.add_child(projectile_view)
 	robot_view = RobotView.new()
@@ -41,11 +55,15 @@ func attach(world: Node3D) -> void:
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
 ## `panel`, if given, shows the ship's shield, hull, weapon and the part in its
-## hold, and what just happened to the hold.
-func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) -> void:
+## hold, and what just happened to the hold. The hit flashes run by `delta`.
+func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0) -> void:
+	show_hit_flash(delta)
 	if panel != null:
 		var ship: ShipState = session.current_ship()
 		show_defence(panel, ship)
+		if hit_flash != null:
+			panel.flash_bar(false, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.SHIELD))
+			panel.flash_bar(true, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.HULL))
 		panel.show_hold(held_part(ship))
 		panel.show_weapon(active_weapon(ship))
 		panel.show_hold_message(hold_messages.update(ship.hold, ship.primary_ids))
@@ -65,6 +83,42 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null) ->
 	# The rules are fixed before the first tick; reading them writes nothing.
 	salvage_ring.show_rings(session.previous_salvage(), session.current_salvage(),
 		session.interpolation_fraction, session.current_ship(), session.sim.salvage_rules)
+
+
+## Takes in the events of one session advance and `ship`, the local ship (0)
+## after it, a session copy (#618). Every shot that hit it starts the flash on
+## its side and pulses that side's hand; every part it picked up pulses both.
+## Call it after every advance, so a frame split for a snap loses no event.
+func feed_events(events: Array[SimEvent], ship: ShipState, xr_running: bool) -> void:
+	if hit_flash != null:
+		for side: String in hit_flash.feed(events, 0, ship.orientation, ship.shield, ship.hull):
+			hit_haptics.hit(side, xr_running)
+	else:
+		for event: SimEvent in events:
+			if event.ship == 0 and event.kind == SimEvent.Kind.SHIP_HIT:
+				hit_haptics.hit(HitFlash.side_for(event.vector, ship.orientation), xr_running)
+	for event: SimEvent in events:
+		if event.ship == 0 and event.kind == SimEvent.Kind.SALVAGE_COLLECTED:
+			hit_haptics.pickup(xr_running)
+
+
+## Runs the hit flash by `delta` and shows its edge on the overlay.
+func show_hit_flash(delta: float) -> void:
+	if hit_flash == null:
+		return
+	hit_flash.advance(delta)
+	if hit_overlay != null:
+		hit_overlay.show_flash(hit_flash.side, hit_flash.edge_opacity(), hit_flash.edge_color)
+
+
+## Reads the hit-flash file at `path`. A rejected file is printed once and
+## gives null, so no edge or bar flashes rather than one with guessed values.
+static func load_hit_flash(path: String) -> HitFlash:
+	var flash: HitFlash = HitFlash.load_file(path)
+	if flash.error != "":
+		print("Meltdown: hit flash off: %s" % flash.error)
+		return null
+	return flash
 
 
 ## Hands `panel` the shield and hull of `ship`, a session copy, as fractions

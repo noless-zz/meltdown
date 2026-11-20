@@ -191,10 +191,18 @@ func show_values(preset_number: int, preset_name: String, speed_mps: float,
 ## `HULL_WARNING_COLOR`.
 func show_defence(shield_fraction: float, hull_fraction: float) -> void:
 	_shield_bar.set_fraction(shield_fraction)
+	_shield_bar.set_color(SHIELD_COLOR)  # Undoes last frame's hit flash (#618).
 	var hull: float = _hull_bar.set_fraction(hull_fraction)
 	var low: bool = hull <= float(StatusPanelLook.shared()["low_hull_fraction"])
 	_hull_label.modulate = HULL_WARNING_COLOR if low else TEXT_COLOR
 	_hull_bar.set_color(HULL_WARNING_COLOR if low else HULL_COLOR)
+
+
+## Mixes `color` over the hull bar (`hull`) or the shield bar by `amount`,
+## 0..1, for a hit (#618). Call it after `show_defence`, which undoes it.
+func flash_bar(hull: bool, color: Color, amount: float) -> void:
+	var bar: PanelBar = _hull_bar if hull else _shield_bar
+	bar.set_color(bar.color().lerp(color, clampf(amount, 0.0, 1.0)))
 
 
 ## Shows the part in the hold by name; an empty string shows `HOLD_EMPTY`.

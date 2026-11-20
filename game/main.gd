@@ -165,10 +165,9 @@ func advance_frame(delta_seconds: float) -> void:
 		restart_level()
 	if fade_overlay != null:
 		fade_overlay.set_alpha(maxf(reset_hold.alpha, destroyed.fade_alpha()))
-	# Logs afterburner starts and stops and pulses the boosting hand (#146, #170).
-	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)
+	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)  # #146, #170.
 	place_rig()
-	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel)
+	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel, delta_seconds)
 	$XRRig.pickup_hint = pickup_hint.is_due(session.current_ship(), session.current_salvage())  # View only.
 	map.update(session, delta_seconds, comfort.shared_click_hold())
 	meltdown.update(session, status_panel)
@@ -186,6 +185,7 @@ func set_comfort_preset(number: int) -> void:
 ## fade back in and a recentre.
 func _end_one_tick_if_flown() -> void:
 	comfort.feed_hit_shake(session.frame_events(), 0, session.current_ship().orientation)
+	combat.feed_events(session.frame_events(), session.current_ship(), _xr_running)  # #618.
 	if comfort.end_one_tick_if_flown(session.ticks_last_advance):
 		reset_hold.reset_flown()
 		head_recentre.request()

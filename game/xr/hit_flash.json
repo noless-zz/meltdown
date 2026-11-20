@@ -1,0 +1,9 @@
+{
+	"edge_seconds": 0.25,
+	"edge_color": [1.0, 0.25, 0.15],
+	"edge_alpha": 0.55,
+	"edge_inset_m": 0.055,
+	"edge_width_m": 0.07,
+	"bar_seconds": 0.35,
+	"bar_color": [1.0, 1.0, 1.0]
+}
