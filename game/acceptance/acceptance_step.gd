@@ -113,6 +113,10 @@ var settle_seconds: float = 0.0
 var measure_seconds: float = 0.0
 var max_over_budget_share: float = 0.0
 var budget_slack_ms: float = 0.0
+## Ticks into the replay at which the runner saves a screenshot, and whether
+## it saves one at the replay's end (#718; `AcceptanceScreenshots`).
+var screenshot_ticks: Array[int] = []
+var screenshot_at_end: bool = false
 
 
 func has_check(check: String) -> bool:

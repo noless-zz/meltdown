@@ -19,7 +19,7 @@ var build_commit: String = ""
 var device_name: String = ""
 var suite_name: String = ""
 ## One Dictionary per step, in the order the steps ran: id, result, message,
-## measurements.
+## measurements, and screenshots when the step took any (#718).
 var steps: Array[Dictionary] = []
 ## Why the last `write_file` failed, or "".
 var write_error: String = ""
@@ -32,16 +32,22 @@ func _init(p_suite_name: String = "", p_build_commit: String = "", p_device_name
 
 
 ## Records one step. Returns false, recording nothing, if `result` is not one
-## of RESULTS: an unknown result must not count as a pass.
-func add_step(id: String, result: String, message: String = "", measurements: Dictionary = {}) -> bool:
+## of RESULTS: an unknown result must not count as a pass. `screenshots` holds
+## one entry per tick, with its path or why it was skipped
+## (`AcceptanceScreenshots.finish_step`); it never changes the result.
+func add_step(id: String, result: String, message: String = "", measurements: Dictionary = {},
+		screenshots: Array[Dictionary] = []) -> bool:
 	if not RESULTS.has(result):
 		return false
-	steps.append({
+	var step: Dictionary = {
 		"id": id,
 		"result": result,
 		"message": message,
 		"measurements": measurements.duplicate(true),
-	})
+	}
+	if not screenshots.is_empty():
+		step["screenshots"] = screenshots.duplicate(true)
+	steps.append(step)
 	return true
 
 
