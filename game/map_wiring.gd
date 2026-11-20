@@ -60,8 +60,8 @@ func attach(rig: Node, mapping: ThumbstickMapping) -> void:
 
 
 ## Once per frame, after the controls were read: marks the boxes holding the
-## ship, redraws the map only when that set grew, moves the marker to the
-## ship's interpolated position and shows or hides the map. `shared` is the
+## ship, redraws the map only when that set grew, moves and turns the marker to
+## the ship's interpolated pose (#679) and shows or hides the map. `shared` is the
 ## label button's `ClickHold` when that button also shows the map, else null
 ## (`ComfortWiring.shared_click_hold`).
 func update(session: LocalSession, delta_seconds: float, shared: ClickHold = null) -> void:
@@ -83,6 +83,8 @@ func update(session: LocalSession, delta_seconds: float, shared: ClickHold = nul
 	route_wiring.update(session, _union, _drawn, grew, hologram)
 	hologram.set_ship_position(session.previous_ship().position.lerp(
 		session.current_ship().position, session.interpolation_fraction))
+	hologram.set_ship_orientation(session.previous_ship().orientation.slerp(
+		session.current_ship().orientation, session.interpolation_fraction))
 	_follow_hand()
 	hologram.read(_mapping, buttons, delta_seconds, shared)
 
