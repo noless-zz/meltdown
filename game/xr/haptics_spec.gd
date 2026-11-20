@@ -5,7 +5,8 @@ extends RefCounted
 ## kind asks for, read from `res://xr/haptics.json` so the owner can tune them
 ## after a headset session without code changes. The afterburner starting and
 ## stopping (#170), the hull falling to the low-hull mark and the shield
-## breaking (#616) have pulses; weapons, impacts and the alarm come later.
+## breaking (#616), a shot hitting the ship and a part picked up (#618) have
+## pulses; weapons, wall impacts and the alarm come later.
 ##
 ## It only answers which pulse to send and on which hand; it never reads or
 ## writes `ShipState` or `Sim` (ARC-3).
@@ -18,8 +19,13 @@ const BOOST_STOP: String = "boost_stop"
 const LOW_HULL: String = "low_hull"
 ## Sent on both hands once each time the shield falls from above zero to zero (#616).
 const SHIELD_BREAK: String = "shield_break"
+## Sent on the hand on the side a shot came from, both for a shot from the front (#618).
+const SHIP_HIT: String = "ship_hit"
+## Sent on both hands when a floating part goes into the hold (#618, #600); it
+## must feel unlike `SHIP_HIT`.
+const SALVAGE_PICKUP: String = "salvage_pickup"
 ## Every event kind the data file holds, each one entry.
-const KINDS: Array[String] = [BOOST_START, BOOST_STOP, LOW_HULL, SHIELD_BREAK]
+const KINDS: Array[String] = [BOOST_START, BOOST_STOP, LOW_HULL, SHIELD_BREAK, SHIP_HIT, SALVAGE_PICKUP]
 
 ## The keys of one entry, as `pulse_for` returns them.
 const PULSE_KEYS: Array[String] = ["amplitude", "duration_s", "frequency_hz"]

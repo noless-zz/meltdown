@@ -2,5 +2,7 @@
 	"boost_start": { "amplitude": 0.6, "duration_s": 0.08, "frequency_hz": 0 },
 	"boost_stop": { "amplitude": 0.3, "duration_s": 0.05, "frequency_hz": 0 },
 	"low_hull": { "amplitude": 0.9, "duration_s": 0.3, "frequency_hz": 0 },
-	"shield_break": { "amplitude": 0.7, "duration_s": 0.06, "frequency_hz": 0 }
+	"shield_break": { "amplitude": 0.7, "duration_s": 0.06, "frequency_hz": 0 },
+	"ship_hit": { "amplitude": 0.8, "duration_s": 0.1, "frequency_hz": 0 },
+	"salvage_pickup": { "amplitude": 0.35, "duration_s": 0.04, "frequency_hz": 250 }
 }
