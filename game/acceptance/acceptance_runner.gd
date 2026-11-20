@@ -57,6 +57,8 @@ var _source: ReplayInputSource = null
 var _level_problem: String = ""
 ## The frame times of a frame_budget step measured here, or null.
 var _frames: AcceptanceFrameBudgetCheck = null
+## The view's rotation sampled each frame of a comfort_motion step, or null.
+var _comfort: AcceptanceComfortCheck = null
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -151,6 +153,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
+	_comfort = AcceptanceComfortCheck.for_step(step, main)
 	if step.replay_path == "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
@@ -179,6 +182,8 @@ func _step_ready(step: AcceptanceStep) -> bool:
 		var session: LocalSession = main.get("session")
 		if session.sim.tick < _source.tick_count():
 			main.call("advance_frame", ShipState.TICK_DT)
+			if _comfort != null:
+				_comfort.sample_main(main, ShipState.TICK_DT)
 			return false
 		main.set_process(true)
 	if _frames != null and not _frames.done():
@@ -223,6 +228,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 	if AcceptanceStep.REPLAY_CHECKS.has(check):
 		return AcceptanceStateChecks.run(check, step, main.get("session"), _source != null, measurements)
 	match check:
+		AcceptanceStep.CHECK_COMFORT_MOTION:
+			return _comfort.run(measurements) if _comfort != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
 		AcceptanceStep.CHECK_XR_SESSION:
 			return AcceptanceXrSessionCheck.run(_xr_available(), _xr_begun, _xr_waited, XR_WAIT_FRAMES,
 				step.required, measurements)

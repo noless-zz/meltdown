@@ -53,10 +53,14 @@ const CHECK_FRAME_BUDGET: String = "frame_budget"
 ## it is still moving on each contact tick and the two after it (#686, FLT-3:
 ## a bounce, not a stop; `AcceptanceWallCheck`).
 const CHECK_WALL_BOUNCED: String = "wall_bounced"
+## The view's rotation, sampled each rendered frame while the replay flies,
+## keeps to the active comfort preset's limits (#687, CMF-3;
+## `AcceptanceComfortCheck`). Needs a replay to sample.
+const CHECK_COMFORT_MOTION: String = "comfort_motion"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
-	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED]
+	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,

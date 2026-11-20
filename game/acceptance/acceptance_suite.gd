@@ -166,7 +166,8 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 	if problem != "":
 		return problem
 	for check: String in step.checks:
-		if AcceptanceStep.REPLAY_CHECKS.has(check) and step.replay_path == "":
+		if (AcceptanceStep.REPLAY_CHECKS.has(check) or check == AcceptanceStep.CHECK_COMFORT_MOTION) \
+				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)
 	if problem == "":

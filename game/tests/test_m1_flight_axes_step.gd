@@ -86,7 +86,8 @@ func test_the_earlier_m1_steps_are_unchanged() -> String:
 	var ids: Array[String] = []
 	for step: AcceptanceStep in suite.steps:
 		ids.append(step.id)
-	if ids != ["basic_flight", "refresh_rate", "frame_budget", STEP_ID]:
+	# The comfort_preset steps (#687) follow; `test_m1_comfort_steps.gd` covers them.
+	if ids.slice(0, 4) != ["basic_flight", "refresh_rate", "frame_budget", STEP_ID]:
 		return "m1 steps %s" % [ids]
 	if suite.steps[0].expected_hash != 861662111 or suite.steps[0].checks != [AcceptanceStep.CHECK_FINAL_HASH]:
 		return "basic_flight changed"
