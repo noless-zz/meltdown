@@ -10,12 +10,13 @@ extends RefCounted
 ## which it reads back from the panel's own placement, so it follows a
 ## recentre with the panel and never moves the camera.
 ##
-## The arrow follows the route the held map draws: `EscapePath.known_route`
-## from the ship to the exit through the explored boxes, searched as
-## `MapRouteWiring` searches it, on the same inputs. This wiring keeps its own
-## explored set because `MapWiring`'s is out of its reach without `main.gd`;
-## both visit the ship's position once a frame from the start of the session,
-## so they list the same boxes.
+## The arrow follows the route the held map draws. `main.gd` hands over the
+## map's `MapRouteWiring` (#695), whose `KnownRoute` the arrow reads, so the
+## meltdown searches once per interval, not twice, and the arrow and the map
+## can never disagree. The map searches before this runs each frame. Without a
+## route wiring (tests that build the cue alone) it searches as before:
+## `EscapePath.known_route` from the ship to the exit through its own explored
+## boxes, on the same inputs as `MapRouteWiring`.
 ##
 ## It sits beside `main.gd` because it reads the `net/` session. It reads
 ## copies only: the reactor through `SessionSnapshots`, the ship from the
@@ -28,10 +29,13 @@ var cue: MeltdownCue = null
 var exit_marker: ExitMarker = null
 ## The route the arrow follows, or null outside the meltdown; tests read it.
 var route: KnownRoute = null
-## How often the route was searched for; tests read it.
+## How often this wiring searched for the route itself; tests read it.
 var searches: int = 0
-## Which boxes the ship has been in this session; tests read it.
+## Which boxes the ship has been in this session, kept only without a route
+## wiring; tests read it.
 var explored: ExploredBoxes = null
+## The map's route search; when set, the arrow reads its route (#695).
+var route_wiring: MapRouteWiring = null
 
 var _world: Node3D = null
 var _session: LocalSession = null
@@ -61,10 +65,12 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 		return
 	if session != _session:
 		_start(session)
-	explored.visit(session.current_ship().position)
-	var now: Array[int] = explored.explored()
-	var grew: bool = now != _drawn
-	_drawn = now
+	var grew: bool = false
+	if route_wiring == null:
+		explored.visit(session.current_ship().position)
+		var now: Array[int] = explored.explored()
+		grew = now != _drawn
+		_drawn = now
 	if not MapRouteWiring.meltdown_running(session):
 		route = null
 		_death_tick = -1
@@ -74,13 +80,19 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 		return
 	if _death_tick < 0:
 		_death_tick = session.sim.tick
-	_search(session, grew)
+	if route_wiring != null:
+		route = route_wiring.route
+	else:
+		_search(session, grew)
 	if panel == null or panel.get_parent() == null:
 		return
 	_place(panel)
 	var reactor: ReactorState = SessionSnapshots.reactor(session.sim.reactor)
 	var elapsed: float = float(session.sim.tick - _death_tick) / float(ReactorState.TICKS_PER_SECOND)
 	cue.show_countdown(MeltdownWiring.seconds_left(reactor), elapsed)
+	if route == null:  # The map has not searched yet: no hand holds it.
+		cue.point_at(false, Vector3.ZERO, Transform3D.IDENTITY)
+		return
 	var target: Array = MeltdownCue.waypoint(MapRouteWiring.metres(route.points_mm))
 	cue.point_at(target[0], target[1], world_from_cue())
 
@@ -96,13 +108,14 @@ func world_from_cue() -> Transform3D:
 	return result
 
 
-## Starts over for `session`: a new explored set and the exit sign at its
-## exit, only in a level with a reactor, the only kind with a meltdown.
+## Starts over for `session`: a new explored set without a route wiring, and
+## the exit sign at its exit, only in a level with a reactor, the only kind
+## with a meltdown.
 func _start(session: LocalSession) -> void:
 	_session = session
 	var walls: BoxUnion = session.replay.walls()
 	_union = walls if walls != null else BoxUnion.new()
-	explored = ExploredBoxes.new(_union)
+	explored = ExploredBoxes.new(_union) if route_wiring == null else null
 	_drawn = []
 	route = null
 	_death_tick = -1

@@ -15,7 +15,8 @@ extends RefCounted
 ##
 ## `escape` adds the escape cues (#617): the large countdown and the arrow to
 ## the exit in the cockpit, and the sign at the exit. It hangs here so that
-## `main.gd` need not change.
+## `main.gd` need not change; `attach` takes the map's route search for the
+## arrow (#695).
 ##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
@@ -36,9 +37,12 @@ var _world: Node3D = null
 
 ## Remembers `world`, the node whose space is the simulation's, and shows
 ## `session`'s reactor there at once, so no frame goes without it. A session
-## without a reactor (the test tunnel) gets no view.
-func attach(world: Node3D, session: LocalSession) -> void:
+## without a reactor (the test tunnel) gets no view. `route`, the map's route
+## search, is handed to the arrow once; a later attach without it keeps it.
+func attach(world: Node3D, session: LocalSession, route: MapRouteWiring = null) -> void:
 	_world = world
+	if route != null:
+		escape.route_wiring = route
 	escape.attach(world, session)
 	update(session, null)
 
