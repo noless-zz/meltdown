@@ -6,8 +6,8 @@ extends Node3D
 ## active comfort preset, the ship's speed, the energy pool, the shield and
 ## hull (#227), whether the afterburner is boosting or locked out, the part in
 ## the hold (#290) and what was just picked up or slotted, the weapon that
-## fires (#605), the meltdown countdown (#315), which build is running, and
-## how the level ended (#361).
+## fires (#605), the meltdown countdown (#315), which build is running, how
+## the level ended (#361) and which seed or level is flown (#747).
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
 ## the session, so it can never read more than it is handed or write
@@ -33,6 +33,7 @@ const HOLD_NAME: String = "Hold"
 const WEAPON_NAME: String = "Weapon"
 const MELTDOWN_NAME: String = "Meltdown"
 const OUTCOME_NAME: String = "Outcome"
+const LEVEL_NAME: String = "Level"
 const ESCAPED_TEXT: String = "ESCAPED"
 const LOST_TEXT: String = "SHIP LOST"
 ## The hold line reads "Hold <part>" or this, so an empty hold is said, not
@@ -80,12 +81,6 @@ const HOLD_Y: float = -1.5 * ROW_PITCH
 const SPEED_Y: float = -2.5 * ROW_PITCH
 const PRESET_Y: float = -3.5 * ROW_PITCH
 const LABEL_X: float = -0.12
-## The large preset label is centred here, above the rows.
-const PRESET_LARGE_Y: float = 0.13
-## The build line only needs to be findable, so it costs no row: it shows above
-## the large preset label, while that label shows (at start and on each preset
-## change), in a smaller font.
-const BUILD_Y: float = 0.165
 ## The large, centred outcome row sits above everything, nearest the line of
 ## sight, and clear of the large preset label and build line even if all show.
 const OUTCOME_Y: float = 0.2
@@ -111,17 +106,18 @@ var meltdown_text_changes: int:
 var outcome_text_changes: int:
 	get:
 		return _outcome_row.text_changes if _outcome_row != null else 0
+var level_text_changes: int:
+	get:
+		return _level_row.text_changes if _level_row != null else 0
 ## Seconds the large preset label has left; 0 when it is hidden.
-var large_seconds_left: float = 0.0
+var large_seconds_left: float:
+	get:
+		return _preset_row.seconds_left if _preset_row != null else 0.0
 
-## The preset number last shown; 0 before the first values, so the preset the
-## game starts on is also shown large once.
-var _shown_preset: int = 0
-var _preset: Label3D
-var _preset_large: Label3D
+var _preset_row: StatusPanelPresetRow
+var _level_row: StatusPanelLevelRow
 var _speed: Label3D
 var _boost: Label3D
-var _build: Label3D
 var _hold_row: StatusPanelHoldRow
 var _weapon: Label3D
 var _meltdown_row: StatusPanelMeltdownRow
@@ -134,7 +130,7 @@ var _hull_bar: PanelBar
 
 func _init() -> void:
 	name = NODE_NAME
-	_preset = StatusPanelLabels.make(self, PRESET_NAME, Vector3(LABEL_X, PRESET_Y, 0.0), SMALL_FONT)
+	_preset_row = StatusPanelPresetRow.new(self)
 	_speed = StatusPanelLabels.make(self, SPEED_NAME, Vector3(LABEL_X, SPEED_Y, 0.0), SMALL_FONT)
 	StatusPanelLabels.make(self, ENERGY_LABEL_NAME, Vector3(LABEL_X, ENERGY_Y, 0.0), SMALL_FONT).text = "Energy"
 	StatusPanelLabels.make(self, SHIELD_LABEL_NAME, Vector3(LABEL_X, SHIELD_Y, 0.0), SMALL_FONT).text = "Shield"
@@ -148,14 +144,8 @@ func _init() -> void:
 	_weapon.text = WEAPON_NONE
 	_meltdown_row = StatusPanelMeltdownRow.new(
 		StatusPanelLabels.make(self, MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT))
-	_build = StatusPanelLabels.make(self, BUILD_NAME, Vector3(LABEL_X, BUILD_Y, 0.0), SMALL_FONT)
-	_build.font_size = SMALL_FONT * 3 / 4
-	_build.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_build.position.x = 0.0
-	_build.visible = false
-	_preset_large = StatusPanelLabels.make(self, PRESET_LARGE_NAME, Vector3(0.0, PRESET_LARGE_Y, 0.0), LARGE_FONT)
-	_preset_large.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_preset_large.visible = false
+	_preset_row.add_large(self)
+	_level_row = StatusPanelLevelRow.new(self, StatusPanelLook.shared())
 	_outcome_row = StatusPanelOutcomeRow.new(
 		StatusPanelLabels.make(self, OUTCOME_NAME, Vector3(0.0, OUTCOME_Y, 0.0), LARGE_FONT),
 		StatusPanelLook.shared()["escaped_color"])
@@ -172,18 +162,11 @@ func _init() -> void:
 ## preset large for `PRESET_LARGE_SECONDS`.
 func show_values(preset_number: int, preset_name: String, speed_mps: float,
 		energy_fraction: float, boost: String, build_text: String) -> void:
-	var preset_text: String = "Preset %d %s" % [preset_number, preset_name]
-	if preset_number != _shown_preset:
-		_shown_preset = preset_number
-		large_seconds_left = PRESET_LARGE_SECONDS
-	StatusPanelLabels.set_text(_preset, preset_text)
-	StatusPanelLabels.set_text(_preset_large, preset_text)
+	_preset_row.show(preset_number, preset_name, build_text)
 	StatusPanelLabels.set_text(_speed, "Speed %d m/s" % roundi(speed_mps))
 	StatusPanelLabels.set_text(_boost, boost)
 	_boost.modulate = RECHARGING_COLOR if boost == BOOST_RECHARGING else BOOST_COLOR
-	StatusPanelLabels.set_text(_build, build_text)
 	_energy_bar.set_fraction(energy_fraction)
-	_show_large(large_seconds_left > 0.0)
 
 
 ## Shows the shield and hull as fractions of their maximums, each clamped to
@@ -253,14 +236,17 @@ func outcome_visible() -> bool:
 	return _outcome_row.visible()
 
 
+## Names what this launch flies (#747); see `StatusPanelLevelRow.show_level`.
+## Safe to call every frame.
+func show_level(level_seed: String, level_name: String) -> void:
+	_level_row.show_level(level_seed, level_name)
+
+
 ## Runs the large preset label's and the hold message's timers by `delta`
 ## seconds.
 func advance(delta: float) -> void:
 	_hold_row.advance(delta)
-	if large_seconds_left <= 0.0:
-		return
-	large_seconds_left = maxf(large_seconds_left - maxf(delta, 0.0), 0.0)
-	_show_large(large_seconds_left > 0.0)
+	_preset_row.advance(delta)
 
 
 ## The text each label shows, by node name, for tests and logs.
@@ -273,7 +259,7 @@ func texts() -> Dictionary:
 
 
 func large_preset_visible() -> bool:
-	return _preset_large.visible
+	return _preset_row.large_visible()
 
 
 ## The energy bar's length as a fraction of the full bar, 0..1.
@@ -292,14 +278,6 @@ func hull_bar_scale() -> float:
 ## Whether the hull label shows the low-hull warning colour.
 func hull_warning_shown() -> bool:
 	return _hull_label.modulate == HULL_WARNING_COLOR
-
-
-## Large and small never show together, so the preset is not read twice.
-## The build line shows with the large label.
-func _show_large(large: bool) -> void:
-	_preset_large.visible = large
-	_preset.visible = not large
-	_build.visible = large
 
 
 ## The panel's transform under the rig origin. `cockpit` is where the ship's

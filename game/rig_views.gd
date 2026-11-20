@@ -72,9 +72,12 @@ static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel:
 
 
 ## Hands `panel` this frame's values from `ship`, a copy of the latest ship
-## state; the panel never sees the session itself (ARC-3).
+## state; the panel never sees the session itself (ARC-3). `level_source` is
+## what the launch flies, as `LevelStart.source` holds it (#747).
 static func show_ship(panel: StatusPanel, ship: ShipState, preset_number: int,
-		preset_name: String, build: String, delta_seconds: float) -> void:
+		preset_name: String, build: String, delta_seconds: float, level_source: String = "") -> void:
+	var level: PackedStringArray = LevelStart.shown_level(level_source)
+	panel.show_level(level[0], level[1])
 	var boost: String = ""
 	if ship.afterburner_active:
 		boost = StatusPanel.BOOST_ON
