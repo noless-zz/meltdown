@@ -11,8 +11,9 @@ const SCALED: String = '{"position": [0, 0, -30], "radius": 2, "hull": 8, "meltd
 	+ ' "meltdown_min_seconds": 12, "meltdown_max_seconds": 40}'
 const PLAIN: String = '{"position": [0, 0, -30], "radius": 2, "hull": 8, "meltdown_seconds": 5}'
 ## The hash `_replay(PLAIN)` ended on at main d7c06a3, before the scaling keys
-## existed (Godot 4.7.2). It must not move.
-const PLAIN_PINNED_HASH: int = 45641052
+## existed (Godot 4.7.2). It must not move for the scaling keys; #603 moved it
+## once by retuning the pulse cannon, which the replay fires.
+const PLAIN_PINNED_HASH: int = 1701626778
 
 
 ## One ship in one box, moved `metres` along -z from its start after the first

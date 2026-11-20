@@ -38,6 +38,20 @@ func test_a_ship_held_in_place_stalls_after_ticks() -> String:
 	return ""
 
 
+## Seed 6 after #603: the ship swung about 2 m either way while the middle of
+## the swing crept about 3 m in 20 s. That still counts as going nowhere.
+func test_a_ship_swinging_round_a_creeping_point_stalls() -> String:
+	var stall: BotStall = BotStall.new()
+	var stalled: bool = false
+	for tick: int in range(BotStall.TICKS + 1):
+		var creep: float = 3.0 * float(tick) / float(BotStall.TICKS)
+		var swing: float = 2.0 if tick % 80 < 40 else -2.0
+		stalled = stall.update(Vector3(creep * 0.5 + swing * 0.5, swing * 0.8, creep * 0.5))
+	if not stalled:
+		return "not stalled after %d ticks swinging round a creeping point" % BotStall.TICKS
+	return ""
+
+
 func test_leaving_the_spot_ends_the_stall() -> String:
 	var stall: BotStall = BotStall.new()
 	for tick: int in range(BotStall.TICKS + 1):

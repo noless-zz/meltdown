@@ -7,7 +7,8 @@ const DRONE: String = "res://data/robots/drone.json"
 ## `Sim.state_hash()` after `_fly_reference` on `main` before robots existed
 ## (commit 2c68c89). A sim with no robots must still give exactly this, so
 ## every recorded replay hash stays valid.
-const REFERENCE_HASH: int = 3186405771
+## Re-measured after #603 retuned the pulse cannon the flight fires.
+const REFERENCE_HASH: int = 4114825600
 
 
 func _drone() -> RobotDef:

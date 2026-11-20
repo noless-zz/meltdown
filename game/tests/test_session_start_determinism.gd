@@ -16,19 +16,20 @@ const WEAPON_DIR: String = "res://data/weapons/"
 ## G2's session before the first tick, and its ship after the #340 flight.
 ## Both were measured in a Builder's sandbox (Intel Xeon) and on CI with
 ## Godot 4.7.2 and came out the same, so CI checks them on a second machine.
-const G2_START_HASH: int = 1011058401
+const G2_START_HASH: int = 1895257873
 const G2_SHIP_HASH: int = 957383808
 ## The whole simulation after the #340 flight, robots included. CI measured it
 ## with `angle_to` before #381; with `StableAngle` a Builder's sandbox, whose
 ## `atan2f` gave the other value, reaches it too. Re-measured after #615, when
 ## robots stopped firing without a clear line to the ship, and after #612,
-## when robots got their own bursting weapons.
-const G2_FLIGHT_HASH: int = 3334134933
+## when robots got their own bursting weapons. #603 moved the start and flight
+## hashes by retuning the pulse cannon the ship carries.
+const G2_FLIGHT_HASH: int = 1991124992
 ## The three values above are for G2 with its `debris` key taken out. Since
 ## #439 a session carries the level's debris, which joins the state hash, so G2
 ## as shipped starts and flies to these instead; only the debris term differs.
-const G2_DEBRIS_START_HASH: int = 2899525467
-const G2_DEBRIS_FLIGHT_HASH: int = 1296996588
+const G2_DEBRIS_START_HASH: int = 1084084418
+const G2_DEBRIS_FLIGHT_HASH: int = 2035056867
 
 
 ## The #340 devlog's input: forward thrust with a slow yaw and pitch.

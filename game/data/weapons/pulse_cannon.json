@@ -1,7 +1,7 @@
 {
-	"fire_interval_ticks": 10,
+	"fire_interval_ticks": 15,
 	"projectile_speed": 120.0,
 	"lifetime": 1.5,
 	"damage": 8.0,
-	"energy_cost": 2.0
+	"energy_cost": 5.5
 }

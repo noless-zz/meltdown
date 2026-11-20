@@ -179,14 +179,16 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var wanted: Vector3 = Vector3.ZERO
 	if in_sight or threatened:
 		_waited_ticks = 0
+	var stalled: bool = _stall.update(ship.position)
+	# Stalled, a wait is what keeps the ship there (#603), so it goes on.
 	var waiting: bool = target != null and not in_sight and not threatened and not flanking \
-		and (robots_closing(ship) or ship.shield < ship.max_shield) and _waited_ticks < MAX_WAIT_TICKS
+		and not stalled and (robots_closing(ship) or ship.shield < ship.max_shield) \
+		and _waited_ticks < MAX_WAIT_TICKS
 	if waiting:
 		_waited_ticks += 1
 	if not waiting and distance > 0.0:
 		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
 		wanted = offset / distance * speed
-	var stalled: bool = _stall.update(ship.position)
 	if threatened and not stalled:
 		wanted += _dodge.velocity(ship, shooter.position)
 	else:

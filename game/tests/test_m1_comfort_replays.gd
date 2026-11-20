@@ -129,7 +129,7 @@ func test_the_steps_fly_their_own_replays() -> String:
 	if ids != EARLIER_IDS + [step_id(1), step_id(2)]:
 		return "m1 steps %s" % [ids]
 	var found: Dictionary = _suite_steps()
-	if found[EARLIER_IDS[3]].expected_hash != 2052785774 or found[EARLIER_IDS[4]].expected_hash != 2052785774:
+	if found[EARLIER_IDS[3]].expected_hash != 3139276631 or found[EARLIER_IDS[4]].expected_hash != 3139276631:
 		return "an earlier step's hash changed"
 	for preset_number: int in PRESETS:
 		var step: AcceptanceStep = found[step_id(preset_number)]

@@ -13,14 +13,18 @@ extends RefCounted
 ##
 ## The pilot asks `update` each tick it flies a level. Once the ship has stayed
 ## within `RADIUS` of one point for `TICKS` ticks it counts as stalled until it
-## leaves that point; the pilot then stops weaving and flies its route nose
-## first, so it goes through the opening and meets the robot. `TICKS` is twice
-## the longest the bot waits for robots on purpose (`BotPilot.MAX_WAIT_TICKS`),
+## leaves that point; the pilot then stops weaving and waiting for robots and
+## flies its route nose first, so it goes through the opening and meets the
+## robot (not waiting since #603: seed 5 sat out its waits at one corner).
+## `TICKS` is twice the longest the bot waits for robots on purpose (`BotPilot.MAX_WAIT_TICKS`),
 ## so waiting and sheltering are not mistaken for a stall. Pure arithmetic on
 ## the ship's position, so the same flight stalls on the same tick (ARC-1).
 
-## How far the ship must move to count as getting somewhere, metres.
-const RADIUS: float = 2.0
+## How far the ship must move to count as getting somewhere, metres. 2 m until
+## #603: after the pulse cannon went to 4 shots/s, seed 6 hung at a corner the
+## same way, swinging 2 m either side of a point that drifted about 3 m in 20 s,
+## so a 2 m circle restarted every few hundred ticks and never filled.
+const RADIUS: float = 5.0
 ## Ticks within `RADIUS` before the bot counts as stalled (20 s).
 const TICKS: int = 1200
 

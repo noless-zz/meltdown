@@ -5,8 +5,11 @@ extends RefCounted
 ## `test_main_scene.gd` would pass about 300 lines.
 
 const SHIP_FILE: String = "res://data/ships/default_ship.json"
-## 1.5 s of frames at 90 Hz runs 30 ticks.
-const FRAMES_FOR_30_TICKS: int = 45
+## 0.4 s of frames at 90 Hz runs 24 ticks. At 4 shots/s (#603) every bolt the
+## main scene fired had hit the wall by tick 30, so the check stops while the
+## latest is still in flight.
+const TICKS_OF_FIRE: int = 24
+const FRAMES_OF_FIRE: int = 36
 
 
 ## The real main scene, readied as at start-up, with the right trigger held.
@@ -51,7 +54,7 @@ func test_main_scene_starts_with_the_shipped_loadout() -> String:
 
 func test_holding_fire_shows_one_bolt_per_projectile() -> String:
 	var main: Node = _main_firing()
-	_fly(main, FRAMES_FOR_30_TICKS)
+	_fly(main, FRAMES_OF_FIRE)
 	var session: LocalSession = main.get("session")
 	var view: ProjectileView = main.get_node_or_null(ProjectileView.NODE_NAME) as ProjectileView
 	var ticks: int = session.sim.tick
@@ -61,10 +64,10 @@ func test_holding_fire_shows_one_bolt_per_projectile() -> String:
 	main.free()  # Frees the view too, so it compares equal to null from here.
 	if not found:
 		return "no ProjectileView directly under the main scene"
-	if ticks != 30:
-		return "%d frames ran %d ticks" % [FRAMES_FOR_30_TICKS, ticks]
+	if ticks != TICKS_OF_FIRE:
+		return "%d frames ran %d ticks" % [FRAMES_OF_FIRE, ticks]
 	if in_flight == 0:
-		return "30 ticks of fire left no projectile in flight"
+		return "%d ticks of fire left no projectile in flight" % TICKS_OF_FIRE
 	if shown != in_flight:
 		return "%d bolts shown for %d projectiles" % [shown, in_flight]
 	return ""
@@ -75,7 +78,7 @@ func test_energy_readout_drops_while_firing() -> String:
 	var panel: StatusPanel = main.get("status_panel")
 	main.call("update_status_panel", 0.0)
 	var before: float = panel.energy_bar_scale()
-	_fly(main, FRAMES_FOR_30_TICKS)
+	_fly(main, FRAMES_OF_FIRE)
 	var after: float = panel.energy_bar_scale()
 	main.free()
 	if after >= before:
@@ -85,7 +88,7 @@ func test_energy_readout_drops_while_firing() -> String:
 
 func test_showing_projectiles_leaves_the_simulation_alone() -> String:
 	var main: Node = _main_firing()
-	_fly(main, FRAMES_FOR_30_TICKS)
+	_fly(main, FRAMES_OF_FIRE)
 	var session: LocalSession = main.get("session")
 	var hash_before: int = session.sim.state_hash()
 	main.call("advance_frame", 0.0)

@@ -8,7 +8,8 @@ const PULSE_CANNON: String = "res://data/weapons/pulse_cannon.json"
 ## `Sim.state_hash()` after the reference flight of `test_sim_robots.gd`,
 ## recorded on `main` before robots existed (commit 2c68c89). Hits must not
 ## change the hash of a run with no robots.
-const REFERENCE_HASH: int = 3186405771
+## Re-measured after #603 retuned the pulse cannon the flight fires.
+const REFERENCE_HASH: int = 4114825600
 
 
 func _drone() -> RobotDef:
