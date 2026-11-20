@@ -6,8 +6,11 @@ extends RefCounted
 ## build is offered on the status panel with "Update" and "Later". Choosing
 ## "Update" emits `update_chosen` and downloads the build (#647, #673); the
 ## notice follows the download, and a menu tap while it runs cancels it. A
-## checked download is passed on as `update_verified` for the installer
-## hand-off (#648). Nothing is installed unless the pilot chooses.
+## checked download is passed on as `update_verified` and, on the headset,
+## handed to the package installer (#648); a tap retries a hand-off that
+## waits for the install permission or did not start. On the next start the
+## notice names the old and new commits once. Nothing is installed unless the
+## pilot chooses.
 ##
 ## Debug builds on the headset only. A release or store build never makes
 ## the request, and a desktop debug run only with `ARG`, so CI and the tests
@@ -25,6 +28,8 @@ var request: UpdateRequest = null
 var notice: UpdateNotice = null
 ## Null when the wiring was attached without one: then "Update" only emits.
 var download: UpdateDownload = null
+## Null off Android: then a checked download is only passed on.
+var install: UpdateInstall = null
 var tap: MenuTap = MenuTap.new()
 
 var _offered: Dictionary = {}
@@ -43,7 +48,8 @@ func attach(host: Node, panel: Node3D, running: BuildInfo) -> bool:
 		return false
 	attach_with(panel if panel != null else host as Node3D,
 		UpdateRequest.new(settings, HttpUpdateTransport.new(host), running, true),
-		UpdateDownload.new(HttpUpdateDownloader.new(host), UpdateDownload.default_directory()))
+		UpdateDownload.new(HttpUpdateDownloader.new(host), UpdateDownload.default_directory()),
+		UpdateInstall.new(AndroidInstaller.new(runtime), running) if runtime != null else null)
 	return true
 
 
@@ -57,10 +63,13 @@ static func may_attach(is_debug_build: bool, settings: UpdateSettings, platform_
 
 
 ## The wiring with its parts passed in, so tests can fake the transport and
-## the downloader. Sends the start-up check at once.
-func attach_with(notice_parent: Node3D, p_request: UpdateRequest, p_download: UpdateDownload = null) -> void:
+## the downloader and the installer. Shows "Updated from ... to ..." when the
+## last hand-off replaced the build, then sends the start-up check.
+func attach_with(notice_parent: Node3D, p_request: UpdateRequest, p_download: UpdateDownload = null,
+		p_install: UpdateInstall = null) -> void:
 	request = p_request
 	download = p_download
+	install = p_install
 	if download != null:
 		download.changed.connect(_on_download_changed)
 		download.ended.connect(_on_download_ended)
@@ -71,13 +80,17 @@ func attach_with(notice_parent: Node3D, p_request: UpdateRequest, p_download: Up
 		notice_parent.add_child(notice)
 	notice.update_chosen.connect(_on_update_chosen)
 	notice.later_chosen.connect(_on_later_chosen)
+	if install != null:
+		var updated: String = UpdateInstall.take_update_message(install.running, install.marker_path)
+		if updated != "":
+			notice.outcome(updated)
 	request.check_on_start()
 
 
 ## Once per frame with whether the menu button (or Backspace) is down. It also
 ## steps a running download, since this is the wiring's one per-frame call. A
-## tap cancels a running download, chooses "Update" while the offer is up and
-## asks for a check otherwise.
+## tap cancels a running download, chooses "Update" while the offer is up,
+## retries an install that waits and asks for a check otherwise.
 func press_menu(held: bool, now: float = MenuTap.steady_seconds()) -> void:
 	if request == null:
 		return
@@ -87,7 +100,11 @@ func press_menu(held: bool, now: float = MenuTap.steady_seconds()) -> void:
 		return
 	if download != null and download.is_busy():
 		download.cancel()
-	elif not notice.choose_update():
+	elif notice.choose_update():
+		pass
+	elif _install_waits():
+		_install(install.pending_path)
+	else:
 		request.check_on_request()
 
 
@@ -124,3 +141,17 @@ func _on_download_ended(_status: String, text: String) -> void:
 
 func _on_download_verified(path: String) -> void:
 	update_verified.emit(path)
+	if install != null:
+		_install(path)
+
+
+## After the permission screen or a failed hand-off; not after the installer
+## opened, so a later tap checks again instead of reopening it forever.
+func _install_waits() -> bool:
+	return install != null and install.status in [UpdateInstall.STATUS_ASKED, UpdateInstall.STATUS_FAILED] \
+			and install.has_pending()
+
+
+func _install(path: String) -> void:
+	install.install(path)
+	notice.outcome(install.text)
