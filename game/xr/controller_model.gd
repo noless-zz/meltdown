@@ -103,24 +103,7 @@ func build() -> void:
 	for child: Node in get_children():
 		remove_child(child)
 		child.free()
-	var body: StandardMaterial3D = _material(body_color)
-	var detail: StandardMaterial3D = _material(DETAIL_COLOR)
-	var handle: CylinderMesh = CylinderMesh.new()
-	handle.top_radius = HANDLE_RADIUS
-	handle.bottom_radius = HANDLE_RADIUS
-	handle.height = HANDLE_LENGTH
-	var handle_node: MeshInstance3D = _part("Handle", handle, body, Vector3(0.0, -HANDLE_LENGTH * 0.4, 0.01))
-	handle_node.rotation_degrees = Vector3(-HANDLE_TILT_DEGREES, 0.0, 0.0)
-	var head: BoxMesh = BoxMesh.new()
-	head.size = HEAD_SIZE
-	_part("Head", head, body, HEAD_OFFSET)
-	_part("Stick", _cylinder(STICK_RADIUS, STICK_HEIGHT), detail, _mirror(STICK_OFFSET))
-	_part("ButtonUpper", _cylinder(BUTTON_RADIUS, BUTTON_HEIGHT), detail, _mirror(BUTTON_UPPER_OFFSET))
-	_part("ButtonLower", _cylinder(BUTTON_RADIUS, BUTTON_HEIGHT), detail, _mirror(BUTTON_LOWER_OFFSET))
-	_part("Menu", _cylinder(MENU_RADIUS, BUTTON_HEIGHT), detail, _mirror(MENU_OFFSET))
-	var trigger: BoxMesh = BoxMesh.new()
-	trigger.size = TRIGGER_SIZE
-	_part("Trigger", trigger, detail, TRIGGER_OFFSET)
+	ControllerShape.add_generic(self, hand, body_color)
 	_labels_root = ControlLabelSet.new(hand)
 	_labels_root.visible = show_labels
 	add_child(_labels_root)
@@ -284,30 +267,3 @@ func _show_generic(shown: bool) -> void:
 		if node != null:
 			node.visible = shown
 
-
-func _mirror(offset: Vector3) -> Vector3:
-	return Vector3(-offset.x, offset.y, offset.z) if hand == "left" else offset
-
-
-func _part(part_name: String, mesh: Mesh, material: Material, offset: Vector3) -> MeshInstance3D:
-	var node: MeshInstance3D = MeshInstance3D.new()
-	node.name = part_name
-	node.mesh = mesh
-	node.material_override = material
-	node.position = offset
-	add_child(node)
-	return node
-
-
-static func _cylinder(radius: float, height: float) -> CylinderMesh:
-	var mesh: CylinderMesh = CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = height
-	return mesh
-
-
-static func _material(color: Color) -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = color
-	return material
