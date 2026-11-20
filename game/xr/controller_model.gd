@@ -13,7 +13,9 @@ extends Node3D
 ## Vendors plugin (#10), whose Meta render-model node (XR_FB_render_model) is
 ## tried as well, since the Quest runtime offers no XR_EXT_render_model models.
 ## Labels stay in both cases and are
-## billboarded so they face the player from any hand angle. Nothing here reads
+## billboarded so they face the player from any hand angle. Their leader lines
+## end on the generic shape's controls, or on the runtime model's own parts
+## while it is shown (#652, see `ControllerAnchors`). Nothing here reads
 ## or writes input or ship state; the rig hands it the words to show (ARC-3).
 
 ## Where each control's label sits; see `ControlLabelSet` (#147).
@@ -81,6 +83,14 @@ var _runtime_model_count: int = 0
 ## True once the vendors plugin loaded this hand's Meta model; it has no
 ## removal signal, and a new session reloads the model in place.
 var _vendor_model_shown: bool = false
+## The labels last set, kept so a model arriving later moves their lines.
+var _labels: Dictionary = {}
+var _anchors: ControllerAnchors = null
+## Where the leader lines end now; see `ControllerAnchors.SOURCE_*`.
+var _anchor_source: String = ControllerAnchors.SOURCE_GENERIC
+## The interaction profile the runtime model belongs to; empty asks the
+## hand's tracker. Public so the tests can set it without a runtime.
+var runtime_profile: String = ""
 
 
 func _init(p_hand: String = "right", p_body_color: Color = Color(0.5, 0.5, 0.5)) -> void:
@@ -116,6 +126,8 @@ func build() -> void:
 	add_child(_labels_root)
 	_runtime_model_count = 0
 	_vendor_model_shown = false
+	_labels = {}
+	_anchor_source = ControllerAnchors.SOURCE_GENERIC
 	_add_runtime_models()
 	_add_vendor_model()
 
@@ -150,7 +162,30 @@ func vendor_model() -> Node3D:
 func set_labels(labels: Dictionary) -> void:
 	if _labels_root == null:
 		build()
-	_labels_root.set_labels(labels, CONTROL_POINTS)
+	_labels = labels.duplicate()
+	_move_leaders()
+
+
+## Hand-local point of each control on the right hand, where its leader line
+## ends: the generic shape's, or the runtime model's parts while it is shown.
+func control_points() -> Dictionary:
+	if not has_runtime_model():
+		_anchor_source = ControllerAnchors.SOURCE_GENERIC
+		return CONTROL_POINTS
+	if _anchors == null:
+		_anchors = ControllerAnchors.load_file()
+		if _anchors.error != "":
+			push_warning("label anchors use the generic shape: %s" % _anchors.error)
+	var root: Node = vendor_model() if _vendor_model_shown else runtime_models()
+	var profile: String = runtime_profile if runtime_profile != "" else ControllerAnchors.tracker_profile(hand)
+	var result: Dictionary = _anchors.resolve(root, self, hand, profile, CONTROL_POINTS)
+	_anchor_source = result["source"]
+	return result["points"]
+
+
+## `ControllerAnchors.SOURCE_*` naming where the leader lines end now.
+func anchor_source() -> String:
+	return _anchor_source
 
 
 ## Control (without hand prefix) -> the text of its label, as shown now.
@@ -185,12 +220,14 @@ func labels_visible() -> bool:
 func on_runtime_model_added(_render_model: Node3D) -> void:
 	_runtime_model_count += 1
 	_show_generic(false)
+	_move_leaders()
 
 
 ## Connected to the manager's `render_model_removed`.
 func on_runtime_model_removed(_render_model: Node3D) -> void:
 	_runtime_model_count = maxi(_runtime_model_count - 1, 0)
 	_show_generic(not has_runtime_model())
+	_move_leaders()
 
 
 ## Connected to the vendor model's `openxr_fb_render_model_loaded`; public to
@@ -202,6 +239,12 @@ func on_vendor_model_loaded() -> void:
 	var manager: OpenXRRenderModelManager = runtime_models()
 	if manager != null:
 		manager.visible = false
+	_move_leaders()
+
+
+func _move_leaders() -> void:
+	if _labels_root != null:
+		_labels_root.set_labels(_labels, control_points())
 
 
 func _add_runtime_models() -> void:

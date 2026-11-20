@@ -1,0 +1,21 @@
+{
+	"runtime_default_profile": "/interaction_profiles/meta/touch_controller_plus",
+	"node_names": {
+		"stick_click": ["b_thumbstick", "thumbstick", "joystick"],
+		"button_upper": ["b_button_b", "b_button_y", "button_b", "button_y", "b_button02"],
+		"button_lower": ["b_button_a", "b_button_x", "button_a", "button_x", "b_button01"],
+		"menu": ["b_button_oculus", "b_button_menu", "button_oculus", "button_menu", "button_system", "b_button03"],
+		"trigger": ["b_trigger_front", "trigger_front", "index_trigger", "b_trigger"],
+		"grip": ["b_trigger_grip", "trigger_grip", "hand_trigger", "squeeze", "grip"]
+	},
+	"profiles": {
+		"/interaction_profiles/meta/touch_controller_plus": {
+			"stick_click": [-0.006, 0.006, 0.030],
+			"button_upper": [0.012, 0.002, 0.026],
+			"button_lower": [0.010, 0.000, 0.040],
+			"menu": [-0.004, -0.003, 0.050],
+			"trigger": [0.000, -0.030, 0.008],
+			"grip": [0.018, -0.045, 0.050]
+		}
+	}
+}
