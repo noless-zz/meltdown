@@ -114,10 +114,11 @@ func test_the_m1_suite_names_the_step_and_its_values() -> String:
 	var suite: AcceptanceSuite = AcceptanceSuite.load_named("m1")[0]
 	if suite.error != "":
 		return suite.error
-	var step: AcceptanceStep = suite.steps[suite.steps.size() - 1]
+	# The third step; flight_axes (#686) follows it.
+	var step: AcceptanceStep = suite.steps[2]
 	if step.id != "frame_budget" or step.checks != [AcceptanceStep.CHECK_FRAME_BUDGET] \
 			or step.measure_seconds != 30.0 or step.max_over_budget_share != 0.01 or step.settle_seconds <= 0.0:
-		return "m1's last step: %s %s %s %s" % [step.id, step.checks, step.measure_seconds, step.max_over_budget_share]
+		return "m1's third step: %s %s %s %s" % [step.id, step.checks, step.measure_seconds, step.max_over_budget_share]
 	var replay: Replay = Replay.load_file(step.replay_path)
 	if replay.error != "" or not replay.robots.is_empty():
 		return "the flight replay: '%s', %d robots" % [replay.error, replay.robots.size()]

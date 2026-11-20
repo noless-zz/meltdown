@@ -80,7 +80,11 @@ func test_m1_suite_passes_in_the_flat_main_scene() -> String:
 		problem = "the m1 report did not pass"
 	else:
 		var step: Dictionary = runner.reports[0].steps[0]
-		var frame_step: Dictionary = runner.reports[0].steps[runner.reports[0].steps.size() - 1]
+		# Found by id: later steps (flight_axes, #686) follow it in the suite.
+		var frame_step: Dictionary = {"id": "", "result": "missing"}
+		for entry: Dictionary in runner.reports[0].steps:
+			if entry["id"] == "frame_budget":
+				frame_step = entry
 		if step["measurements"].get("final_hash") != M1_HASH:
 			problem = "final hash %s, expected %d" % [step["measurements"].get("final_hash"), M1_HASH]
 		elif frame_step["id"] != "frame_budget" or frame_step["result"] != AcceptanceReport.RESULT_SKIPPED:

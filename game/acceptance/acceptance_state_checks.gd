@@ -6,7 +6,8 @@ extends RefCounted
 ## survived (gate G2, #334), how the run ended (#376) and whether any debris
 ## came down and the level was the pinned one (#460), and whether a blast door
 ## did (#516), whether any robot fired at the ship from behind a wall
-## (#615), and whether a destroyed ship stayed still and silent (#601). Kept apart from `AcceptanceRunner`, which drives
+## (#615), whether a destroyed ship stayed still and silent (#601), and
+## whether wall hits bounced the ship rather than stopping it (#686). Kept apart from `AcceptanceRunner`, which drives
 ## the frames, so that file stays short. Each check only reads the session.
 
 ## The record switch a changed level hash names. Only the m3 suite pins level
@@ -42,6 +43,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return part_held(session.sim, measurements)
 		AcceptanceStep.CHECK_SHIP_DESTROYED_INERT:
 			return AcceptanceWreckCheck.run(session.replay, measurements)
+		AcceptanceStep.CHECK_WALL_BOUNCED:
+			return AcceptanceWallCheck.run(session.replay, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
