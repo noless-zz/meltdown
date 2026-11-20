@@ -68,3 +68,24 @@ adb uninstall io.github.nolesszz.meltdown
 ```
 
 To build the same APK locally, see `tools/build.sh quest`.
+
+## Logging the view (dark-view reports)
+
+If the view goes dark in the headset (#651, #664), start the game with the `MELTDOWN_VIEW`
+log on. With the headset connected over USB or Wi-Fi, clear the old log and start the game
+with the log switched on (`-S` stops a copy that is already running):
+
+```sh
+adb logcat -c
+adb shell am start -S -n io.github.nolesszz.meltdown/com.godot.game.GodotApp --es meltdown_view_log 1
+```
+
+Fly until it goes dark, wait a few seconds, then save the lines to a file and send it:
+
+```sh
+adb logcat -d -s godot | grep MELTDOWN_VIEW > meltdown_view.log
+```
+
+In PowerShell use `Select-String MELTDOWN_VIEW` in place of `grep MELTDOWN_VIEW`. There is
+one line a second while flying, plus one for each preset change and each time the cockpit
+frame is re-placed around the head. Starting the game from the Library leaves the log off.
