@@ -134,3 +134,15 @@ func test_an_unwired_build_ignores_the_menu_button() -> String:
 	var wiring: UpdateWiring = UpdateWiring.new()
 	_tap(wiring, 1.0)
 	return "" if wiring.request == null and wiring.notice == null else "an unattached wiring built parts"
+
+
+func test_an_acceptance_run_never_checks() -> String:
+	var settings: UpdateSettings = UpdateSettings.new()
+	settings.enabled = true
+	if not UpdateWiring.may_attach(true, settings, true, ""):
+		return "a debug headset build without a suite should check"
+	if UpdateWiring.may_attach(true, settings, true, "m1"):
+		return "an acceptance run must not send the update check"
+	if UpdateWiring.may_attach(false, settings, true, ""):
+		return "a release build must never check"
+	return ""

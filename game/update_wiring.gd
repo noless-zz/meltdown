@@ -28,12 +28,25 @@ var _offered: Dictionary = {}
 ## `host` and the notice under `panel`. Returns whether it did.
 func attach(host: Node, panel: Node3D, running: BuildInfo) -> bool:
 	var settings: UpdateSettings = UpdateSettings.load_file()
-	var platform_ok: bool = OS.has_feature("android") or OS.get_cmdline_user_args().has(ARG)
-	if not UpdateRequest.is_allowed(OS.is_debug_build(), settings, platform_ok):
+	var user_args: PackedStringArray = OS.get_cmdline_user_args()
+	var platform_ok: bool = OS.has_feature("android") or user_args.has(ARG)
+	var runtime: Object = InstallerProbe.android_runtime()
+	var intent_value: String = InstallerProbe.intent_extra(runtime, AcceptanceRunner.INTENT_EXTRA) if runtime != null else ""
+	var suite: String = AcceptanceRunner.requested_suite(user_args, intent_value)
+	if not may_attach(OS.is_debug_build(), settings, platform_ok, suite):
 		return false
 	attach_with(panel if panel != null else host as Node3D,
 		UpdateRequest.new(settings, HttpUpdateTransport.new(host), running, true))
 	return true
+
+
+## Whether to check at all. Never during an acceptance run: on the headset that
+## is an Android debug build too, and an offer appearing mid-suite would show
+## in its screenshots and make its runs depend on GitHub.
+static func may_attach(is_debug_build: bool, settings: UpdateSettings, platform_ok: bool, acceptance_suite: String) -> bool:
+	if acceptance_suite != "":
+		return false
+	return UpdateRequest.is_allowed(is_debug_build, settings, platform_ok)
 
 
 ## The wiring with its parts passed in, so tests can fake the transport.
