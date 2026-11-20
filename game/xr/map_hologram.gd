@@ -3,7 +3,7 @@ extends Node3D
 
 ## The map of the explored mine as a small hologram held in the hand (MAP-1,
 ## #314): the `MapWireframe` outline of the explored boxes as one emissive line
-## mesh, fitted into a cube of `size_m`, with a marker where the ship is.
+## mesh, fitted into a cube of `size_m`, with a dart for the ship (`MapShipMarker`).
 ##
 ## It hangs under a controller, so it turns with the hand. It shows only while
 ## `show_map` has been held for `HOLD_SECONDS`; a shorter click stays the label
@@ -121,7 +121,7 @@ func build(union: BoxUnion, explored: Array[int]) -> void:
 		mesh.surface_set_material(0, MapShapes.glow(_look["line_color"], float(_look["line_energy"])))
 		_lines.mesh = mesh
 	var energy: float = float(_look["line_energy"])
-	_marker.mesh = MapShapes.ball(_look["marker_color"], float(_look["marker_radius_m"]), energy)
+	_marker.mesh = MapShipMarker.mesh(_look["marker_color"], float(_look["marker_radius_m"]), energy)
 	var cube: BoxMesh = BoxMesh.new()
 	cube.size = Vector3.ONE * float(_look["exit_radius_m"]) * 2.0
 	cube.material = MapShapes.glow(_look["exit_color"], energy)
@@ -148,6 +148,11 @@ func set_ship_position(position: Vector3) -> void:
 ## The marker's position in the hologram.
 func marker_position() -> Vector3:
 	return _marker.position
+
+
+## Turns the marker to the ship's `orientation` (a copy); the fit only scales, so it carries over.
+func set_ship_orientation(orientation: Basis) -> void:
+	_marker.basis = orientation.orthonormalized()
 
 
 ## Marks the exit (the entrance, RUN-3) and the reactor at level-space copies of
