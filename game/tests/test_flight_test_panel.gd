@@ -21,6 +21,22 @@ func test_the_shipped_text_has_an_instruction_for_every_manoeuvre() -> String:
 	return ""
 
 
+# The built-in words are what the panel shows when the file is broken, so a
+# manoeuvre added to the plan without them would leave a blank instruction (#720).
+func test_the_built_in_words_match_the_plans_manoeuvres() -> String:
+	var instructions: Dictionary = FlightTestPanelText.FALLBACK["instructions"]
+	for manoeuvre: String in FlightTestPlan.MANOEUVRES:
+		if str(instructions.get(manoeuvre, "")).strip_edges() == "":
+			return "built-in words have no instruction for %s" % manoeuvre
+	for key: Variant in instructions:
+		if not FlightTestPlan.MANOEUVRES.has(str(key)):
+			return "built-in words name %s, which the plan does not know" % str(key)
+	var parsed: Dictionary = FlightTestPanelText.parse(JSON.stringify(FlightTestPanelText.FALLBACK))
+	if parsed.has("error"):
+		return "built-in words rejected by the parser: %s" % parsed["error"]
+	return ""
+
+
 func test_bad_text_is_reported_naming_the_field() -> String:
 	var cases: Array[Array] = []
 	var bad_key: Dictionary = _shipped_text()
