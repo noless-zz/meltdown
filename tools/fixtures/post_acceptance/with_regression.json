@@ -1,0 +1,19 @@
+{
+	"issues?state=open&labels=gate&per_page=100": [
+		{ "number": 901, "title": "Gate G3", "milestone": { "number": 4 }, "body": "" },
+		{ "number": 902, "title": "Gate without a milestone", "milestone": null, "body": "" },
+		{ "number": 900, "title": "Gate G1", "milestone": { "number": 2 }, "body": "" }
+	],
+	"issues/900/comments?per_page=100": [
+		{ "id": 5000, "body": "A comment by the owner." },
+		{ "id": 5001, "body": "<!-- meltdown-device-acceptance -->\n### Device acceptance, suite `m1`" }
+	],
+	"issues/901/comments?per_page=100": [
+		{ "id": 6001, "body": "<!-- meltdown-device-acceptance -->\n### Device acceptance, suite `m1`" }
+	],
+	"issues?state=open&labels=playtest&per_page=100": [
+		{ "number": 940, "title": "Playtest: an unrelated finding", "body": "Seen in the headset." },
+		{ "number": 945, "title": "A pull request quoting the marker", "body": "<!-- meltdown-nightly-regression -->", "pull_request": { "url": "https://example.invalid/pulls/945" } },
+		{ "number": 950, "title": "Nightly device acceptance fails: headset m1/basic_flight", "body": "<!-- meltdown-nightly-regression -->\nThe nightly device acceptance run failed." }
+	]
+}

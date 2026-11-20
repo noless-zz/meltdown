@@ -14,7 +14,9 @@ one table with a column per target to the job summary and, on a scheduled run:
   0005, point 5).
 
 Uses only the workflow's GITHUB_TOKEN (issues: write). With -DryRun it prints
-the requests instead of sending them, for tools/test_device_acceptance.sh.
+the requests instead of sending them, for tools/test_device_acceptance.sh;
+-DryRunFixture names a JSON file whose keys are GET paths and whose values are
+the answers, so a dry run takes the same paths as a real one (#669).
 #>
 [CmdletBinding()]
 param(
@@ -23,7 +25,8 @@ param(
 	[string]$EventName = $env:GITHUB_EVENT_NAME,
 	[string]$Repository = $env:GITHUB_REPOSITORY,
 	[string]$RunUrl = '',
-	[switch]$DryRun
+	[switch]$DryRun,
+	[string]$DryRunFixture = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +59,21 @@ if ($EventName -ne 'schedule') {
 	exit 0
 }
 
+# Invoke-RestMethod and ConvertFrom-Json write a JSON array to the pipeline as
+# one object, so callers got the whole list as a single item (#669). Unrolling
+# it here gives one pipeline item per issue or comment.
+function Write-Items {
+	param($Response)
+	foreach ($item in $Response) {
+		Write-Output $item
+	}
+}
+
+$cannedAnswers = $null
+if ($DryRun -and $DryRunFixture) {
+	$cannedAnswers = Get-Content -Raw -Path $DryRunFixture | ConvertFrom-Json
+}
+
 function Invoke-Api {
 	param([string]$Method, [string]$Path, $Body = $null)
 	$uri = "https://api.github.com/repos/$Repository/$Path"
@@ -65,7 +83,14 @@ function Invoke-Api {
 			Write-Host (ConvertTo-Json -InputObject $Body -Depth 5)
 		}
 		if ($Method -eq 'GET') {
-			# Nothing found: no gate and no open regression issue.
+			# Without a fixture answer: nothing found.
+			$answer = $null
+			if ($null -ne $cannedAnswers) {
+				$answer = $cannedAnswers.PSObject.Properties[$Path]
+			}
+			if ($null -ne $answer) {
+				Write-Items $answer.Value
+			}
 			return
 		}
 		return [pscustomobject]@{ number = 0; html_url = '' }
@@ -80,7 +105,12 @@ function Invoke-Api {
 		$arguments['Body'] = (ConvertTo-Json -InputObject $Body -Depth 5)
 		$arguments['ContentType'] = 'application/json'
 	}
-	return Invoke-RestMethod @arguments
+	$response = Invoke-RestMethod @arguments
+	if ($Method -eq 'GET') {
+		Write-Items $response
+		return
+	}
+	return $response
 }
 
 # The open gate issue of the earliest open milestone, or $null.
