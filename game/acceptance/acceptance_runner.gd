@@ -40,23 +40,19 @@ var messages: PackedStringArray = PackedStringArray()
 var seed_overrides: Dictionary = {}
 var finished: bool = false
 var exit_code: int = -1
+## Read by `AcceptanceChecks`: the script error log, whether the OpenXR session
+## began and how many frames the step has waited for the headset.
+var errors: AcceptanceErrorLog = AcceptanceErrorLog.new()
+var xr_begun: bool = false
+var xr_waited: int = 0
 
-var _errors: AcceptanceErrorLog = AcceptanceErrorLog.new()
 var _logging: bool = false
-var _xr_begun: bool = false
 var _suite_index: int = 0
 var _step_index: int = 0
 var _step_started: bool = false
-var _xr_waited: int = 0
-var _errors_at_step_start: int = 0
 var _source: ReplayInputSource = null
 var _level_problem: String = ""  # Why the step's level could not be flown, or "".
-## What a frame_budget, comfort_motion or view_not_flat (#737) step samples here, or null.
-var _frames: AcceptanceFrameBudgetCheck = null
-var _comfort: AcceptanceComfortCheck = null
-var _view: AcceptanceViewFlatCheck = null
-var _flight: AcceptanceFlightTestCheck = null  # A flight_test_result step's test, or null.
-var _changes: AcceptancePresetChanges = null  # The step's mid-flight presets (#777), or null.
+var _checks: AcceptanceChecks = null  # The step's samplers and check dispatch (#817).
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -87,7 +83,7 @@ func setup(scene: Node, p_suites: Array[AcceptanceSuite], p_xr_interface: XRInte
 	suites = p_suites
 	xr_interface = p_xr_interface
 	if not _logging:
-		OS.add_logger(_errors)
+		OS.add_logger(errors)
 		_logging = true
 	var openxr: OpenXRInterface = xr_interface as OpenXRInterface
 	if openxr != null and not openxr.session_begun.is_connected(_on_xr_session_begun):
@@ -125,14 +121,10 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 	if reports.size() <= _suite_index:
 		reports.append(AcceptanceReport.new(suite.name, _build().commit, "%s (%s)" % [OS.get_model_name(), OS.get_name()]))
 	var step: AcceptanceStep = suite.steps[_step_index]
+	var was_running: bool = _step_started
 	if not _step_started:
 		_start_step(step)
-	elif _frames != null:
-		_frames.add(frame_seconds)
-	if _view != null:
-		_view.add(frame_seconds)
-	if _flight != null:
-		_flight.add_frame(frame_seconds)
+	_checks.add_frame(frame_seconds, was_running)
 	if not _step_ready(step):
 		return
 	_record_step(step)
@@ -142,22 +134,16 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 
 func _start_step(step: AcceptanceStep) -> void:
 	_step_started = true
-	_xr_waited = 0
+	xr_waited = 0
 	_source = null
 	_level_problem = ""
-	_frames = null
-	if step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET) \
-			and AcceptanceFrameBudgetCheck.measures_here(_xr_available(), on_headset):
-		_frames = AcceptanceFrameBudgetCheck.new(step)
-	_view = AcceptanceViewFlatCheck.for_step(step, _xr_available(), on_headset, screenshots.grab)
-	_errors_at_step_start = _errors.count()
+	_checks = AcceptanceChecks.begin(step, xr_available(), on_headset, screenshots.grab)
+	_checks.errors_at_start = errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	screenshots.begin(suites[_suite_index].name, step)
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
-	_comfort = AcceptanceComfortCheck.for_step(step, main)
-	_flight = AcceptanceFlightTestCheck.for_step(step, main)
-	_changes = AcceptancePresetChanges.for_step(step)
+	_checks.begin_scene(step, main)
 	if step.replay_path == "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
@@ -184,34 +170,18 @@ func _step_ready(step: AcceptanceStep) -> bool:
 	if _source != null:
 		var session: LocalSession = main.get("session")
 		screenshots.take(session.sim.tick, _source.tick_count())
-		if session.sim.tick < _source.tick_count() or AcceptanceLoopReplay.keeps_flying(step, _frames):
-			if _changes != null:
-				_changes.apply(main, session.sim.tick, _comfort)
+		if session.sim.tick < _source.tick_count() or AcceptanceLoopReplay.keeps_flying(step, _checks.frames):
+			_checks.before_tick(main, session.sim.tick)
 			main.call("advance_frame", ShipState.TICK_DT)
-			if _comfort != null:
-				_comfort.sample_main(main, ShipState.TICK_DT)
+			_checks.after_tick(main)
 			return false
 		main.set_process(true)
-	if (_frames != null and not _frames.done()) or (_view != null and not _view.done()) \
-			or (_flight != null and not _flight.done()):
+	if _checks.sampling():
 		return false
-	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
-		_xr_waited += 1
+	if _checks.waits_for_xr(step, self) and xr_waited < XR_WAIT_FRAMES:
+		xr_waited += 1
 		return false
 	return true
-
-
-## Whether a check of `step` still waits on the headset's session, controllers or refresh rate.
-func _waits_for_xr(step: AcceptanceStep) -> bool:
-	if not _xr_available():
-		return false
-	if step.has_check(AcceptanceStep.CHECK_XR_SESSION) and not _xr_begun:
-		return true
-	if step.has_check(AcceptanceStep.CHECK_CONTROLLERS_BOUND) and not controllers.settled():
-		return true
-	var reads_rate: bool = step.has_check(AcceptanceStep.CHECK_REFRESH_RATE) \
-		or step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET)
-	return reads_rate and not AcceptanceRefreshCheck.settled(main)
 
 
 func _record_step(step: AcceptanceStep) -> void:
@@ -224,7 +194,7 @@ func _record_step(step: AcceptanceStep) -> void:
 		outcomes.append(AcceptanceReport.RESULT_FAIL)
 		notes.append(problem)
 	for check: String in step.checks:
-		var outcome: Array = _run_check(check, step, measurements)
+		var outcome: Array = _checks.run(check, step, self, measurements)
 		outcomes.append(outcome[0])
 		notes.append("%s: %s" % [check, outcome[1]])
 	var result: String = AcceptanceReport.combine(outcomes)
@@ -232,38 +202,17 @@ func _record_step(step: AcceptanceStep) -> void:
 	_say("%s: step %s %s" % [LOG_PREFIX, step.id, result])
 
 
-## [result, message] for one check, adding its measurements.
-func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -> Array:
-	if AcceptanceStep.REPLAY_CHECKS.has(check):
-		return AcceptanceStateChecks.run(check, step, main.get("session"), _source != null, measurements)
-	match check:
-		AcceptanceStep.CHECK_COMFORT_MOTION:
-			return _comfort.run(measurements) if _comfort != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
-		AcceptanceStep.CHECK_XR_SESSION:
-			return AcceptanceXrSessionCheck.run(_xr_available(), _xr_begun, _xr_waited, XR_WAIT_FRAMES, step.required, measurements)
-		AcceptanceStep.CHECK_NO_SCRIPT_ERRORS:
-			return _errors.judge(_errors_at_step_start, measurements)
-		AcceptanceStep.CHECK_CONTROLLERS_BOUND:
-			return controllers.run(_xr_available(), step.required, measurements)
-		AcceptanceStep.CHECK_REFRESH_RATE:
-			return AcceptanceRefreshCheck.run(main, _xr_available(), step.required, measurements)
-		AcceptanceStep.CHECK_ESCAPE_SCREEN:
-			return AcceptanceEscapeScreenCheck.run(main, _source != null, measurements)
-		AcceptanceStep.CHECK_FRAME_BUDGET:
-			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
-		AcceptanceStep.CHECK_VIEW_NOT_FLAT:
-			return AcceptanceViewFlatCheck.run(_xr_available(), on_headset, step, _view, measurements)
-		AcceptanceStep.CHECK_FLIGHT_TEST_RESULT:
-			return _flight.run(measurements)
-	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
-
-
-func _xr_available() -> bool:
+func xr_available() -> bool:
 	return xr_interface != null and xr_interface.is_initialized()
 
 
+## Whether the step's replay was loaded and flown; a check that reads its end fails without it.
+func flown() -> bool:
+	return _source != null
+
+
 func _on_xr_session_begun() -> void:
-	_xr_begun = true
+	xr_begun = true
 
 
 ## Writes the report to REPORT_DIR and the log; a failed write is said, the log still has it.
@@ -290,7 +239,7 @@ func _finish(code: int) -> void:
 
 func _stop_logging() -> void:
 	if _logging:
-		OS.remove_logger(_errors)
+		OS.remove_logger(errors)
 		_logging = false
 
 

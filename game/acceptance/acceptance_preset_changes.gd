@@ -74,7 +74,7 @@ static func _parse_entry(raw: Variant, field: String, step: AcceptanceStep) -> S
 		if typeof(key) != TYPE_STRING or not ENTRY_KEYS.has(key):
 			return "%s.%s: unknown key" % [field, str(key)]
 	for key: String in ENTRY_KEYS:
-		if not entry.has(key) or not AcceptanceSuite._is_whole(entry[key]):
+		if not entry.has(key) or not AcceptanceStepParser.is_whole(entry[key]):
 			return "%s.%s: must be a whole number" % [field, key]
 	var tick: int = int(entry["tick"])
 	var number: int = int(entry["preset"])
