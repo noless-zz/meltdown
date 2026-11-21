@@ -41,8 +41,10 @@ func _robot_failures(level: LevelDef, radii: Dictionary[String, int] = RADII,
 	return robots
 
 
+## Robots come last but for the miners (#938), which are checked with them.
 func test_robots_is_listed_last_in_checks() -> String:
-	return "" if LevelValidator.CHECKS.back() == "robots" else "CHECKS: %s" % [LevelValidator.CHECKS]
+	var tail: Array = LevelValidator.CHECKS.slice(-2)
+	return "" if tail == ["robots", MinerChecks.CHECK] else "CHECKS: %s" % [LevelValidator.CHECKS]
 
 
 func test_a_level_with_no_robots_passes() -> String:

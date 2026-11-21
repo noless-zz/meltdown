@@ -8,7 +8,8 @@ extends RefCounted
 ## meltdown countdown (`EscapeChecks`) and still fits it once the meltdown debris
 ## the route guard lets fall is down (`DebrisEscape`, #493), a generated level's
 ## reactor far from the start (`ReactorFar`, #912), and robots with room around them in
-## reachable boxes outside the start module (`RobotChecks`, #399). `validate` returns one message per failure, each starting
+## reachable boxes outside the start module (`RobotChecks`, #399), and trapped
+## miners in reachable boxes (`MinerChecks`, #938). `validate` returns one message per failure, each starting
 ## with the check's name (`CHECKS`) and naming the box or boxes; an empty list
 ## means the level passes.
 ##
@@ -46,7 +47,7 @@ const RANGES: Dictionary[String, Array] = {
 }
 ## Every check's name, in the order `validate` reports them.
 const CHECKS: Array[String] = ["piece", "passage", "start", "reachable", "reactor", "escape",
-		"debris_escape", ReactorFar.CHECK, "robots"]
+		"debris_escape", ReactorFar.CHECK, "robots", MinerChecks.CHECK]
 
 ## Narrowest opening allowed, in ship collision diameters.
 var min_passage_ship_diameters: float = 2.5
@@ -121,7 +122,8 @@ func min_passage(ship_radius: float) -> float:
 ## empty (a hand-built level has no modules) the box holding the start stands
 ## for it. `on_check`, when valid, is called with a check's name each time that
 ## check is done ("piece" also covers "passage", "reachable" also "start" and
-## "escape" also "reactor" and "reactor_far", which are worked out together), so a sweep can time
+## "escape" also "reactor" and "reactor_far", "robots" also "miners_reachable",
+## which are worked out together), so a sweep can time
 ## each one (#513); the validator itself never reads a clock (ARC-1).
 func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
 		robot_radii_mm: Dictionary[String, int] = {}, start_module: Array[int] = [],
@@ -188,6 +190,8 @@ func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
 		module.append(start_box)
 	failures.append_array(RobotChecks.failures(level, ship_radius, start_box, unreached,
 			robot_radii_mm, module))
+	# Timed with the robots: the sweep's stages predate the miners (#938).
+	failures.append_array(MinerChecks.failures(level, start_box, unreached))
 	LevelValidator._done(on_check, "robots")
 	return failures
 
