@@ -10,7 +10,7 @@ extends RefCounted
 ## it is pressed, never while it is held.
 ##
 ## `press` returns what was confirmed, or "" when nothing was:
-## `corner:<name>`, `level:<source>` where the source is in the form
+## `corner:<name>`, `controls:<scheme>` (#778), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick, `restart`, `update` or `close`.
 ## The update entry is skipped while `update_version` is empty. The menu
@@ -30,6 +30,7 @@ const ACTIONS: Array[String] = [UP, DOWN, LEFT, RIGHT, CONFIRM, SEED_DOWN, SEED_
 	SEED_DOWN_FAR, SEED_UP_FAR]
 const SEED_STEPS: Dictionary = {SEED_DOWN: -1, SEED_UP: 1, SEED_DOWN_FAR: -10, SEED_UP_FAR: 10}
 const CORNER_PREFIX: String = "corner:"
+const CONTROLS_PREFIX: String = "controls:"
 const LEVEL_PREFIX: String = "level:"
 const RANDOM: String = "random"
 const RESTART: String = "restart"
@@ -46,6 +47,7 @@ var spec: DevMenuSpec
 ## Index of the highlighted entry in `spec.entries`.
 var selected: int = 0
 var corner_index: int = 0
+var scheme_index: int = 0
 ## The level choices, in order: the tunnel, every level file, seed, random.
 ## A level file is its path; the others are the `CHOICE_` names.
 var level_choices: Array[String] = []
@@ -82,11 +84,13 @@ static func level_files() -> Array[String]:
 
 
 ## Shows what is in use when the menu opens: the first entry highlighted,
-## `corner` and the level `source` (as `LevelStart.source` holds it) chosen.
-func open(corner: String, source: String) -> void:
+## `corner`, the level `source` (as `LevelStart.source` holds it) and the
+## control `scheme` chosen.
+func open(corner: String, source: String, scheme: String = "") -> void:
 	selected = _step_shown(-1, 1)
 	_held = {}
 	corner_index = maxi(spec.corners.find(corner), 0)
+	scheme_index = maxi(spec.schemes.find(scheme), 0)
 	level_index = 0
 	if source.begins_with(LevelSwitch.SEED_PREFIX):
 		level_index = level_choices.find(CHOICE_SEED)
@@ -134,6 +138,10 @@ func update_text(label: String) -> String:
 
 func corner() -> String:
 	return spec.corners[corner_index]
+
+
+func scheme() -> String:
+	return spec.schemes[scheme_index]
 
 
 func level_choice() -> String:
@@ -191,6 +199,8 @@ func _act(action: String) -> String:
 func _change(direction: int) -> void:
 	if kind() == DevMenuSpec.KIND_CORNER:
 		corner_index = posmod(corner_index + direction, spec.corners.size())
+	elif kind() == DevMenuSpec.KIND_CONTROLS:
+		scheme_index = posmod(scheme_index + direction, spec.schemes.size())
 	elif kind() == DevMenuSpec.KIND_LEVEL:
 		level_index = posmod(level_index + direction, level_choices.size())
 
@@ -199,6 +209,8 @@ func _confirm() -> String:
 	match kind():
 		DevMenuSpec.KIND_CORNER:
 			return CORNER_PREFIX + corner()
+		DevMenuSpec.KIND_CONTROLS:
+			return CONTROLS_PREFIX + scheme()
 		DevMenuSpec.KIND_LEVEL:
 			return LEVEL_PREFIX + level_source()
 		DevMenuSpec.KIND_RESTART:
