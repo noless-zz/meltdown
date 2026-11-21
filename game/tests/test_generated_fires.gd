@@ -3,8 +3,8 @@ extends RefCounted
 ## Generated levels place fire from the `fires` section of `debris.json` (#497,
 ## RUN-4, GEN-2, GEN-3, ARC-4): the section is checked key by key; fires come
 ## after every solid entry and leave `output_hash`, the reactor, the robots and
-## every solid entry as they were; and over seeds 0..999 every level passes
-## `LevelValidator` (its `debris_escape` check too, timed with the fires down,
+## every solid entry as they were; and over seeds 0..999 every level with fire
+## passes `LevelValidator`'s `debris_escape` check (timed with the fires down,
 ## since they are placed after `DebrisEscape.trim`) and the debris sweep, and
 ## every fire lies inside the level,
 ## outside the start module and within the section's ranges and distances. The
@@ -151,12 +151,16 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 		var fires: Array[int] = _fire_entries(level.debris)
 		if problem == "":
 			problem = _fires_fit(generator, level, fires, plan, robot_plan)
-		if problem == "":
-			var found: Array[String] = validator.validate(level, radius, true,
-					robot_plan.radii_by_id(), SeedSweep.start_module_boxes(generator))
-			problem = "" if found.is_empty() else "validator: %s" % found[0]
-		# The validator's `debris_escape` check already timed this level's escape
-		# with every entry, fires too, fallen (#903: it was run twice).
+		# The escape timed with every entry, fires too, fallen: the one validator
+		# check fire takes part in. The others see only the level's boxes,
+		# reactor, robots and solid entries, which `_unchanged` has just shown
+		# are those of the level without fire, and `test_level_validator.gd`'s
+		# sweep runs every check on the same generated levels, fires and all, over
+		# seeds 1..1000 (#903: running the whole validator here too was about a
+		# tenth of this sweep's time).
+		if problem == "" and not fires.is_empty():
+			problem = DebrisEscape.failure(level, level.debris, radius,
+					validator.escape_speed_mps, validator.escape_margin)
 		if problem == "" and level.debris != null:
 			problem = _meltdown(level, radius, fires)
 		if problem != "":
