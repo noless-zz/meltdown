@@ -12,7 +12,8 @@ extends RefCounted
 ##      "robots": [{"id": "drone", "position": [0, -20, -42], "facing": [0, 1, 0]}],
 ##      "reactor": {"position": [0, -39, -114], "radius": 2.5, "hull": 400, "meltdown_seconds": 90},
 ##      "exit_radius": 4,
-##      "debris": [{"position": [-3, -15, -45], "radius": 1, "after_seconds": 10}]}
+##      "debris": [{"position": [-3, -15, -45], "radius": 1, "after_seconds": 10}],
+##      "miners": [[2, -20, -60]]}
 ##
 ## Corners, positions and facings are metres, read in whole millimetres like
 ## robot spawns, so a level reads the same on every run (ARC-2). `robots` uses
@@ -27,6 +28,9 @@ extends RefCounted
 ## is handed to the reactor, which carries it into the simulation and the replay.
 ## `debris` is optional too: spheres that fall during the meltdown (RUN-4), read
 ## by `MeltdownDebris`. Whether they leave a way out is the level validator's job.
+## `miners` is optional too (#938, SLV-3): the positions of trapped miners, metres
+## read in whole millimetres; a level without the key has none. `miners_json`
+## writes them back in the same form.
 ##
 ## A level is rejected, with a message naming the problem, when a box's min is
 ## not below its max, a box cannot be reached from box 0, the start or a robot
@@ -36,7 +40,7 @@ extends RefCounted
 
 const TOP_KEYS: Array[String] = ["boxes", "start", "robots"]
 ## Top-level keys a level may leave out.
-const OPTIONAL_KEYS: Array[String] = ["reactor", "exit_radius", "debris"]
+const OPTIONAL_KEYS: Array[String] = ["reactor", "exit_radius", "debris", "miners"]
 const BOX_KEYS: Array[String] = ["min", "max"]
 const START_KEYS: Array[String] = ["position", "facing"]
 ## Two boxes are joined when they overlap by at least this much on every axis:
@@ -56,6 +60,8 @@ var start_facing_mm: Vector3i = Vector3i(0, 0, -RobotSpawn.SCALE)
 var reactor: ReactorState = null
 ## The level's falling debris before the first tick, or null without a `debris` key.
 var debris: MeltdownDebris = null
+## Trapped miners' positions in millimetres (#938); empty without a `miners` key.
+var miners: Array[Vector3i] = []
 ## For a generated level, the module each box belongs to by placement index,
 ## or -1 for a doorway or loop bridge box; empty for a level read from a file,
 ## which has no modules. `ReactorFar` reads it to tell modules apart (#912).
@@ -95,6 +101,8 @@ static func parse_json(text: String, defaults: LevelDefaults = null) -> LevelDef
 		var read: MeltdownDebris = MeltdownDebris.parse(data["debris"])
 		problem = read.error
 		level.debris = read
+	if problem == "" and data.has("miners"):
+		problem = level._read_miners(data["miners"])
 	if problem == "":
 		problem = level._check_connected()
 	if problem == "":
@@ -188,6 +196,27 @@ func _read_robots(value: Variant) -> String:
 	return ""
 
 
+func _read_miners(value: Variant) -> String:
+	if typeof(value) != TYPE_ARRAY:
+		return "key \"miners\" must be a list of positions"
+	var read: Array[Vector3i] = []
+	for index: int in (value as Array).size():
+		var problem: String = RobotSpawn.read_mm(value[index], "position", read)
+		if problem != "":
+			return "miner %d: %s" % [index + 1, problem]
+	miners = read
+	return ""
+
+
+## The `miners` list as a level file holds it: one `[x, y, z]` in metres each.
+func miners_json() -> Array:
+	var list: Array = []
+	for miner: Vector3i in miners:
+		list.append([miner.x / float(RobotSpawn.SCALE), miner.y / float(RobotSpawn.SCALE),
+				miner.z / float(RobotSpawn.SCALE)])
+	return list
+
+
 func _read_reactor(value: Variant) -> String:
 	# One place to set the exit in a level file: the top level.
 	if typeof(value) == TYPE_DICTIONARY and (value as Dictionary).has("exit_radius"):
@@ -237,6 +266,10 @@ func _check_held() -> String:
 	for index: int in robots.spawns.size():
 		if not union.holds(robots.spawns[index].position(), CLEARANCE_M):
 			return "robot %d: position is not inside the level with %s m to spare" \
+					% [index + 1, CLEARANCE_M]
+	for index: int in miners.size():
+		if not union.holds(Vector3(miners[index]) / float(RobotSpawn.SCALE), CLEARANCE_M):
+			return "miner %d: position is not inside the level with %s m to spare" \
 					% [index + 1, CLEARANCE_M]
 	if reactor != null and not union.holds(reactor.position(), reactor.radius()):
 		return "reactor: position is not inside the level with its radius to spare"

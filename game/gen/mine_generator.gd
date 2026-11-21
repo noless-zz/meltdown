@@ -65,6 +65,9 @@ var reactor_placement: int = -1
 ## Set by `to_level_def`: why fewer robots than a `RobotPlan` asked for were
 ## placed, else empty.
 var robot_note: String = ""
+## Set by `to_level_def`: why fewer miners than a `MinerPlan` drew were placed
+## (#938), else empty.
+var miner_note: String = ""
 ## Set by `to_level_def`: why a `DebrisPlan` placed no debris, or fewer entries
 ## than it drew, else empty.
 var debris_note: String = ""
@@ -113,8 +116,9 @@ func output_hash() -> int:
 ## it has none. With `debris_plan` (#398) it gets meltdown debris; without it
 ## it has none. Not part of `output_hash`, which covers placements only.
 func to_level_def(reactor_plan: ReactorPlan = null, ship_radius: float = 1.0,
-		robot_plan: RobotPlan = null, debris_plan: DebrisPlan = null) -> LevelDef:
-	return GeneratedLevel.build(self, reactor_plan, ship_radius, robot_plan, debris_plan)
+		robot_plan: RobotPlan = null, debris_plan: DebrisPlan = null,
+		miner_plan: MinerPlan = null) -> LevelDef:
+	return GeneratedLevel.build(self, reactor_plan, ship_radius, robot_plan, debris_plan, miner_plan)
 
 
 ## A module's connector `index`, turned by `turn` and moved by `offset_mm`.

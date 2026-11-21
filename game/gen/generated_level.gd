@@ -33,6 +33,9 @@ extends RefCounted
 ## robots and `output_hash` are the same with or without it, and kept
 ## `min_robot_distance` clear of the robots placed (#436). Without a plan the
 ## level has no debris.
+##
+## With a `MinerPlan` (#938) trapped miners follow the debris, placed by
+## `MinerPlan.place` from their own seeded draws; without one, no miners.
 
 ## Draws for one robot before the placing gives up.
 const ROBOT_TRIES: int = 64
@@ -48,12 +51,14 @@ const FACINGS: Array[Vector3i] = [
 ## `error` says so, as `LevelDef.parse_json` leaves it. Not checked here:
 ## `LevelValidator` does that.
 static func build(generator: MineGenerator, plan: ReactorPlan, ship_radius: float,
-		robot_plan: RobotPlan = null, debris_plan: DebrisPlan = null) -> LevelDef:
+		robot_plan: RobotPlan = null, debris_plan: DebrisPlan = null,
+		miner_plan: MinerPlan = null) -> LevelDef:
 	var level: LevelDef = LevelDef.new()
 	generator.reactor_note = ""
 	generator.reactor_placement = -1
 	generator.robot_note = ""
 	generator.debris_note = ""
+	generator.miner_note = ""
 	if generator.open_connectors.is_empty():
 		level.error = "no open connector to start at"
 		return level
@@ -69,6 +74,11 @@ static func build(generator: MineGenerator, plan: ReactorPlan, ship_radius: floa
 		_place_robots(generator, robot_plan, ship_radius, level)
 	if debris_plan != null:
 		level.debris = debris_plan.place(generator, level, ship_radius, robot_plan)
+	if miner_plan != null:
+		var radii: Dictionary[String, int] = {}
+		if robot_plan != null:
+			radii = robot_plan.radii_by_id()
+		level.miners = miner_plan.place(generator, level, ship_radius, radii)
 	return level
 
 

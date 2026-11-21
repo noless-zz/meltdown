@@ -1,0 +1,6 @@
+{
+	"count": [0, 2],
+	"min_start_distance": 20,
+	"min_reactor_distance": 8,
+	"min_robot_distance": 4
+}

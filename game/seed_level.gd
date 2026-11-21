@@ -3,7 +3,8 @@ extends RefCounted
 
 ## Builds the level the main scene flies for `--seed=<n>` (#382, #441, GEN-1,
 ## GEN-2, GEN-5): `MineGenerator` for that seed, with the loop bridges, the
-## reactor plan, the robot plan and the debris plan from `res://data/gen/`.
+## reactor plan, the robot plan, the debris plan and the miner plan (#938)
+## from `res://data/gen/`.
 ## This is the one loader: the 1,000-seed validator sweep
 ## (`tests/seed_sweep.gd`) takes its inputs, its levels and its checks from
 ## here too, so a flown seed is exactly a level the sweep checks. It ships in
@@ -26,6 +27,7 @@ const REACTOR_FILE: String = "res://data/gen/reactor.json"
 const VALIDATOR_FILE: String = "res://data/gen/validator.json"
 const ROBOTS_FILE: String = "res://data/gen/robots.json"
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
+const MINERS_FILE: String = "res://data/gen/miners.json"
 const ROBOTS_DIR: String = "res://data/robots/"
 const SHIP_FILE: String = "res://data/ships/default_ship.json"
 
@@ -35,6 +37,7 @@ var reactor_plan: ReactorPlan = null
 var bridges: LoopBridges = null
 var robot_plan: RobotPlan = null
 var debris_plan: DebrisPlan = null
+var miner_plan: MinerPlan = null
 var tuning: ShipTuning = null
 var robot_radii: Dictionary[String, int] = {}
 ## The first broken data file as "<file name>: <its message>"; empty when all
@@ -55,13 +58,14 @@ static func load_inputs(validator_text: String = "", overrides: Dictionary = {})
 	inputs.bridges = LoopBridges.parse_json(read_text(GENERATOR_FILE, overrides))
 	inputs.robot_plan = RobotPlan.parse_json(read_text(ROBOTS_FILE, overrides), robot_texts(overrides))
 	inputs.debris_plan = DebrisPlan.parse_json(read_text(DEBRIS_FILE, overrides))
+	inputs.miner_plan = MinerPlan.parse_json(read_text(MINERS_FILE, overrides))
 	inputs.tuning = ShipTuning.parse_json(read_text(SHIP_FILE, overrides))
 	# A broken data file must not quietly give a level without a reactor,
 	# loops, robots or debris, nor let a sweep pass every seed on defaults.
 	for problem: Array in [[VALIDATOR_FILE, inputs.validator.error],
 			[REACTOR_FILE, inputs.reactor_plan.error], [GENERATOR_FILE, inputs.bridges.error],
 			[ROBOTS_FILE, inputs.robot_plan.error], [DEBRIS_FILE, inputs.debris_plan.error],
-			[SHIP_FILE, inputs.tuning.error]]:
+			[MINERS_FILE, inputs.miner_plan.error], [SHIP_FILE, inputs.tuning.error]]:
 		if problem[1] != "":
 			inputs.error = "%s: %s" % [(problem[0] as String).get_file(), problem[1]]
 			return inputs
@@ -102,9 +106,10 @@ func generate(level_seed: int, module_count: int = MODULE_COUNT) -> MineGenerato
 	return MineGenerator.generate(level_seed, modules, module_count, bridges)
 
 
-## The generated level with its reactor, robots and debris, not yet validated.
+## The generated level with its reactor, robots, debris and miners, not yet
+## validated.
 func level_of(generator: MineGenerator) -> LevelDef:
-	return generator.to_level_def(reactor_plan, tuning.radius, robot_plan, debris_plan)
+	return generator.to_level_def(reactor_plan, tuning.radius, robot_plan, debris_plan, miner_plan)
 
 
 ## `LevelValidator`'s messages for a level `level_of` built from `generator`,
