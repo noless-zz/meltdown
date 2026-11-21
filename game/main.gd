@@ -51,7 +51,7 @@ var destroyed: DestroyedWiring = DestroyedWiring.new()
 var level_start: LevelStart = LevelStart.new()
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
-var dev_menu: DevMenuWiring = DevMenuWiring.new(scheme, mapping, comfort, break_prompt)  # Dev menu (#763, #778, #805, #821).
+var dev_menu: DevMenuWiring = DevMenuWiring.new(scheme, mapping, comfort, break_prompt, refresh_rate)  # #763, #852.
 
 
 func _ready() -> void:

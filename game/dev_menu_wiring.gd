@@ -41,6 +41,7 @@ extends RefCounted
 ## `BreakPromptWiring.set_enabled`, which saves it in `BreakChoice` and hides
 ## a showing prompt; the entry opens on the reminder's state, so a launch
 ## switch shows. Only the view's prompt changes, never the simulation (CMF-6).
+## A Refresh choice (#852) goes through `DevMenuRefresh`.
 ##
 ## A Flight test choice (#839, CMF-4) restarts the test tunnel behind the same
 ## fade and runs the first-launch test again there (`FlightTestWiring.run_again`).
@@ -76,6 +77,8 @@ var mapping: ThumbstickMapping = null
 var comfort: ComfortWiring = null
 ## The break prompt the Break reminder entry shows and switches; null in tests without one.
 var break_prompt: BreakPromptWiring = null
+## The Refresh entry's 120 Hz option; null in tests without a refresh rate.
+var refresh: DevMenuRefresh = null
 ## Picks the seed for `random` (`LevelSwitch.random_seed` when not set);
 ## tests inject one so they are not flaky.
 var pick_seed: Callable = Callable()
@@ -96,7 +99,9 @@ var _fade_from: float = -1.0
 
 
 func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
-		p_comfort: ComfortWiring = null, p_break_prompt: BreakPromptWiring = null) -> void:
+		p_comfort: ComfortWiring = null, p_break_prompt: BreakPromptWiring = null,
+		p_rate: RefreshRate = null) -> void:
+	refresh = DevMenuRefresh.new(p_rate, p_comfort) if p_rate != null else null
 	scheme = p_scheme
 	mapping = p_mapping
 	comfort = p_comfort
@@ -155,6 +160,8 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		_toggle()
 	if not is_open():
 		return values
+	if refresh != null:
+		menu.model.refresh_allowed = refresh.allowed()  # Follows a Comfort choice.
 	apply(menu.update(actions(values)))
 	return neutral(values)
 
@@ -210,6 +217,10 @@ func apply(result: String) -> void:
 		if break_prompt != null:
 			break_prompt.set_enabled(result == DevMenuModel.BREAK_PREFIX + DevMenuModel.BREAK_ON)
 		return
+	if result.begins_with(DevMenuModel.REFRESH_PREFIX):
+		if refresh != null:
+			refresh.choose(result)
+		return
 	menu.close()
 	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
 		var source: String = result.substr(DevMenuModel.LEVEL_PREFIX.length())
@@ -230,6 +241,8 @@ func _toggle() -> void:
 	if is_open():
 		menu.close()
 	else:
+		if refresh != null:
+			refresh.show_on(menu.model)
 		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
 			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
 			mapping != null and mapping.invert_pitch, _comfort_shown(), _break_shown(),

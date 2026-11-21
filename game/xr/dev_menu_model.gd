@@ -12,7 +12,7 @@ extends RefCounted
 ## `press` returns what was confirmed, or "" when nothing was:
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
 ## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805) or `comfort:5`, the custom mode (#837),
-## `break:<on|off>` (#821), `level:<source>` where the source is in the form
+## `break:<on|off>` (#821), `refresh:<90|120>` (#852), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
 ## `flight_test` (#839), `update` or `close`.
@@ -40,6 +40,9 @@ const COMFORT_PREFIX: String = "comfort:"
 const BREAK_PREFIX: String = "break:"
 const BREAK_ON: String = "on"
 const BREAK_OFF: String = "off"
+const REFRESH_PREFIX: String = "refresh:"
+const REFRESH_HIGH: String = RefreshChoice.ON
+const REFRESH_STANDARD: String = RefreshChoice.OFF
 ## The hand and pitch choices, in the order left / right steps through them.
 const HANDS: Array[String] = ["right", "left"]
 const PITCHES: Array[String] = ["normal", "inverted"]
@@ -68,6 +71,10 @@ var preset_index: int = 0
 var custom_base: int = 0
 ## Whether the Break reminder entry shows On (#821, CMF-10).
 var break_on: bool = true
+## Whether the Refresh entry shows 120 Hz (#852), and whether the active
+## preset allows it; the wiring sets both (`set_refresh`).
+var refresh_high: bool = false
+var refresh_allowed: bool = true
 ## The Level entry's choices and seed.
 var levels: DevMenuLevels
 ## The waiting build the update entry names; "" hides the entry (#763).
@@ -186,6 +193,19 @@ func pitch_text() -> String:
 	return spec.inverted_pitch_text if pitch() == "inverted" else spec.normal_pitch_text
 
 
+## Shows the 120 Hz option in use and whether the active preset allows it.
+func set_refresh(high: bool, allowed: bool) -> void:
+	refresh_high = high
+	refresh_allowed = allowed
+
+
+## The words the Refresh entry shows: the file's 90 or 120 Hz text, and its
+## note while the active preset keeps its own rate whatever is chosen.
+func refresh_text() -> String:
+	var text: String = spec.refresh_120_text if refresh_high else spec.refresh_90_text
+	return text if refresh_allowed else "%s %s" % [text, spec.refresh_note_text]
+
+
 ## The words the Break reminder entry shows: the file's On or Off text.
 func break_text() -> String:
 	return spec.break_on_text if break_on else spec.break_off_text
@@ -221,6 +241,8 @@ func _change(direction: int) -> void:
 		preset_index = posmod(preset_index + direction, choices)
 	elif kind() == DevMenuSpec.KIND_BREAK:
 		break_on = not break_on  # Two choices, so either direction flips it.
+	elif kind() == DevMenuSpec.KIND_REFRESH:
+		refresh_high = not refresh_high
 	elif kind() == DevMenuSpec.KIND_LEVEL:
 		levels.step(direction)
 
@@ -239,6 +261,8 @@ func _confirm() -> String:
 			return COMFORT_PREFIX + str(comfort_number())
 		DevMenuSpec.KIND_BREAK:
 			return BREAK_PREFIX + (BREAK_ON if break_on else BREAK_OFF)
+		DevMenuSpec.KIND_REFRESH:
+			return REFRESH_PREFIX + (REFRESH_HIGH if refresh_high else REFRESH_STANDARD)
 		DevMenuSpec.KIND_LEVEL:
 			return LEVEL_PREFIX + levels.source()
 		DevMenuSpec.KIND_RESTART:
