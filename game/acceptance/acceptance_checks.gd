@@ -25,6 +25,7 @@ var refresh_120: AcceptanceRefresh120 = null  # The choice a 120 Hz step replace
 var map_route: AcceptanceMapRouteCheck = null  # The held map's escape route (#884), or null.
 var escape_cue: AcceptanceEscapeCueCheck = null  # The cockpit's meltdown cue (#885), or null.
 var map_markers: AcceptanceMapMarkersCheck = null  # The held map's exit and reactor (#913), or null.
+var vignette: AcceptanceVignetteCheck = null  # The comfort vignette shown (#850), or null.
 ## Script errors logged before the step started, set by the runner once the
 ## samplers above exist; no_script_errors counts the rest.
 var errors_at_start: int = 0
@@ -50,6 +51,7 @@ func begin_scene(step: AcceptanceStep, main: Node) -> void:
 	map_route = AcceptanceMapRouteCheck.for_step(step)
 	escape_cue = AcceptanceEscapeCueCheck.for_step(step)
 	map_markers = AcceptanceMapMarkersCheck.for_step(step)
+	vignette = AcceptanceVignetteCheck.for_step(step)
 	refresh_120 = AcceptanceRefresh120.apply(main, step)  # After the preset, so its rate is asked again.
 
 
@@ -81,7 +83,8 @@ func before_tick(main: Node, tick: int) -> void:
 
 ## After a replay frame: the view's rotation for comfort_motion, its hit
 ## motion for hit_view_motion, the map's route for map_route and its markers
-## for map_markers, the cockpit cue for escape_cue, and what the pause held.
+## for map_markers, the cockpit cue for escape_cue, the vignette for
+## vignette, and what the pause held.
 func after_tick(main: Node) -> void:
 	if comfort != null:
 		comfort.sample_main(main, ShipState.TICK_DT)
@@ -93,6 +96,8 @@ func after_tick(main: Node) -> void:
 		escape_cue.sample_main(main)
 	if map_markers != null:
 		map_markers.sample_main(main)
+	if vignette != null:
+		vignette.sample_main(main, ShipState.TICK_DT)
 	if pause != null:
 		pause.after_frame(main)
 
@@ -150,6 +155,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_MAP_ROUTE: _map_route,
 		AcceptanceStep.CHECK_ESCAPE_CUE: _escape_cue,
 		AcceptanceStep.CHECK_MAP_MARKERS: _map_markers,
+		AcceptanceStep.CHECK_VIGNETTE: _vignette,
 	}
 
 
@@ -210,3 +216,7 @@ func _escape_cue(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements:
 
 func _map_markers(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return map_markers.run(measurements) if map_markers != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
+
+
+func _vignette(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return vignette.run(measurements) if vignette != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
