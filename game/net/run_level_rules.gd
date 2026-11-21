@@ -12,6 +12,10 @@ extends RefCounted
 ##
 ## A rejected file logs one line naming the file and the key and leaves that
 ## feature off; the level still flies.
+##
+## A level reached through a chosen shaft weighs its drops by the shaft's
+## `reward.tier_weights` (#1000, CRF-7), with each kind's tier read from the
+## kind files here. Rejected weights log one line and the drops stay unweighted.
 
 const COMPONENTS_DIR: String = ComponentList.COMPONENTS_DIR
 const RESCUE_FILE: String = "res://data/miners/rescue.json"
@@ -23,18 +27,19 @@ var rescue: MinerRescue = null
 
 
 ## Reads the component kinds and pickup rules from `components_dir` and the
-## rescue rules from `rescue_file`.
+## rescue rules from `rescue_file`. `tier_weights`, when not empty, weighs the
+## drops (`RunWiring.level_reward`).
 static func load_files(components_dir: String = COMPONENTS_DIR,
-		rescue_file: String = RESCUE_FILE) -> RunLevelRules:
+		rescue_file: String = RESCUE_FILE, tier_weights: Array = []) -> RunLevelRules:
 	var rules: RunLevelRules = RunLevelRules.new()
-	rules.components = read_components(components_dir)
+	rules.components = read_components(components_dir, tier_weights)
 	rules.rescue = read_rescue(rescue_file)
 	return rules
 
 
 ## The pickup rules, or null after logging why. Every kind file must parse too,
 ## so a broken kind cannot drop under a name nothing knows.
-static func read_components(dir: String) -> ComponentPickup:
+static func read_components(dir: String, tier_weights: Array = []) -> ComponentPickup:
 	var texts: Dictionary = {}
 	var files: PackedStringArray = DirAccess.get_files_at(dir) if DirAccess.dir_exists_absolute(dir) \
 		else PackedStringArray()
@@ -49,6 +54,13 @@ static func read_components(dir: String) -> ComponentPickup:
 	var rules: ComponentPickup = ComponentPickup.parse_json(texts[ComponentList.RULES_FILE])
 	if rules.error != "":
 		return _off("components", "%s: %s" % [dir.path_join(ComponentList.RULES_FILE), rules.error])
+	if not tier_weights.is_empty():
+		var tiers: Dictionary = {}
+		for kind: ComponentDef in kinds.kinds:
+			tiers[kind.id] = kind.tier
+		var problem: String = rules.set_tier_weights(tier_weights, tiers)
+		if problem != "":
+			print("%s: rejected the shaft's %s; drops are unweighted" % [LOG_PREFIX, problem])
 	return rules
 
 

@@ -7,8 +7,9 @@ extends RefCounted
 ## hands the text to `build`.
 ##
 ## `risk` holds multipliers on the next level's robot count and alarm, and
-## `reward` the weights of component tiers 1..3; nothing reads them yet, the
-## level wiring comes later. Draws use only `RunPlan.fmix32` and masked 32-bit
+## `reward` the weights of component tiers 1..3, which weigh the next level's
+## component drops (`ComponentPickup`, #1000); the robot count multiplier is not
+## wired yet. Draws use only `RunPlan.fmix32` and masked 32-bit
 ## arithmetic, never a random number generator (ARC-2, GEN-2):
 ##
 ## - An offer from input seed `s` starts at `h = fmix32(s + seed_salt)`; its size

@@ -103,6 +103,13 @@ func active() -> bool:
 	return state != null and not state.is_over()
 
 
+## The tier weights the current level's drops roll with (#1000, CRF-7): the
+## chosen shaft's `reward.tier_weights`, or empty for the first level, a run
+## without shafts, or no run.
+func level_reward() -> Array[float]:
+	return state.current_reward() if active() else ([] as Array[float])
+
+
 ## The level source of the run's current level, `seed:<n>`, or "" without a run.
 func level_source() -> String:
 	return LevelSwitch.SEED_PREFIX + str(state.current_level_seed()) if active() else ""
