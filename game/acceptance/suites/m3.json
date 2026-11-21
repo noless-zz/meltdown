@@ -54,6 +54,15 @@
 			"pause_seconds": 5,
 			"expected_hash": 3709902663,
 			"expected_outcome": "ESCAPED"
+		},
+		{
+			"id": "bot_generated_door_marked",
+			"seed": 136,
+			"replay": "res://acceptance/replays/bot_generated_door_marked.replay",
+			"checks": ["final_hash", "level_hash", "outcome", "map_route"],
+			"expected_hash": 193905223,
+			"expected_level_hash": 1163124915,
+			"expected_outcome": "ESCAPED"
 		}
 	]
 }
