@@ -29,6 +29,9 @@ extends RefCounted
 ## `controls` (#818) flies a file of raw controller values through the scene's
 ## mapping in place of the replay's inputs, left-handed when `left_handed` is
 ## true (`AcceptanceControlsScript`).
+## `refresh_120` (#851) turns the pilot's 120 Hz option on for the step only,
+## with a numbered preset and a refresh_rate or frame_budget check
+## (`AcceptanceRefresh120`).
 ##
 ## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -40,7 +43,7 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
 	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS,
 	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED,
-	AcceptanceCustomComfort.KEY]
+	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -110,6 +113,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceControlsScript.parse_step(data, field, step)
 	if problem == "":
 		problem = AcceptanceCustomComfort.parse_step(data, field, step)
+	if problem == "":
+		problem = AcceptanceRefresh120.parse_step(data, field, step)
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 
