@@ -97,6 +97,14 @@
 			"preset": 1,
 			"checks": ["comfort_motion", "final_hash", "no_script_errors"],
 			"expected_hash": 3298909347
+		},
+		{
+			"id": "focus_pause",
+			"replay": "res://acceptance/replays/basic_flight.replay",
+			"checks": ["held_while_paused", "final_hash", "no_script_errors"],
+			"pause_at_tick": 300,
+			"pause_seconds": 3,
+			"expected_hash": 861662111
 		}
 	]
 }
