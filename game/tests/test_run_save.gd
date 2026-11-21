@@ -10,6 +10,7 @@ func _run() -> RunSave:
 	run.next_level = 3
 	run.ship = "default_ship"
 	run.loadout = {"primary": ["pulse_cannon", ""], "secondary": ["", ""]}
+	run.chosen = ["steady", "deep"]
 	return run
 
 
@@ -28,7 +29,7 @@ func test_a_save_reads_back_the_same() -> String:
 		return "rejected: %s" % read.error
 	if read.run_seed != run.run_seed or read.next_level != 3 or read.ship != "default_ship":
 		return "read back seed %d, level %d, ship %s" % [read.run_seed, read.next_level, read.ship]
-	if read.loadout != run.loadout or read.version != RunSave.VERSION:
+	if read.loadout != run.loadout or read.version != RunSave.VERSION or read.chosen != run.chosen:
 		return "read back loadout %s, version %d" % [read.loadout, read.version]
 	if read.to_json() != run.to_json():
 		return "a second write gave different text"
@@ -64,6 +65,7 @@ func test_each_wrongly_typed_key_is_named() -> String:
 		"ship": [7, "", "Default Ship", "../x"],
 		"loadout": [[], "pulse_cannon", {"tertiary": []}, {"primary": "pulse_cannon"},
 			{"primary": [1, ""]}, {"primary": ["a", "b", "c"]}, {"primary": ["Bad-Id", ""]}],
+		"chosen": ["steady", {}, null, [1], [null], [["steady"]], [""], ["steady", true]],
 	}
 	for key: String in bad:
 		for value: Variant in bad[key]:
@@ -129,3 +131,21 @@ func test_the_shipped_ship_loadout_is_accepted() -> String:
 	if read.error != "" or read.loadout != ship["loadout"]:
 		return "default_ship loadout: '%s', %s" % [read.error, read.loadout]
 	return ""
+
+
+func test_a_version_1_file_reads_with_no_choices() -> String:
+	var data: Dictionary = _data()
+	data.erase("chosen")
+	data["version"] = 1
+	var read: RunSave = RunSave.parse_json(_text(data))
+	if read.error != "" or read.version != 1 or not read.chosen.is_empty():
+		return "version 1: '%s', version %d, chosen %s" % [read.error, read.version, read.chosen]
+	if read.to_json().contains("chosen"):
+		return "a version-1 save was written back with choices"
+	data["chosen"] = ["steady"]
+	var with_key: RunSave = RunSave.parse_json(_text(data))
+	if not with_key.error.contains("chosen"):
+		return "a version-1 file with choices: '%s'" % with_key.error
+	var old: RunSave = _run()
+	old.version = 1
+	return "" if old.check().contains("chosen") else "check of a version-1 save with choices: '%s'" % old.check()
