@@ -14,8 +14,13 @@ extends RefCounted
 ##              "preset": 2, "checks": ["final_hash"], "expected_hash": 123,
 ##              "required": false, "level": "g2",
 ##              "expected_outcome": "ESCAPED"}
-##         ]
+##         ],
+##         "manual_only": false
 ##     }
+##
+## `manual_only` (optional, default false) keeps a suite out of NIGHTLY: the
+## 25-minute soak is too long for the nightly headset run and is dispatched by
+## hand instead (#812).
 ##
 ## Each step's fields are read and checked by `AcceptanceStepParser` (#817).
 ## Unknown keys, unknown checks and bad values are rejected with the field
@@ -26,21 +31,28 @@ const SUITES_DIR: String = "res://acceptance/suites"
 const SUITE_EXTENSION: String = ".json"
 ## Asking for this name loads every suite; it is not a file.
 const ALL: String = "all"
+## Asking for this name loads every suite that is not `manual_only`: what the
+## nightly device run executes (#812). A new suite joins it without a change
+## to the workflow. It is not a file either.
+const NIGHTLY: String = "nightly"
 
-const SUITE_KEYS: Array[String] = ["name", "steps"]
+const SUITE_KEYS: Array[String] = ["name", "steps", "manual_only"]
 
 var name: String = ""
+## Left out of NIGHTLY; run only when asked for by name or by ALL.
+var manual_only: bool = false
 var steps: Array[AcceptanceStep] = []
 ## Set when the text or file was rejected; the field is named in the message.
 var error: String = ""
 
 
-## The suites asked for by `suite_name`: one suite, or every suite in
-## SUITES_DIR in name order for ALL. A suite that could not be read is still
-## returned, with `error` set, so the caller can report it rather than skip it.
+## The suites asked for by `suite_name`: one suite, every suite in SUITES_DIR
+## in name order for ALL, or every suite but the `manual_only` ones for
+## NIGHTLY. A suite that could not be read is still returned, with `error`
+## set, so the caller can report it rather than skip it.
 static func load_named(suite_name: String, suites_dir: String = SUITES_DIR) -> Array[AcceptanceSuite]:
 	var found: Array[AcceptanceSuite] = []
-	if suite_name != ALL:
+	if suite_name != ALL and suite_name != NIGHTLY:
 		found.append(load_file(suites_dir.path_join(suite_name + SUITE_EXTENSION)) if _is_plain_name(suite_name)
 			else _failed("suite name '%s' may only use a-z, 0-9, '_' and '-'" % suite_name))
 		return found
@@ -51,7 +63,11 @@ static func load_named(suite_name: String, suites_dir: String = SUITES_DIR) -> A
 			names.append(file)
 	names.sort()
 	for file: String in names:
-		found.append(load_file(suites_dir.path_join(file)))
+		var suite: AcceptanceSuite = load_file(suites_dir.path_join(file))
+		# An unreadable suite stays in, so a broken file still fails the night.
+		if suite_name == NIGHTLY and suite.error == "" and suite.manual_only:
+			continue
+		found.append(suite)
 	return found
 
 
@@ -96,8 +112,11 @@ static func parse_json(text: String) -> AcceptanceSuite:
 		return _failed("name: must be a non-empty string")
 	if typeof(data.get("steps")) != TYPE_ARRAY or (data["steps"] as Array).is_empty():
 		return _failed("steps: must be a list of at least one step")
+	if typeof(data.get("manual_only", false)) != TYPE_BOOL:
+		return _failed("manual_only: must be true or false")
 	var suite: AcceptanceSuite = AcceptanceSuite.new()
 	suite.name = data["name"]
+	suite.manual_only = data.get("manual_only", false)
 	var ids: Dictionary[String, bool] = {}
 	var raw_steps: Array = data["steps"]
 	for index: int in raw_steps.size():

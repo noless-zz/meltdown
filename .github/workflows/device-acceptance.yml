@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: Acceptance suite to run (m0, m1, ... or all)
+        description: Acceptance suite to run (m0, m1, ..., soak, nightly, or all; soak and all take about 25 minutes more)
         required: true
         default: all
         type: string
@@ -26,8 +26,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # A scheduled run has no inputs, so it runs every suite.
-  SUITE: ${{ inputs.suite || 'all' }}
+  # A scheduled run has no inputs, so it runs `nightly`: every suite whose file
+  # does not set "manual_only": true. That leaves out the 25-minute soak, which
+  # is dispatched by hand (#812, the owner's choice); a new suite joins the
+  # nightly run without a change here.
+  SUITE: ${{ inputs.suite || 'nightly' }}
+  # The soak alone measures for 1500 s, so a run that includes it (`soak` or
+  # `all`) waits longer for the game's exit line. timeout-minutes below follows
+  # the same rule; both are written out there because a job's timeout cannot
+  # read env.
+  SUITE_TIMEOUT_SECONDS: ${{ (inputs.suite == 'soak' || inputs.suite == 'all') && 3000 || 900 }}
 
 jobs:
   headset:
@@ -35,7 +43,7 @@ jobs:
     # A manual dispatch may pick any branch; only main runs here.
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, quest-pc]
-    timeout-minutes: 30
+    timeout-minutes: ${{ (inputs.suite == 'soak' || inputs.suite == 'all') && 60 || 30 }}
     defaults:
       run:
         shell: powershell
@@ -52,7 +60,7 @@ jobs:
           }
 
       - name: Install the newest build and run the suite
-        run: tools\device_acceptance.ps1 -Suite $env:SUITE -OutDir build\device-acceptance\headset
+        run: tools\device_acceptance.ps1 -Suite $env:SUITE -TimeoutSeconds $env:SUITE_TIMEOUT_SECONDS -OutDir build\device-acceptance\headset
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -67,7 +75,7 @@ jobs:
     # Runs after the headset job whatever its result: both use the one runner.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, quest-pc]
-    timeout-minutes: 30
+    timeout-minutes: ${{ (inputs.suite == 'soak' || inputs.suite == 'all') && 60 || 30 }}
     defaults:
       run:
         shell: powershell
@@ -86,7 +94,7 @@ jobs:
           }
 
       - name: Run the suite under the simulator, or skip if it cannot start
-        run: tools\simulator_acceptance.ps1 -Suite $env:SUITE -OutDir build\device-acceptance\simulator
+        run: tools\simulator_acceptance.ps1 -Suite $env:SUITE -TimeoutSeconds $env:SUITE_TIMEOUT_SECONDS -OutDir build\device-acceptance\simulator
 
       - uses: actions/upload-artifact@v4
         if: always()
