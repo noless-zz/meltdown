@@ -12,6 +12,14 @@ extends RefCounted
 ## A route exists exactly when a box holding the reactor and a box holding the
 ## start are joined through openings that are not blocked, which is when
 ## `KnownRoute.find` finds one. All in whole millimetres (ARC-2).
+##
+## Solid box debris across a box's whole cross-section splits that box (#868,
+## #869). Which entries split which box is `BoxSplit`'s rule, called here and
+## never repeated; as in `KnownRoute`, a split counts only when it separates two
+## of the box's own points (its openings' centres, and the reactor or start when
+## inside it), and two points of a box are joined only when they lie in the same
+## part of it. Without splits every point is in part zero, so the graph is what
+## it was before.
 
 var _mins: Array[Vector3i] = []
 var _maxs: Array[Vector3i] = []
@@ -23,6 +31,13 @@ var _to_boxes: Array[int] = []
 var _radius_mm: int = 0
 ## The openings of each box, lowest first.
 var _by_box: Array[Array] = []
+## The centre of each opening's shared region.
+var _centres: Array[Vector3i] = []
+## The reactor and the start, rounded to millimetres.
+var _from_mm: Vector3i = Vector3i.ZERO
+var _to_mm: Vector3i = Vector3i.ZERO
+## Each box's own points, which a split must separate to count.
+var _own: Array[Array] = []
 
 
 ## The graph of `level` for a ship of `ship_radius`, from the reactor to the start.
@@ -42,14 +57,24 @@ func _init(level: LevelDef, ship_radius: float) -> void:
 				_by_box[j].append(_firsts.size())
 				_firsts.append(i)
 				_seconds.append(j)
+				_centres.append((low + high) / 2)
 	# The points are rounded to millimetres first, as `KnownRoute` does.
-	var from: Vector3 = Vector3(EscapePath.to_mm(level.reactor.position())) / float(RobotSpawn.SCALE)
-	var to: Vector3 = Vector3(EscapePath.to_mm(level.start_position())) / float(RobotSpawn.SCALE)
+	_from_mm = EscapePath.to_mm(level.reactor.position())
+	_to_mm = EscapePath.to_mm(level.start_position())
+	var from: Vector3 = Vector3(_from_mm) / float(RobotSpawn.SCALE)
+	var to: Vector3 = Vector3(_to_mm) / float(RobotSpawn.SCALE)
 	for i: int in boxes.size():
 		if boxes[i].holds(from, 0.0):
 			_from_boxes.append(i)
 		if boxes[i].holds(to, 0.0):
 			_to_boxes.append(i)
+		var own: Array[Vector3i] = []
+		for end: Vector3i in [_from_mm, _to_mm]:
+			if BoxSplit.holds(_mins[i], _maxs[i], end):
+				own.append(end)
+		for k: int in _by_box[i]:
+			own.append(_centres[k])
+		_own.append(own)
 
 
 ## How many openings the level has.
@@ -87,26 +112,71 @@ func blocks(k: int, solid: MeltdownDebris) -> bool:
 	return OpeningClearance.blocked(_mins[i], _maxs[i], _mins[j], _maxs[j], solid, _radius_mm)
 
 
+## The splits entry `index` of `debris` makes once solid, as (box, entry, axis,
+## place in mm), by box then axis: `BoxSplit.splits` on that entry alone, kept
+## only where it separates two of the box's own points. Empty for a sphere, fire
+## or an entry that splits nothing. Splits never depend on other entries, so
+## the splits of any set of fallen entries are those of each one.
+func splits_by(debris: MeltdownDebris, index: int) -> Array[Vector4i]:
+	var found: Array[Vector4i] = []
+	if not debris.is_box(index) or debris.is_fire(index):
+		return found
+	var one: MeltdownDebris = MeltdownDebris.new()
+	one.positions_mm.append(debris.positions_mm[index])
+	one.radii_mm.append(0)
+	one.sizes_mm.append(debris.sizes_mm[index])
+	one.after_ticks.append(1)
+	one.skipped.append(false)
+	one.elapsed_ticks = 1
+	for box: int in _mins.size():
+		for cut: Vector3i in BoxSplit.splits(_mins[box], _maxs[box], one, _radius_mm):
+			var own: Array[Vector3i] = []
+			own.assign(_own[box])
+			if BoxSplit.separates(cut, own):
+				found.append(Vector4i(box, index, cut.y, cut.z))
+	return found
+
+
 ## True when the start can be reached from the reactor through the openings
-## not marked in `closed` (one flag per opening).
-func connected(closed: Array[bool]) -> bool:
+## not marked in `closed` (one flag per opening), with the boxes split by
+## `splits` (as `splits_by` gives them, in any order).
+func connected(closed: Array[bool], splits: Array[Vector4i] = []) -> bool:
 	if _from_boxes.is_empty() or _to_boxes.is_empty():
 		return false
-	var reached: Array[bool] = []
-	reached.resize(_mins.size())
-	reached.fill(false)
-	var queue: Array[int] = _from_boxes.duplicate()
-	for box: int in queue:
-		reached[box] = true
+	var cuts: Array[Array] = []
+	for box: int in _mins.size():
+		cuts.append([] as Array[Vector3i])
+	for split: Vector4i in splits:
+		cuts[split.x].append(Vector3i(split.y, split.z, split.w))
+	# A node is a part of a box: (box, part along x, y, z).
+	var reached: Dictionary[Vector4i, bool] = {}
+	var queue: Array[Vector4i] = []
+	for box: int in _from_boxes:
+		var node: Vector4i = _node(cuts, box, _from_mm)
+		if not reached.has(node):
+			reached[node] = true
+			queue.append(node)
+	var goals: Dictionary[Vector4i, bool] = {}
+	for box: int in _to_boxes:
+		goals[_node(cuts, box, _to_mm)] = true
 	while not queue.is_empty():
-		var box: int = queue.pop_back()
-		if _to_boxes.has(box):
+		var node: Vector4i = queue.pop_back()
+		if goals.has(node):
 			return true
-		for k: int in _by_box[box]:
-			if closed[k]:
+		for k: int in _by_box[node.x]:
+			if closed[k] or _node(cuts, node.x, _centres[k]) != node:
 				continue
-			var other: int = _seconds[k] if _firsts[k] == box else _firsts[k]
-			if not reached[other]:
-				reached[other] = true
-				queue.append(other)
+			var other: int = _seconds[k] if _firsts[k] == node.x else _firsts[k]
+			var next: Vector4i = _node(cuts, other, _centres[k])
+			if not reached.has(next):
+				reached[next] = true
+				queue.append(next)
 	return false
+
+
+## The part of box `box` that `point_mm` lies in, as (box, part along x, y, z).
+static func _node(cuts: Array[Array], box: int, point_mm: Vector3i) -> Vector4i:
+	var box_cuts: Array[Vector3i] = []
+	box_cuts.assign(cuts[box])
+	var part: Vector3i = BoxSplit.part(box_cuts, point_mm)
+	return Vector4i(box, part.x, part.y, part.z)

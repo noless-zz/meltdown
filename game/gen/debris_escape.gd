@@ -99,10 +99,11 @@ static func _evaluate(level: LevelDef, debris: MeltdownDebris, ship_radius: floa
 		return {}
 	var falling: Array[int] = []
 	var closed: Array[bool] = []
-	_held(OpeningGraph.new(level, ship_radius), debris, falling, closed)
-	# With no opening blocked the route is the clear one, which the `escape`
-	# check times.
-	if not closed.has(true):
+	var splits: Array[Vector4i] = []
+	_held(OpeningGraph.new(level, ship_radius), debris, falling, closed, splits)
+	# With no opening blocked and no box split the route is the clear one,
+	# which the `escape` check times.
+	if not closed.has(true) and splits.is_empty():
 		return {}
 	var clear_mm: int = EscapePath.length_mm(level.union, level.reactor.position(),
 			level.start_position())
@@ -141,16 +142,18 @@ static func _evaluate(level: LevelDef, debris: MeltdownDebris, ship_radius: floa
 static func held_by_guard(level: LevelDef, debris: MeltdownDebris, ship_radius: float) -> Array[bool]:
 	var falling: Array[int] = []
 	var closed: Array[bool] = []
-	return _held(OpeningGraph.new(level, ship_radius), debris, falling, closed)
+	var splits: Array[Vector4i] = []
+	return _held(OpeningGraph.new(level, ship_radius), debris, falling, closed, splits)
 
 
 ## `held_by_guard` on `graph`. `falling` gets the entries that fall and could
-## block an opening, lowest first; `closed` one flag per opening, set when those
-## entries block it. Debris only ever closes more as more falls, so each entry
-## re-tests only the openings it is near, and the route is looked for only when
-## one of them closes.
+## block an opening or split a box, lowest first; `closed` one flag per opening,
+## set when those entries block it; `splits` the boxes they split (#869), as
+## `OpeningGraph.splits_by` gives them. Debris only ever closes more as more
+## falls, so each entry re-tests only the openings it is near, and the route is
+## looked for only when one of them closes or the entry splits a box.
 static func _held(graph: OpeningGraph, debris: MeltdownDebris, falling: Array[int],
-		closed: Array[bool]) -> Array[bool]:
+		closed: Array[bool], splits: Array[Vector4i]) -> Array[bool]:
 	var held: Array[bool] = []
 	held.resize(debris.size())
 	held.fill(false)
@@ -165,7 +168,8 @@ static func _held(graph: OpeningGraph, debris: MeltdownDebris, falling: Array[in
 				or debris.after_ticks[a] == debris.after_ticks[b] and a < b)
 	for index: int in order:
 		var near: Array[int] = graph.openings_near(debris, index)
-		if near.is_empty():
+		var cuts: Array[Vector4i] = graph.splits_by(debris, index)
+		if near.is_empty() and cuts.is_empty():
 			continue
 		falling.append(index)
 		var solid: MeltdownDebris = _solid(debris, falling, -1)
@@ -174,8 +178,11 @@ static func _held(graph: OpeningGraph, debris: MeltdownDebris, falling: Array[in
 			if not closed[k] and graph.blocks(k, solid):
 				newly.append(k)
 				closed[k] = true
-		if newly.is_empty() or graph.connected(closed):
+		var size_before: int = splits.size()
+		splits.append_array(cuts)
+		if newly.is_empty() and cuts.is_empty() or graph.connected(closed, splits):
 			continue
+		splits.resize(size_before)
 		for k: int in newly:
 			closed[k] = false
 		falling.pop_back()
