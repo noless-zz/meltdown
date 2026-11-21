@@ -46,9 +46,9 @@ const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
 const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
-	"level", "expected_outcome", "seed", "expected_level_hash", AcceptanceLoopReplay.KEY,
-	"settle_seconds", "measure_seconds",
-	"max_over_budget_share", "budget_slack_ms", AcceptanceScreenshots.KEY_TICKS, AcceptanceScreenshots.KEY_END,
+	"level", "expected_outcome", "seed", "expected_level_hash", AcceptanceLoopReplay.KEY, "settle_seconds",
+	"measure_seconds", "max_over_budget_share", "budget_slack_ms", AcceptanceScreenshots.KEY_TICKS,
+	AcceptanceScreenshots.KEY_END,
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
 	AcceptancePresetChanges.KEY]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
