@@ -12,6 +12,7 @@ const MODULES_DIR: String = SeedLevel.MODULES_DIR
 const GENERATOR_FILE: String = SeedLevel.GENERATOR_FILE
 ## The `by_check` key for levels whose debris closed the way out (#440, RUN-4).
 const DEBRIS_ROUTE: String = "debris_route"
+const DebrisKinds := preload("res://tests/sweep_debris_kinds.gd")
 ## Failure messages kept in a result, so 10,000 bad seeds do not flood a log.
 const KEPT_FAILURES: int = 10
 ## Where a sweep's time goes, as `run` keys "stage_ms" (#513): building the
@@ -67,7 +68,8 @@ static func ship_radius() -> float:
 ## "passed", "failed", "short" (levels the generator stopped short, which are
 ## still validated), "looped" (levels with at least one loop), "robots" (robots
 ## placed over all levels), "debris" (debris entries placed over all levels),
-## "debris_held" (entries `DebrisRouteGuard` held back), "ms", "stage_ms"
+## "debris_held" (entries `DebrisRouteGuard` held back), "debris_by_kind"
+## (those two split by `DebrisKinds.KINDS`, each kind's "placed" and "held"), "ms", "stage_ms"
 ## (milliseconds spent in each of `STAGES`), "by_check"
 ## (seeds failing each of `LevelValidator.CHECKS`, plus "level" for levels that
 ## did not build and `DEBRIS_ROUTE` for levels whose debris closed the way
@@ -87,7 +89,7 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		by_check[check] = 0
 	by_check[DEBRIS_ROUTE] = 0
 	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0, "looped": 0, "robots": 0,
-			"debris": 0, "debris_held": 0, "by_check": by_check, "failures": [] as Array[String]}
+			"debris": 0, "debris_held": 0, "debris_by_kind": DebrisKinds.empty(), "by_check": by_check, "failures": [] as Array[String]}
 	# A broken data file must not pass every seed on the defaults.
 	if inputs.error != "":
 		result["failed"] = count
@@ -124,10 +126,12 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 			if level.debris != null:
 				result["debris"] += level.debris.size()
 				var held: Array[int] = []
+				var held_flags: Array[bool] = []
 				last[0] = Time.get_ticks_usec()
-				var closed: String = debris_route(level, radius, held)
+				var closed: String = debris_route(level, radius, held, true, held_flags)
 				mark.call(DEBRIS_ROUTE)
 				result["debris_held"] += held[0]
+				DebrisKinds.add(result["debris_by_kind"], level.debris, held_flags)
 				if closed != "":
 					found.append(closed)
 		if found.is_empty():
@@ -164,9 +168,10 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 ## when the start was never reachable from the reactor, on the first tick an
 ## entry falls, with nothing held; otherwise the guard holds what
 ## `DebrisEscape.held_by_guard` holds. `test_seed_sweep_debris.gd` compares the
-## two over seeds 0..199.
+## two over seeds 0..199. With the guard, `held_flags` gets whether each entry
+## was held, for the counts by kind (#887); it stays empty when nothing was.
 static func debris_route(level: LevelDef, radius: float, held: Array[int],
-		guarded: bool = true) -> String:
+		guarded: bool = true, held_flags: Array[bool] = []) -> String:
 	if not guarded:
 		return debris_route_flown(level, radius, held, false)
 	var debris: MeltdownDebris = level.debris
@@ -181,10 +186,12 @@ static func debris_route(level: LevelDef, radius: float, held: Array[int],
 			first = mini(first, ticks)
 		return _closed(first)
 	var count: int = 0
-	for flag: bool in DebrisEscape.held_by_guard(level, debris, radius):
+	var flags: Array[bool] = DebrisEscape.held_by_guard(level, debris, radius)
+	for flag: bool in flags:
 		if flag:
 			count += 1
 	held.append(count)
+	held_flags.append_array(flags)
 	return ""
 
 
@@ -248,14 +255,17 @@ static func timing(result: Dictionary) -> String:
 
 
 ## One line for a log: "level validator: 1000 seeds, 1000 passed, 0 failed,
-## 0 stopped short, 812 ms, debris 3500, debris_held 1200; failing seeds by
-## check: level 0, piece 0, ...". The debris counts are left out when the
-## result has none, and so is the by-check part.
+## 0 stopped short, 812 ms, debris 3500, debris_held 1200, rocks 2900,
+## rocks_held 1100, doors 400, doors_held 100, fires 200, fires_held 0; failing
+## seeds by check: level 0, piece 0, ...". The debris counts, those by kind
+## (#887) and the by-check part are each left out when the result has none.
 static func summary(result: Dictionary) -> String:
 	var line: String = "level validator: %d seeds, %d passed, %d failed, %d stopped short, %d ms" % [
 			result["seeds"], result["passed"], result["failed"], result["short"], result["ms"]]
 	if result.has("debris"):
 		line += ", debris %d, debris_held %d" % [result["debris"], result["debris_held"]]
+	if result.has("debris_by_kind"):
+		line += DebrisKinds.summary_part(result["debris_by_kind"])
 	if not result.has("by_check"):
 		return line
 	var counts: Array[String] = []
