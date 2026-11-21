@@ -1,0 +1,12 @@
+{
+	"shape": "prism",
+	"size": 0.35,
+	"energy": 2.5,
+	"fallback": [0.95, 0.95, 0.95],
+	"kinds": {
+		"cell_salts": [0.37, 0.83, 0.77],
+		"circuit_shards": [0.88, 0.69, 0.29],
+		"core_glass": [0.77, 0.42, 1.0],
+		"scrap_alloy": [0.6, 0.64, 0.68]
+	}
+}
