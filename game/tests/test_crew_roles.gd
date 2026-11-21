@@ -10,8 +10,11 @@ const ROLE_B: String = "{\"id\": \"beta\", \"name\": \"Beta\", \"weight\": 1, \"
 const BANNED: Array[String] = ["descent", "pyro", "ptmc", "vertigo", "guide", "thief", "dravis", "samindhi", "defender", "phoenix"]
 
 
-func _text(roles: Array[String]) -> String:
-	return "{\"roles\": [%s]}" % ", ".join(roles)
+const CAPS: String = "{\"map_reveal\": 1, \"meltdown_seconds\": 20, \"salvage_slots\": 2, \"shield_max\": 25}"
+
+
+func _text(roles: Array[String], caps: String = CAPS) -> String:
+	return "{\"roles\": [%s], \"caps\": %s}" % [", ".join(roles), caps]
 
 
 func _shipped() -> CrewRoles:
@@ -99,7 +102,8 @@ func test_duplicate_id_and_broken_files_fail() -> String:
 	var twice: CrewRoles = CrewRoles.parse_json(_text([ROLE_A, ROLE_B, ROLE_A]))
 	if not twice.error.begins_with("role \"alpha\":") or not twice.error.contains("\"id\""):
 		return "duplicate gave \"%s\"" % twice.error
-	for text: String in ["[]", "{}", "{\"roles\": []}", "{\"roles\": [3]}", "{\"roles\": [], \"x\": 1}", "{"]:
+	var no_caps: String = "{\"roles\": [%s]}" % ROLE_A
+	for text: String in ["[]", "{}", "{\"roles\": []}", "{\"roles\": [3]}", "{\"roles\": [], \"x\": 1}", "{", no_caps]:
 		var roles: CrewRoles = CrewRoles.parse_json(text)
 		if roles.error == "" or not roles.ids.is_empty():
 			return "%s was accepted" % text
@@ -146,4 +150,31 @@ func test_new_role_is_added_by_text_alone() -> String:
 	var roles: CrewRoles = CrewRoles.parse_json(_text([ROLE_A, ROLE_B.replace("beta", "gamma")]))
 	if roles.error != "" or not roles.has_role("gamma"):
 		return "new role not read: %s" % roles.error
+	return ""
+
+
+func test_shipped_caps_cover_every_stat() -> String:
+	var roles: CrewRoles = _shipped()
+	for stat: String in CrewRoles.STAT_MAX:
+		if roles.cap(stat) < 1:
+			return "%s has cap %d" % [stat, roles.cap(stat)]
+	if str(roles.caps().keys()) != str(["map_reveal", "meltdown_seconds", "salvage_slots", "shield_max"]):
+		return "caps keys %s" % str(roles.caps().keys())
+	return ""
+
+
+func test_bad_caps_name_the_key() -> String:
+	var cases: Dictionary = {
+		"{\"map_reveal\": 1, \"meltdown_seconds\": 20, \"salvage_slots\": 2}": "caps: missing key \"shield_max\"",
+		"{\"map_reveal\": 1, \"meltdown_seconds\": 20, \"salvage_slots\": 2, \"shield_max\": 25, \"hull_max\": 3}": "\"hull_max\"",
+		"{\"map_reveal\": 0, \"meltdown_seconds\": 20, \"salvage_slots\": 2, \"shield_max\": 25}": "\"map_reveal\" is 0",
+		"{\"map_reveal\": 1, \"meltdown_seconds\": 2.5, \"salvage_slots\": 2, \"shield_max\": 25}": "\"meltdown_seconds\"",
+		"[1]": "key \"caps\" must be a JSON object",
+	}
+	for caps: String in cases:
+		var roles: CrewRoles = CrewRoles.parse_json(_text([ROLE_A], caps))
+		if not roles.error.contains(cases[caps]):
+			return "%s gave \"%s\"" % [caps, roles.error]
+		if not roles.ids.is_empty() or roles.cap("shield_max") != 0:
+			return "rejected file kept roles or caps"
 	return ""

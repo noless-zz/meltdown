@@ -24,5 +24,11 @@
 			"weight": 20,
 			"benefit": {"stat": "meltdown_seconds", "amount": 5}
 		}
-	]
+	],
+	"caps": {
+		"map_reveal": 1,
+		"meltdown_seconds": 20,
+		"salvage_slots": 2,
+		"shield_max": 25
+	}
 }

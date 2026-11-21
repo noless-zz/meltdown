@@ -6,6 +6,10 @@ extends RefCounted
 ## code (ARC-4). The caller reads `ROLES_FILE` and hands its text over, because
 ## core never opens files. What a benefit does to a run is wired later; here a
 ## benefit is only a known stat and a small whole amount.
+##
+## The file also holds `caps`: the most the whole crew may add to each stat,
+## so a large crew widens options without trivialising early levels (CRW-3,
+## #1041). Every stat in `STAT_MAX` needs a cap; `CrewBenefits` applies them.
 
 const ROLES_FILE: String = "res://data/crew/roles.json"
 
@@ -22,6 +26,10 @@ const STAT_MAX: Dictionary[String, int] = {
 ## Keys of one role entry and of its benefit; all are required, no others.
 const ROLE_KEYS: Array[String] = ["id", "name", "weight", "benefit"]
 const BENEFIT_KEYS: Array[String] = ["stat", "amount"]
+## Top-level keys of the file; both are required, no others.
+const FILE_KEYS: Array[String] = ["roles", "caps"]
+## Largest cap a stat may have; only there to refuse nonsense numbers.
+const CAP_LIMIT: int = 1000000
 const ID_MAX_LENGTH: int = 64
 const NAME_MAX_LENGTH: int = 64
 ## Mixed into the pick seed so a role pick never shares a random stream with
@@ -37,6 +45,7 @@ var _weights: Dictionary[String, int] = {}
 var _stats: Dictionary[String, String] = {}
 var _amounts: Dictionary[String, int] = {}
 var _total_weight: int = 0
+var _caps: Dictionary[String, int] = {}
 
 
 ## Parses the text of the roles file. Each error names the role (by id, or by
@@ -50,10 +59,11 @@ static func parse_json(text: String) -> CrewRoles:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if str(key) != "roles":
+		if typeof(key) != TYPE_STRING or not FILE_KEYS.has(key):
 			return _failed("unknown key \"%s\"" % str(key))
-	if not data.has("roles"):
-		return _failed("missing key \"roles\"")
+	for key: String in FILE_KEYS:
+		if not data.has(key):
+			return _failed("missing key \"%s\"" % key)
 	if typeof(data["roles"]) != TYPE_ARRAY or (data["roles"] as Array).is_empty():
 		return _failed("key \"roles\" must be a non-empty array")
 	var roles: CrewRoles = CrewRoles.new()
@@ -62,6 +72,9 @@ static func parse_json(text: String) -> CrewRoles:
 		var message: String = roles._add(i, entries[i])
 		if message != "":
 			return _failed(message)
+	var cap_message: String = roles._read_caps(data["caps"])
+	if cap_message != "":
+		return _failed(cap_message)
 	return roles
 
 
@@ -108,6 +121,39 @@ func benefit_stat(id: String) -> String:
 ## Amount the role's benefit adds to its stat, or 0 for an unknown id.
 func benefit_amount(id: String) -> int:
 	return _amounts.get(id, 0)
+
+
+## Most the whole crew may add to `stat`, or 0 for a stat with no cap.
+func cap(stat: String) -> int:
+	return _caps.get(stat, 0)
+
+
+## Every stat with its cap, keys sorted.
+func caps() -> Dictionary[String, int]:
+	var sorted: Dictionary[String, int] = {}
+	var keys: Array[String] = []
+	keys.assign(_caps.keys())
+	keys.sort()
+	for stat: String in keys:
+		sorted[stat] = _caps[stat]
+	return sorted
+
+
+func _read_caps(value: Variant) -> String:
+	if typeof(value) != TYPE_DICTIONARY:
+		return "key \"caps\" must be a JSON object"
+	var entries: Dictionary = value
+	for key: Variant in entries:
+		if typeof(key) != TYPE_STRING or not STAT_MAX.has(key):
+			return "caps: unknown key \"%s\", must be one of %s" % [str(key), ", ".join(STAT_MAX.keys())]
+	for stat: String in STAT_MAX:
+		if not entries.has(stat):
+			return "caps: missing key \"%s\"" % stat
+		var message: String = _check_whole(stat, entries[stat], 1, CAP_LIMIT)
+		if message != "":
+			return "caps: %s" % message
+		_caps[stat] = int(entries[stat])
+	return ""
 
 
 func _add(index: int, entry: Variant) -> String:
