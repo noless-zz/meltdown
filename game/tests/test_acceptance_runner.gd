@@ -9,6 +9,7 @@ const M1_HASH: int = 861662111
 const REPLAY: String = "res://acceptance/replays/basic_flight.replay"
 ## More frames than any suite here needs; a runner still going after this hangs.
 const FRAME_LIMIT: int = 20000  # m1 flies flight_axes three times (#686, #687).
+const FLIGHT_FRAME_SECONDS: float = 0.25
 
 var _quit_codes: Array[int] = []
 
@@ -31,7 +32,15 @@ func _run(suites: Array[AcceptanceSuite]) -> AcceptanceRunner:
 	runner.setup(_main(), suites, null)
 	var frames: int = 0
 	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
+		# The flight test step (#762) is timed by the scene's own frames, which
+		# `main._process` runs in the game; out of a tree they are run here.
+		var flight: AcceptanceFlightTestCheck = runner.get("_flight")
+		if flight != null and not flight.done():
+			runner.main.call("apply_controls", {})
+			runner.main.call("advance_frame", FLIGHT_FRAME_SECONDS)
+			runner.process_frame(FLIGHT_FRAME_SECONDS)
+		else:
+			runner.process_frame()
 		frames += 1
 	return runner
 

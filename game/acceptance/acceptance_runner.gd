@@ -5,10 +5,9 @@ extends Node
 ## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
 ## is set, so a normal start never sees it.
 ##
-## Each step sets its comfort preset, switches to its level (#334) or builds its
-## seed's level (#460), flies its replay through the scene's `advance_frame` (one
-## tick per frame, replay inputs in place of the controllers), takes its screenshots
-## (#718), runs its checks and records them in an `AcceptanceReport`. Reports go to
+## Each step sets its preset, switches to its level (#334) or seed (#460), flies its
+## replay through the scene's `advance_frame` (one tick per frame), takes screenshots
+## (#718) and records its checks in an `AcceptanceReport`, written to
 ## `user://acceptance/` and the log; the game quits with 0 if every suite passed.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
@@ -22,8 +21,7 @@ const EXIT_FAIL: int = 1
 const XR_WAIT_FRAMES: int = 900
 const LOG_PREFIX: String = "Meltdown: acceptance"
 
-## The game scene (`main.gd`): read through `session`, `build_info`,
-## `advance_frame`, `set_comfort_preset` and `use_level`.
+## The game scene (`main.gd`), read through its `session`, `advance_frame` and the like.
 var main: Node = null
 var suites: Array[AcceptanceSuite] = []
 ## The OpenXR interface, or null when there is none; tests pass their own.
@@ -41,8 +39,7 @@ var reports: Array[AcceptanceReport] = []
 var report_paths: Array[String] = []
 ## Every line this runner printed, so tests can read them.
 var messages: PackedStringArray = PackedStringArray()
-## Data file text by `res://` path, used in place of the file when a step
-## builds its level from a seed (`SeedLevel.load_level`); tests change one.
+## Data file text by `res://` path, used in place of the file for a seed step; tests change one.
 var seed_overrides: Dictionary = {}
 var finished: bool = false
 var exit_code: int = -1
@@ -62,6 +59,7 @@ var _level_problem: String = ""
 var _frames: AcceptanceFrameBudgetCheck = null
 ## The view's rotation sampled each frame of a comfort_motion step, or null.
 var _comfort: AcceptanceComfortCheck = null
+var _flight: AcceptanceFlightTestCheck = null  # A flight_test_result step's test, or null.
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -74,8 +72,7 @@ static func requested_suite(user_args: PackedStringArray, intent_value: String) 
 	return asked if asked != "" else intent_value.strip_edges()
 
 
-## The one call `main.gd` makes. Returns the runner it added, or null when the
-## switch is off.
+## The one call `main.gd` makes. Returns the runner it added, or null when the switch is off.
 static func start_if_requested(scene: Node) -> AcceptanceRunner:
 	var runtime: Object = InstallerProbe.android_runtime()
 	var intent_value: String = InstallerProbe.intent_extra(runtime, INTENT_EXTRA) if runtime != null else ""
@@ -136,6 +133,8 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 		_start_step(step)
 	elif _frames != null:
 		_frames.add(frame_seconds)
+	if _flight != null:
+		_flight.add_frame(frame_seconds)
 	if not _step_ready(step):
 		return
 	_record_step(step)
@@ -158,6 +157,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
 	_comfort = AcceptanceComfortCheck.for_step(step, main)
+	_flight = AcceptanceFlightTestCheck.for_step(step, main)
 	if step.replay_path == "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
@@ -191,7 +191,7 @@ func _step_ready(step: AcceptanceStep) -> bool:
 				_comfort.sample_main(main, ShipState.TICK_DT)
 			return false
 		main.set_process(true)
-	if _frames != null and not _frames.done():
+	if (_frames != null and not _frames.done()) or (_flight != null and not _flight.done()):
 		return false
 	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
 		_xr_waited += 1
@@ -249,6 +249,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			return AcceptanceEscapeScreenCheck.run(main, _source != null, measurements)
 		AcceptanceStep.CHECK_FRAME_BUDGET:
 			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
+		AcceptanceStep.CHECK_FLIGHT_TEST_RESULT:
+			return _flight.run(measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -260,8 +262,7 @@ func _on_xr_session_begun() -> void:
 	_xr_begun = true
 
 
-## Writes the report to REPORT_DIR and echoes it to the log. A write that
-## fails is said, but the log copy still carries the result.
+## Writes the report to REPORT_DIR and echoes it to the log, which carries it if the write fails.
 func _write_report(report: AcceptanceReport) -> void:
 	var path: String = report.write_file(REPORT_DIR, _build().short_commit())
 	if path == "":
@@ -292,7 +293,6 @@ func _stop_logging() -> void:
 func _build() -> BuildInfo:
 	var info: Variant = main.get("build_info") if main != null else null
 	return info if info is BuildInfo else BuildInfo.new()
-
 
 
 func _say(line: String) -> void:

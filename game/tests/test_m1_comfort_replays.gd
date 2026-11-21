@@ -117,7 +117,8 @@ func test_the_replays_hold_filtered_turns() -> String:
 	return ""
 
 
-## The two steps follow the earlier ones, which keep their order and hashes,
+## The two steps follow the earlier ones (later steps, such as #762's, may follow
+## them), which keep their order and hashes,
 ## and each flies its own replay under its own preset on that replay's hash.
 func test_the_steps_fly_their_own_replays() -> String:
 	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
@@ -126,7 +127,7 @@ func test_the_steps_fly_their_own_replays() -> String:
 	var ids: Array[String] = []
 	for step: AcceptanceStep in suite.steps:
 		ids.append(step.id)
-	if ids != EARLIER_IDS + [step_id(1), step_id(2)]:
+	if ids.slice(0, 8) != EARLIER_IDS + [step_id(1), step_id(2)]:
 		return "m1 steps %s" % [ids]
 	var found: Dictionary = _suite_steps()
 	if found[EARLIER_IDS[3]].expected_hash != 3139276631 or found[EARLIER_IDS[4]].expected_hash != 3139276631:

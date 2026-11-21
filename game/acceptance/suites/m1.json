@@ -54,6 +54,12 @@
 			"preset": 2,
 			"checks": ["final_hash", "comfort_motion", "no_script_errors"],
 			"expected_hash": 157308001
+		},
+		{
+			"id": "first_launch_flight_test",
+			"checks": ["flight_test_result", "no_script_errors"],
+			"flight_test_answers": ["fine", "fine", "uneasy", "fine", "fine", "stop"],
+			"expected_preset": 2
 		}
 	]
 }

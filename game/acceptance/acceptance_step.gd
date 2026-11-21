@@ -64,10 +64,15 @@ const CHECK_CONTROLLERS_BOUND: String = "controllers_bound"
 ## The escape's end screen shows, not the destroyed one, when the replay ends
 ## (#751, RUN-7; `AcceptanceEscapeScreenCheck`). Needs a replay that escapes.
 const CHECK_ESCAPE_SCREEN: String = "escape_screen"
+## The first-launch flight test, answered from `flight_test_answers`, ends on
+## `expected_preset` with the ship held while each answer was due (#762, CMF-4;
+## `AcceptanceFlightTestCheck`). Flies no replay.
+const CHECK_FLIGHT_TEST_RESULT: String = "flight_test_result"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
-	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN]
+	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
+	CHECK_FLIGHT_TEST_RESULT]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -120,6 +125,10 @@ var budget_slack_ms: float = 0.0
 ## it saves one at the replay's end (#718; `AcceptanceScreenshots`).
 var screenshot_ticks: Array[int] = []
 var screenshot_at_end: bool = false
+## For the flight_test_result check: one answer per plan segment, in order,
+## and the preset the test must end on.
+var flight_test_answers: Array[String] = []
+var expected_preset: int = NO_PRESET
 
 
 func has_check(check: String) -> bool:
