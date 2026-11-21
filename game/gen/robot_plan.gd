@@ -19,11 +19,23 @@ extends RefCounted
 ## `max_near_start` caps how many robots stand within `near_start_distance` of
 ## the start (#531, GEN-3), so a short level cannot open on an ambush; the
 ## owner tunes how busy the start is here, without code (ARC-4).
+##
+## A run's shaft can ask for a busier or quieter level with a robot scale
+## (#991, RUN-1, GEN-2): `scaled(robot_scale, placements)` is a copy whose
+## count range is `round(min_per_level * robot_scale)` to
+## `round(max_per_level * robot_scale)`. The top is capped at `max_per_module`
+## robots in every module but the start's, yet the cap never takes it below
+## `max_per_level`, and the bottom never rises above the top; so a scale of
+## 1.0 or more never gives a range below the file's, and 1.0 gives exactly the
+## file's range and the same levels. The scale is a number from 0 to
+## `MAX_ROBOT_SCALE`; anything else is an error on the copy.
 
 const KEYS: Array[String] = ["types", "min_per_level", "max_per_level", "max_per_module",
 		"min_start_distance", "min_reactor_distance", "near_start_distance", "max_near_start"]
 ## Furthest a distance key may be, metres: far beyond any level.
 const MAX_DISTANCE_M: float = 10000.0
+## Largest robot scale `scaled` accepts.
+const MAX_ROBOT_SCALE: float = 10.0
 
 ## Robot type ids in file order.
 var types: Array[String] = []
@@ -66,6 +78,43 @@ func radii_by_id() -> Dictionary[String, int]:
 	for index: int in types.size():
 		radii[types[index]] = radii_mm[index]
 	return radii
+
+
+## This plan with its robot count range scaled by `robot_scale` for a level of
+## `placements` modules, as the class comment says. A bad scale gives a copy
+## with `error` set and no types.
+func scaled(robot_scale: float = 1.0, placements: int = 0) -> RobotPlan:
+	var copy: RobotPlan = RobotPlan.new()
+	copy.types = types.duplicate()
+	copy.radii_mm = radii_mm.duplicate()
+	copy.max_per_module = max_per_module
+	copy.min_start_distance_mm = min_start_distance_mm
+	copy.min_reactor_distance_mm = min_reactor_distance_mm
+	copy.near_start_distance_mm = near_start_distance_mm
+	copy.max_near_start = max_near_start
+	copy.error = error
+	if not is_finite(robot_scale) or robot_scale < 0.0 or robot_scale > MAX_ROBOT_SCALE:
+		copy.error = "robot_scale must be a number from 0 to %s" % MAX_ROBOT_SCALE
+	if copy.error != "":
+		copy.types.clear()
+		copy.radii_mm.clear()
+		return copy
+	var range_: Vector2i = count_range(robot_scale, placements)
+	copy.min_per_level = range_.x
+	copy.max_per_level = range_.y
+	return copy
+
+
+## The scaled robot count range, lowest in `x` and highest in `y`, for a valid
+## `robot_scale` and a level of `placements` modules (0 when unknown: no cap).
+func count_range(robot_scale: float, placements: int = 0) -> Vector2i:
+	var high: int = roundi(max_per_level * robot_scale)
+	if placements > 0:
+		# Every module but the start's holds at most `max_per_module`.
+		var room: int = max_per_module * maxi(placements - 1, 0)
+		high = mini(high, maxi(room, max_per_level))
+	var low: int = mini(roundi(min_per_level * robot_scale), high)
+	return Vector2i(low, high)
 
 
 func _read(data: Dictionary, robot_texts: Dictionary) -> String:
