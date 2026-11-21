@@ -7,25 +7,39 @@ extends RefCounted
 ##
 ## The kind is read from the entry, which is where `DebrisPlan` already tells
 ## its sections apart: its rocks are spheres, `DebrisDoors` adds boxes, and
-## `DebrisFires` adds entries with fire damage. Nothing new is stored in `core/`
-## or the replay, so no state or level hash moves.
+## `DebrisFires` adds entries with fire damage. Cave-ins (#514) are boxes too;
+## they are told from doors by sitting mid-way along a straight tunnel of the
+## level's generator (`DebrisCaveins.centre_mm`). Nothing new is stored in
+## `core/` or the replay, so no state or level hash moves.
 
 ## Every kind the summary line prints, in this order. A kind a level's plan does
 ## not place still prints 0, so a new kind needs only its name here and a rule
 ## in `kind_of`.
-const KINDS: Array[String] = ["rocks", "doors", "fires"]
+const KINDS: Array[String] = ["rocks", "doors", "fires", "caveins"]
 ## The keys each kind's count holds.
 const PLACED: String = "placed"
 const HELD: String = "held"
 
 
-## The kind of `debris`'s entry `index`, one of `KINDS`.
-static func kind_of(debris: MeltdownDebris, index: int) -> String:
+## The kind of `debris`'s entry `index`, one of `KINDS`. `caveins` holds the
+## centres a cave-in may have on this level (`cavein_centres`).
+static func kind_of(debris: MeltdownDebris, index: int, caveins: Array[Vector3i] = []) -> String:
 	if debris.is_fire(index):
 		return "fires"
 	if debris.is_box(index):
-		return "doors"
+		return "caveins" if caveins.has(debris.positions_mm[index]) else "doors"
 	return "rocks"
+
+
+## Where a cave-in of `generator`'s level would be centred: the middle of each
+## straight tunnel it may go in. Empty without a generator.
+static func cavein_centres(generator: MineGenerator) -> Array[Vector3i]:
+	var found: Array[Vector3i] = []
+	if generator == null:
+		return found
+	for placement: int in DebrisCaveins.tunnels(generator):
+		found.append(DebrisCaveins.centre_mm(generator, placement))
+	return found
 
 
 ## Every kind with nothing placed and nothing held.
@@ -37,10 +51,13 @@ static func empty() -> Dictionary:
 
 
 ## Adds one level's `debris` to `by_kind`. `held_flags` holds, per entry, whether
-## the guard held it back; an entry past its end was not held.
-static func add(by_kind: Dictionary, debris: MeltdownDebris, held_flags: Array[bool]) -> void:
+## the guard held it back; an entry past its end was not held. `generator` built
+## the level; without it cave-ins count as doors.
+static func add(by_kind: Dictionary, debris: MeltdownDebris, held_flags: Array[bool],
+		generator: MineGenerator = null) -> void:
+	var caveins: Array[Vector3i] = cavein_centres(generator)
 	for index: int in debris.size():
-		var counts: Dictionary = by_kind[kind_of(debris, index)]
+		var counts: Dictionary = by_kind[kind_of(debris, index, caveins)]
 		counts[PLACED] += 1
 		if index < held_flags.size() and held_flags[index]:
 			counts[HELD] += 1

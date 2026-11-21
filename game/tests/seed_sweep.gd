@@ -155,7 +155,7 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 				var closed: String = debris_route(level, radius, held, true, held_flags)
 				mark.call(DEBRIS_ROUTE)
 				result["debris_held"] += held[0]
-				DebrisKinds.add(result["debris_by_kind"], level.debris, held_flags)
+				DebrisKinds.add(result["debris_by_kind"], level.debris, held_flags, generator)
 				if closed != "":
 					found.append(closed)
 		if found.is_empty():

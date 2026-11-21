@@ -234,8 +234,10 @@ func _place(module: ModuleDef, turn: int, offset: Vector3i, parent: int, parent_
 	var index: int = placements.size()
 	placements.append(placement)
 	for connector_index: int in module.connectors.size():
+		var placed: ModuleConnector = placed_connector(module, connector_index, turn, offset)
+		placement.connectors.append(placed)
 		if connector_index != own:
-			open_connectors.append(placed_connector(module, connector_index, turn, offset))
+			open_connectors.append(placed)
 			open_owner.append(Vector2i(index, connector_index))
 
 

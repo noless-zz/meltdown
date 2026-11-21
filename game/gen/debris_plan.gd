@@ -39,6 +39,8 @@ const KEYS: Array[String] = ["count", "radius", "after_seconds", "min_start_dist
 const DOORS_KEY: String = "doors"
 ## The optional `fires` section (#497), read by `DebrisFires`; without it no fire.
 const FIRES_KEY: String = "fires"
+## The optional `caveins` section (#514), read by `DebrisCaveins`; without it none.
+const CAVEINS_KEY: String = "caveins"
 ## Largest radius an entry may have, metres: a cave-in, not a wall of rock.
 const MAX_RADIUS_M: float = 20.0
 ## Latest an entry may fall, seconds after the reactor dies.
@@ -65,6 +67,8 @@ var latest_fall_fraction: float = 1.0
 var doors: DebrisDoors = null
 ## Fires to place after the trimming (#497), or null without a section.
 var fires: DebrisFires = null
+## Cave-ins to place after the doors' trimming (#514), or null without a section.
+var caveins: DebrisCaveins = null
 ## Whose `escape_speed_mps` and `escape_margin` the escape with debris fallen
 ## must keep (#493). The defaults are `validator.json`'s; `SeedLevel` hands over
 ## the file it read, so the placing and the check that follows agree. Null
@@ -163,6 +167,10 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 			ship_radius, escape_validator.escape_speed_mps, escape_validator.escape_margin)
 	if dropped > 0:
 		notes.append("%d debris entries dropped to keep the escape in time" % dropped)
+	if caveins != null:
+		# After the trimming above and before fire, trimming again (#514).
+		notes.append_array(caveins.place(generator, level, debris, robot_radii, limit, ship_radius,
+				escape_validator))
 	# Fire goes in after the trimming: it never closes an opening, so it cannot
 	# lengthen the escape, and the solid entries stay those a plan without fire
 	# keeps (#497).

@@ -23,5 +23,13 @@
 		"min_start_distance": 15,
 		"min_reactor_distance": 6,
 		"min_robot_distance": 2
+	},
+	"caveins": {
+		"count": [0, 1],
+		"thickness": 1.0,
+		"after_seconds": [10, 60],
+		"min_start_distance": 15,
+		"min_reactor_distance": 6,
+		"min_robot_distance": 2
 	}
 }
