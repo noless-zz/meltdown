@@ -1,7 +1,7 @@
 extends RefCounted
 
-## Utility slots from the ship data file, empty for now (#929, CRF-5, CMB-8,
-## ARC-4, ARC-2).
+## Utility slots from the ship data file (#929, CRF-5, CMB-8, ARC-4, ARC-2);
+## look-aim is the first known module (#1042).
 
 const DEFAULT_SHIP: String = "res://data/ships/default_ship.json"
 const WEAPON_DIR: String = "res://data/weapons/"
@@ -91,13 +91,29 @@ func test_utility_module_errors_name_the_field() -> String:
 	return ""
 
 
-func test_any_module_id_is_unknown_while_no_kinds_exist() -> String:
-	if not ShipLoadout.UTILITY_MODULE_KINDS.is_empty():
-		return "module kinds exist; this test must name an unknown one instead"
-	for id: String in ["look_aim", "aim_assist", "x"]:
+func test_look_aim_is_the_only_known_module() -> String:
+	if ShipLoadout.UTILITY_MODULE_KINDS != ([ShipLoadout.LOOK_AIM_MODULE] as Array[String]):
+		return "module kinds are %s" % [ShipLoadout.UTILITY_MODULE_KINDS]
+	for id: String in ["aim_assist", "wide_radar", "mine_scanner", "x"]:
 		var error: String = _with_utility(2, [id]).error
 		if error.find("\"loadout.utility[0]\"") < 0 or error.find(id) < 0:
 			return "module %s gave \"%s\"" % [id, error]
+	return ""
+
+
+func test_a_ship_file_with_the_look_aim_module_loads() -> String:
+	var tuning: ShipTuning = _with_utility(2, ["look_aim"])
+	if tuning.error != "":
+		return "look_aim refused: " + tuning.error
+	if tuning.loadout.utility_ids != ([ShipLoadout.LOOK_AIM_MODULE] as Array[String]):
+		return "utility ids %s" % [tuning.loadout.utility_ids]
+	var ship: ShipState = ShipState.new()
+	_resolved(tuning).equip(ship)
+	if ship.utility_slots != (["look_aim", ""] as Array[String]):
+		return "equipped utility slots %s" % [ship.utility_slots]
+	var second: String = _with_utility(2, ["look_aim", "mine_scanner"]).error
+	if second.find("\"loadout.utility[1]\"") < 0:
+		return "a second, unknown module gave \"%s\"" % second
 	return ""
 
 
@@ -148,14 +164,13 @@ func test_empty_utility_slots_keep_the_ship_hash() -> String:
 
 
 func test_a_fitted_module_joins_the_hash() -> String:
-	# No module kind exists yet, so set the state directly: the hash must see
-	# a fitted module once one can be fitted, or a desync would hide (MP-2).
+	# The hash must see a fitted module, or a desync would hide (MP-2).
 	var empty: ShipState = ShipState.new()
 	empty.utility_slots.assign(["", ""])
 	var fitted: ShipState = ShipState.new()
-	fitted.utility_slots.assign(["module_a", ""])
+	fitted.utility_slots.assign(["look_aim", ""])
 	var other_slot: ShipState = ShipState.new()
-	other_slot.utility_slots.assign(["", "module_a"])
+	other_slot.utility_slots.assign(["", "look_aim"])
 	if fitted.state_hash() == empty.state_hash():
 		return "a fitted module left the hash unchanged"
 	if fitted.state_hash() == other_slot.state_hash():
@@ -182,3 +197,50 @@ func test_sim_equip_with_the_shipped_file_keeps_the_sim_hash() -> String:
 	if with_slots.state_hash() != without.state_hash():
 		return "hash %d with empty utility slots, %d without" % [with_slots.state_hash(), without.state_hash()]
 	return ""
+
+
+func test_shipped_replays_keep_their_pinned_hashes() -> String:
+	# None of them carries a utility module, so knowing look_aim changes no run
+	# (#1042). Replays a suite flies on a generated level pin the hash of that
+	# level's session, which their m3 and m4 steps check; here every replay is
+	# read, and the box-world ones are flown.
+	var dir: String = "res://acceptance/replays"
+	var on_levels: Array[String] = _replays_flown_on_levels()
+	var checked: int = 0
+	for file: String in DirAccess.get_files_at(dir):
+		if not file.ends_with(".replay"):
+			continue
+		var path: String = dir.path_join(file)
+		var replay: Replay = Replay.load_file(path)
+		if replay.error != "":
+			return "%s: %s" % [file, replay.error]
+		if replay.loadout != null and not replay.loadout.utility_ids.is_empty():
+			return "%s carries utility modules %s" % [file, replay.loadout.utility_ids]
+		if replay.expected_hash == Replay.NO_HASH or on_levels.has(path):
+			continue
+		var sim: Sim = replay.run()
+		if sim == null:
+			return "%s: %s" % [file, replay.run_error]
+		if sim.state_hash() != replay.expected_hash:
+			return "%s ends at hash %d, pinned %d" % [file, sim.state_hash(), replay.expected_hash]
+		checked += 1
+	if checked == 0:
+		return "no shipped replay was flown"
+	return ""
+
+
+## Replay paths of suite steps that fly a generated level (a `seed` or `run` key).
+static func _replays_flown_on_levels() -> Array[String]:
+	var paths: Array[String] = []
+	var suites: String = "res://acceptance/suites"
+	for file: String in DirAccess.get_files_at(suites):
+		if not file.ends_with(".json"):
+			continue
+		var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(suites.path_join(file)))
+		var steps: Variant = data.get("steps", []) if data is Dictionary else data
+		if not steps is Array:
+			continue
+		for step: Variant in steps:
+			if step is Dictionary and (step.has("seed") or step.has("run")) and step.has("replay"):
+				paths.append(str(step["replay"]))
+	return paths

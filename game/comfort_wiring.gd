@@ -109,6 +109,15 @@ func set_preset(p_number: int) -> void:
 	view_log.event("preset=%d rebuilt=cockpit_frame,input_filter,hit_shake frame_point=unchanged" % p_number)
 
 
+## Takes the look-aim module flag from the local ship's `loadout` (read only):
+## fitted, look-aim stays on at every preset (CMB-8, #1042).
+func set_loadout(loadout: ShipLoadout) -> void:
+	var ids: Array[String] = []
+	if loadout != null:
+		ids = loadout.utility_ids
+	look_aim.set_module(ids)
+
+
 ## Sets the swivel on presets 1 to 4 from now on (#853); only the swivel follows.
 func set_swivel_choice(on: bool) -> void:
 	swivel_choice = SwivelChoice.ON if on else SwivelChoice.OFF

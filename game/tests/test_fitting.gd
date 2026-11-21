@@ -179,13 +179,27 @@ func test_shield_hull_and_engine_are_not_fittable_yet() -> String:
 
 
 func test_a_module_the_simulation_does_not_know_is_not_fittable_yet() -> String:
-	# No utility module exists in core yet (#929); fitting one would build a
-	# loadout the run rejects, so it is refused here first.
-	if not ShipLoadout.UTILITY_MODULE_KINDS.is_empty():
-		return ""
-	var reason: String = Fitting.check(_fitting(["", ""], ["", ""], ["mine_scanner"]), _tree(), _all_crafted(_tree()), _ship_data())
-	if not reason.begins_with("utility[0]: \"mine_scanner\" grants module") or not reason.ends_with("not fittable yet"):
-		return reason
+	# Fitting one would build a loadout the run rejects, so it is refused here first.
+	for id: String in ["mine_scanner", "wide_radar"]:
+		var reason: String = Fitting.check(_fitting(["", ""], ["", ""], [id]), _tree(), _all_crafted(_tree()), _ship_data())
+		if not reason.begins_with("utility[0]: \"%s\" grants module" % id) or not reason.ends_with("not fittable yet"):
+			return "%s: '%s'" % [id, reason]
+	return ""
+
+
+func test_the_crafted_look_aim_module_fits_and_is_equipped() -> String:
+	var tree: UpgradeTree = _tree()
+	var fitting: Fitting = _fitting(["", ""], ["", ""], ["look_aim"])
+	var reason: String = Fitting.check(fitting, tree, ["look_aim"], _ship_data())
+	if reason != "":
+		return "look_aim refused: " + reason
+	var section: Dictionary = Fitting.loadout(fitting, tree, _ship_data())
+	var ship: ShipState = _ship(_ship_data(), section)
+	if ship == null or ship.utility_slots != (["look_aim", ""] as Array[String]):
+		return "fitted look_aim equipped %s" % ["nothing" if ship == null else str(ship.utility_slots)]
+	var uncrafted: String = Fitting.check(fitting, tree, [], _ship_data())
+	if uncrafted != "utility[0]: \"look_aim\" is not crafted":
+		return "an uncrafted look_aim gave '%s'" % uncrafted
 	return ""
 
 
