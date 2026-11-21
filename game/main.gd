@@ -44,14 +44,12 @@ var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
 var boost_haptics: BoostHaptics = BoostHaptics.new()
 ## The bolts, robots, shield and hull, shown from session copies (#189, #228, MP-2).
 var combat: CombatWiring = CombatWiring.new()
-## The hologram map in the hand, filled in as the ship explores (#339, MAP-1).
-var map: MapWiring = MapWiring.new()
-## The reactor, the meltdown countdown and the outcome row (#359, RUN-2, RUN-5).
-var meltdown: MeltdownWiring = MeltdownWiring.new()
+var map: MapWiring = MapWiring.new()  # Hologram map in the hand, filled in as the ship explores (#339).
+var meltdown: MeltdownWiring = MeltdownWiring.new()  # Reactor, countdown and outcome row (#359, RUN-2).
 ## When the slot label says to fly through a part to pick it up (#606, #600).
 var pickup_hint: PickupHint = PickupHint.load_file()
-## Asks the headset for the preset's refresh rate and reads back the rate in use (#598).
-var refresh_rate: RefreshRate = RefreshRate.new()
+var refresh_rate: RefreshRate = RefreshRate.new()  # Preset's rate, asked for and read back (#598).
+var foveation: FoveationSwitch = FoveationSwitch.from_launch()  # --foveation switches, logged (#738).
 var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headset builds (#646).
 ## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
 var destroyed: DestroyedWiring = DestroyedWiring.new()
@@ -107,6 +105,7 @@ func _process(delta: float) -> void:
 	apply_controls(sample_controls())
 	advance_frame(delta)
 	refresh_rate.advance_frame()
+	foveation.advance(delta)
 	if _smoke_probe != null and _smoke_probe.is_enabled():
 		_smoke_probe.watch_hands(boost_haptics.left_controller, boost_haptics.right_controller)
 	if _smoke_probe != null and _smoke_probe.tick():
@@ -274,6 +273,7 @@ func _on_session_begun(openxr: OpenXRInterface) -> void:
 	_xr_running = true
 	head_recentre.request()
 	refresh_rate.begin(openxr, comfort.preset)  # PRF-1, CMF-1 (#598).
+	foveation.begin(openxr)  # Before the first frame is drawn (#738).
 
 
 ## The app is shown but has lost input focus: the headset was taken off or the
