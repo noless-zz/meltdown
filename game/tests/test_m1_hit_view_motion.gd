@@ -52,13 +52,14 @@ func test_the_check_needs_a_replay() -> String:
 	return ""
 
 
-## The rig is placed as pose × hit offset × recentre offset; the check gets the
-## hit offset back, whatever the pose and recentre.
+## The rig is placed as pose × drift × hit offset × recentre offset; the check
+## gets the hit offset back, whatever the pose, preset 4's drift and recentre.
 func test_unexplained_recovers_the_hit_offset() -> String:
 	var pose: Transform3D = Transform3D(Basis(Vector3(0.3, 1.0, -0.2).normalized(), 1.1), Vector3(40.0, -12.0, 85.0))
 	var hit: Transform3D = Transform3D(Basis(Vector3.FORWARD, deg_to_rad(3.0)), Vector3(0.004, -0.002, 0.001))
 	var offset: Transform3D = Transform3D(Basis(Vector3.UP, 0.7), Vector3(0.1, -1.6, 0.2)).affine_inverse()
-	var found: Transform3D = AcceptanceHitMotionCheck.unexplained(pose, pose * hit * offset, offset)
+	var drift: Transform3D = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.01, 0.03))
+	var found: Transform3D = AcceptanceHitMotionCheck.unexplained(pose, pose * drift * hit * offset, offset, drift)
 	if found.origin.distance_to(hit.origin) > 0.0001:
 		return "shake %s, wanted %s" % [found.origin, hit.origin]
 	var angle: float = rad_to_deg(found.basis.get_rotation_quaternion().get_angle())

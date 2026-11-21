@@ -4,9 +4,9 @@ extends RefCounted
 ## The `hit_view_motion` acceptance check (#849, CMF-1, CMF-6, ARC-3): the
 ## comfort table's "Hits" row as the player sees it. Once per rendered frame
 ## while a step's replay flies, it takes the camera the player sees through,
-## removes the tracked head, the recentre offset and the ship's own pose for
-## the frame (as `main.gd` places the rig from the simulation), and keeps what
-## is left: the view motion nothing in the simulation or the head explains.
+## removes the tracked head, the recentre offset, the ship's own pose for the
+## frame and preset 4's inertia drift (as `main.gd` places the rig), and keeps
+## what is left: the view motion nothing in the simulation or the head explains.
 ## The hit effect (`HitShake`) is the only thing that adds such motion, so the
 ## remainder splits into shake (how far the eye moved, metres) and spin (how
 ## far the view rolled, degrees).
@@ -65,14 +65,20 @@ func sample_main(main: Node) -> void:
 	var rig_world: Transform3D = world_transform(camera) * camera.transform.affine_inverse()
 	var number: int = wiring.number
 	var preset: ComfortPreset = _presets.get(number) if _presets.has(number) else wiring.preset_for(number)
-	sample(unexplained(pose, rig_world, recentre.offset), number, preset)
+	var drift: Transform3D = Transform3D.IDENTITY
+	if wiring.drift != null and wiring.drift.drift != null:
+		drift = wiring.drift.drift.offset()
+	sample(unexplained(pose, rig_world, recentre.offset, drift), number, preset)
 
 
 ## The part of the rig's world transform `rig_world` that neither the ship's
-## pose `pose` nor the recentre offset `offset` explains, in the cockpit's own
-## frame: `main.gd` sets the rig to pose × hit offset × recentre offset.
-static func unexplained(pose: Transform3D, rig_world: Transform3D, offset: Transform3D) -> Transform3D:
-	return pose.affine_inverse() * rig_world * offset.affine_inverse()
+## pose `pose`, preset 4's inertia drift `drift` (#840, the acceleration row,
+## not the hits row) nor the recentre offset `offset` explains, in the
+## cockpit's own frame: `main.gd` sets the rig to pose × drift × hit offset ×
+## recentre offset.
+static func unexplained(pose: Transform3D, rig_world: Transform3D, offset: Transform3D,
+		drift: Transform3D = Transform3D.IDENTITY) -> Transform3D:
+	return drift.affine_inverse() * pose.affine_inverse() * rig_world * offset.affine_inverse()
 
 
 ## The world transform of `node`, composed up its parents by hand so it also
