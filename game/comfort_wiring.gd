@@ -6,13 +6,10 @@ extends RefCounted
 ## preset switch, and the bookkeeping that makes a snap or a reset fly in
 ## exactly one tick.
 ##
-## It sits beside `main.gd` rather than in `xr/` because it writes the
-## `net/` input source, which `xr/` may not depend on. It only ever hands
-## inputs to that source; it never writes `ShipState` or `Sim` (ARC-3, MP-2).
-##
-## Every input it hands on is a whole copy of another input with only the
-## fields it means to change set, so a field added to `ShipInput` later (as
-## `reset_to_start` and `fire_primary` were) cannot be dropped here (#99).
+## It sits beside `main.gd`, not in `xr/`, because it writes the `net/` input
+## source; it never writes `ShipState` or `Sim` (ARC-3, MP-2). Every input it
+## hands on is a whole copy of another with only the fields it means to change
+## set, so a field added to `ShipInput` later cannot be dropped here (#99).
 
 ## Number (1..4, or `ComfortPresetFiles.CUSTOM_NUMBER`) of the active comfort
 ## preset; change it with `set_preset`.
@@ -29,11 +26,10 @@ var one_tick_pending: bool = false
 ## tick rather than from how far it turned: an auto-level roll snap can be
 ## smaller than any yaw or pitch snap.
 var latest_tick_snapped: bool = false
-## The active preset's cockpit frame, under the rig origin once
-## `attach_cockpit_frame` has run, null before; the owner places it at the
-## head point, so the head turns inside it (#478). `set_preset` rebuilds this
-## one node, so the scene never holds two frames or none (CMF-1, #160). It
-## only reads the preset; it never writes `ShipState` or `Sim` (ARC-3).
+## The active preset's cockpit frame under the rig origin, null until
+## `attach_cockpit_frame`; placed at the head point so the head turns inside
+## it (#478). `set_preset` rebuilds this one node, never two or none (CMF-1,
+## #160). It only reads the preset (ARC-3).
 var cockpit_frame: CockpitFrame = null
 ## The "Hits" row of the active preset (#169); its `preset` follows
 ## `set_preset`. Null when the data file was rejected: the shake stays off.
@@ -57,6 +53,8 @@ var _mapping: ThumbstickMapping
 var custom_path: String = ComfortCustom.DEFAULT_PATH
 ## The custom file, read once so a rejected file is logged once (#806).
 var _custom: ComfortCustom = null
+## Rejections of the custom file, for the status panel's preset row (#807).
+var custom_notice: ComfortCustomNotice = ComfortCustomNotice.new()
 ## The preset switch acts once per press, not once per frame it is held.
 var _preset_button_held: bool = false
 ## Seconds on a steady clock; `read_label_button` times a click with it. Tests
@@ -87,6 +85,7 @@ func _init(p_input_source: LatestInputSource, p_mapping: ThumbstickMapping) -> v
 func set_preset(p_number: int) -> void:
 	if p_number == ComfortPresetFiles.CUSTOM_NUMBER and not custom_available():
 		push_warning("Meltdown: custom comfort mode not available, keeping preset %d" % number)
+		custom_notice.refused(custom())
 		p_number = number
 	number = p_number
 	preset = preset_for(p_number)
@@ -164,10 +163,12 @@ func preset_button() -> String:
 	return _mapping.preset_button()
 
 
-## Moves to the next preset on the frame the preset button goes down.
+## Next preset as the button goes down; from 4 a rejected custom file is reported (#807).
 func read_preset_button(buttons: Dictionary) -> void:
 	var pressed: bool = bool(buttons.get(preset_button(), false))
 	if pressed and not _preset_button_held:
+		if number == ComfortPresetFiles.PATHS.size():
+			custom_notice.refused(custom())
 		set_preset(next_number())
 	_preset_button_held = pressed
 

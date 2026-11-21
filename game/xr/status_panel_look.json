@@ -11,6 +11,9 @@
 	"level_seed_text": "Seed {seed}",
 	"level_file_text": "{name}",
 	"preset_swivel_text": "Swivel",
+	"preset_custom_text": "Custom (base {base})",
+	"preset_custom_rejected_text": "Custom file rejected: {field}",
+	"preset_custom_rejected_seconds": 10,
 	"corners": {
 		"top_left": [-0.157, 0.124, -0.512],
 		"top_right": [0.157, 0.124, -0.512],

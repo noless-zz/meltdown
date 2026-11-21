@@ -14,7 +14,9 @@ extends RefCounted
 ## size `level_font`, colour `level_color` and words `level_tunnel_text`,
 ## `level_seed_text` (with `{seed}`) and `level_file_text` (with `{name}`).
 ## So may `preset_swivel_text`, the tag after the preset's name while
-## swivel-chair mode is on (#792).
+## swivel-chair mode is on (#792), and the custom mode's words (#807):
+## `preset_custom_text` (with `{base}`), `preset_custom_rejected_text` (with
+## `{field}`) and `preset_custom_rejected_seconds`, how long that shows.
 ##
 ## `position_m` is in the cockpit's space from the eye point (x right, y up,
 ## -z ahead). `tilt_deg` turns the panel's top away from the eye.
@@ -39,11 +41,12 @@ const NUMBER_RANGES: Dictionary = {
 const OPTIONAL_NUMBER_RANGES: Dictionary = {
 	"low_hull_fraction": Vector2(0.0, 1.0),
 	"level_font": Vector2(8.0, 96.0),
+	"preset_custom_rejected_seconds": Vector2(0.0, 60.0),
 }
 ## Colour and text keys a file may leave out; `FALLBACK` gives the value.
 const OPTIONAL_COLOR_KEYS: Array[String] = ["level_color"]
 const OPTIONAL_TEXT_KEYS: Array[String] = ["level_tunnel_text", "level_seed_text", "level_file_text",
-	"preset_swivel_text"]
+	"preset_swivel_text", "preset_custom_text", "preset_custom_rejected_text"]
 ## The four corners a `corners` value must name, and nothing else.
 const CORNER_NAMES: Array[String] = ["top_left", "top_right", "bottom_left", "bottom_right"]
 ## A corner nearer the eye than this would fill the view and could not be
@@ -72,6 +75,10 @@ const FALLBACK: Dictionary = {
 	"level_file_text": "{name}",
 	# Short, so the preset row still fits beside the level row (#792).
 	"preset_swivel_text": "Swivel",
+	# Long enough to read in the headset and fix the file meanwhile (#807).
+	"preset_custom_text": "Custom (base {base})",
+	"preset_custom_rejected_text": "Custom file rejected: {field}",
+	"preset_custom_rejected_seconds": 10.0,
 	# About 17 degrees to the side and 13 up or down at 0.55 m, like the
 	# default's distance: every row stays within 40 degrees of straight ahead.
 	"corners": {
