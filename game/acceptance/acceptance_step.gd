@@ -167,6 +167,10 @@ var pause_seconds: float = 0.0
 ## (`AcceptanceControlsScript`).
 var controls_path: String = ""
 var left_handed: bool = false
+## A shipped custom comfort file to fly in the custom mode built from it
+## (#836, CMF-1; `AcceptanceCustomComfort`), or "" for none. A step names this
+## or `preset`, not both.
+var custom_file: String = ""
 
 
 func has_check(check: String) -> bool:

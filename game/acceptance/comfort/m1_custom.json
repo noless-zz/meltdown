@@ -1,0 +1,7 @@
+{
+	"base": 2,
+	"display_name": "M1 custom",
+	"yaw_rate_cap_deg_per_s": 40.0,
+	"vignette_strength": 0.0,
+	"vignette_trigger": "NEVER"
+}
