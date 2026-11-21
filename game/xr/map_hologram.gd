@@ -5,10 +5,10 @@ extends Node3D
 ## #314): the `MapWireframe` outline of the explored boxes as one emissive line
 ## mesh, fitted into a cube of `size_m`, with a dart for the ship (`MapShipMarker`).
 ##
-## It hangs under a controller, so it turns with the hand. It shows only while
-## `show_map` has been held for `HOLD_SECONDS`; a shorter click stays the label
-## toggle. When both share that button, the map takes its answer from the label
-## wiring's `ClickHold` (#335), so one press never both shows it and flips labels.
+## It hangs under a controller, so it turns with the hand. A click of `show_map`
+## opens it and the next closes it, so nothing is held while steering (#914).
+## Sharing the label button, it reads the label wiring's `ClickHold` (#335): a
+## click toggles the map, a hold the labels, never both.
 ##
 ## It is handed copies and keeps no reference to the session, so it can never
 ## write simulation state or comfort settings (ARC-3, CMF-6, MP-2).
@@ -27,8 +27,8 @@ const MARKER_NAME: String = "Marker"
 const EXIT_NAME: String = "Exit"
 const REACTOR_NAME: String = "Reactor"
 const DEFAULT_LOOK_FILE: String = "res://xr/map_look.json"
-## How long `show_map` must be held before the map shows. Long enough that a
-## click for the labels never flashes the map, short enough not to feel slow.
+## How long the shared `show_map` button must be held to be a hold (the label
+## toggle) rather than a click (the map toggle, #914).
 const HOLD_SECONDS: float = 0.4
 ## The map's centre from the controller: above the hand and a little ahead,
 ## so the hand does not cover it and lowering the hand takes it out of view.
@@ -38,8 +38,9 @@ const FALLBACK_LOOK: Dictionary = MapLook.FALLBACK
 
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
-## How long `show_map` has been held; 0 while it is released.
-var held_seconds: float = 0.0
+
+## Whether `show_map` was down last frame, for the press edge of an unshared button.
+var _was_pressed: bool = false
 
 var _look: Dictionary = FALLBACK_LOOK
 ## Level space -> hologram space, as `MapWireframe.fit_to_cube` fits the lines.
@@ -218,23 +219,30 @@ func reactor_marker_shown() -> bool:
 	return _reactor.visible
 
 
-## Records whether `show_map` is held this frame of `delta` seconds. The map
-## shows once the hold reaches `HOLD_SECONDS` and hides on release.
-func hold(held: bool, delta: float) -> void:
-	held_seconds = held_seconds + delta if held else 0.0
-	visible = held and held_seconds >= HOLD_SECONDS
+## Closes the map; the wiring calls it on a restart, a level switch and a
+## destroyed ship, so the map never greets a new level open (#914).
+func close() -> void:
+	visible = false
 
 
-## Reads `show_map` through `mapping` from sampled `buttons` and calls `hold`.
+## Records whether `show_map` is down this frame; the frame it goes down
+## toggles the map. Used when no label toggle shares the button.
+func press(pressed: bool) -> void:
+	visible = visible != (pressed and not _was_pressed)
+	_was_pressed = pressed
+
+
+## Reads `show_map` through `mapping` from sampled `buttons` and calls `press`.
 ## With `shared` (the label button's `ClickHold`, given only while that button also
-## shows the map), it shows exactly while `shared` reports a long hold; feed `shared` first.
-func read(mapping: ThumbstickMapping, buttons: Dictionary, delta: float,
-		shared: ClickHold = null) -> void:
+## toggles the map), a short click toggles it and a hold leaves it as it was;
+## feed `shared` first.
+func read(mapping: ThumbstickMapping, buttons: Dictionary, shared: ClickHold = null) -> void:
+	var pressed: bool = mapping.action_held("show_map", buttons)
 	if shared == null:
-		hold(mapping.action_held("show_map", buttons), delta)
+		press(pressed)
 		return
-	held_seconds = held_seconds + delta if shared.is_held() else 0.0
-	visible = shared.is_long_hold()
+	_was_pressed = pressed
+	visible = visible != shared.short_click_released()
 
 
 ## The hand that clicks `show_map`, which holds the map: left unless left-handed mode or a remap.

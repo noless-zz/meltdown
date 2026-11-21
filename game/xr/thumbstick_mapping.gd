@@ -21,11 +21,11 @@ extends RefCounted
 ## - the right stick click slots the part in the hold into a primary slot
 ##   (SLV-1, #312), a stand-in until a hand gesture is designed
 ## - X (left lower) is the comfort preset button (`PRESET_BUTTON`), read
-##   outside this mapping; the left stick click shows and hides the labels,
-##   also read outside this mapping (#181)
-## - holding the left stick click for `MapHologram.HOLD_SECONDS` shows the
-##   map hologram (`show_map`, MAP-1, #314); a shorter click still toggles
-##   the labels, on release
+##   outside this mapping; the left stick hold shows and hides the labels,
+##   also read outside this mapping (#181, #914)
+## - a click of the left stick opens or closes the map hologram (`show_map`,
+##   MAP-1, #314, #914, on release); holding it for `MapHologram.HOLD_SECONDS`
+##   toggles the labels instead
 ##
 ## Ship axes use the pilot's view, each -1..1 before scaling:
 ## `strafe` (+ right), `lift` (+ up), `forward` (+ ahead), `pitch` (+ nose up),

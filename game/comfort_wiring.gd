@@ -190,11 +190,11 @@ func label_button() -> String:
 	return _mapping.label_button()
 
 
-## True on the one frame a click should flip the labels. When the label
-## button also shows the map (`show_map`, #314), that is the release of a
-## click shorter than `MapHologram.HOLD_SECONDS`, as `click_hold` decides, so
-## holding for the map never flips them; otherwise it is the frame the button
-## goes down. Call once per frame, before the map reads `shared_click_hold`.
+## True on the one frame a press should flip the labels. When the label button
+## also toggles the map (`show_map`), that is the frame a hold reaches
+## `MapHologram.HOLD_SECONDS`, as `click_hold` decides, since a click toggles
+## the map (#914); otherwise the frame the button goes down. Call once per
+## frame, before the map reads `shared_click_hold`.
 func read_label_button(buttons: Dictionary) -> bool:
 	var pressed: bool = bool(buttons.get(label_button(), false))
 	var went_down: bool = pressed and not _label_button_held
@@ -202,7 +202,7 @@ func read_label_button(buttons: Dictionary) -> bool:
 	if not label_button_shows_map():
 		return went_down
 	click_hold.feed(pressed, float(clock.call()))
-	return click_hold.short_click_released()
+	return click_hold.long_hold_started()
 
 
 ## True while `show_map` is bound to the label button.
@@ -211,7 +211,7 @@ func label_button_shows_map() -> bool:
 
 
 ## The `ClickHold` the map must read while it shares the label button, null
-## when `show_map` is on another control and the map times its own hold.
+## when `show_map` is on another control and the map toggles on its own press.
 func shared_click_hold() -> ClickHold:
 	return click_hold if label_button_shows_map() else null
 

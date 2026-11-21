@@ -1,23 +1,40 @@
 extends RefCounted
 
 ## The control-label toggle in the main scene (#181, PLT-5, CMF-4, ARC-3): the
-## stick click of the hand that does not turn flips `XRRig.show_labels` once
-## per click, and the click never reaches the ship. The same click held for
-## `MapHologram.HOLD_SECONDS` shows the map instead (#314), so a click flips
-## the labels on release, and only when it was shorter than that.
+## stick click of the hand that does not turn flips `XRRig.show_labels`, and
+## the press never reaches the ship. Since #914 a short click of that button
+## toggles the map, so the labels flip on a hold of `MapHologram.HOLD_SECONDS`,
+## once, on the frame the hold reaches it.
 
 const FRAME: float = 1.0 / 90.0
 
 
-## The main scene with its label clock stopped, so every click counts as short
-## however slow the test machine is.
-func _main() -> Node:
+## A clock the test moves by hand.
+class StepClock:
+	extends RefCounted
+	var now: float = 0.0
+
+	func read() -> float:
+		return now
+
+
+## The main scene with its label clock replaced by `clock`, so a hold is timed
+## without waiting.
+func _main(clock: StepClock) -> Node:
 	var scene: PackedScene = load("res://main.tscn") as PackedScene
 	if scene == null:
 		return null
 	var main: Node = scene.instantiate()
-	(main.get("comfort") as ComfortWiring).clock = func() -> float: return 0.0
+	(main.get("comfort") as ComfortWiring).clock = clock.read
 	return main
+
+
+## Holds `button` past the threshold over two frames and releases it.
+static func _hold(main: Node, clock: StepClock, button: String) -> void:
+	main.call("apply_controls", _values({button: true}))
+	clock.now += MapHologram.HOLD_SECONDS + 0.05
+	main.call("apply_controls", _values({button: true}))
+	main.call("apply_controls", _values())
 
 
 static func _values(buttons: Dictionary = {}, right_stick: Vector2 = Vector2.ZERO) -> Dictionary:
@@ -32,7 +49,8 @@ static func _labels_shown(main: Node) -> bool:
 
 
 func test_labels_start_shown() -> String:
-	var main: Node = _main()
+	var clock: StepClock = StepClock.new()
+	var main: Node = _main(clock)
 	var shown: bool = _labels_shown(main)
 	main.free()
 	if not shown:
@@ -40,47 +58,63 @@ func test_labels_start_shown() -> String:
 	return ""
 
 
-func test_a_click_flips_once_on_release() -> String:
-	var main: Node = _main()
+func test_a_hold_flips_once_when_it_reaches_the_threshold() -> String:
+	var clock: StepClock = StepClock.new()
+	var main: Node = _main(clock)
 	var seen: Array[bool] = []
 	for press: int in 2:
 		for i: int in 5:
 			main.call("apply_controls", _values({"left_stick_click": true}))
 			seen.append(_labels_shown(main))
+			clock.now += 0.15
 		main.call("apply_controls", _values())
 		seen.append(_labels_shown(main))
 	main.free()
-	var expected: Array[bool] = [true, true, true, true, true, false,
-		false, false, false, false, false, true]
+	# Frames at 0, 0.15, 0.30, 0.45 (flips), 0.60; release changes nothing.
+	var expected: Array[bool] = [true, true, true, false, false, false,
+		false, false, false, true, true, true]
 	if seen != expected:
 		return "two held presses gave %s, expected %s" % [str(seen), str(expected)]
 	return ""
 
 
-func test_the_right_stick_click_does_nothing_right_handed() -> String:
-	var main: Node = _main()
-	main.call("apply_controls", _values({"right_stick_click": true}))
+func test_a_click_leaves_the_labels() -> String:
+	var clock: StepClock = StepClock.new()
+	var main: Node = _main(clock)
+	main.call("apply_controls", _values({"left_stick_click": true}))
+	clock.now += MapHologram.HOLD_SECONDS * 0.5
+	main.call("apply_controls", _values())
 	var shown: bool = _labels_shown(main)
 	main.free()
 	if not shown:
-		return "the right stick click hid the labels in right-handed mode"
+		return "a short click hid the labels; it toggles the map since #914"
+	return ""
+
+
+func test_the_right_stick_click_does_nothing_right_handed() -> String:
+	var clock: StepClock = StepClock.new()
+	var main: Node = _main(clock)
+	_hold(main, clock, "right_stick_click")
+	var shown: bool = _labels_shown(main)
+	main.free()
+	if not shown:
+		return "the right stick hold hid the labels in right-handed mode"
 	return ""
 
 
 func test_left_handed_uses_the_right_stick_click() -> String:
-	var main: Node = _main()
+	var clock: StepClock = StepClock.new()
+	var main: Node = _main(clock)
 	(main.get("mapping") as ThumbstickMapping).left_handed = true
-	main.call("apply_controls", _values({"left_stick_click": true}))
+	_hold(main, clock, "left_stick_click")
 	var after_left: bool = _labels_shown(main)
-	main.call("apply_controls", _values())
-	main.call("apply_controls", _values({"right_stick_click": true}))
-	main.call("apply_controls", _values())
+	_hold(main, clock, "right_stick_click")
 	var after_right: bool = _labels_shown(main)
 	main.free()
 	if not after_left:
-		return "left-handed: the left stick click hid the labels"
+		return "left-handed: the left stick hold hid the labels"
 	if after_right:
-		return "left-handed: the right stick click did not hide the labels"
+		return "left-handed: the right stick hold did not hide the labels"
 	return ""
 
 
@@ -95,14 +129,17 @@ func test_the_button_follows_the_hand() -> String:
 	return ""
 
 
-## ARC-3: the same frames with and without the click leave identical ships.
+## ARC-3: the same frames with and without the presses leave identical ships.
 func test_the_click_never_reaches_the_ship() -> String:
-	var with_click: Node = _main()
-	var without: Node = _main()
-	# Five clicks of three frames, the last released on frame 31.
+	var clock: StepClock = StepClock.new()
+	var with_click: Node = _main(clock)
+	var still: StepClock = StepClock.new()
+	var without: Node = _main(still)
+	# Five holds of three frames 0.25 s apart, the last released on frame 31.
 	for i: int in 32:
 		var stick: Vector2 = Vector2(0.6, -0.4)
 		var click: bool = i % 7 < 3
+		clock.now += 0.25
 		with_click.call("apply_controls", _values({"left_stick_click": click}, stick))
 		with_click.call("advance_frame", FRAME)
 		without.call("apply_controls", _values({}, stick))
@@ -129,29 +166,24 @@ func test_the_click_never_reaches_the_ship() -> String:
 	return ""
 
 
-## A wiring whose clock the test moves by hand.
-class StepClock:
-	var now: float = 0.0
-
-	func read() -> float:
-		return now
-
-
-func test_a_hold_for_the_map_never_flips_the_labels() -> String:
+func test_a_click_for_the_map_never_flips_the_labels() -> String:
 	var wiring: ComfortWiring = ComfortWiring.new(LatestInputSource.new(), ThumbstickMapping.new())
 	var clock: StepClock = StepClock.new()
 	wiring.clock = clock.read
 	var flips: Array[bool] = []
-	flips.append(wiring.read_label_button({"left_stick_click": true}))
-	clock.now = MapHologram.HOLD_SECONDS + 0.05
-	flips.append(wiring.read_label_button({"left_stick_click": true}))
-	flips.append(wiring.read_label_button({}))
-	# A short click straight after still flips.
+	# A short click (the map's) does not flip.
 	flips.append(wiring.read_label_button({"left_stick_click": true}))
 	clock.now += MapHologram.HOLD_SECONDS * 0.5
 	flips.append(wiring.read_label_button({}))
-	if flips != [false, false, false, false, true]:
-		return "a long hold then a short click gave %s" % str(flips)
+	# A hold straight after flips once, when it reaches the threshold.
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	clock.now += MapHologram.HOLD_SECONDS + 0.05
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	clock.now += 1.0
+	flips.append(wiring.read_label_button({"left_stick_click": true}))
+	flips.append(wiring.read_label_button({}))
+	if flips != [false, false, false, true, false, false]:
+		return "a short click then a long hold gave %s" % str(flips)
 	return ""
 
 

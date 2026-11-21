@@ -69,10 +69,12 @@ func attach(rig: Node, mapping: ThumbstickMapping) -> void:
 
 ## Once per frame, after the controls were read: marks the boxes holding the
 ## ship, redraws the map only when that set grew, moves and turns the marker to
-## the ship's interpolated pose (#679) and shows or hides the map. `shared` is the
-## label button's `ClickHold` when that button also shows the map, else null
-## (`ComfortWiring.shared_click_hold`).
-func update(session: LocalSession, delta_seconds: float, shared: ClickHold = null) -> void:
+## the ship's interpolated pose (#679) and toggles the map on a click of
+## `show_map` (#914). `shared` is the label button's `ClickHold` when that button
+## also toggles the map, else null (`ComfortWiring.shared_click_hold`). A new
+## session (a restart or a level switch) and a destroyed ship close the map.
+## `delta_seconds` is unused since the map stopped timing a hold (#914).
+func update(session: LocalSession, _delta_seconds: float, shared: ClickHold = null) -> void:
 	if hologram == null or session == null:
 		return
 	if session != _session:
@@ -96,13 +98,16 @@ func update(session: LocalSession, delta_seconds: float, shared: ClickHold = nul
 	hologram.set_ship_orientation(session.previous_ship().orientation.slerp(
 		session.current_ship().orientation, session.interpolation_fraction))
 	_follow_hand()
-	hologram.read(_mapping, buttons, delta_seconds, shared)
+	hologram.read(_mapping, buttons, shared)
+	if session.current_ship().is_destroyed():
+		hologram.close()  # Closed through the end screen and the restart (#914).
 
 
 ## Starts a new map for `session`'s walls: the level's boxes, or the test
 ## tunnel's one box. Open space has no walls and maps nothing.
 func _start(session: LocalSession) -> void:
 	_session = session
+	hologram.close()
 	var walls: BoxUnion = session.replay.walls()
 	_union = walls if walls != null else BoxUnion.new()
 	explored = ExploredBoxes.new(_union)

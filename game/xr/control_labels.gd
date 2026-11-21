@@ -12,7 +12,7 @@ extends RefCounted
 ## Each stick gets one label drawn as a cross, with each action at the end the
 ## stick is pushed to: pushed away at the top, pulled back at the bottom, left
 ## and right on the middle line (#606). One text line per axis did not say
-## which way acted. A stick click names its gesture: "click: labels, hold: map".
+## which way acted. A stick click names its gesture: "click: map, hold: labels".
 
 ## Ship axis or button action -> [word for the negative direction, word for
 ## the positive direction]. Directions follow `ThumbstickMapping`: `strafe`
@@ -28,7 +28,7 @@ const WORDS: Dictionary = {
 	"afterburner": ["boost", "boost"],
 	"fire_primary": ["fire", "fire"],
 	"slot_part": ["click: slot held part", "click: slot held part"],
-	"show_map": ["hold: map", "hold: map"],
+	"show_map": ["click: map", "click: map"],
 }
 ## Controls labelled in every layout, because what they do is not part of a
 ## layout. The menu tap (#763) and the reset hold (#162) stay on the left
@@ -41,9 +41,12 @@ const FIXED_LABELS: Dictionary = {
 ## which no layout binds but which swaps hands with the rest (#613).
 const PRESET_WORD: String = "comfort preset"
 ## The label of the control-label toggle (`ThumbstickMapping.LABEL_BUTTON`),
-## also read outside the layout. It comes first on its control, before the
-## map's hold, because the click is the shorter gesture.
+## also read outside the layout, while no map shares its control: then a click
+## flips the labels and the word comes first on its control.
 const LABEL_TOGGLE_WORD: String = "click: labels"
+## The same toggle while the map's click shares its control (#914): a hold flips
+## the labels, and the word comes after the map's click, the shorter gesture.
+const LABEL_HOLD_WORD: String = "hold: labels"
 ## Replaces the slot words while the hold is empty and a part floats near
 ## (#600): the owner read the click as "pick up", but flying through picks up.
 const PICKUP_HINT_WORD: String = "fly through to pick up"
@@ -94,8 +97,11 @@ static func for_layout(layout: Dictionary, left_handed: bool = false,
 				_add(actions, physical, pair[1])
 	_add(actions, _for_hand_mode(ThumbstickMapping.PRESET_BUTTON, left_handed), PRESET_WORD)
 	var toggle: String = _for_hand_mode(ThumbstickMapping.LABEL_BUTTON, left_handed)
-	_add(actions, toggle, LABEL_TOGGLE_WORD)
-	(actions[toggle] as Array).push_front((actions[toggle] as Array).pop_back())
+	if (actions.get(toggle, []) as Array).has(WORDS["show_map"][1]):
+		_add(actions, toggle, LABEL_HOLD_WORD)
+	else:
+		_add(actions, toggle, LABEL_TOGGLE_WORD)
+		(actions[toggle] as Array).push_front((actions[toggle] as Array).pop_back())
 	var labels: Dictionary = FIXED_LABELS.duplicate()
 	for physical: String in actions:
 		labels[physical] = _joined(actions[physical])
