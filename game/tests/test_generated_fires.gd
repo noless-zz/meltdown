@@ -3,8 +3,8 @@ extends RefCounted
 ## Generated levels place fire from the `fires` section of `debris.json` (#497,
 ## RUN-4, GEN-2, GEN-3, ARC-4): the section is checked key by key; fires come
 ## after every solid entry and leave `output_hash`, the reactor, the robots and
-## every solid entry as they were; and over seeds 0..999 every level passes
-## `LevelValidator` (its `debris_escape` check too, timed with the fires down,
+## every solid entry as they were; and over seeds 0..999 every level with fire
+## passes `LevelValidator`'s `debris_escape` check (timed with the fires down,
 ## since they are placed after `DebrisEscape.trim`) and the debris sweep, and
 ## every fire lies inside the level,
 ## outside the start module and within the section's ranges and distances. The
@@ -13,7 +13,9 @@ extends RefCounted
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
-const TIME_LIMIT_MS: int = 120000
+## Twice #903's 15 s target, for the CI runner's run-to-run spread, so a
+## slow-down fails here instead of going unnoticed.
+const TIME_LIMIT_MS: int = 30000
 const FIRES: Dictionary = {"count": [1, 2], "radius": [2, 3], "damage_per_second": 5,
 		"after_fraction": [0.05, 0.2], "min_start_distance": 15, "min_reactor_distance": 6,
 		"min_robot_distance": 2}
@@ -128,20 +130,22 @@ func test_the_same_seed_places_the_same_fires() -> String:
 
 
 func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String:
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var validator: LevelValidator = SeedSweep.load_validator()
 	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
 	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
 	var plan: DebrisPlan = _plan(_file())
 	var solid: DebrisPlan = _solid_only()
 	var radius: float = SeedSweep.ship_radius()
+	# Every seed is generated once for all the sweeps that read it (#903); the
+	# generating is timed on its own, and the limit is on this sweep's checks.
+	var generating: int = Time.get_ticks_msec()
+	var generators: Array[MineGenerator] = SeedSweep.shared_generators(0, SEEDS)
 	var started: int = Time.get_ticks_msec()
+	var generated_ms: int = started - generating
 	var placed: int = 0
 	var seeds_with_fire: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules,
-				SeedSweep.MODULE_COUNT, bridges)
+		var generator: MineGenerator = generators[level_seed]
 		var hash_before: int = generator.output_hash()
 		var bare: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, solid)
 		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
@@ -149,24 +153,32 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 		var fires: Array[int] = _fire_entries(level.debris)
 		if problem == "":
 			problem = _fires_fit(generator, level, fires, plan, robot_plan)
-		if problem == "":
-			var found: Array[String] = validator.validate(level, radius, true,
-					robot_plan.radii_by_id(), SeedSweep.start_module_boxes(generator))
-			problem = "" if found.is_empty() else "validator: %s" % found[0]
+		# The escape timed with every entry, fires too, fallen: the one validator
+		# check fire takes part in. The others see only the level's boxes,
+		# reactor, robots and solid entries, which `_unchanged` has just shown
+		# are those of the level without fire, and `test_level_validator.gd`'s
+		# sweep runs every check on the same generated levels, fires and all, over
+		# seeds 1..1000 (#903: running the whole validator here too was about a
+		# tenth of this sweep's time).
 		if problem == "" and not fires.is_empty():
 			problem = DebrisEscape.failure(level, level.debris, radius,
 					validator.escape_speed_mps, validator.escape_margin)
 		if problem == "" and level.debris != null:
-			problem = _meltdown(level, radius)
+			problem = _meltdown(level, radius, fires)
 		if problem != "":
 			return "seed %d: %s" % [level_seed, problem]
 		if not fires.is_empty():
 			seeds_with_fire += 1
 			placed += fires.size()
-	print("  fires over seeds 0..%d: %d placed on %d seeds" % [SEEDS - 1, placed, seeds_with_fire])
+	var elapsed: int = Time.get_ticks_msec() - started
+	print("  fires over seeds 0..%d: %d placed on %d seeds in %d ms (generating, shared: %d ms)" % [
+			SEEDS - 1, placed, seeds_with_fire, elapsed, generated_ms])
 	if placed == 0:
 		return "no fire placed over seeds 0..%d" % (SEEDS - 1)
-	var elapsed: int = Time.get_ticks_msec() - started
+	# The later sweeps read these generators instead of timing their own, so a
+	# slow generator still fails here (when this sweep was the one to generate).
+	if generated_ms > TIME_LIMIT_MS:
+		return "generating %d seeds took %d ms, limit %d" % [SEEDS, generated_ms, TIME_LIMIT_MS]
 	return "" if elapsed <= TIME_LIMIT_MS else "%d seeds took %d ms, limit %d" % [SEEDS, elapsed, TIME_LIMIT_MS]
 
 
@@ -219,6 +231,11 @@ func _fires_fit(generator: MineGenerator, level: LevelDef, fires: Array[int], pl
 	var debris: MeltdownDebris = level.debris
 	var start_boxes: Array[int] = SeedSweep.start_module_boxes(generator)
 	var radii: Array[int] = DebrisPlan.robot_radii_mm(level, robot_plan)
+	if fires.is_empty():
+		return ""
+	# Each is an escape path search, the same for every fire of the level.
+	var countdown: int = DebrisPlan.countdown_ticks(level)
+	var limit: int = plan.fall_limit_ticks(level)
 	for index: int in fires:
 		var at: Vector3i = debris.positions_mm[index]
 		var r: int = debris.radii_mm[index]
@@ -227,8 +244,6 @@ func _fires_fit(generator: MineGenerator, level: LevelDef, fires: Array[int], pl
 		if debris.fire_milli_dps[index] != section.milli_dps:
 			return "fire %d burns %d milli per second" % [index, debris.fire_milli_dps[index]]
 		var ticks: int = debris.after_ticks[index]
-		var countdown: int = DebrisPlan.countdown_ticks(level)
-		var limit: int = plan.fall_limit_ticks(level)
 		var earliest: int = DebrisFires.after_ticks(section.min_after_permille, countdown, limit)
 		var latest: int = DebrisFires.after_ticks(section.max_after_permille, countdown, limit)
 		if ticks < earliest or ticks > latest:
@@ -261,9 +276,25 @@ func _fires_fit(generator: MineGenerator, level: LevelDef, fires: Array[int], pl
 	return ""
 
 
-## Every entry falls due in order through `DebrisRouteGuard` with a ship at the
+## Every entry falls due in order through the route guard with a ship at the
 ## reactor; the start must stay reachable and no fire is ever held back.
-func _meltdown(level: LevelDef, radius: float) -> String:
+##
+## The fall order is `SeedSweep.debris_route`, which gives what flying the
+## meltdown gives without flying it (#513; `test_seed_sweep_debris.gd`
+## compares the two): flying it was over half of this sweep's time (#903).
+## Each fire is still put through `DebrisRouteGuard.advance` itself on the tick
+## it lights, so a guard that began holding fire back would fail here.
+func _meltdown(level: LevelDef, radius: float, fires: Array[int]) -> String:
+	var held: Array[int] = []
+	var held_flags: Array[bool] = []
+	var closed: String = SeedSweep.debris_route(level, radius, held, true, held_flags)
+	if closed != "":
+		return closed
+	for index: int in fires:
+		if index < held_flags.size() and held_flags[index]:
+			return "the guard's fall order held back fire %d" % index
+	if fires.is_empty():
+		return ""
 	var sim: Sim = Sim.new(0, 1)
 	sim.set_walls(level.union)
 	sim.set_start_pose(0, level.start_position(), Basis())
@@ -273,23 +304,16 @@ func _meltdown(level: LevelDef, radius: float) -> String:
 	reactor.destroyed = true
 	sim.set_reactor(reactor)
 	sim.set_debris(level.debris.fresh_copy())
-	var due: Array[int] = []
-	for ticks: int in sim.debris.after_ticks:
-		if not due.has(ticks):
-			due.append(ticks)
-	due.sort()
+	var lit: Array[int] = []
+	for index: int in fires:
+		if not lit.has(sim.debris.after_ticks[index]):
+			lit.append(sim.debris.after_ticks[index])
+	lit.sort()
 	var events: Array[SimEvent] = []
-	var all: Array[int] = []
-	for box: int in level.union.boxes.size():
-		all.append(box)
-	for ticks: int in due:
+	for ticks: int in lit:
 		sim.debris.elapsed_ticks = ticks - 1
 		DebrisRouteGuard.advance(sim, events)
-		var route: KnownRoute = KnownRoute.find(level.union, all, level.reactor.position(),
-				level.start_position(), sim.debris, radius)
-		if route.length_mm == EscapePath.UNREACHABLE:
-			return "debris %d ticks in closed every route out: %s" % [ticks, sim.debris.to_json()]
-	for index: int in sim.debris.size():
-		if sim.debris.is_fire(index) and sim.debris.is_skipped(index):
+	for index: int in fires:
+		if sim.debris.is_skipped(index):
 			return "the guard held back fire %d" % index
 	return ""
