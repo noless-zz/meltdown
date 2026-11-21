@@ -9,6 +9,8 @@ extends RefCounted
 const COUNT: int = 24
 
 static var _rows: Array[Array] = []
+## `turns_between`'s answers by `_direction_key` of from and to.
+static var _between: Dictionary[Vector2i, Array] = {}
 
 
 ## Each turn as three rows of a matrix, so `turned[i] = rows[i].dot(v)`. Built
@@ -35,10 +37,12 @@ static func rows() -> Array[Array]:
 ## `vector` turned by turn `turn`.
 static func apply(turn: int, vector: Vector3i) -> Vector3i:
 	var matrix: Array = rows()[turn]
-	return Vector3i(
-		(matrix[0] as Vector3i).x * vector.x + (matrix[0] as Vector3i).y * vector.y + (matrix[0] as Vector3i).z * vector.z,
-		(matrix[1] as Vector3i).x * vector.x + (matrix[1] as Vector3i).y * vector.y + (matrix[1] as Vector3i).z * vector.z,
-		(matrix[2] as Vector3i).x * vector.x + (matrix[2] as Vector3i).y * vector.y + (matrix[2] as Vector3i).z * vector.z)
+	var x: Vector3i = matrix[0]
+	var y: Vector3i = matrix[1]
+	var z: Vector3i = matrix[2]
+	return Vector3i(x.x * vector.x + x.y * vector.y + x.z * vector.z,
+		y.x * vector.x + y.y * vector.y + y.z * vector.z,
+		z.x * vector.x + z.y * vector.y + z.z * vector.z)
 
 
 ## The `ModuleConnector.AXES` name of a unit axis vector, or "" if it is not one.
@@ -60,12 +64,30 @@ static func outward(connector: ModuleConnector) -> Vector3i:
 
 
 ## The turns, lowest first, that point a connector facing `from` along `to`.
+## Worked out once per pair of directions and copied out, since the generator
+## asks for every placement it draws (#919).
 static func turns_between(from: Vector3i, to: Vector3i) -> Array[int]:
+	var key: Vector2i = Vector2i(_direction_key(from), _direction_key(to))
+	if key.x < 0 or key.y < 0:
+		return _turns_to(from, to)
+	if not _between.has(key):
+		_between[key] = _turns_to(from, to)
+	return _between[key].duplicate()
+
+
+static func _turns_to(from: Vector3i, to: Vector3i) -> Array[int]:
 	var found: Array[int] = []
 	for turn: int in COUNT:
 		if apply(turn, from) == to:
 			found.append(turn)
 	return found
+
+
+## 0..26 for a vector whose parts are each -1, 0 or 1, else -1.
+static func _direction_key(direction: Vector3i) -> int:
+	if direction != direction.clamp(-Vector3i.ONE, Vector3i.ONE):
+		return -1
+	return (direction.x + 1) + 3 * (direction.y + 1) + 9 * (direction.z + 1)
 
 
 static func _determinant(m: Array[Vector3i]) -> int:

@@ -75,6 +75,8 @@ var debris_note: String = ""
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## The bridges given to `generate`, for `loop_bias` (#438), or null.
 var _bridges: LoopBridges = null
+## Each module's turned boxes, for this generator's placements (#919).
+var _fit: PlacementFit = PlacementFit.new()
 
 
 ## Builds a level of up to `count` modules from `modules` (rejected modules,
@@ -160,6 +162,7 @@ func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) 
 			and _pick(LoopBias.SCALE) < _bridges.loop_bias_permille
 	var kept: PlacementChoice = null
 	var fitted: int = 0
+	var open_axes: PackedInt32Array = LoopBias.open_axes(self) if biased else PackedInt32Array()
 	for attempt: int in MAX_TRIES:
 		if open_connectors.is_empty():
 			return false
@@ -171,7 +174,7 @@ func _place_one(usable: Array[ModuleDef], by_id: Dictionary[String, ModuleDef]) 
 			break
 		if kept == null:
 			kept = choice
-		if LoopBias.facing(self, _bridges, choice) > 0:
+		if LoopBias.facing(self, _bridges, choice, open_axes) > 0:
 			kept = choice
 			break
 		fitted += 1
@@ -221,9 +224,9 @@ func _place(module: ModuleDef, turn: int, offset: Vector3i, parent: int, parent_
 	placement.parent_connector = parent_connector
 	placement.connector = own
 	placement.first_box = min_mm.size()
-	for box: BoxBounds in module.boxes:
-		var corners: Array[Vector3i] = _turned_box(box, turn, offset)
-		add_box(corners[0], corners[1])
+	var turned: Array[Vector3i] = _fit.turned_boxes(module, turn)
+	for corner: int in range(0, turned.size() - 2, 2):
+		add_box(turned[corner] + offset, turned[corner + 1] + offset)
 	placement.end_box = min_mm.size()
 	if not door.is_empty():
 		placement.door_box = min_mm.size()
@@ -237,28 +240,18 @@ func _place(module: ModuleDef, turn: int, offset: Vector3i, parent: int, parent_
 
 
 ## True if the module's turned boxes and its doorway overlap nothing placed,
-## apart from the doorway reaching into the parent module.
+## apart from the doorway reaching into the parent module (`PlacementFit`).
 func _fits(module: ModuleDef, turn: int, offset: Vector3i, door: Array[Vector3i], parent: int) -> bool:
-	var parent_placement: ModulePlacement = placements[parent]
-	for index: int in min_mm.size():
-		if index >= parent_placement.first_box and index < parent_placement.end_box:
-			pass
-		elif MineGenerator.overlaps(door[0], door[1], min_mm[index], max_mm[index]):
-			return false
-	for box: BoxBounds in module.boxes:
-		var corners: Array[Vector3i] = _turned_box(box, turn, offset)
-		for index: int in min_mm.size():
-			if MineGenerator.overlaps(corners[0], corners[1], min_mm[index], max_mm[index]):
-				return false
-	return true
+	return _fit.fits(self, module, turn, offset, door, parent)
 
 
-## True if two boxes share some volume; boxes that only touch do not.
+## True if two boxes share some volume; boxes that only touch do not. Per
+## axis, the smaller high must be above the larger low, written out as its
+## four comparisons so no call is made (#919).
 static func overlaps(a_min: Vector3i, a_max: Vector3i, b_min: Vector3i, b_max: Vector3i) -> bool:
-	for axis: int in 3:
-		if mini(a_max[axis], b_max[axis]) <= maxi(a_min[axis], b_min[axis]):
-			return false
-	return true
+	return a_max.x > a_min.x and a_max.x > b_min.x and b_max.x > a_min.x and b_max.x > b_min.x \
+			and a_max.y > a_min.y and a_max.y > b_min.y and b_max.y > a_min.y and b_max.y > b_min.y \
+			and a_max.z > a_min.z and a_max.z > b_min.z and b_max.z > a_min.z and b_max.z > b_min.z
 
 
 ## The doorway box for an opening: its square across the axis, `DOOR_DEPTH_MM`
@@ -270,15 +263,6 @@ static func door_for(connector: ModuleConnector) -> Array[Vector3i]:
 	low[connector.axis()] = connector.position_mm[connector.axis()] - DOOR_DEPTH_MM
 	high[connector.axis()] = connector.position_mm[connector.axis()] + DOOR_DEPTH_MM
 	return [low, high]
-
-
-## A module box turned and moved, as millimetre corners [min, max].
-static func _turned_box(box: BoxBounds, turn: int, offset: Vector3i) -> Array[Vector3i]:
-	var scale: float = float(RobotSpawn.SCALE)
-	var a: Vector3i = ModuleTurns.apply(turn, Vector3i((box.min_corner * scale).round())) + offset
-	var b: Vector3i = ModuleTurns.apply(turn, Vector3i((box.max_corner * scale).round())) + offset
-	return [Vector3i(mini(a.x, b.x), mini(a.y, b.y), mini(a.z, b.z)),
-			Vector3i(maxi(a.x, b.x), maxi(a.y, b.y), maxi(a.z, b.z))]
 
 
 ## Appends a box to the level, in millimetres and in `union`.

@@ -1,12 +1,14 @@
 extends RefCounted
 
 ## The level validator (#317, GEN-3, GEN-2, GEN-5, ARC-1): generated levels
-## convert to a `LevelDef`, seeds 1 to 1,000 all pass in under 20 s, and hand-
-## built broken levels fail with a message naming the check and the box.
+## convert to a `LevelDef`, seeds 1 to 1,000 all pass, and hand-built broken
+## levels fail with a message naming the check and the box. The sweep aims at
+## 15 s on the CI runner (#919); its limit is twice that, for the runners'
+## spread (decision record 0002), so only a real slow-down fails it.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const SEEDS: int = 1000
-const TIME_LIMIT_MS: int = 20000
+const TIME_LIMIT_MS: int = 30000
 const SHIP_RADIUS: float = 1.0
 
 
@@ -170,7 +172,7 @@ func test_empty_level_fails() -> String:
 	return "" if _has(failures, "piece", "no boxes") else "empty level passed: %s" % [failures]
 
 
-func test_seeds_1_to_1000_pass_in_under_20_s() -> String:
+func test_seeds_1_to_1000_pass_within_the_time_limit() -> String:
 	var result: Dictionary = SeedSweep.run(1, SEEDS)
 	print(SeedSweep.summary(result))
 	print(SeedSweep.timing(result))

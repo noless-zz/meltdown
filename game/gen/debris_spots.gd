@@ -71,7 +71,7 @@ static func _add(spots: Array[Vector3i], seen: Dictionary[Vector3i, bool], spot:
 
 
 static func _holds(generator: MineGenerator, box: int, point: Vector3i) -> bool:
-	for axis: int in 3:
-		if point[axis] < generator.min_mm[box][axis] or point[axis] > generator.max_mm[box][axis]:
-			return false
-	return true
+	var low: Vector3i = generator.min_mm[box]
+	var high: Vector3i = generator.max_mm[box]
+	return point.x >= low.x and point.x <= high.x and point.y >= low.y and point.y <= high.y \
+			and point.z >= low.z and point.z <= high.z
