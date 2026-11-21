@@ -147,14 +147,20 @@ func test_bad_flight_test_keys_are_rejected() -> String:
 	return ""
 
 
-## m1 still parses and ends with the step; the steps before it keep their places.
-func test_m1_runs_the_flight_test_last() -> String:
+## m1 still parses and has the step; the steps before it keep their places.
+## Later steps (reset_to_start, #776) may follow it, so it is found by id.
+func test_m1_runs_the_flight_test() -> String:
 	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
 	if suite.error != "":
 		return suite.error
-	var step: AcceptanceStep = suite.steps[suite.steps.size() - 1]
-	if step.id != STEP_ID or step.checks != [AcceptanceStep.CHECK_FLIGHT_TEST_RESULT, AcceptanceStep.CHECK_NO_SCRIPT_ERRORS]:
-		return "last step %s with %s" % [step.id, step.checks]
+	var step: AcceptanceStep = null
+	for candidate: AcceptanceStep in suite.steps:
+		if candidate.id == STEP_ID:
+			step = candidate
+	if step == null:
+		return "no %s step" % STEP_ID
+	if step.checks != [AcceptanceStep.CHECK_FLIGHT_TEST_RESULT, AcceptanceStep.CHECK_NO_SCRIPT_ERRORS]:
+		return "step %s with %s" % [step.id, step.checks]
 	if step.flight_test_answers.size() != _plan().segments.size() \
 			or PresetRecommender.recommend(_plan(), step.flight_test_answers.slice(0, 3)) != step.expected_preset:
 		return "answers %s expect %d" % [step.flight_test_answers, step.expected_preset]
