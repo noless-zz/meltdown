@@ -16,7 +16,9 @@ const PAGE_IDS: Array[String] = [CREW, STORE, CRAFT, FIT]
 const KEY_PAGES: String = "pages"
 const KEY_EMPTY_CREW: String = "empty_crew"
 const KEY_EMPTY_STORE: String = "empty_store"
-const KEYS: Array[String] = [KEY_PAGES, KEY_EMPTY_CREW, KEY_EMPTY_STORE]
+## The row words, read by `HubWords` (#1058).
+const KEY_TEXT: String = "text"
+const KEYS: Array[String] = [KEY_PAGES, KEY_EMPTY_CREW, KEY_EMPTY_STORE, KEY_TEXT]
 const PAGE_KEYS: Array[String] = ["id", "title"]
 const TEXT_MAX_LENGTH: int = 120
 
@@ -24,6 +26,8 @@ const TEXT_MAX_LENGTH: int = 120
 var pages: Array[String] = []
 var empty_crew: String = ""
 var empty_store: String = ""
+## The words of every row a hub panel shows (#1058).
+var words: HubWords = HubWords.new()
 ## Set by `parse_json` when the text was rejected; the config is then empty.
 var error: String = ""
 var _titles: Dictionary[String, String] = {}
@@ -59,8 +63,12 @@ static func parse_json(text: String) -> HubConfig:
 		message = _check_text(KEY_EMPTY_CREW, data[KEY_EMPTY_CREW])
 	if message == "":
 		message = _check_text(KEY_EMPTY_STORE, data[KEY_EMPTY_STORE])
+	var words: HubWords = HubWords.parse(data[KEY_TEXT], TEXT_MAX_LENGTH) if message == "" else null
+	if message == "" and words.error != "":
+		message = words.error
 	if message != "":
 		return _failed(message)
+	config.words = words
 	config.empty_crew = data[KEY_EMPTY_CREW]
 	config.empty_store = data[KEY_EMPTY_STORE]
 	return config

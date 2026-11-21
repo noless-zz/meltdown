@@ -6,5 +6,29 @@
 		{"id": "fit", "title": "Fitting Bay"}
 	],
 	"empty_crew": "Nobody aboard yet. Bring trapped miners home to sign them on.",
-	"empty_store": "The locker is bare. Escape a mine with components to fill it."
+	"empty_store": "The locker is bare. Escape a mine with components to fill it.",
+	"text": {
+		"crew_row": "{role}: +{amount} {stat}",
+		"store_row": "{name}, tier {tier}: {count}",
+		"ready_header": "Ready to build",
+		"locked_header": "Out of reach",
+		"built_header": "Already built",
+		"ready_row": "Build {name}",
+		"locked_row": "{name}, locked: {reason}",
+		"built_row": "{name}",
+		"slot_row": "{slot}: {fitted}",
+		"slot_upgrade": "{name}",
+		"slot_part": "{part} (stock)",
+		"slot_empty": "nothing mounted",
+		"fit_option_row": "Mount {name}",
+		"clear_row": "Strip this slot back to stock",
+		"launch_row": "Drop into the mine",
+		"slot_names": {"primary": "Primary {number}", "secondary": "Secondary {number}", "utility": "Utility {number}"},
+		"stat_names": {
+			"map_reveal": "map reveal",
+			"shield_max": "shield",
+			"salvage_slots": "salvage slots",
+			"meltdown_seconds": "seconds before meltdown"
+		}
+	}
 }
