@@ -1,0 +1,9 @@
+{
+	"id": "tuned_thrusters",
+	"name": "Tuned Thrusters",
+	"kind": "engine",
+	"stats": {
+		"max_speed": 1.1,
+		"acceleration": 1.15
+	}
+}

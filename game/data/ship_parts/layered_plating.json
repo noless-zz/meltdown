@@ -1,0 +1,8 @@
+{
+	"id": "layered_plating",
+	"name": "Layered Plating",
+	"kind": "hull",
+	"stats": {
+		"max_hull": 1.25
+	}
+}

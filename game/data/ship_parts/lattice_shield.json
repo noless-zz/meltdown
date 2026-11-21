@@ -1,0 +1,9 @@
+{
+	"id": "lattice_shield",
+	"name": "Lattice Shield",
+	"kind": "shield",
+	"stats": {
+		"max_shield": 1.15,
+		"shield_recharge": 1.3
+	}
+}

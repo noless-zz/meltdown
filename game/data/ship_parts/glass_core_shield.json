@@ -1,0 +1,10 @@
+{
+	"id": "glass_core_shield",
+	"name": "Glass Core Shield",
+	"kind": "shield",
+	"stats": {
+		"max_shield": 1.4,
+		"shield_recharge": 1.2,
+		"shield_energy_cost": 0.8
+	}
+}
