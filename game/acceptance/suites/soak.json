@@ -1,5 +1,6 @@
 {
 	"name": "soak",
+	"manual_only": true,
 	"steps": [
 		{
 			"id": "frame_budget_25min",

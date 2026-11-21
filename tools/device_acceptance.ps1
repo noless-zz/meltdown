@@ -20,7 +20,9 @@ Runs in Windows PowerShell 5.1 with nothing beyond adb. By hand:
   powershell -ExecutionPolicy Bypass -File tools\device_acceptance.ps1 -Suite m1
 
 .PARAMETER Suite
-The suite name the game's --acceptance switch takes; `all` runs every suite.
+The suite name the game's --acceptance switch takes; `all` runs every suite,
+`nightly` every suite but the manual-only soak (#812). With `soak` or `all`, pass
+a -TimeoutSeconds that fits the 25-minute soak; the workflow uses 3000.
 #>
 [CmdletBinding()]
 param(
