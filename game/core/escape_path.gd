@@ -102,13 +102,6 @@ static func edge_mm(a: Vector3i, b: Vector3i) -> int:
 	return roundi(Vector3(b - a).length())
 
 
-static func _share_a_box(a: Array, b: Array) -> bool:
-	for box: Variant in a:
-		if b.has(box):
-			return true
-	return false
-
-
 ## Appends every box centre and the centre of every opening to the nodes.
 static func _add_box_nodes(walls: BoxUnion, points: Array[Vector3i], members: Array[Array]) -> void:
 	var count: int = walls.boxes.size()
@@ -130,8 +123,11 @@ static func _add_box_nodes(walls: BoxUnion, points: Array[Vector3i], members: Ar
 
 
 ## Every node's distance from node 0, UNREACHABLE where none; nodes 1 to
-## `ends` are reached but never passed through.
-static func _distances(points: Array[Vector3i], members: Array[Array], ends: int) -> Array[int]:
+## `ends` are reached but never passed through. With `stop_at_first` the search
+## ends once node 1 is settled, so only its distance is final. A plain O(n²)
+## search; on a tie the lowest-numbered node is settled first.
+static func _distances(points: Array[Vector3i], members: Array[Array], ends: int,
+		stop_at_first: bool = false) -> Array[int]:
 	var size: int = points.size()
 	var distance: Array[int] = []
 	var settled: Array[bool] = []
@@ -139,6 +135,12 @@ static func _distances(points: Array[Vector3i], members: Array[Array], ends: int
 	distance.fill(UNREACHABLE)
 	settled.resize(size)
 	settled.fill(false)
+	var in_box: Dictionary[int, Array] = {}
+	for n: int in size:
+		for box: Variant in members[n]:
+			if not in_box.has(box):
+				in_box[box] = []
+			in_box[box].append(n)
 	distance[0] = 0
 	while true:
 		var current: int = -1
@@ -149,44 +151,24 @@ static func _distances(points: Array[Vector3i], members: Array[Array], ends: int
 		if current < 0:
 			break
 		settled[current] = true
+		if stop_at_first and current == 1:
+			break
 		if current >= 1 and current <= ends:
 			continue
-		for n: int in size:
-			if settled[n] or not _share_a_box(members[current], members[n]):
-				continue
-			var through: int = distance[current] + edge_mm(points[current], points[n])
-			if distance[n] < 0 or through < distance[n]:
-				distance[n] = through
+		# The nodes sharing a box with this one, box by box, rather than
+		# testing every pair: the sweep runs this for every candidate module.
+		for box: Variant in members[current]:
+			for n: int in in_box[box]:
+				if settled[n]:
+					continue
+				var through: int = distance[current] + edge_mm(points[current], points[n])
+				if distance[n] < 0 or through < distance[n]:
+					distance[n] = through
 	return distance
 
 
-## Node 0 is the start and node 1 the exit. A plain O(n²) search: levels have tens
-## of boxes, and it runs once per run, on the tick the reactor dies.
+## Node 0 is the start and node 1 the exit; the search stops once the exit
+## is settled. Levels have tens of boxes, and it runs once per run, on the tick
+## the reactor dies.
 static func _dijkstra(points: Array[Vector3i], members: Array[Array]) -> int:
-	var size: int = points.size()
-	var distance: Array[int] = []
-	var settled: Array[bool] = []
-	distance.resize(size)
-	distance.fill(UNREACHABLE)
-	settled.resize(size)
-	settled.fill(false)
-	distance[0] = 0
-	while true:
-		var current: int = -1
-		for n: int in size:
-			# Strictly less keeps the lowest-numbered node on a tie.
-			if not settled[n] and distance[n] >= 0 \
-					and (current < 0 or distance[n] < distance[current]):
-				current = n
-		if current < 0:
-			return UNREACHABLE
-		if current == 1:
-			return distance[1]
-		settled[current] = true
-		for n: int in size:
-			if settled[n] or not _share_a_box(members[current], members[n]):
-				continue
-			var through: int = distance[current] + edge_mm(points[current], points[n])
-			if distance[n] < 0 or through < distance[n]:
-				distance[n] = through
-	return UNREACHABLE
+	return _distances(points, members, 1, true)[1]
