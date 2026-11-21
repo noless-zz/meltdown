@@ -170,3 +170,27 @@ func test_main_scene_watches_both_hands_for_the_probe() -> String:
 	if not source.contains("_smoke_probe.watch_hands(boost_haptics.left_controller, boost_haptics.right_controller)"):
 		return "main.gd does not pass both controller nodes to the smoke probe"
 	return ""
+
+
+func test_progress_lines_mark_the_first_frame_and_every_thirtieth() -> String:
+	var printed: Array[int] = []
+	for frame: int in range(-1, 125):
+		if not XrSmokeProbe.progress_line(frame, 0).is_empty():
+			printed.append(frame)
+	var expected: Array[int] = [1, 30, 60, 90, 120]
+	if printed != expected:
+		return "progress lines on frames %s, expected %s" % [str(printed), str(expected)]
+	return ""
+
+
+func test_first_frame_line_is_what_the_smoke_script_looks_for() -> String:
+	# tools/xr_smoke.sh times start-up by matching this exact start (#727).
+	var line: String = XrSmokeProbe.progress_line(1, 4321)
+	if not line.begins_with('MELTDOWN_XR_SMOKE_FRAME {"frame":1,'):
+		return "first frame line was %s" % line
+	if line.begins_with(XrSmokeProbe.LINE_PREFIX):
+		return "progress line would be read as the result line: %s" % line
+	var parsed: Variant = JSON.parse_string(line.substr(XrSmokeProbe.FRAME_PREFIX.length()))
+	if not parsed is Dictionary or int((parsed as Dictionary).get("msec", -1)) != 4321:
+		return "progress line does not carry the engine clock: %s" % line
+	return ""

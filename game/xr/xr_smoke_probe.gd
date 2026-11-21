@@ -10,6 +10,10 @@ extends RefCounted
 
 const ARG_PREFIX: String = "--xr-smoke-frames="
 const LINE_PREFIX: String = "MELTDOWN_XR_SMOKE "
+## Progress lines, so `tools/xr_smoke.sh` can time the phases and a run that
+## runs out of time shows how far it got (issue #727).
+const FRAME_PREFIX: String = "MELTDOWN_XR_SMOKE_FRAME "
+const FRAME_EVERY: int = 30
 
 var _frames_total: int = 0
 var _frames_seen: int = 0
@@ -84,12 +88,24 @@ func watch_hands(left: XRController3D, right: XRController3D) -> void:
 		right != null and right.get_has_tracking_data())
 
 
+## The progress line for a frame, or "" when that frame prints none: the
+## first frame marks the end of start-up, every FRAME_EVERY-th one shows the
+## pace. `msec` is the engine's own clock since start.
+static func progress_line(frame: int, msec: int) -> String:
+	if frame != 1 and (frame <= 0 or frame % FRAME_EVERY != 0):
+		return ""
+	return FRAME_PREFIX + JSON.stringify({"frame": frame, "msec": msec})
+
+
 ## Counts one frame. Returns true exactly once, on the frame that reaches the
 ## requested count; a disabled probe never returns true.
 func tick() -> bool:
 	if not is_enabled() or _frames_seen >= _frames_total:
 		return false
 	_frames_seen += 1
+	var line: String = XrSmokeProbe.progress_line(_frames_seen, Time.get_ticks_msec())
+	if not line.is_empty():
+		print(line)
 	return _frames_seen == _frames_total
 
 
