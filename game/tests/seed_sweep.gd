@@ -13,14 +13,15 @@ const GENERATOR_FILE: String = SeedLevel.GENERATOR_FILE
 ## The `by_check` key for levels whose debris closed the way out (#440, RUN-4).
 const DEBRIS_ROUTE: String = "debris_route"
 const DebrisKinds := preload("res://tests/sweep_debris_kinds.gd")
+const ReactorDistance := preload("res://tests/sweep_reactor_distance.gd")
 ## Failure messages kept in a result, so 10,000 bad seeds do not flood a log.
 const KEPT_FAILURES: int = 10
 ## Where a sweep's time goes, as `run` keys "stage_ms" (#513): building the
 ## generator, turning it into a level (reactor, robots, debris and its trimming),
 ## each group `LevelValidator.validate` reports to its `on_check`, and the
-## `debris_route` check.
+## `debris_route` check, and measuring the reactor's distance (#924).
 const STAGES: Array[String] = ["generate", "build", "piece", "reachable", "escape",
-		"debris_escape", "robots", DEBRIS_ROUTE]
+		"debris_escape", "robots", DEBRIS_ROUTE, "distance"]
 
 
 # The loaders below hand on `SeedLevel`'s (#441), so the sweep and `--seed`
@@ -92,7 +93,8 @@ static func shared_generators(first_seed: int, count: int) -> Array[MineGenerato
 ## still validated), "looped" (levels with at least one loop), "robots" (robots
 ## placed over all levels), "debris" (debris entries placed over all levels),
 ## "debris_held" (entries `DebrisRouteGuard` held back), "debris_by_kind"
-## (those two split by `DebrisKinds.KINDS`, each kind's "placed" and "held"), "ms", "stage_ms"
+## (those two split by `DebrisKinds.KINDS`, each kind's "placed" and "held"),
+## "reactor_distance" (`ReactorDistance`'s stats, #924), "ms", "stage_ms"
 ## (milliseconds spent in each of `STAGES`), "by_check"
 ## (seeds failing each of `LevelValidator.CHECKS`, plus "level" for levels that
 ## did not build and `DEBRIS_ROUTE` for levels whose debris closed the way
@@ -112,7 +114,7 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		by_check[check] = 0
 	by_check[DEBRIS_ROUTE] = 0
 	var result: Dictionary = {"seeds": count, "passed": 0, "failed": 0, "short": 0, "looped": 0, "robots": 0,
-			"debris": 0, "debris_held": 0, "debris_by_kind": DebrisKinds.empty(), "by_check": by_check, "failures": [] as Array[String]}
+			"debris": 0, "debris_held": 0, "debris_by_kind": DebrisKinds.empty(), "reactor_distance": ReactorDistance.empty(), "by_check": by_check, "failures": [] as Array[String]}
 	# A broken data file must not pass every seed on the defaults.
 	if inputs.error != "":
 		result["failed"] = count
@@ -143,6 +145,8 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		var level: LevelDef = inputs.level_of(generator)
 		mark.call("build")
 		result["robots"] += level.robots.spawns.size()
+		ReactorDistance.add(result["reactor_distance"], level)
+		mark.call("distance")
 		var found: Array[String] = []
 		if level.error != "":
 			found.append("level: %s" % level.error)
@@ -283,9 +287,10 @@ static func timing(result: Dictionary) -> String:
 
 ## One line for a log: "level validator: 1000 seeds, 1000 passed, 0 failed,
 ## 0 stopped short, 812 ms, debris 3500, debris_held 1200, rocks 2900,
-## rocks_held 1100, doors 400, doors_held 100, fires 200, fires_held 0; failing
-## seeds by check: level 0, piece 0, ...". The debris counts, those by kind
-## (#887) and the by-check part are each left out when the result has none.
+## rocks_held 1100, doors 400, doors_held 100, fires 200, fires_held 0,
+## escape_m_min 61.2, ..., reactor_near_start 0; failing seeds by check: level
+## 0, piece 0, ...". The debris counts, those by kind (#887), the reactor's
+## distance (#924) and the by-check part are each left out when the result has none.
 static func summary(result: Dictionary) -> String:
 	var line: String = "level validator: %d seeds, %d passed, %d failed, %d stopped short, %d ms" % [
 			result["seeds"], result["passed"], result["failed"], result["short"], result["ms"]]
@@ -293,6 +298,8 @@ static func summary(result: Dictionary) -> String:
 		line += ", debris %d, debris_held %d" % [result["debris"], result["debris_held"]]
 	if result.has("debris_by_kind"):
 		line += DebrisKinds.summary_part(result["debris_by_kind"])
+	if result.has("reactor_distance"):
+		line += ReactorDistance.summary_part(result["reactor_distance"])
 	if not result.has("by_check"):
 		return line
 	var counts: Array[String] = []
