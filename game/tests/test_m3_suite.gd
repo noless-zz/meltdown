@@ -80,7 +80,7 @@ func test_m3_suite_loads_with_the_escape_step() -> String:
 	# The G2 escape stays first; the generated seed's step follows it (#460),
 	# then the blast-door seed's (#516), then the line-of-sight seed's (#615),
 	# then the fire seed's (#517), then the pause during the meltdown (#886).
-	if suite.name != SUITE_NAME or suite.steps.size() != 6:
+	if suite.name != SUITE_NAME or suite.steps.size() != 7:
 		return "suite %s has %d steps" % [suite.name, suite.steps.size()]
 	var escape: AcceptanceStep = suite.steps[0]
 	if escape.id != STEP_ID or escape.replay_path != REPLAY_PATH or escape.level != LEVEL:

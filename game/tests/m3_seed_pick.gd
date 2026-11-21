@@ -12,6 +12,11 @@ extends RefCounted
 ## also be down when the bot gets out. The fire step (#517) needs the bot to
 ## escape having been burnt by fire on the way (`FireBurnCheck`).
 ##
+## The door-marked step (#899) needs a door down whose cross the map must draw:
+## before the door falls the bot has explored the boxes on both sides of at
+## least one opening it closes, so `map_route` sees the mark in the running
+## game (`doors_marked`).
+##
 ## A seed another generated step already flies can be excluded (#548), so the
 ## suite covers two generated levels instead of one and a generator change
 ## does not move both steps at once.
@@ -30,6 +35,7 @@ const SUITE_PATH: String = "res://acceptance/suites/m3.json"
 const NEED_DEBRIS: String = "debris"
 const NEED_DOOR: String = "door"
 const NEED_BURN: String = "burn"
+const NEED_DOOR_MARKED: String = "door_marked"
 
 
 ## How the bot flew one seed: whether it escaped, how many meltdown entries
@@ -42,6 +48,9 @@ class Flown extends RefCounted:
 	var fallen: int = 0
 	var doors_fallen: int = 0
 	var burnt_ticks: int = 0
+	## Doors that made a mark on the map the tick they fell (#899): a blocked
+	## opening or split between boxes the bot had explored by then.
+	var doors_marked: int = 0
 	var session: LocalSession = null
 	var reason: String = ""
 
@@ -55,17 +64,50 @@ class Flown extends RefCounted:
 				return burnt_ticks >= 1
 			NEED_DOOR:
 				return fallen >= 1 and doors_fallen >= 1
+			NEED_DOOR_MARKED:
+				return fallen >= 1 and doors_marked >= 1
 		return fallen >= 1
 
 	static func of(level_seed: int, escaped: bool, fallen: int, doors_fallen: int = 0,
-			burnt_ticks: int = 0) -> Flown:
+			burnt_ticks: int = 0, doors_marked: int = 0) -> Flown:
 		var flown: Flown = Flown.new()
 		flown.level_seed = level_seed
 		flown.escaped = escaped
 		flown.fallen = fallen
 		flown.doors_fallen = doors_fallen
 		flown.burnt_ticks = burnt_ticks
+		flown.doors_marked = doors_marked
 		return flown
+
+
+## Counts, while the bot flies, the doors that make a mark on the held map the
+## tick they fall: the boxes the ship has passed through so far, as the map's
+## `ExploredBoxes` keeps them, and the door alone down, searched as
+## `AcceptanceMapRouteCheck` searches it. Reads the session; writes nothing.
+class DoorMarks extends RefCounted:
+	var marked: int = 0
+	var _session: LocalSession = null
+	var _explored: ExploredBoxes = null
+	var _walls: BoxUnion = null
+	var _seen: Array[int] = []
+
+	func _init(session: LocalSession) -> void:
+		_session = session
+		_walls = session.replay.walls()
+		_explored = ExploredBoxes.new(_walls)
+
+	func after_tick() -> void:
+		var ship: ShipState = _session.current_ship()
+		_explored.visit(ship.position)
+		for door: int in AcceptanceMapRouteCheck._fallen_doors(_session.sim.debris):
+			if _seen.has(door):
+				continue
+			_seen.append(door)
+			var own: KnownRoute = EscapePath.known_route(_walls, _explored.explored(), ship.position,
+				ReplayStartLine.position(_session.replay, 0),
+				AcceptanceMapRouteCheck._only(_session.sim.debris, door), ship.radius)
+			if own.blocked_openings.size() + own.blocked_splits.size() > 0:
+				marked += 1
 
 
 ## The lowest seed in `results` that qualifies and is not in `excluded`, as
@@ -79,7 +121,8 @@ static func pick(results: Array[Flown], first: int = SEARCH_FIRST, last: int = S
 		if flown.qualifies(need) and (best < 0 or flown.level_seed < best):
 			best = flown.level_seed
 	if best < 0:
-		var wanted: String = {NEED_DOOR: "with a blast door fallen", NEED_BURN: "having been burnt by fire"} \
+		var wanted: String = {NEED_DOOR: "with a blast door fallen", NEED_BURN: "having been burnt by fire",
+				NEED_DOOR_MARKED: "with a door fallen across explored boxes"} \
 			.get(need, "with a meltdown entry fallen")
 		return {"error": "no seed in %d..%d escapes %s" % [first, last, wanted]}
 	return {"seed": best}
@@ -98,12 +141,15 @@ static func fly(level_seed: int) -> Flown:
 		LocalSession.load_tuning(AcceptanceStepLevel.SHIP_FILE))
 	source.bot = BotPilot.new(session.sim, 0, level)
 	var sim: Sim = session.sim
+	var marks: DoorMarks = DoorMarks.new(session)
 	while sim.outcome() == ExitRule.Outcome.RUNNING and sim.ships[0].hull > 0.0 and sim.tick < TICK_LIMIT:
 		var shield: float = sim.ships[0].shield
 		var hull: float = sim.ships[0].hull
 		session.advance(ShipState.TICK_DT)
 		if FireBurnCheck.burnt_this_tick(sim, shield, hull):
 			flown.burnt_ticks += 1
+		marks.after_tick()
+	flown.doors_marked = marks.marked
 	var measured: Dictionary = {}
 	AcceptanceStateChecks.debris_fallen(sim, measured)
 	AcceptanceStateChecks.door_fallen("", sim, measured)
@@ -111,9 +157,10 @@ static func fly(level_seed: int) -> Flown:
 	flown.fallen = int(measured.get("debris_fallen", 0))
 	flown.doors_fallen = int(measured.get("doors_fallen", 0))
 	flown.session = session
-	flown.reason = "outcome %s at tick %d, %d of %d entries and %d of %d doors fallen, burnt on %d ticks" % [
+	flown.reason = "outcome %s at tick %d, %d of %d entries and %d of %d doors fallen (%d marked), burnt on %d ticks" % [
 		AcceptanceStateChecks.outcome_name(sim.outcome()), sim.tick, flown.fallen,
-		int(measured.get("debris", 0)), flown.doors_fallen, int(measured.get("doors", 0)), flown.burnt_ticks]
+		int(measured.get("debris", 0)), flown.doors_fallen, int(measured.get("doors", 0)),
+		flown.doors_marked, flown.burnt_ticks]
 	return flown
 
 
