@@ -39,9 +39,6 @@ const FALLBACK_LOOK: Dictionary = MapLook.FALLBACK
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
 
-## Whether `show_map` was down last frame, for the press edge of an unshared button.
-var _was_pressed: bool = false
-
 var _look: Dictionary = FALLBACK_LOOK
 ## Level space -> hologram space, as `MapWireframe.fit_to_cube` fits the lines.
 var _fit: Transform3D = Transform3D.IDENTITY
@@ -65,6 +62,7 @@ var _reactor_known: bool = false
 var _reactor_destroyed: bool = false
 var _ship_at: Vector3 = Vector3.ZERO
 var _zoom: float = MapZoom.START
+var _toggle: MapToggle = MapToggle.new()
 
 
 func _init() -> void:
@@ -225,24 +223,14 @@ func close() -> void:
 	visible = false
 
 
-## Records whether `show_map` is down this frame; the frame it goes down
-## toggles the map. Used when no label toggle shares the button.
+## One frame of `show_map` down or up, when no label toggle shares it; see `MapToggle.press`.
 func press(pressed: bool) -> void:
-	visible = visible != (pressed and not _was_pressed)
-	_was_pressed = pressed
+	visible = _toggle.press(pressed, visible)
 
 
-## Reads `show_map` through `mapping` from sampled `buttons` and calls `press`.
-## With `shared` (the label button's `ClickHold`, given only while that button also
-## toggles the map), a short click toggles it and a hold leaves it as it was;
-## feed `shared` first.
+## Opens or closes the map from `show_map` in `buttons`; see `MapToggle.read`.
 func read(mapping: ThumbstickMapping, buttons: Dictionary, shared: ClickHold = null) -> void:
-	var pressed: bool = mapping.action_held("show_map", buttons)
-	if shared == null:
-		press(pressed)
-		return
-	_was_pressed = pressed
-	visible = visible != shared.short_click_released()
+	visible = _toggle.read(mapping, buttons, shared, visible)
 
 
 ## The hand that clicks `show_map`, which holds the map: left unless left-handed mode or a remap.
