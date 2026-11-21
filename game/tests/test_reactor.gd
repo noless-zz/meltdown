@@ -28,6 +28,16 @@ func _sim(armed: bool) -> Sim:
 	return sim
 
 
+## Like `_sim`, but the first tick records the exit 8 m behind the ship, so it
+## does not escape when the reactor dies and the countdown keeps running (#750).
+func _sim_away_from_exit() -> Sim:
+	var sim: Sim = _sim(true)
+	sim.ships[0].position = Vector3(0, 0, 8)
+	sim.step(_idle())
+	sim.ships[0].position = Vector3.ZERO
+	return sim
+
+
 func _fire() -> Array[ShipInput]:
 	var input: ShipInput = ShipInput.new()
 	input.fire_primary = true
@@ -148,7 +158,7 @@ func test_robot_shots_stop_at_it_without_damage() -> String:
 
 
 func test_destruction_is_reported_once_and_counts_down_from_the_next_tick() -> String:
-	var sim: Sim = _sim(true)
+	var sim: Sim = _sim_away_from_exit()
 	var events: Array[SimEvent] = _fire_until_destroyed(sim, 200)
 	if not sim.reactor.destroyed or sim.reactor.hull != 0.0:
 		return "not destroyed: hull %s" % sim.reactor.hull
@@ -170,7 +180,7 @@ func test_destruction_is_reported_once_and_counts_down_from_the_next_tick() -> S
 
 
 func test_the_countdown_reaches_zero_after_exactly_meltdown_seconds() -> String:
-	var sim: Sim = _sim(true)
+	var sim: Sim = _sim_away_from_exit()
 	_fire_until_destroyed(sim, 200)
 	for i: int in 119:
 		sim.step(_idle())

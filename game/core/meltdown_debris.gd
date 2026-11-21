@@ -25,6 +25,8 @@ extends RefCounted
 ## `ReactorState.meltdown_ticks_left` has gone down by k), and stays solid,
 ## unless `DebrisRouteGuard` held it back because it would have closed a ship's
 ## last route to the exit: then it is skipped and never becomes solid.
+## Once the run is decided the countdown holds (`ExitRule.count_down`) while
+## this clock goes on, so later entries still fall where no ship flies any more.
 
 const KEYS: Array[String] = ["position", "radius", "size", "after_seconds", "kind",
 	"damage_per_second"]
