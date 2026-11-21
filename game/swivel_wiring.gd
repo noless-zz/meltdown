@@ -16,6 +16,11 @@ extends RefCounted
 ## start, the runtime's recentre event, reset-to-start, a restart). Turning the
 ## swivel on with a preset change also makes the current head heading forward,
 ## so the ship does not start turning by itself.
+##
+## While the ship is held (dev menu, flight test answer, focus pause, an end
+## screen; `ShipHold`) the swivel adds nothing, and when the hold ends forward
+## becomes wherever the head is then (#819, CMF-7, CMF-8): turning the chair to
+## face a menu must neither turn the ship nor swing it round when the menu closes.
 
 ## Longest frame time handed to the swivel's follow, seconds. A hitch or a
 ## pause must not snap the reference across to the body in one go.
@@ -31,6 +36,8 @@ var clock: Callable = ClickHold.steady_seconds
 var head_trusted: Callable = SwivelWiring.head_pose_trusted
 
 var _last_s: float = NAN
+## Whether the previous frame was held, so its end recentres once.
+var _held: bool = false
 
 
 ## Takes the swivel settings of `preset`. Keeps forward where it was, unless
@@ -66,13 +73,23 @@ func head_yaw() -> float:
 
 
 ## `input` with this frame's swivel yaw added, or `input` itself when the
-## swivel is off or the head pose cannot be trusted.
-func added(input: ShipInput) -> ShipInput:
+## swivel is off, the ship is `held`, or the head pose cannot be trusted. The
+## first frame after a hold recentres on the head first. The hold is tracked
+## with the swivel off too, so a preset that turns it on inside a menu still
+## recentres when the menu closes.
+func added(input: ShipInput, held: bool = false) -> ShipInput:
+	var was_held: bool = _held
+	_held = held
 	if not yaw.enabled:
 		return input
 	var now_s: float = float(clock.call())
 	var delta: float = 0.0 if is_nan(_last_s) else clampf(now_s - _last_s, 0.0, MAX_DELTA_S)
 	_last_s = now_s
+	if held:
+		return input
+	if was_held:
+		yaw.recentre(head_yaw())
+		delta = 0.0
 	if not bool(head_trusted.call()):
 		return input
 	return SwivelYaw.added_to(input, yaw.update(head_yaw(), delta))
