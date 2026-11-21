@@ -3,7 +3,7 @@
 # Re-record this step only from the repository root, then copy the printed hash
 # into m3.json:
 #     MELTDOWN_RECORD_M3=bot_g2_escape godot --headless --path game -s res://tests/run_tests.gd
-meltdown-replay 16
+meltdown-replay 17
 seed 0
 ships 1
 hash 2519309766

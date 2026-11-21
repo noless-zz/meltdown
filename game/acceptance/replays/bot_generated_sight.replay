@@ -3,7 +3,7 @@
 # the seed in m3.json and the shipped data files. Re-record from the repository
 # root; the recorder writes the hashes into m3.json itself. Records this step only:
 #     MELTDOWN_RECORD_M3=bot_generated_sight godot --headless --path game -s res://tests/run_tests.gd
-meltdown-replay 16
+meltdown-replay 17
 seed 0
 ships 1
 hash 2660309333
