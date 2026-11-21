@@ -1,0 +1,9 @@
+{
+	"grip_hold_threshold": 0.5,
+	"stick_tilt_dead_zone_deg": 4.0,
+	"stick_tilt_full_deg": 30.0,
+	"stick_twist_dead_zone_deg": 5.0,
+	"stick_twist_full_deg": 25.0,
+	"throttle_dead_zone_m": 0.02,
+	"throttle_full_m": 0.10
+}
