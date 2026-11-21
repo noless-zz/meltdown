@@ -17,7 +17,10 @@ extends RefCounted
 ##
 ## During the meltdown `close_blocked` shuts the openings that solid debris
 ## blocks (RUN-4, #443), by `OpeningClearance.blocked`, the test `KnownRoute`
-## uses, and a straight segment then also has to pass the solid debris.
+## uses, and a straight segment then also has to pass the solid debris. A solid
+## box entry across a box's whole cross-section splits that box (`BoxSplit`, the
+## helper `KnownRoute` uses, #870): the chain then moves between parts of boxes,
+## and from one opening of a split box to the next only within the same part.
 ##
 ## Once `weigh_fire` is called (the bot's escape, #498), a route through fire
 ## that burns before the ship gets there gives way to a fire-free one that is
@@ -34,6 +37,8 @@ var _neighbours: Array = []
 var _closed: Dictionary[int, bool] = {}
 ## The debris last passed to `close_blocked`; null until then.
 var _debris: MeltdownDebris = null
+## `_cuts[i]` lists the splits (`BoxSplit`) solid debris makes in box i.
+var _cuts: Array[Array] = []
 ## Ship radius last passed to `close_blocked`, metres.
 var _debris_radius: float = 0.0
 ## The debris whose fire the route weighs; null until `weigh_fire`.
@@ -49,6 +54,7 @@ func _init(level: LevelDef) -> void:
 	_union = level.union
 	for index: int in _union.boxes.size():
 		_neighbours.append(level.neighbours(index))
+		_cuts.append([] as Array[Vector3i])
 
 
 ## True if a sphere of `radius` is held whole by the union at every point of
@@ -86,11 +92,15 @@ func close_blocked(debris: MeltdownDebris, ship_radius: float) -> void:
 	_closed.clear()
 	_debris = debris
 	_debris_radius = ship_radius
+	for i: int in _union.boxes.size():
+		_cuts[i] = [] as Array[Vector3i]
 	if debris == null:
 		return
 	var radius_mm: int = roundi(ship_radius * RobotSpawn.SCALE)
 	for i: int in _union.boxes.size():
 		var a: BoxBounds = _union.boxes[i]
+		_cuts[i] = BoxSplit.splits(EscapePath.to_mm(a.min_corner), EscapePath.to_mm(a.max_corner),
+			debris, radius_mm)
 		for j: int in _neighbours[i]:
 			if j <= i:
 				continue
@@ -117,14 +127,15 @@ func weigh_fire(debris: MeltdownDebris, speed: float, detour_factor: float) -> v
 ## The points to fly through from `from` to `to`, ending with `to`. Just
 ## `[to]` when the straight segment is held, or when no chain joins the two
 ## ends (the caller then flies straight, as without a level). With fire
-## weighed, a fire-free route not much longer may replace it.
+## weighed, a fire-free route not much longer may replace it, unless it crosses
+## a split box, which `FireDetour` does not know about.
 func waypoints(from: Vector3, to: Vector3, radius: float) -> Array[Vector3]:
 	var points: Array[Vector3] = _plain_waypoints(from, to, radius)
 	if _fire == null:
 		return points
 	var detour: Array[Vector3] = FireDetour.reroute(_union, _neighbours, is_closed, _fire, from, to,
 		_holding(from, radius), _holding(to, radius), points, _fire_speed, _detour_factor)
-	return points if detour.is_empty() else detour
+	return points if detour.is_empty() or _crosses_split(from, detour) else detour
 
 
 ## `waypoints` without regard to fire.
@@ -147,30 +158,37 @@ func next_waypoint(from: Vector3, to: Vector3, radius: float) -> Vector3:
 ## to a box holding `to`, both ends included; empty if there is none. A
 ## breadth-first search from every start box at once, in index order, so the
 ## chain starts at the start box nearest the target in hops and ties go to
-## lower indices.
+## lower indices. The search runs over parts of boxes (`BoxSplit.part`): an
+## opening leads on from a box only from the part its centre lies in, so a
+## chain never passes a split. With no splits every part is zero and each box
+## is one node, as before splits were known.
 func chain(from: Vector3, to: Vector3, radius: float) -> Array[int]:
-	var starts: Array[int] = _holding(from, radius)
-	var goals: Array[int] = _holding(to, radius)
-	var previous: Array[int] = []
-	previous.resize(_union.boxes.size())
-	previous.fill(-2)
-	var queue: Array[int] = []
-	for index: int in starts:
-		previous[index] = -1
-		queue.append(index)
-	var found: int = -1
-	while not queue.is_empty() and found < 0:
-		var index: int = queue.pop_front()
-		if goals.has(index):
-			found = index
+	var goals: Array[Vector4i] = _nodes(_holding(to, radius), EscapePath.to_mm(to))
+	var previous: Dictionary[Vector4i, Vector4i] = {}
+	var queue: Array[Vector4i] = []
+	for node: Vector4i in _nodes(_holding(from, radius), EscapePath.to_mm(from)):
+		previous[node] = Vector4i(-1, 0, 0, 0)
+		queue.append(node)
+	var found: Vector4i = Vector4i(-1, 0, 0, 0)
+	while not queue.is_empty():
+		var node: Vector4i = queue.pop_front()
+		if goals.has(node):
+			found = node
 			break
-		for other: int in _neighbours[index]:
-			if previous[other] == -2 and not is_closed(index, other):
-				previous[other] = index
-				queue.append(other)
+		for other: int in _neighbours[node.x]:
+			if is_closed(node.x, other):
+				continue
+			var centre: Vector3i = EscapePath.to_mm(opening_centre(_union.boxes[node.x],
+				_union.boxes[other]))
+			if _node(node.x, centre) != node:
+				continue
+			var next: Vector4i = _node(other, centre)
+			if not previous.has(next):
+				previous[next] = node
+				queue.append(next)
 	var boxes: Array[int] = []
-	while found >= 0:
-		boxes.push_front(found)
+	while found.x >= 0:
+		boxes.push_front(found.x)
 		found = previous[found]
 	return boxes
 
@@ -192,6 +210,36 @@ func _meets_debris(from: Vector3, to: Vector3, radius: float) -> bool:
 			else Projectile.segment_entry(from, to, _debris.position(index), _debris.radius(index) + radius)
 		if entry >= 0.0:
 			return true
+	return false
+
+
+## The node of box `box` holding `point_mm`: (box, part along x, y, z).
+func _node(box: int, point_mm: Vector3i) -> Vector4i:
+	var cuts: Array[Vector3i] = []
+	cuts.assign(_cuts[box])
+	var part: Vector3i = BoxSplit.part(cuts, point_mm)
+	return Vector4i(box, part.x, part.y, part.z)
+
+
+func _nodes(boxes: Array[int], point_mm: Vector3i) -> Array[Vector4i]:
+	var nodes: Array[Vector4i] = []
+	for box: int in boxes:
+		nodes.append(_node(box, point_mm))
+	return nodes
+
+
+## Whether some leg of `points`, flown from `from`, has its two ends in
+## different parts of a split box that holds both.
+func _crosses_split(from: Vector3, points: Array[Vector3]) -> bool:
+	var point: Vector3 = from
+	for next: Vector3 in points:
+		for box: int in _union.boxes.size():
+			if _cuts[box].is_empty() or not _union.boxes[box].holds(point, 0.0) \
+					or not _union.boxes[box].holds(next, 0.0):
+				continue
+			if _node(box, EscapePath.to_mm(point)) != _node(box, EscapePath.to_mm(next)):
+				return true
+		point = next
 	return false
 
 
