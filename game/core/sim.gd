@@ -8,22 +8,18 @@ extends RefCounted
 ## inputs give an identical `state_hash()` (ARC-2), which is what replay tests
 ## and, later, network desync checks compare.
 
-## Seed of this run. Nothing draws random numbers yet; it is part of the state
-## so that replays recorded now stay valid once the generator and robots do.
+## Seed of this run; robot drops draw from it (ARC-2).
 var run_seed: int = 0
 ## Number of ticks simulated so far.
 var tick: int = 0
 var ships: Array[ShipState] = []
-## Walls everything flies inside, or null for open space (GEN-5). Not part of
-## the hash: it is fixed for the run, like the seed's mine will be. Set by the
-## constructor from one box, or by `set_walls` for a multi-box level.
+## Walls everything flies inside, or null for open space (GEN-5). Not hashed: fixed
+## for the run. Set by the constructor from one box, or by `set_walls`.
 var walls: BoxUnion = null
-## The first box of `walls`, or null: the single box older callers built the
-## run with. Read-only; the simulation itself only uses `walls`.
+## The first box of `walls`, or null, for older single-box callers. Read-only.
 var bounds: BoxBounds = null
-## What happened on the last tick only, in ship order and, per ship, in the
-## order of `SimEvent.Kind`. Derived output for haptics, shake and sound
-## (PLT-6): not part of the hash, replaced by every call to `step`.
+## What happened on the last tick only, in the order `SimEvent.Kind` describes.
+## Output for haptics, shake and sound (PLT-6): not hashed, replaced every `step`.
 var last_events: Array[SimEvent] = []
 ## Where each ship returns on a `reset_to_start` input, read-only here; see
 ## `ShipReset`. Change them with `set_start_pose`.
@@ -49,6 +45,8 @@ var components: Array[ComponentItem] = []
 var collected: Dictionary[String, int] = {}
 var component_rules: ComponentPickup = null
 var robot_serials: Dictionary = {}
+## Miner rescue (SLV-3): rules and run state, or null when off. See `set_rescue_rules`.
+var rescue: MinerRescue = null
 ## The level's reactor (RUN-2), or null. Set before the first tick by
 ## `set_reactor`. Part of the hash only when there is one.
 var reactor: ReactorState = null
@@ -68,8 +66,7 @@ var salvage_rules: SalvageRules = SalvageRules.new()
 ## `set_look_aim`. Not part of the hash, like the salvage rules: what it does
 ## shows in each ship's gun direction.
 var look_aim: LookAim = LookAim.new()
-## Projectile hit events of the tick being stepped. Hits are found when
-## projectiles move, before the ships, but their events follow the ship events.
+## This tick's projectile hit events, found before the ships move but reported after.
 var _hit_events: Array[SimEvent] = []
 ## Robot index to the ship whose shot destroyed it, for the tick being stepped.
 var _killers: Dictionary = {}
@@ -136,6 +133,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
 	ComponentPickup.collect(self, from)
+	MinerRescue.step(self)
 	RobotTick.advance(self)
 	SalvagePickup.drift(self, slot_drops)
 	ComponentPickup.drop(self)
@@ -180,8 +178,7 @@ func set_walls(p_walls: BoxUnion) -> bool:
 	return true
 
 
-## Gives the run `p_reactor`, or none for null. Only before the first tick,
-## like the walls. Returns false, changing nothing, once the run has started.
+## Gives the run `p_reactor` (null for none). Only before the first tick: false once started.
 func set_reactor(p_reactor: ReactorState) -> bool:
 	if tick != 0 or _stepping:
 		return false
@@ -189,8 +186,7 @@ func set_reactor(p_reactor: ReactorState) -> bool:
 	return true
 
 
-## Gives the run `p_debris`, or none for null or an empty list. Only before the
-## first tick, like the reactor. Returns false, changing nothing, once started.
+## Gives the run `p_debris` (null or empty for none). Only before the first tick, like the reactor.
 func set_debris(p_debris: MeltdownDebris) -> bool:
 	if tick != 0 or _stepping:
 		return false
@@ -250,6 +246,11 @@ func set_component_rules(rules: ComponentPickup) -> String:
 	return ComponentPickup.install(self, rules, tick != 0 or _stepping)
 
 
+## Switches miner rescue on (`MinerRescue`, SLV-3), trapping `miners` in mm as `LevelDef.miners`.
+func set_rescue_rules(rules: MinerRescue, miners: Array[Vector3i] = []) -> String:
+	return MinerRescue.install(self, rules, miners, tick != 0 or _stepping)
+
+
 ## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6). Only before the
 ## first tick, like the salvage rules, so a replay can set the same values from
 ## its header. Returns "" on success, or the problem, changing nothing.
@@ -280,9 +281,8 @@ func outcome() -> ExitRule.Outcome:
 	return ExitRule.outcome(self)
 
 
-## The live ship (hull above zero, not escaped) nearest to `point`, or null if there is
-## none. Ships are tested in index order and only a strictly nearer one
-## replaces the best, so ties go to the lower index.
+## The live ship (hull above zero, not escaped) nearest to `point`, or null if there
+## is none. Ties go to the lower index.
 func nearest_live_ship(point: Vector3) -> ShipState:
 	var best: ShipState = null
 	var best_distance: float = INF
