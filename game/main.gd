@@ -85,7 +85,7 @@ func _ready() -> void:
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
 	level_start.source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
-	use_level(level_start.source)
+	if not use_level(level_start.source): level_start.source = ""  # The tunnel flies; the panel says so (#747).
 	place_tunnel()
 	attach_cockpit_frame()
 	attach_fade_overlay()
@@ -248,7 +248,7 @@ func attach_status_panel() -> void:
 func update_status_panel(delta_seconds: float) -> void:
 	if status_panel != null:
 		RigViews.show_ship(status_panel, session.current_ship(), comfort.number,
-			comfort.preset.display_name, refresh_rate.beside(build_info.describe()), delta_seconds)
+			comfort.preset.display_name, refresh_rate.beside(build_info.describe()), delta_seconds, level_start.source)
 
 
 ## Puts the rig at the ship's pose for this frame, offset so the head sits at

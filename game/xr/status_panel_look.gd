@@ -10,7 +10,9 @@ extends RefCounted
 ##      "max_row_angle_deg": a, "message_seconds": s, "low_hull_fraction": f}
 ##
 ## `low_hull_fraction` may be left out: at or below it the hull row turns red
-## and the low-hull pulse fires (#616).
+## and the low-hull pulse fires (#616). So may the level row's (#747) font
+## size `level_font`, colour `level_color` and words `level_tunnel_text`,
+## `level_seed_text` (with `{seed}`) and `level_file_text` (with `{name}`).
 ##
 ## `position_m` is in the cockpit's space from the eye point (x right, y up,
 ## -z ahead). `tilt_deg` turns the panel's top away from the eye.
@@ -27,7 +29,11 @@ const NUMBER_RANGES: Dictionary = {
 ## Number keys a file may leave out, with their ranges; `FALLBACK` gives the value.
 const OPTIONAL_NUMBER_RANGES: Dictionary = {
 	"low_hull_fraction": Vector2(0.0, 1.0),
+	"level_font": Vector2(8.0, 96.0),
 }
+## Colour and text keys a file may leave out; `FALLBACK` gives the value.
+const OPTIONAL_COLOR_KEYS: Array[String] = ["level_color"]
+const OPTIONAL_TEXT_KEYS: Array[String] = ["level_tunnel_text", "level_seed_text", "level_file_text"]
 ## The panel must stay inside the ship's 1 m collision sphere, so no wall can
 ## come between it and the eyes.
 const MAX_DISTANCE_M: float = 0.9
@@ -41,6 +47,12 @@ const FALLBACK: Dictionary = {
 	"max_row_angle_deg": 30.0,
 	"message_seconds": 2.0,
 	"low_hull_fraction": 0.25,
+	# Smaller than the rows' 32 and grey, so it never draws the eye from the bars.
+	"level_font": 24.0,
+	"level_color": Color(0.5, 0.56, 0.6),
+	"level_tunnel_text": "Test tunnel",
+	"level_seed_text": "Seed {seed}",
+	"level_file_text": "{name}",
 }
 
 
@@ -76,13 +88,16 @@ static func parse(text: String) -> Dictionary:
 	var data: Dictionary = json.data
 	var known: Array[String] = keys()
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (known.has(key) or OPTIONAL_NUMBER_RANGES.has(key)):
+		if typeof(key) != TYPE_STRING or not (known.has(key) or OPTIONAL_NUMBER_RANGES.has(key) \
+				or OPTIONAL_COLOR_KEYS.has(key) or OPTIONAL_TEXT_KEYS.has(key)):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	for key: String in known:
 		if not data.has(key):
 			return {"error": "missing key \"%s\"" % key}
 	var look: Dictionary = FALLBACK.duplicate()
-	for key: String in COLOR_KEYS:
+	for key: String in COLOR_KEYS + OPTIONAL_COLOR_KEYS:
+		if not data.has(key):
+			continue  # Only an optional key can be missing here.
 		var problem: String = _triple_problem(key, data[key], Vector2(0.0, 1.0))
 		if problem != "":
 			return {"error": problem}
@@ -95,6 +110,11 @@ static func parse(text: String) -> Dictionary:
 		if at.length() > MAX_DISTANCE_M:
 			return {"error": "\"%s\" is %.2f m from the eye, more than %.2f" % [key, at.length(), MAX_DISTANCE_M]}
 		look[key] = at
+	for key: String in OPTIONAL_TEXT_KEYS:
+		if data.has(key):
+			if typeof(data[key]) != TYPE_STRING or (data[key] as String).strip_edges() == "":
+				return {"error": "\"%s\" must be a non-empty string" % key}
+			look[key] = data[key]
 	var ranges: Dictionary = NUMBER_RANGES.merged(OPTIONAL_NUMBER_RANGES)
 	for key: String in ranges:
 		if not data.has(key):

@@ -48,3 +48,15 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource) -
 func fresh_session(world: Node3D, input: ShipInputSource) -> LocalSession:
 	var session: LocalSession = level_session(world, source, input)
 	return session if session != null else tunnel_session(input)
+
+
+## The seed digits and level name the status panel names `p_source` by
+## (#747): `seed:31` is ["31", ""], a level file is ["", its file name without
+## `_level.json`, upper-cased, so `g2` is "G2"], and the tunnel is ["", ""].
+## Level files carry no name of their own yet.
+static func shown_level(p_source: String) -> PackedStringArray:
+	if p_source == "":
+		return PackedStringArray(["", ""])
+	if p_source.begins_with(LevelSwitch.SEED_PREFIX):
+		return PackedStringArray([p_source.substr(LevelSwitch.SEED_PREFIX.length()), ""])
+	return PackedStringArray(["", p_source.get_file().trim_suffix(LevelSwitch.LEVEL_SUFFIX).to_upper()])
