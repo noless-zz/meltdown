@@ -1,9 +1,9 @@
 class_name DevMenuSwivel
-extends RefCounted
+extends DevMenuEntry
 
 ## The dev menu's Swivel chair entry (#853, CMF-7, CMF-1): what it shows and
-## what choosing a value does. Kept apart from `DevMenuWiring`, which is at its
-## size limit.
+## what choosing a value does. One of `DevMenuWiring`'s entry helpers
+## (`DevMenuEntry`, #892).
 ##
 ## `start` applies the choice saved in `SwivelChoice` when the game starts, and
 ## choosing On or Off saves it and applies it at once through
@@ -24,6 +24,7 @@ var store: SwivelChoice = SwivelChoice.new()
 
 
 func _init(p_comfort: ComfortWiring) -> void:
+	super([DevMenuSpec.KIND_SWIVEL], [DevMenuModel.SWIVEL_PREFIX])
 	comfort = p_comfort
 
 

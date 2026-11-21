@@ -20,34 +20,14 @@ extends RefCounted
 ## A newer build that waits is an entry in the menu, and choosing it does
 ## what the tap did before (`UpdateWiring.choose_waiting`).
 ##
-## A Controls choice (#778) switches `ControlSchemeSwitch` for the rest of
-## the session and saves it in `ControlsChoice`. The menu is open at that
-## moment, so the ship is already on neutral input, and the switch lets go of
-## any grip the gripped scheme held. A Hands or Pitch choice (#790) sets
-## `mapping`, the one both schemes fly through, for the rest of the session
-## and saves it in the same file; the labels, haptics and gripped models read
-## the mapping, so they follow at once.
-##
-## A Comfort choice (#805, CMF-4) goes through `ComfortWiring.set_preset`, the
-## path the preset button takes, so the cockpit, filter and status panel change
-## as they do for the button, and `FlightTestWiring` saves it in `ComfortChoice`
-## on the next frame as it saves a button change. It changes only this player's
-## view and input handling, never the ship (CMF-6). The entry opens on the
-## active preset, so it follows a button change. With an accepted custom file
-## it also offers the custom mode (#806, #837) after preset 4, and opens on it
-## when it is active.
-##
-## A Break reminder choice (#821, CMF-10) goes through
-## `BreakPromptWiring.set_enabled`, which saves it in `BreakChoice` and hides
-## a showing prompt; the entry opens on the reminder's state, so a launch
-## switch shows. Only the view's prompt changes, never the simulation (CMF-6).
-## A Refresh choice (#852) goes through `DevMenuRefresh`.
-## A Swivel chair choice (#853) goes through `DevMenuSwivel`.
-##
-## A Flight test choice (#839, CMF-4) restarts the test tunnel behind the same
-## fade and runs the first-launch test again there (`FlightTestWiring.run_again`).
-## It sits beside `main.gd` because it restarts the `net/` session and reads
-## the flight test and the end screens; `main.gd` gains only a few lines.
+## Each entry's choice goes to its helper (`DevMenuEntry`, #892): the Panel
+## corner to `DevMenuCorner`, Controls, Hands and Pitch to `DevMenuControls`,
+## Comfort to `DevMenuComfort`, Break reminder to `DevMenuBreak`, Refresh to
+## `DevMenuRefresh`, Swivel chair to `DevMenuSwivel`, the update to
+## `DevMenuUpdate`, and Level, Restart level and Flight test to
+## `DevMenuRestart`, which owns the fade. A new entry adds one helper and one
+## line in `_init`. It sits beside `main.gd` because it restarts the `net/`
+## session and reads the flight test and the end screens.
 
 ## A stick pushed this far counts as a menu step; well past drift, short of the rim.
 const STICK_STEP: float = 0.6
@@ -60,21 +40,15 @@ const BUTTON_ACTIONS: Dictionary[String, String] = {
 	"right_button_upper": DevMenuModel.SEED_UP,
 	"left_button_upper": DevMenuModel.SEED_DOWN,
 }
-const FADE_SECONDS: float = ResetHold.FADE_SECONDS
-const LOG_PREFIX: String = "Meltdown: dev menu"
+const FADE_SECONDS: float = DevMenuRestart.FADE_SECONDS
+const LOG_PREFIX: String = DevMenuRestart.LOG_PREFIX
 
 ## Under the rig once `attach` has run.
 var menu: DevMenu = null
 var tap: MenuTap = MenuTap.new()
-## Saves the chosen corner; tests point it at a temporary file.
-var corner_store: PanelCorner = PanelCorner.new()
-## Saves the chosen control scheme, hands and pitch; tests point it at a temporary file.
-var controls_store: ControlsChoice = ControlsChoice.new()
-## The scheme the ship flies through and the mapping whose hand setting it
-## prints; null in tests that do not switch schemes.
-var scheme: ControlSchemeSwitch = null
-var mapping: ThumbstickMapping = null
-## The comfort preset the Comfort entry shows and sets; null in tests without one.
+## One helper per entry kind, in the order `dev_menu.json` lists them.
+var entries: Array[DevMenuEntry] = []
+## The comfort wiring the Comfort, Refresh and Swivel chair entries read; null in tests without one.
 var comfort: ComfortWiring = null
 ## The break prompt the Break reminder entry shows and switches; null in tests without one.
 var break_prompt: BreakPromptWiring = null
@@ -82,35 +56,52 @@ var break_prompt: BreakPromptWiring = null
 var refresh: DevMenuRefresh = null
 ## The Swivel chair entry; applies the saved choice to `comfort` when made.
 var swivel: DevMenuSwivel = null
-## Picks the seed for `random` (`LevelSwitch.random_seed` when not set);
-## tests inject one so they are not flaky.
-var pick_seed: Callable = Callable()
-## The fade's opacity, 0 (clear) to 1 (black), for the fade quad.
-var alpha: float = 0.0
 
+## The stores and settings below live in the helpers; these names stay for
+## `main.gd` and the tests.
+var corner_store: PanelCorner:
+	get: return _corner.store
+	set(value): _corner.store = value
+var controls_store: ControlsChoice:
+	get: return _controls.store
+	set(value): _controls.store = value
+var scheme: ControlSchemeSwitch:
+	get: return _controls.scheme
+var mapping: ThumbstickMapping:
+	get: return _controls.mapping
+var pick_seed: Callable:
+	get: return _restarts.pick_seed
+	set(value): _restarts.pick_seed = value
+var alpha: float:
+	get: return _restarts.alpha
+
+var _corner: DevMenuCorner = DevMenuCorner.new()
+var _controls: DevMenuControls = null
+var _comfort_entry: DevMenuComfort = null
+var _break_entry: DevMenuBreak = null
+var _update_entry: DevMenuUpdate = DevMenuUpdate.new()
+var _restarts: DevMenuRestart = DevMenuRestart.new()
 var _update: UpdateWiring = null
 var _level_start: LevelStart = null
-var _restart: Callable = Callable()
 var _flight_test: FlightTestWiring = null
 var _destroyed: DestroyedWiring = null
-var _rig: Node3D = null
-var _test_pending: bool = false  # The pending restart is the Flight test entry's (#839).
-## The source to fly once the view is black; null while no restart waits.
-var _pending: Variant = null
-## When the current fade phase began on the steady clock; < 0 when no fade runs.
-var _fade_from: float = -1.0
 
 
 func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
 		p_comfort: ComfortWiring = null, p_break_prompt: BreakPromptWiring = null,
 		p_rate: RefreshRate = null) -> void:
 	refresh = DevMenuRefresh.new(p_rate, p_comfort) if p_rate != null else null
-	scheme = p_scheme
-	mapping = p_mapping
 	comfort = p_comfort
 	break_prompt = p_break_prompt
+	_controls = DevMenuControls.new(p_scheme, p_mapping)
+	_comfort_entry = DevMenuComfort.new(p_comfort)
+	_break_entry = DevMenuBreak.new(p_break_prompt)
 	swivel = DevMenuSwivel.new(p_comfort)
 	swivel.start()
+	var no_refresh: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_REFRESH], [DevMenuModel.REFRESH_PREFIX])
+	var close: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_CLOSE], [DevMenuModel.CLOSE], true)
+	entries = [_update_entry, _corner, _comfort_entry, _break_entry,
+		refresh if refresh != null else no_refresh, swivel, _controls, _restarts, close]
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -122,10 +113,13 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 		return
 	_update = update
 	_level_start = level_start
-	_restart = restart
 	_flight_test = flight_test
 	_destroyed = destroyed
-	_rig = rig
+	_update_entry.update = update
+	_restarts.level_start = level_start
+	_restarts.restart = restart
+	_restarts.flight_test = flight_test
+	_restarts.rig = rig
 	menu = p_menu if p_menu != null else DevMenu.new()
 	if rig != null:
 		rig.add_child(menu)
@@ -145,13 +139,21 @@ func blocked() -> bool:
 		or _destroyed.escape.sequence.line_shown()
 
 
+## The helper serving `kind` in `dev_menu.json`, or null.
+func entry_for(kind: String) -> DevMenuEntry:
+	for entry: DevMenuEntry in entries:
+		if entry.kinds.has(kind):
+			return entry
+	return null
+
+
 ## Once per frame, first, with the sampled `values`. Returns the values the
 ## rest of the frame should read: `values` while the menu is closed, idle
 ## values but for the menu button while it is open.
 func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictionary:
 	if _update != null:
 		_update.step()
-	_advance_fade(now)
+	_restarts.advance(now)
 	var tapped: bool = tap.feed(ResetHold.is_held(values), now)
 	if tapped and _update != null and _update.tap_taker.is_valid() and bool(_update.tap_taker.call()):
 		tapped = false
@@ -165,9 +167,8 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		_toggle()
 	if not is_open():
 		return values
-	if refresh != null:
-		menu.model.refresh_allowed = refresh.allowed()  # Follows a Comfort choice.
-	swivel.follow(menu.model)  # Follows a Comfort choice into or out of the custom mode.
+	for entry: DevMenuEntry in entries:
+		entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
 	apply(menu.update(actions(values)))
 	return neutral(values)
 
@@ -199,126 +200,37 @@ static func neutral(values: Dictionary) -> Dictionary:
 	return idle
 
 
-## Acts on a result of `DevMenuModel.press`. A corner, control scheme, hand,
-## pitch, comfort or break reminder choice is applied and the menu stays open
-## so the change can be seen; a level, restart or update closes it.
+## Acts on a result of `DevMenuModel.press` through the helper that takes it.
+## A setting is applied and the menu stays open so the change can be seen; a
+## level, restart, update or anything unknown closes it.
 func apply(result: String) -> void:
 	if result == "":
 		return
-	if result.begins_with(DevMenuModel.CORNER_PREFIX):
-		corner_store.choose(result.substr(DevMenuModel.CORNER_PREFIX.length()))
-		return
-	if result.begins_with(DevMenuModel.CONTROLS_PREFIX):
-		_switch_controls(result.substr(DevMenuModel.CONTROLS_PREFIX.length()))
-		return
-	if result.begins_with(DevMenuModel.HANDS_PREFIX) or result.begins_with(DevMenuModel.PITCH_PREFIX):
-		_set_hands(result)
-		return
-	if result.begins_with(DevMenuModel.COMFORT_PREFIX):
-		var number: int = int(result.substr(DevMenuModel.COMFORT_PREFIX.length()))
-		if comfort != null and comfort.number != number:
-			comfort.set_preset(number)
-		return
-	if result.begins_with(DevMenuModel.BREAK_PREFIX):
-		if break_prompt != null:
-			break_prompt.set_enabled(result == DevMenuModel.BREAK_PREFIX + DevMenuModel.BREAK_ON)
-		return
-	if result.begins_with(DevMenuModel.REFRESH_PREFIX):
-		if refresh != null:
-			refresh.choose(result)
-		return
-	if result.begins_with(DevMenuModel.SWIVEL_PREFIX):
-		swivel.choose(result)
-		return
+	for entry: DevMenuEntry in entries:
+		if entry.takes(result):
+			if entry.closes:
+				menu.close()
+			entry.choose(result)
+			return
 	menu.close()
-	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
-		var source: String = result.substr(DevMenuModel.LEVEL_PREFIX.length())
-		if source == DevMenuModel.RANDOM:
-			var picked: int = int(pick_seed.call()) if pick_seed.is_valid() else LevelSwitch.random_seed()
-			source = LevelSwitch.SEED_PREFIX + str(picked)
-		_start_restart(source)
-	elif result == DevMenuModel.RESTART:
-		_start_restart(_level_start.source if _level_start != null else "")
-	elif result == DevMenuModel.FLIGHT_TEST and _flight_test != null:
-		_start_restart("")  # The test flies in the test tunnel, as on first launch.
-		_test_pending = true
-	elif result == DevMenuModel.UPDATE and _update != null:
-		_update.choose_waiting()
 
 
 func _toggle() -> void:
 	if is_open():
 		menu.close()
-	else:
-		if refresh != null:
-			refresh.show_on(menu.model)
-		swivel.show_on(menu.model)
-		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
-			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
-			mapping != null and mapping.invert_pitch, _comfort_shown(), _break_shown(),
-			comfort.custom().base if comfort != null and comfort.custom_available() else 0)
+		return
+	for entry: DevMenuEntry in entries:
+		entry.show_on(menu.model)
+	menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
+		_controls.scheme_shown(), _controls.left_handed(), _controls.invert_pitch(),
+		_comfort_shown(), _break_shown(), _comfort_entry.custom_base())
 
 
 ## Whether the Break reminder entry opens on On: the reminder's own state.
 func _break_shown() -> bool:
-	return break_prompt == null or break_prompt.reminder == null or break_prompt.reminder.is_enabled()
+	return _break_entry.shown()
 
 
 ## The preset the Comfort entry opens on: the active one, the custom mode included.
 func _comfort_shown() -> int:
-	return comfort.number if comfort != null else ComfortPresetFiles.START_NUMBER
-
-
-## Only called while the menu is open, so the ship is on neutral input now.
-func _switch_controls(to: String) -> void:
-	if scheme == null:
-		return
-	if scheme.switch_to(to, mapping != null and mapping.left_handed,
-			mapping != null and mapping.invert_pitch):
-		controls_store.save(to)
-
-
-## Only called while the menu is open: the ship is on neutral input, so the
-## flip never reaches a tick mid-push.
-func _set_hands(result: String) -> void:
-	if mapping == null:
-		return
-	if result.begins_with(DevMenuModel.HANDS_PREFIX):
-		mapping.left_handed = result == DevMenuModel.HANDS_PREFIX + "left"
-	else:
-		mapping.invert_pitch = result == DevMenuModel.PITCH_PREFIX + "inverted"
-	controls_store.save_hands(mapping.left_handed, mapping.invert_pitch)
-	if scheme != null:
-		scheme.announce_hands(mapping)
-
-
-func _start_restart(source: String) -> void:
-	print("%s flies %s" % [LOG_PREFIX, source if source != "" else "the test tunnel"])
-	_pending = source
-	_fade_from = -1.0  # Started on the next `read`, on its clock.
-
-
-## Fades out, restarts on the black frame, fades back in.
-func _advance_fade(now: float) -> void:
-	if _pending == null and _fade_from < 0.0:
-		alpha = 0.0
-		return
-	if _fade_from < 0.0:
-		_fade_from = now
-	var part: float = clampf((now - _fade_from) / FADE_SECONDS, 0.0, 1.0)
-	if _pending == null:
-		alpha = 1.0 - part
-		if part >= 1.0:
-			_fade_from = -1.0
-		return
-	alpha = part
-	if part >= 1.0:
-		if _level_start != null:
-			_level_start.source = str(_pending)
-		_pending = null
-		_fade_from = now
-		if _restart.is_valid():
-			_restart.call()
-		if _test_pending:
-			_test_pending = false
-			_flight_test.run_again(_rig)
+	return _comfort_entry.shown()
