@@ -73,7 +73,7 @@ func _ready() -> void:
 		head_recentre.request()
 		print("Meltdown: running flat (no OpenXR session)")
 	var args: PackedStringArray = OS.get_cmdline_args() + OS.get_cmdline_user_args()
-	set_comfort_preset(ComfortPresetFiles.number_from_args(args))
+	set_comfort_preset(ComfortSwitch.number_from_launch(args))  # --comfort=custom too (#806).
 	_smoke_probe = XrSmokeProbe.new(XrSmokeProbe.frames_from_args(OS.get_cmdline_user_args()))
 	$XRRig.mapping = mapping  # One mapping: a remap or left-handed mode reaches the labels (#110).
 	scheme.attach_models($XRRig)  # The gripped stick and throttle in the hands (#789).

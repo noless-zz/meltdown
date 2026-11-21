@@ -12,6 +12,9 @@ const PATHS: Array[String] = [
 	"res://xr/presets/comfort_anchored.tres", "res://xr/presets/comfort_guided.tres",
 	"res://xr/presets/comfort_pilot.tres", "res://xr/presets/comfort_unrestricted.tres",
 ]
+## The custom comfort mode's place in the preset cycle (CMF-1, #806): after the
+## four shipped presets, offered only while a custom file is accepted.
+const CUSTOM_NUMBER: int = 5
 const ARG: String = "--comfort-preset="
 ## Fields whose value in a `.tres` preset file must be written as a number. Godot turns
 ## any text assigned to a `float` field into 0, which would pass as "off", so
