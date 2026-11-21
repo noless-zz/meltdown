@@ -45,6 +45,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return AcceptanceWreckCheck.run(session.replay, measurements)
 		AcceptanceStep.CHECK_WALL_BOUNCED:
 			return AcceptanceWallCheck.run(session.replay, measurements)
+		AcceptanceStep.CHECK_AFTERBURNER:
+			return AcceptanceBoostCheck.run(session.replay, LocalSession.load_tuning(LevelStart.SHIP_TUNING_PATH), measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 

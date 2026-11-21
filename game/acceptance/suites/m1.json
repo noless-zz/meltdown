@@ -59,6 +59,12 @@
 			"id": "view_not_flat",
 			"checks": ["view_not_flat"],
 			"view_seconds": 60.0
+		},
+		{
+			"id": "afterburner",
+			"replay": "res://acceptance/replays/m1_afterburner.replay",
+			"checks": ["afterburner", "final_hash", "ship_alive"],
+			"expected_hash": 319791679
 		}
 	]
 }
