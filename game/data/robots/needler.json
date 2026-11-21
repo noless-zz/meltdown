@@ -7,5 +7,8 @@
 	"turn_rate": 240.0,
 	"movement": "chase",
 	"weapon": "robot_needle",
-	"salvage": "needle_gun"
+	"salvage": "needle_gun",
+	"components": [
+		{"id": "cell_salts", "chance": 0.5, "count": [1, 1]}
+	]
 }

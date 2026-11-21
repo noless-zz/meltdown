@@ -56,6 +56,9 @@ var wake_range: float = 0.0
 ## (#615): when it next sees the ship it has to aim again, so its next shot
 ## waits one full fire interval. 0.1..60; 2 s by default.
 var lose_target_seconds: float = LOSE_TARGET_DEFAULT_SECONDS
+## Components it may drop when destroyed (CRF-1), from the optional key
+## `components`; see `ComponentDrop`. No key means no components.
+var components: Array[ComponentDrop] = []
 
 ## Default of `lose_target_seconds`, for files that leave the key out.
 const LOSE_TARGET_DEFAULT_SECONDS: float = 2.0
@@ -82,6 +85,9 @@ const OPTIONAL_KEYS: Array[String] = [
 	"standoff_radii", "strafe_min_distance", "strafe_max_distance", "strafe_radial_gain",
 	"wake_range", "lose_target_seconds",
 ]
+
+## Optional key holding the component drop table, read by `ComponentDrop`.
+const COMPONENTS_KEY: String = "components"
 
 ## Keys whose value is an id string rather than a number.
 const ID_KEYS: Array[String] = ["id", "weapon", "salvage"]
@@ -118,7 +124,11 @@ var error: String = ""
 ## untuned; an unknown key is an error too, so a misspelt optional key is
 ## caught instead of quietly falling back to its default. On failure the returned
 ## robot has `error` set, naming the field, and default values.
-static func parse_json(text: String) -> RobotDef:
+##
+## Given `kinds`, every id in the component drop table must be one of them.
+## Without it the table's ids are only checked for form; call
+## `check_components` before the drops are used.
+static func parse_json(text: String, kinds: ComponentList = null) -> RobotDef:
 	var json: JSON = JSON.new()
 	if json.parse(text) != OK:
 		return _failed("invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()])
@@ -126,7 +136,7 @@ static func parse_json(text: String) -> RobotDef:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key) or key == COMPONENTS_KEY):
 			return _failed("unknown key \"%s\"" % str(key))
 	var robot: RobotDef = RobotDef.new()
 	for key: String in KEYS:
@@ -158,7 +168,26 @@ static func parse_json(text: String) -> RobotDef:
 	robot.wake_range = roundf(robot.wake_range * MM_PER_M) / MM_PER_M
 	if robot.strafe_min_distance > robot.strafe_max_distance:
 		return _failed("key \"strafe_min_distance\" is %s, must not exceed \"strafe_max_distance\" %s" % [robot.strafe_min_distance, robot.strafe_max_distance])
+	if data.has(COMPONENTS_KEY):
+		var problem: Array[String] = []
+		robot.components = ComponentDrop.parse_table(data[COMPONENTS_KEY], problem)
+		if not problem.is_empty():
+			return _failed(problem[0])
+	if kinds != null:
+		var unknown: String = robot.check_components(kinds)
+		if unknown != "":
+			return _failed(unknown)
 	return robot
+
+
+## Returns "" when every kind in the drop table is in `kinds`, or the first
+## unknown one, so a misspelt id cannot drop nothing silently.
+func check_components(kinds: ComponentList) -> String:
+	for index: int in components.size():
+		var drop: ComponentDrop = components[index]
+		if not kinds.has_kind(drop.id):
+			return "key \"components\", entry %d: unknown component \"%s\"" % [index + 1, drop.id]
+	return ""
 
 
 ## Reads a wake range given outside a robot file, such as on one spawn in a
@@ -190,7 +219,9 @@ func lose_target_ticks() -> int:
 
 ## Hash of the values, so a replay can record which robot data it ran with.
 ## The wake range joins only when set, and the time to drop a target only when
-## it is not the default, so robots without them keep their hashes.
+## it is not the default, so robots without them keep their hashes. The drop
+## table stays out until the simulation drops components, so adding tables to
+## the shipped robots changes no replay or suite hash.
 func values_hash() -> int:
 	var values: Array = [id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon,
 		salvage, standoff_radii, strafe_min_distance, strafe_max_distance, strafe_radial_gain]

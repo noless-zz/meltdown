@@ -7,5 +7,9 @@
 	"turn_rate": 150.0,
 	"movement": "strafe",
 	"weapon": "robot_arc",
-	"salvage": "arc_lance"
+	"salvage": "arc_lance",
+	"components": [
+		{"id": "scrap_alloy", "chance": 0.6, "count": [1, 2]},
+		{"id": "cell_salts", "chance": 0.3, "count": [1, 1]}
+	]
 }
