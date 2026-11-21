@@ -56,6 +56,10 @@ var start_facing_mm: Vector3i = Vector3i(0, 0, -RobotSpawn.SCALE)
 var reactor: ReactorState = null
 ## The level's falling debris before the first tick, or null without a `debris` key.
 var debris: MeltdownDebris = null
+## For a generated level, the module each box belongs to by placement index,
+## or -1 for a doorway or loop bridge box; empty for a level read from a file,
+## which has no modules. `ReactorFar` reads it to tell modules apart (#912).
+var box_modules: Array[int] = []
 ## Radius of the exit sphere around the start (RUN-3), also set on `reactor`.
 var exit_radius_mm: int = LevelDefaults.FALLBACK_EXIT_RADIUS_MM
 ## Set by `parse_json` when the text was rejected; empty otherwise.

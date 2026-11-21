@@ -32,8 +32,8 @@
 			"seed": 31,
 			"replay": "res://acceptance/replays/bot_generated_sight.replay",
 			"checks": ["final_hash", "level_hash", "outcome", "escape_screen", "no_hidden_hits"],
-			"expected_hash": 2769605864,
-			"expected_level_hash": 732759312,
+			"expected_hash": 2660309333,
+			"expected_level_hash": 4006199888,
 			"expected_outcome": "ESCAPED"
 		},
 		{

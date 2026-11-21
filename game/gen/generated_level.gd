@@ -6,16 +6,13 @@ extends RefCounted
 ## oldest open connector facing in, with a `ReactorPlan` a reactor, and with a
 ## `RobotPlan` robots (none without one).
 ##
-## The reactor goes to the module furthest from the first module in joins:
-## each placement is one join further than its parent, and parents are always
-## placed earlier, so one pass in placement order is the breadth-first walk
-## over the placement parents. Ties go to the later placement. It sits at the
-## centre of that module's largest box (ties to the lower box), so an L-shaped
-## module still holds it; it is left out, with `MineGenerator.reactor_note`
-## set, when the furthest module is fewer than `min_hops` joins away or that
-## box cannot hold the reactor with a ship's diameter clear on every side.
-## Positions are whole millimetres from the placements, so the same seed puts
-## the reactor in the same place on every device (GEN-2, ARC-2).
+## The reactor goes where `ReactorFar` says (#912): of the modules at least
+## the plan's `min_hops` joins from the start's module whose largest box holds
+## it with a ship's diameter clear, the one with the longest escape path to the
+## start, at the centre of that box. It is left out, with
+## `MineGenerator.reactor_note` set, when no module qualifies. Positions are
+## whole millimetres from the placements, so the same seed puts the reactor in
+## the same place on every device (GEN-2, ARC-2).
 ##
 ## With a `RobotPlan` (#378) robots follow the reactor: a count from the plan's
 ## range, each of a type from the plan, in a box of a module other than the
@@ -65,6 +62,7 @@ static func build(generator: MineGenerator, plan: ReactorPlan, ship_radius: floa
 	level.union = BoxUnion.new(generator.union.boxes.duplicate())
 	level.start_position_mm = opening.position_mm + inward * MineGenerator.START_INSET_MM
 	level.start_facing_mm = inward * RobotSpawn.SCALE
+	level.box_modules = box_modules(generator)
 	if plan != null:
 		_place_reactor(generator, plan, ship_radius, level)
 	if robot_plan != null:
@@ -79,53 +77,39 @@ static func start_placement(generator: MineGenerator) -> int:
 	return generator.open_owner[0].x
 
 
-## Joins between the first module and each placement, in placement order.
-static func hops(generator: MineGenerator) -> Array[int]:
+## The placement each of the generator's boxes belongs to, -1 for a doorway
+## or a loop bridge (`LevelDef.box_modules`).
+static func box_modules(generator: MineGenerator) -> Array[int]:
 	var found: Array[int] = []
-	for placement: ModulePlacement in generator.placements:
-		found.append(0 if placement.parent < 0 else found[placement.parent] + 1)
+	found.resize(generator.min_mm.size())
+	found.fill(-1)
+	for index: int in generator.placements.size():
+		var placement: ModulePlacement = generator.placements[index]
+		for box: int in range(placement.first_box, placement.end_box):
+			found[box] = index
 	return found
-
-
-## The box index of a placement's largest box; ties go to the lower index.
-static func largest_box(generator: MineGenerator, placement: ModulePlacement) -> int:
-	var best: int = placement.first_box
-	var best_volume: int = -1
-	for index: int in range(placement.first_box, placement.end_box):
-		var size: Vector3i = generator.max_mm[index] - generator.min_mm[index]
-		var volume: int = size.x * size.y * size.z
-		if volume > best_volume:
-			best = index
-			best_volume = volume
-	return best
 
 
 static func _place_reactor(generator: MineGenerator, plan: ReactorPlan, ship_radius: float,
 		level: LevelDef) -> void:
-	var depth: Array[int] = hops(generator)
-	var furthest: int = 0
-	for index: int in depth.size():
-		if depth[index] >= depth[furthest]:
-			furthest = index
-	if depth[furthest] < plan.min_hops:
-		generator.reactor_note = "no reactor: the furthest module is %d joins from the first, below %d" \
-				% [depth[furthest], plan.min_hops]
+	var found: ReactorFar = ReactorFar.survey(level, plan.reactor.radius_mm, ship_radius, plan.min_hops)
+	var chosen: int = found.best()
+	if chosen < 0:
+		var furthest: int = found.furthest_hops()
+		if found.too_small > 0:
+			generator.reactor_note = "no reactor: every module %d or more joins from the start's is too small for the reactor and a ship's diameter" \
+					% plan.min_hops
+		elif furthest < plan.min_hops:
+			generator.reactor_note = "no reactor: the furthest module is %d joins from the start's, below %d" \
+					% [furthest, plan.min_hops]
+		else:
+			generator.reactor_note = "no reactor: no module far enough away has an escape path"
 		return
-	var box: int = largest_box(generator, generator.placements[furthest])
-	var low: Vector3i = generator.min_mm[box]
-	var high: Vector3i = generator.max_mm[box]
-	var centre: Vector3i = (low + high) / 2
-	var clear_mm: int = plan.reactor.radius_mm + roundi(2.0 * ship_radius * RobotSpawn.SCALE)
-	for axis: int in 3:
-		if centre[axis] - clear_mm < low[axis] or centre[axis] + clear_mm > high[axis]:
-			generator.reactor_note = "no reactor: box %d of module %d is too small for the reactor and a ship's diameter" \
-					% [box, furthest]
-			return
 	var reactor: ReactorState = plan.reactor.fresh_copy()
-	reactor.position_mm = centre
+	reactor.position_mm = found.centres[chosen]
 	reactor.exit_radius_mm = level.exit_radius_mm
 	level.reactor = reactor
-	generator.reactor_placement = furthest
+	generator.reactor_placement = found.modules[chosen]
 
 
 static func _place_robots(generator: MineGenerator, plan: RobotPlan, ship_radius: float,

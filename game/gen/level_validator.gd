@@ -6,7 +6,8 @@ extends RefCounted
 ## from the start, the start held inside a box, a reactor with room around it in
 ## a reachable box, an escape from the reactor to the exit that fits the
 ## meltdown countdown (`EscapeChecks`) and still fits it once the meltdown debris
-## the route guard lets fall is down (`DebrisEscape`, #493), and robots with room around them in
+## the route guard lets fall is down (`DebrisEscape`, #493), a generated level's
+## reactor far from the start (`ReactorFar`, #912), and robots with room around them in
 ## reachable boxes outside the start module (`RobotChecks`, #399). `validate` returns one message per failure, each starting
 ## with the check's name (`CHECKS`) and naming the box or boxes; an empty list
 ## means the level passes.
@@ -45,7 +46,7 @@ const RANGES: Dictionary[String, Array] = {
 }
 ## Every check's name, in the order `validate` reports them.
 const CHECKS: Array[String] = ["piece", "passage", "start", "reachable", "reactor", "escape",
-		"debris_escape", "robots"]
+		"debris_escape", ReactorFar.CHECK, "robots"]
 
 ## Narrowest opening allowed, in ship collision diameters.
 var min_passage_ship_diameters: float = 2.5
@@ -53,6 +54,11 @@ var min_passage_ship_diameters: float = 2.5
 var escape_speed_mps: float = 10.0
 ## Share of the countdown the escape may take.
 var escape_margin: float = 0.8
+## Share of the longest candidate escape path a generated level's reactor
+## must reach (`ReactorFar`, #912). Not in this file: it is the reactor plan's
+## `min_escape_fraction`, which `SeedLevel` hands over, as it hands the debris
+## plan this validator.
+var min_escape_fraction: float = 0.0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -115,7 +121,7 @@ func min_passage(ship_radius: float) -> float:
 ## empty (a hand-built level has no modules) the box holding the start stands
 ## for it. `on_check`, when valid, is called with a check's name each time that
 ## check is done ("piece" also covers "passage", "reachable" also "start" and
-## "escape" also "reactor", which are worked out together), so a sweep can time
+## "escape" also "reactor" and "reactor_far", which are worked out together), so a sweep can time
 ## each one (#513); the validator itself never reads a clock (ARC-1).
 func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
 		robot_radii_mm: Dictionary[String, int] = {}, start_module: Array[int] = [],
@@ -166,6 +172,9 @@ func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
 		var escape: Array[String] = EscapeChecks.failures(level, ship_radius, start_box, unreached,
 				escape_speed_mps, escape_margin)
 		failures.append_array(escape)
+		var far: String = ReactorFar.failure(level, ship_radius, min_escape_fraction)
+		if far != "":
+			failures.append(far)
 		LevelValidator._done(on_check, "escape")
 		# Only a level whose clear escape fits is timed again with debris fallen.
 		if escape.is_empty():
