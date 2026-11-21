@@ -11,7 +11,7 @@ extends RefCounted
 ##
 ## `press` returns what was confirmed, or "" when nothing was:
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
-## `pitch:<normal|inverted>` (#790), `level:<source>` where the source is in the form
+## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick, `restart`, `update` or `close`.
 ## The update entry is skipped while `update_version` is empty. The menu
@@ -34,6 +34,7 @@ const CORNER_PREFIX: String = "corner:"
 const CONTROLS_PREFIX: String = "controls:"
 const HANDS_PREFIX: String = "hands:"
 const PITCH_PREFIX: String = "pitch:"
+const COMFORT_PREFIX: String = "comfort:"
 ## The hand and pitch choices, in the order left / right steps through them.
 const HANDS: Array[String] = ["right", "left"]
 const PITCHES: Array[String] = ["normal", "inverted"]
@@ -57,6 +58,11 @@ var scheme_index: int = 0
 ## Indices into `HANDS` and `PITCHES`.
 var hand_index: int = 0
 var pitch_index: int = 0
+## The comfort presets the comfort entry steps through, 1 to 4 in order (#805):
+## each preset file's `display_name`, or its number when the file is rejected.
+var preset_names: Array[String] = []
+## Index into `preset_names`: the preset numbered `preset_index + 1`.
+var preset_index: int = 0
 ## The level choices, in order: the tunnel, every level file, seed, random.
 ## A level file is its path; the others are the `CHOICE_` names.
 var level_choices: Array[String] = []
@@ -76,6 +82,9 @@ func _init(p_spec: DevMenuSpec, level_paths: Array[String]) -> void:
 	level_choices = [CHOICE_TUNNEL]
 	level_choices.append_array(level_paths)
 	level_choices.append_array([CHOICE_SEED, CHOICE_RANDOM])
+	for number: int in range(1, ComfortPresetFiles.PATHS.size() + 1):
+		var preset: ComfortPreset = ComfortPresetFiles.load_number(number)
+		preset_names.append(preset.display_name if preset != null else str(number))
 
 
 ## Every level file in `LevelSwitch.LEVEL_DIR` that `LevelSwitch.path_for`
@@ -94,15 +103,17 @@ static func level_files() -> Array[String]:
 
 ## Shows what is in use when the menu opens: the first entry highlighted,
 ## `corner`, the level `source` (as `LevelStart.source` holds it), the
-## control `scheme` and the hand and pitch settings in use.
+## control `scheme`, the hand and pitch settings and the comfort preset
+## `comfort_number` (1..4) in use; another number shows the first preset.
 func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
-		invert_pitch: bool = false) -> void:
+		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER) -> void:
 	selected = _step_shown(-1, 1)
 	_held = {}
 	corner_index = maxi(spec.corners.find(corner), 0)
 	scheme_index = maxi(spec.schemes.find(scheme), 0)
 	hand_index = 1 if left_handed else 0
 	pitch_index = 1 if invert_pitch else 0
+	preset_index = comfort_number - 1 if comfort_number >= 1 and comfort_number <= preset_names.size() else 0
 	level_index = 0
 	if source.begins_with(LevelSwitch.SEED_PREFIX):
 		level_index = level_choices.find(CHOICE_SEED)
@@ -162,6 +173,15 @@ func hands() -> String:
 
 func pitch() -> String:
 	return PITCHES[pitch_index]
+
+
+## The comfort preset number the comfort entry shows, 1..4, and its name.
+func comfort_number() -> int:
+	return preset_index + 1
+
+
+func comfort_text() -> String:
+	return preset_names[preset_index]
 
 
 ## The words the hands and pitch entries show for their choice.
@@ -234,6 +254,8 @@ func _change(direction: int) -> void:
 		hand_index = posmod(hand_index + direction, HANDS.size())
 	elif kind() == DevMenuSpec.KIND_PITCH:
 		pitch_index = posmod(pitch_index + direction, PITCHES.size())
+	elif kind() == DevMenuSpec.KIND_COMFORT:
+		preset_index = posmod(preset_index + direction, preset_names.size())
 	elif kind() == DevMenuSpec.KIND_LEVEL:
 		level_index = posmod(level_index + direction, level_choices.size())
 
@@ -248,6 +270,8 @@ func _confirm() -> String:
 			return HANDS_PREFIX + hands()
 		DevMenuSpec.KIND_PITCH:
 			return PITCH_PREFIX + pitch()
+		DevMenuSpec.KIND_COMFORT:
+			return COMFORT_PREFIX + str(comfort_number())
 		DevMenuSpec.KIND_LEVEL:
 			return LEVEL_PREFIX + level_source()
 		DevMenuSpec.KIND_RESTART:

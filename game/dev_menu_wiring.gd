@@ -28,6 +28,14 @@ extends RefCounted
 ## and saves it in the same file; the labels, haptics and gripped models read
 ## the mapping, so they follow at once.
 ##
+## A Comfort choice (#805, CMF-4) goes through `ComfortWiring.set_preset`, the
+## path the preset button takes, so the cockpit, filter and status panel change
+## as they do for the button, and `FlightTestWiring` saves it in `ComfortChoice`
+## on the next frame as it saves a button change. It changes only this player's
+## view and input handling, never the ship (CMF-6). The entry opens on the
+## active preset, so it follows a button change; in the custom mode (#806) it
+## opens on the custom file's base preset.
+##
 ## It sits beside `main.gd` because it restarts the `net/` session and reads
 ## the flight test and the end screens; `main.gd` gains only a few lines.
 
@@ -56,6 +64,8 @@ var controls_store: ControlsChoice = ControlsChoice.new()
 ## prints; null in tests that do not switch schemes.
 var scheme: ControlSchemeSwitch = null
 var mapping: ThumbstickMapping = null
+## The comfort preset the Comfort entry shows and sets; null in tests without one.
+var comfort: ComfortWiring = null
 ## Picks the seed for `random` (`LevelSwitch.random_seed` when not set);
 ## tests inject one so they are not flaky.
 var pick_seed: Callable = Callable()
@@ -73,9 +83,11 @@ var _pending: Variant = null
 var _fade_from: float = -1.0
 
 
-func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null) -> void:
+func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
+		p_comfort: ComfortWiring = null) -> void:
 	scheme = p_scheme
 	mapping = p_mapping
+	comfort = p_comfort
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -160,9 +172,9 @@ static func neutral(values: Dictionary) -> Dictionary:
 	return idle
 
 
-## Acts on a result of `DevMenuModel.press`. A corner or control scheme is
-## saved and the menu stays open so the change can be seen; a level, restart
-## or update closes it.
+## Acts on a result of `DevMenuModel.press`. A corner, control scheme, hand,
+## pitch or comfort choice is applied and the menu stays open so the change can
+## be seen; a level, restart or update closes it.
 func apply(result: String) -> void:
 	if result == "":
 		return
@@ -174,6 +186,11 @@ func apply(result: String) -> void:
 		return
 	if result.begins_with(DevMenuModel.HANDS_PREFIX) or result.begins_with(DevMenuModel.PITCH_PREFIX):
 		_set_hands(result)
+		return
+	if result.begins_with(DevMenuModel.COMFORT_PREFIX):
+		var number: int = int(result.substr(DevMenuModel.COMFORT_PREFIX.length()))
+		if comfort != null and comfort.number != number:
+			comfort.set_preset(number)
 		return
 	menu.close()
 	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
@@ -194,7 +211,17 @@ func _toggle() -> void:
 	else:
 		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
 			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
-			mapping != null and mapping.invert_pitch)
+			mapping != null and mapping.invert_pitch, _comfort_shown())
+
+
+## The preset the Comfort entry opens on: the active one, or the custom
+## file's base preset in the custom mode.
+func _comfort_shown() -> int:
+	if comfort == null:
+		return ComfortPresetFiles.START_NUMBER
+	if comfort.number == ComfortPresetFiles.CUSTOM_NUMBER:
+		return comfort.custom().base
+	return comfort.number
 
 
 ## Only called while the menu is open, so the ship is on neutral input now.
