@@ -22,7 +22,7 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_stick_click": "click: slot held part",
 	# A short click is the label toggle; holding it shows the map (#314, #606).
 	"left_stick_click": "click: labels, hold: map",
-	"left_menu": "reset (hold)",
+	"left_menu": "tap: menu, hold: reset",
 }
 
 
@@ -138,10 +138,10 @@ func test_labels_split_by_hand() -> String:
 func test_reset_is_labelled_on_the_left_menu_button() -> String:
 	for left_handed: bool in [false, true]:
 		var got: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout(), left_handed)
-		if got.get(ResetHold.BUTTON, "") != "reset (hold)" or got.has("right_menu"):
+		if got.get(ResetHold.BUTTON, "") != "tap: menu, hold: reset" or got.has("right_menu"):
 			return "left-handed %s: reset labels %s" % [left_handed, got]
 		var left: Dictionary = ControlLabels.for_hand(got, "left")
-		if left.get("menu", "") != "reset (hold)":
+		if left.get("menu", "") != "tap: menu, hold: reset":
 			return "left hand labels lack the reset: %s" % left
 	if not ControllerModel.LABEL_POSITIONS.has("menu") or not ControllerModel.CONTROL_POINTS.has("menu"):
 		return "the menu button has no label position or control point"

@@ -10,20 +10,24 @@ extends RefCounted
 ##      "seed_text": "Seed {seed}", "random_text": "Random seed"}
 ##
 ## `kind` is one of `KINDS`, each at most once. A missing or rejected file
-## gives `fallback()`: the four built-in entries.
+## gives `fallback()`: the built-in entries. The `update` entry (#763) shows
+## only while a newer build waits; `{version}` in its label, and in
+## `cancel_update_text` while that build downloads, names it.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
 const KIND_LEVEL: String = "level"
 const KIND_RESTART: String = "restart"
 const KIND_CLOSE: String = "close"
-const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE]
-const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text"]
+const KIND_UPDATE: String = "update"
+const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE]
+const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
 	KIND_RESTART: "Restart level",
 	KIND_CLOSE: "Close",
+	KIND_UPDATE: "Update to {version}",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
@@ -34,11 +38,12 @@ var corners: Array[String] = []
 var tunnel_text: String = "Test tunnel"
 var seed_text: String = "Seed {seed}"
 var random_text: String = "Random seed"
+var cancel_update_text: String = "Cancel update to {version}"
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 
 
-## The built-in menu: the four entries in `KINDS` order, the four corners
+## The built-in menu: every entry in `KINDS` order, the four corners
 ## and the default place.
 static func fallback() -> DevMenuSpec:
 	var spec: DevMenuSpec = DevMenuSpec.new()

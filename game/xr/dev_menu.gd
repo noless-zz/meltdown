@@ -3,8 +3,8 @@ extends Node3D
 
 ## The in-headset development menu (#753, part 2 of #748): a small panel of
 ## text lines so the owner can choose the status panel's corner, what to fly,
-## and restart, without adb. Built here unwired; #763 opens it and acts on
-## what it returns.
+## and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
+## opens it on a tap of the left menu button and acts on what it returns.
 ##
 ## It is hung under the rig origin at the head point like `DestroyedScreen`,
 ## straight ahead. It appears and goes without a fade, pauses nothing and
@@ -75,16 +75,32 @@ func update(held: Dictionary) -> String:
 	return result
 
 
-## The text of each line, top to bottom, for tests and logs.
+## Names the waiting build on the update entry, or hides it with "" (#763).
+func set_update(version: String, busy: bool) -> void:
+	model.set_update(version, busy)
+	if visible:
+		_refresh()
+
+
+## The text of each shown line, top to bottom, for tests and logs.
 func texts() -> Array[String]:
 	var shown: Array[String] = []
 	for line: Label3D in _lines:
-		shown.append(line.text)
+		if line.visible:
+			shown.append(line.text)
 	return shown
 
 
+## Shown lines close up, so a hidden update entry leaves no gap.
 func _refresh() -> void:
+	var row: int = 0
 	for index: int in _lines.size():
+		var line: Label3D = _lines[index]
+		line.visible = model.is_shown(index)
+		if not line.visible:
+			continue
+		line.position = ORIGIN + Vector3(0.0, -row * LINE_PITCH, 0.0)
+		row += 1
 		var entry: Dictionary = model.spec.entries[index]
 		var text: String = str(entry["label"])
 		match str(entry["kind"]):
@@ -92,8 +108,9 @@ func _refresh() -> void:
 				text += ": < %s >" % model.corner()
 			DevMenuSpec.KIND_LEVEL:
 				text += ": < %s >" % model.level_text()
+			DevMenuSpec.KIND_UPDATE:
+				text = model.update_text(text)
 		var chosen: bool = index == model.selected
-		var line: Label3D = _lines[index]
 		var shown: String = "> %s" % text if chosen else text
 		if line.text != shown:
 			line.text = shown  # Label3D rebuilds its glyphs on every assignment.

@@ -35,10 +35,8 @@ var fade_overlay: FadeOverlay = null
 var head_recentre: HeadRecentre = HeadRecentre.new()  # Eye point at the ship's centre (#102).
 var _resume_frame: bool = false  # Set when focus returns; the next frame may run one tick.
 var status_panel: StatusPanel = null  # Under the rig, added by `attach_status_panel` (#146).
-## Which build this is, shown on the status panel; unknown in an editor run.
-var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)
-## Logs each afterburner start and stop and pulses the boosting hand (#170).
-var boost_haptics: BoostHaptics = BoostHaptics.new()
+var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)  # On the panel; unknown in an editor.
+var boost_haptics: BoostHaptics = BoostHaptics.new()  # Logs the afterburner, pulses the hand (#170).
 ## The bolts, robots, shield and hull, shown from session copies (#189, #228, MP-2).
 var combat: CombatWiring = CombatWiring.new()
 var map: MapWiring = MapWiring.new()  # Hologram map in the hand, filled in as the ship explores (#339).
@@ -53,6 +51,7 @@ var destroyed: DestroyedWiring = DestroyedWiring.new()
 var level_start: LevelStart = LevelStart.new()
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
+var dev_menu: DevMenuWiring = DevMenuWiring.new()  # A menu tap opens the dev menu (#763).
 
 
 func _ready() -> void:
@@ -97,6 +96,7 @@ func _ready() -> void:
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
 	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
+	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed)
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 
@@ -130,6 +130,7 @@ func sample_controls() -> Dictionary:
 ## Maps raw values through the comfort filter to the input every tick flies
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
+	values = dev_menu.read(values)  # Open, the menu takes the controls; the ship gets neutral input.
 	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
 	comfort.read_preset_button(buttons)
 	if comfort.read_label_button(buttons):
@@ -137,7 +138,6 @@ func apply_controls(values: Dictionary) -> void:
 	map.buttons = buttons
 	destroyed.read_buttons(buttons)
 	reset_hold.press(ResetHold.is_held(values) and not flight_test.takes_menu_hold())  # Skips the test.
-	update.press_menu(ResetHold.is_held(values))  # A tap shorter than the reset hold.
 	comfort.hand_input(flight_test.held(scheme.map_values(mapping, values)),
 		session.current_ship().orientation, reset_hold.reset_due())
 
@@ -164,7 +164,7 @@ func advance_frame(delta_seconds: float) -> void:
 	if destroyed.update(session, delta_seconds, head_recentre, _xr_running):
 		restart_level()
 	if fade_overlay != null:
-		fade_overlay.set_alpha(maxf(reset_hold.alpha, destroyed.fade_alpha()))
+		fade_overlay.set_alpha(maxf(maxf(reset_hold.alpha, destroyed.fade_alpha()), dev_menu.alpha))
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)  # #146, #170.
 	place_rig()
 	flight_test.update(delta_seconds, session.paused)

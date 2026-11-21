@@ -12,7 +12,8 @@ extends RefCounted
 ## `press` returns what was confirmed, or "" when nothing was:
 ## `corner:<name>`, `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
-## `seed:<n>`) or `random` for a fresh pick, `restart` or `close`. The menu
+## `seed:<n>`) or `random` for a fresh pick, `restart`, `update` or `close`.
+## The update entry is skipped while `update_version` is empty. The menu
 ## only returns these; it never reads or writes the simulation (MP-2, ARC-3).
 
 const UP: String = "menu_up"
@@ -33,6 +34,7 @@ const LEVEL_PREFIX: String = "level:"
 const RANDOM: String = "random"
 const RESTART: String = "restart"
 const CLOSE: String = "close"
+const UPDATE: String = "update"
 ## The largest seed `LevelSwitch` accepts: `SEED_MAX_DIGITS` nines.
 const SEED_MAX: int = 999999999999999999
 ## Level choices besides the level files.
@@ -49,6 +51,10 @@ var corner_index: int = 0
 var level_choices: Array[String] = []
 var level_index: int = 0
 var level_seed: int = 0
+## The waiting build the update entry names; "" hides the entry (#763).
+var update_version: String = ""
+## True while that build downloads: the entry then cancels it.
+var update_busy: bool = false
 
 var _held: Dictionary = {}
 
@@ -78,7 +84,7 @@ static func level_files() -> Array[String]:
 ## Shows what is in use when the menu opens: the first entry highlighted,
 ## `corner` and the level `source` (as `LevelStart.source` holds it) chosen.
 func open(corner: String, source: String) -> void:
-	selected = 0
+	selected = _step_shown(-1, 1)
 	_held = {}
 	corner_index = maxi(spec.corners.find(corner), 0)
 	level_index = 0
@@ -104,6 +110,26 @@ func press(held: Dictionary) -> String:
 
 func kind() -> String:
 	return str(spec.entries[selected]["kind"])
+
+
+## Whether entry `index` is on the menu now: every entry but a hidden update.
+func is_shown(index: int) -> bool:
+	return str(spec.entries[index]["kind"]) != DevMenuSpec.KIND_UPDATE or update_version != ""
+
+
+## Names the waiting build, or hides the update entry with "". A hidden
+## entry cannot stay highlighted, so the highlight moves on to the next one.
+func set_update(version: String, busy: bool) -> void:
+	update_version = version
+	update_busy = busy
+	if not is_shown(selected):
+		selected = _step_shown(selected, 1)
+
+
+## The words the update entry shows for the waiting build.
+func update_text(label: String) -> String:
+	var text: String = spec.cancel_update_text if update_busy else label
+	return text.replace("{version}", update_version)
 
 
 func corner() -> String:
@@ -147,12 +173,11 @@ func level_text() -> String:
 
 
 func _act(action: String) -> String:
-	var count: int = spec.entries.size()
 	match action:
 		UP:
-			selected = (selected - 1 + count) % count
+			selected = _step_shown(selected, -1)
 		DOWN:
-			selected = (selected + 1) % count
+			selected = _step_shown(selected, 1)
 		LEFT, RIGHT:
 			_change(-1 if action == LEFT else 1)
 		CONFIRM:
@@ -178,4 +203,18 @@ func _confirm() -> String:
 			return LEVEL_PREFIX + level_source()
 		DevMenuSpec.KIND_RESTART:
 			return RESTART
+		DevMenuSpec.KIND_UPDATE:
+			return UPDATE
 	return CLOSE
+
+
+## The next shown entry from `from` in `direction`, wrapping; `from` itself
+## when nothing else is shown. A start of -1 finds the first shown entry.
+func _step_shown(from: int, direction: int) -> int:
+	var count: int = spec.entries.size()
+	var index: int = from
+	for step: int in count:
+		index = posmod(index + direction, count)
+		if is_shown(index):
+			return index
+	return maxi(from, 0)

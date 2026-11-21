@@ -2,10 +2,10 @@ class_name UpdateNotice
 extends Node3D
 
 ## The in-app update notice on the status panel (#646). It offers a newer
-## build with two choices, "Update" (a tap of the left menu button) and
-## "Later" (let it go: it hides after `OFFER_SECONDS`), or shows a one-line
-## reason for a check the pilot asked for, or the download's progress and
-## outcome (#673). It is handed plain text and only emits the choice; it never
+## build with two choices, "Update" (the update entry of the dev menu, which
+## a tap of the left menu button opens, #763) and "Later" (let it go: it
+## hides after `OFFER_SECONDS`), or shows a one-line reason for a check the
+## pilot asked for, or the download's progress and outcome (#673). It is handed plain text and only emits the choice; it never
 ## starts a download or an install itself.
 ##
 ## Drawn like the panel's own labels and placed above them, clear of the
@@ -17,7 +17,7 @@ signal later_chosen
 const NODE_NAME: String = "UpdateNotice"
 const LINE_NAME: String = "UpdateLine"
 const CHOICES_NAME: String = "UpdateChoices"
-const CHOICES_TEXT: String = "Update: tap Menu    Later: wait"
+const CHOICES_TEXT: String = "Update: open the menu    Later: wait"
 const POSITION: Vector3 = Vector3(0.0, 0.25, 0.0)
 const CHOICES_Y: float = -0.022
 ## Long enough to read and decide; the offer comes back on the next start.

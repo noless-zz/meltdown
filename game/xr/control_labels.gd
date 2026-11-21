@@ -31,10 +31,11 @@ const WORDS: Dictionary = {
 	"show_map": ["hold: map", "hold: map"],
 }
 ## Controls labelled in every layout, because what they do is not part of a
-## layout. The reset hold (#162) stays on the left menu button in left-handed
-## mode too (see `ResetHold.BUTTON`), so these never swap hands.
+## layout. The menu tap (#763) and the reset hold (#162) stay on the left
+## menu button in left-handed mode too (see `ResetHold.BUTTON`), so these
+## never swap hands.
 const FIXED_LABELS: Dictionary = {
-	ResetHold.BUTTON: "reset (hold)",
+	ResetHold.BUTTON: "tap: menu, hold: reset",
 }
 ## The label of the comfort preset button (`ThumbstickMapping.PRESET_BUTTON`),
 ## which no layout binds but which swaps hands with the rest (#613).
