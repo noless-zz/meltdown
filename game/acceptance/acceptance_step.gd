@@ -68,16 +68,20 @@ const CHECK_ESCAPE_SCREEN: String = "escape_screen"
 ## collapses to one flat colour (#737, DEV-6, GFX-1; `AcceptanceViewFlatCheck`);
 ## skipped off the headset.
 const CHECK_VIEW_NOT_FLAT: String = "view_not_flat"
+## Ship 0's boosted top speed clearly beats normal flight, never passes
+## `afterburner_max_speed`, and falls back under `max_speed` within 3 s of
+## release, against the ship file's tuning (#775, FLT-2; `AcceptanceBoostCheck`).
+const CHECK_AFTERBURNER: String = "afterburner"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
-	CHECK_VIEW_NOT_FLAT]
+	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
 	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS,
-	CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD, CHECK_WALL_BOUNCED]
+	CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD, CHECK_WALL_BOUNCED, CHECK_AFTERBURNER]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
