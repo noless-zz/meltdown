@@ -24,6 +24,11 @@ const HEAD_REACH: float = 0.4
 ## The head tracker Godot's XRCamera3D follows.
 const HEAD_TRACKER: StringName = &"head"
 
+## Sent whenever a head pose is taken, with that pose in tracked space, so
+## anything else that measures from forward (swivel-chair yaw, #791) recentres
+## with the view.
+signal recentred(head: Transform3D)
+
 ## Tracked space relative to the ship's pose; identity until the first recentre.
 var offset: Transform3D = Transform3D.IDENTITY
 ## True from a request until a head pose has been taken.
@@ -52,6 +57,7 @@ func update(head: Transform3D, xr_running: bool) -> bool:
 func apply(head: Transform3D) -> void:
 	offset = offset_for(head)
 	pending = false
+	recentred.emit(head)
 
 
 ## The rig's transform for a ship at `ship_pose`.

@@ -225,7 +225,7 @@ func place_tunnel() -> void:
 func attach_cockpit_frame() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig != null:
-		comfort.attach_cockpit_frame(rig)
+		comfort.attach_cockpit_frame(rig, head_recentre)  # The swivel recentres with it (#791).
 		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 

@@ -45,6 +45,9 @@ var shake_offset: Transform3D = Transform3D.IDENTITY
 var view_guard: ViewGuard = ViewGuard.new()
 ## The `MELTDOWN_VIEW` diagnostic lines, off unless asked for (#651).
 var view_log: ViewLog = ViewLog.from_run()
+## Swivel-chair yaw (CMF-7, #791): added to the input before `filter` when the
+## active preset switches it on; `set_preset` hands it each new preset.
+var swivel: SwivelWiring = SwivelWiring.new()
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
@@ -70,6 +73,7 @@ func _init(p_input_source: LatestInputSource, p_mapping: ThumbstickMapping) -> v
 	_mapping = p_mapping
 	if hit_shake != null:
 		hit_shake.preset = preset
+	swivel.set_preset(preset)
 
 
 ## Makes preset `p_number` (1..4) the active one with a fresh filter. Only
@@ -85,6 +89,7 @@ func set_preset(p_number: int) -> void:
 		cockpit_frame.set_spec(cockpit_spec())
 	if hit_shake != null:
 		hit_shake.preset = preset
+	swivel.set_preset(preset)
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
 	view_log.event("preset=%d rebuilt=cockpit_frame,input_filter,hit_shake frame_point=unchanged" % p_number)
 
@@ -93,8 +98,11 @@ func set_preset(p_number: int) -> void:
 ## its camera: the frame is fixed to the ship and the head looks around inside
 ## it (#478). Does nothing once a frame exists; `set_preset` rebuilds it in place.
 ## Created here rather than with the wiring, so a wiring that never reaches
-## a scene owns no node.
-func attach_cockpit_frame(rig: Node3D) -> void:
+## a scene owns no node. With `recentre`, the swivel reads the rig's camera
+## and recentres with every pose it takes (#791).
+func attach_cockpit_frame(rig: Node3D, recentre: HeadRecentre = null) -> void:
+	if recentre != null:
+		swivel.attach(rig, recentre)
 	if cockpit_frame != null:
 		return
 	cockpit_frame = CockpitFrame.new(cockpit_spec())
@@ -171,7 +179,7 @@ func hand_input(input: ShipInput, orientation: Basis, reset_due: bool) -> void:
 		next.turn_q = held.turn_q
 		_input_source.set_input(next)
 		return
-	var filtered: ShipInput = filter.filter(input, orientation)
+	var filtered: ShipInput = filter.filter(swivel.added(input), orientation)
 	var snapped: bool = filter.produced_snap and not reset_due
 	_roll_snap_pending = snapped and filter.produced_roll_snap
 	if reset_due:
