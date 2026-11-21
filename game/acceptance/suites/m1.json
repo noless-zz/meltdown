@@ -166,6 +166,34 @@
 			"measure_seconds": 30.0,
 			"max_over_budget_share": 0.01,
 			"budget_slack_ms": 1.0
+		},
+		{
+			"id": "vignette_preset_1",
+			"replay": "res://acceptance/replays/m1_comfort_preset_1.replay",
+			"preset": 1,
+			"checks": ["vignette", "final_hash", "no_script_errors"],
+			"expected_hash": 1382224616
+		},
+		{
+			"id": "vignette_preset_2",
+			"replay": "res://acceptance/replays/m1_comfort_preset_2.replay",
+			"preset": 2,
+			"checks": ["vignette", "final_hash", "no_script_errors"],
+			"expected_hash": 157308001
+		},
+		{
+			"id": "vignette_preset_3",
+			"replay": "res://acceptance/replays/m1_flight_axes.replay",
+			"preset": 3,
+			"checks": ["vignette", "final_hash", "no_script_errors"],
+			"expected_hash": 3139276631
+		},
+		{
+			"id": "vignette_preset_4",
+			"replay": "res://acceptance/replays/m1_flight_axes.replay",
+			"preset": 4,
+			"checks": ["vignette", "final_hash", "no_script_errors"],
+			"expected_hash": 3139276631
 		}
 	]
 }
