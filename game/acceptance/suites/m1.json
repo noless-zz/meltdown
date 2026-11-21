@@ -61,6 +61,12 @@
 			"view_seconds": 60.0
 		},
 		{
+			"id": "afterburner",
+			"replay": "res://acceptance/replays/m1_afterburner.replay",
+			"checks": ["afterburner", "final_hash", "ship_alive"],
+			"expected_hash": 319791679
+		},
+		{
 			"id": "first_launch_flight_test",
 			"checks": ["flight_test_result", "no_script_errors"],
 			"flight_test_answers": ["fine", "fine", "uneasy", "fine", "fine", "stop"],
