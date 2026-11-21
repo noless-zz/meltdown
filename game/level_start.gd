@@ -44,10 +44,14 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource) -
 	return session
 
 
-## A new session for `source` from its start: the level again, or the tunnel.
+## A new session for `source` from its start: the level again, or the tunnel,
+## drawn again in place of any level drawn before (#795).
 func fresh_session(world: Node3D, input: ShipInputSource) -> LocalSession:
 	var session: LocalSession = level_session(world, source, input)
-	return session if session != null else tunnel_session(input)
+	if session != null:
+		return session
+	LevelSwitch.show_tunnel(world, TUNNEL_OFFSET)
+	return tunnel_session(input)
 
 
 ## The seed digits and level name the status panel names `p_source` by

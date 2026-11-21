@@ -33,6 +33,8 @@ const LEVEL_SUFFIX: String = "_level.json"
 const DEFAULTS_FILE: String = "res://data/level_defaults.json"
 ## The drawn test tunnel, removed when a level replaces it.
 const TUNNEL_NODE: String = "TestTunnel"
+## The tunnel's scene, drawn again when a restart flies the tunnel after a level (#795).
+const TUNNEL_SCENE: String = "res://view/test_tunnel.tscn"
 const SEED_ARG_PREFIX: String = "--seed="
 const SEED_INTENT_EXTRA: String = "meltdown_seed"
 ## A source naming a generated level: `seed:<n>`.
@@ -182,3 +184,25 @@ static func show_level(world: Node3D, level: LevelDef) -> LevelView:
 		world.add_child(view)
 	view.build(level.union)
 	return view
+
+
+## Takes the level's drawing out of `world` and draws the test tunnel there
+## again at `offset`, where the tunnel session's walls are (#795), so a restart
+## onto the tunnel after a level does not fly the tunnel inside the level's
+## walls. A tunnel already drawn is kept, so a tunnel restart builds nothing.
+## Only the drawing changes; the session is built separately (MP-2). Returns
+## the tunnel node.
+static func show_tunnel(world: Node3D, offset: Vector3) -> Node3D:
+	var view: Node = world.get_node_or_null(LevelView.NODE_NAME)
+	if view != null:
+		world.remove_child(view)
+		view.free()
+	var tunnel: Node3D = world.get_node_or_null(TUNNEL_NODE) as Node3D
+	if tunnel == null:
+		tunnel = (load(TUNNEL_SCENE) as PackedScene).instantiate() as Node3D
+		tunnel.name = TUNNEL_NODE
+		world.add_child(tunnel)
+		# Drawn first among the children, where the scene file puts it.
+		world.move_child(tunnel, 0)
+	tunnel.position = offset
+	return tunnel
