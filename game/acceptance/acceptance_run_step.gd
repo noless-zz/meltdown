@@ -25,20 +25,28 @@ extends RefCounted
 
 const KEY_RUN: String = "run"
 const KEY_NEXT_HASH: String = "expected_next_level_hash"
+## The checks that press on to the run's next level; a step lists at most one.
+const MOVING_CHECKS: Array[String] = [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE,
+	AcceptanceStep.CHECK_COMPONENTS_BANK]
 
 
 ## Reads `run` and `expected_next_level_hash` into `step`; "" or the problem,
 ## with the field named. Runs after the step's replay, seed, level and checks are read.
 static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) -> String:
 	var moves: String = moving_check(step)
-	var wants: bool = moves != ""
-	if step.has_check(AcceptanceStep.CHECK_RUN_ADVANCES) and step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE):
-		return "%s.checks: %s and %s both move the scene to the next level; a step lists one" % [
-			field, AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE]
-	if wants and step.checks[-1] != moves:
+	# components_bank moves on too, but judges the bank, not the next level's hash (#1028).
+	var wants: bool = moves != "" and moves != AcceptanceStep.CHECK_COMPONENTS_BANK
+	var moving: Array[String] = []
+	for check: String in MOVING_CHECKS:
+		if step.has_check(check):
+			moving.append(check)
+	if moving.size() > 1:
+		return "%s.checks: %s both move the scene to the next level; a step lists one" % [field,
+			" and ".join(moving)]
+	if moves != "" and step.checks[-1] != moves:
 		return "%s.checks: %s must be the last check; it moves the scene to the next level" % [field, moves]
 	if not data.has(KEY_RUN):
-		if wants:
+		if moves != "":
 			return "%s.%s: needed by the %s check" % [field, KEY_RUN, moves]
 		if data.has(KEY_NEXT_HASH):
 			return "%s.%s: only used by a run step" % [field, KEY_NEXT_HASH]
@@ -74,7 +82,7 @@ static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) ->
 
 ## The check of `step` that moves the scene to the run's next level, or "".
 static func moving_check(step: AcceptanceStep) -> String:
-	for check: String in [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE]:
+	for check: String in MOVING_CHECKS:
 		if step.has_check(check):
 			return check
 	return ""
@@ -98,6 +106,7 @@ static func begin(main: Node, step: AcceptanceStep) -> void:
 	level_start.run = RunWiring.new(step.run_seed, null, Callable(), "",
 		step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE)) if step.run_seed != AcceptanceStep.NO_SEED else null
 	if level_start.run != null:
+		level_start.run.level_rules = step.has_check(AcceptanceStep.CHECK_COMPONENTS_BANK)  # #1028.
 		level_start.source = level_start.run.level_source()
 	if destroyed != null:
 		destroyed.escape.run = level_start.run

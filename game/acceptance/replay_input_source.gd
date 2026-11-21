@@ -51,6 +51,12 @@ func new_session() -> LocalSession:
 	if _replay.debris != null and _replay.debris.size() > 0:
 		session.replay.debris = _replay.debris.fresh_copy()
 		session.sim.set_debris(_replay.debris.fresh_copy())
+	# A run level's component drops and miner rescue (#1028).
+	if _replay.component_rules != null and session.sim.set_component_rules(_replay.component_rules) == "":
+		session.replay.component_rules = _replay.component_rules
+	if _replay.rescue_rules != null and session.sim.set_rescue_rules(_replay.rescue_rules, _replay.miners) == "":
+		session.replay.rescue_rules = _replay.rescue_rules
+		session.replay.miners = _replay.miners.duplicate()
 	return session
 
 

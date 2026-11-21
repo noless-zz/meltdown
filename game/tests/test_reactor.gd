@@ -256,7 +256,7 @@ func test_changing_the_reactor_hull_in_the_replay_changes_the_hash() -> String:
 func test_the_reactor_line_follows_the_box_lines_and_reads_back() -> String:
 	var replay: Replay = _replay(40.0)
 	var lines: PackedStringArray = replay.to_text().split("\n")
-	if lines[0] != "meltdown-replay %d" % Replay.FORMAT_VERSION or not lines[3].begins_with("box ") \
+	if lines[0] != "meltdown-replay %d" % ReplayRulesLine.PLAIN_VERSION or not lines[3].begins_with("box ") \
 			or not lines[4].begins_with("reactor {"):
 		return "header %s" % str(lines.slice(0, 5))
 	var read: ReactorState = Replay.from_text(replay.to_text()).reactor

@@ -55,6 +55,10 @@ var shafts: ShaftOffer = null
 ## True from `escape_for_choice` until the restart it leads to: the level
 ## flown was escaped and the run has already moved on.
 var escape_taken: bool = false
+## Whether the run's levels drop components and let miners be rescued
+## (`RunLevelRules`, #1028). The game keeps it on; an acceptance run step
+## turns it off unless it checks them, so its pinned hashes stand.
+var level_rules: bool = true
 
 
 ## A run for `run_seed`. `p_store` is read for the profile and written after
