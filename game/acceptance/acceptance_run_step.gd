@@ -1,0 +1,112 @@
+class_name AcceptanceRunStep
+extends RefCounted
+
+## A step that flies a run (#989, RUN-1, DEV-6, decision record 0005). In a suite:
+##
+##     {"id": "run_advances", "run": 12345, "replay": "res://...",
+##      "checks": ["final_hash", "level_hash", "outcome", "run_advances"],
+##      "expected_next_level_hash": 123, ...}
+##
+## `run` names the run seed. The step's replay flies the run's first level,
+## built from `RunPlan`'s level 1 seed as `seed` would build it, so the
+## `level_hash`, `final_hash` and `outcome` checks work as on a seed step. A
+## step lists `run`, `seed` or `level`, not two of them.
+##
+## The `run_advances` check then does what the escape screen's restart press
+## does (`main.gd`'s `restart_level`) and judges the level the run flies next:
+## its source must be `RunPlan`'s level 2 seed and its level hash
+## `expected_next_level_hash`. It swaps the scene's session, so it must be the
+## step's last check: the checks before it read the flown level's end.
+##
+## A level change in one step is all this adds; the press itself (fade, hold,
+## A button) stays human-checked in the headset (#950).
+
+const KEY_RUN: String = "run"
+const KEY_NEXT_HASH: String = "expected_next_level_hash"
+
+
+## Reads `run` and `expected_next_level_hash` into `step`; "" or the problem,
+## with the field named. Runs after the step's replay, seed, level and checks are read.
+static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) -> String:
+	var wants: bool = step.has_check(AcceptanceStep.CHECK_RUN_ADVANCES)
+	if wants and step.checks[-1] != AcceptanceStep.CHECK_RUN_ADVANCES:
+		return "%s.checks: %s must be the last check; it moves the scene to the next level" % [
+			field, AcceptanceStep.CHECK_RUN_ADVANCES]
+	if not data.has(KEY_RUN):
+		if wants:
+			return "%s.%s: needed by the %s check" % [field, KEY_RUN, AcceptanceStep.CHECK_RUN_ADVANCES]
+		if data.has(KEY_NEXT_HASH):
+			return "%s.%s: only used by a run step" % [field, KEY_NEXT_HASH]
+		return ""
+	var where: String = "%s.%s" % [field, KEY_RUN]
+	var value: Variant = data[KEY_RUN]
+	if not AcceptanceStepParser.is_whole(value) or float(value) < 0.0 \
+			or float(value) > AcceptanceStepParser.MAX_EXACT_INT:
+		return "%s: must be a whole number from 0 to %d" % [where, int(AcceptanceStepParser.MAX_EXACT_INT)]
+	if step.replay_path == "":
+		return "%s: only used with a replay, which the step does not list" % where
+	if data.has("seed") or data.has("level"):
+		return "%s: a step flies a run, a seed or a level file, not two of them" % where
+	var plan: RunPlan = plan_for(int(value))
+	if plan.error != "":
+		return "%s: %s" % [where, plan.error]
+	step.run_seed = int(value)
+	step.level_seed = plan.level_seed(0)
+	if wants:
+		if not data.has(KEY_NEXT_HASH):
+			return "%s.%s: needed by the %s check" % [field, KEY_NEXT_HASH, AcceptanceStep.CHECK_RUN_ADVANCES]
+		var next: Variant = data[KEY_NEXT_HASH]
+		if not AcceptanceStepParser.is_whole(next) or float(next) < 0.0 \
+				or float(next) > AcceptanceStepParser.MAX_EXACT_INT:
+			return "%s.%s: must be a whole number from 0 to %d" % [field, KEY_NEXT_HASH,
+				int(AcceptanceStepParser.MAX_EXACT_INT)]
+		step.expected_next_level_hash = int(next)
+	elif data.has(KEY_NEXT_HASH):
+		return "%s.%s: only used by the %s check, which the step does not list" % [field, KEY_NEXT_HASH,
+			AcceptanceStep.CHECK_RUN_ADVANCES]
+	return ""
+
+
+## The plan for `run_seed` from the shipped run file.
+static func plan_for(run_seed: int) -> RunPlan:
+	return RunPlan.build(run_seed, FileAccess.get_file_as_string(RunWiring.RUN_FILE))
+
+
+## Before a step flies: a run step's run becomes the scene's, kept in memory
+## only (no profile is read or saved); any other step flies without a run.
+static func begin(main: Node, step: AcceptanceStep) -> void:
+	var level_start: LevelStart = main.get("level_start") as LevelStart
+	var destroyed: DestroyedWiring = main.get("destroyed") as DestroyedWiring
+	if level_start == null:
+		return
+	level_start.run = RunWiring.new(step.run_seed) if step.run_seed != AcceptanceStep.NO_SEED else null
+	if level_start.run != null:
+		level_start.source = level_start.run.level_source()
+	if destroyed != null:
+		destroyed.escape.run = level_start.run
+
+
+## [result, message] for the run_advances check: presses on from the flown
+## level as the escape screen's restart does and judges the level loaded.
+static func run(step: AcceptanceStep, main: Node, flown: bool, measurements: Dictionary) -> Array:
+	if not flown:
+		return [AcceptanceReport.RESULT_FAIL, "no replay was flown"]
+	var level_start: LevelStart = main.get("level_start") as LevelStart
+	if level_start == null or level_start.run == null or not level_start.run.active():
+		return [AcceptanceReport.RESULT_FAIL, "the scene flies no run"]
+	var ended: LocalSession = main.get("session")
+	if ended.sim.outcome() != ExitRule.Outcome.ESCAPED:
+		return [AcceptanceReport.RESULT_FAIL, "the run's level ended %s, not escaped" %
+			AcceptanceStateChecks.outcome_name(ended.sim.outcome())]
+	main.call("restart_level")
+	var want: String = LevelSwitch.SEED_PREFIX + str(plan_for(step.run_seed).level_seed(1))
+	var session: LocalSession = main.get("session")
+	var actual: int = AcceptanceStepLevel.level_hash(session.replay)
+	measurements["next_level_source"] = level_start.source
+	measurements["next_level_hash"] = actual
+	if level_start.source != want:
+		return [AcceptanceReport.RESULT_FAIL, "the run flies %s next, expected %s" % [level_start.source, want]]
+	if actual != step.expected_next_level_hash:
+		return [AcceptanceReport.RESULT_FAIL, "next level hash %d, expected %d: the level's data changed" % [
+			actual, step.expected_next_level_hash]]
+	return [AcceptanceReport.RESULT_PASS, "level 2 flies %s, level hash %d" % [want, actual]]

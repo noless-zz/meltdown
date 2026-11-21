@@ -17,6 +17,9 @@ var look: Dictionary = EscapeScreenLook.load_file()
 var sequence: DestroyedSequence = DestroyedSequence.new(EscapeScreenLook.times(look))
 ## Under the rig origin once `attach` has run, null before.
 var screen: EscapeScreen = null
+## The run being flown (#989), or null for a single level. Read only to say
+## that escaping its last level wins the run; `LevelStart` moves it on.
+var run: RunWiring = null
 
 
 ## Hangs the screen under `rig`. Calling it again adds nothing.
@@ -37,8 +40,14 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 		restart_held)
 	if screen != null:
 		screen.transform = head_point
-		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), seconds_left(session), xr_running)
+		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), seconds_left(session), xr_running,
+			run_won())
 	return due
+
+
+## True when the escape shown ends the run's last level: the screen says the run is won.
+func run_won() -> bool:
+	return run != null and run.on_last_level()
 
 
 ## The meltdown time `session`'s reactor holds, in seconds; 0 without a reactor.

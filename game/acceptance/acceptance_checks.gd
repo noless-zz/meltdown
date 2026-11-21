@@ -53,6 +53,7 @@ func begin_scene(step: AcceptanceStep, main: Node) -> void:
 	map_markers = AcceptanceMapMarkersCheck.for_step(step)
 	vignette = AcceptanceVignetteCheck.for_step(step)
 	refresh_120 = AcceptanceRefresh120.apply(main, step)  # After the preset, so its rate is asked again.
+	AcceptanceRunStep.begin(main, step)  # A run step's run, or none (#989).
 
 
 ## After the step's checks ran: the scene gets back what the step changed.
@@ -156,6 +157,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_ESCAPE_CUE: _escape_cue,
 		AcceptanceStep.CHECK_MAP_MARKERS: _map_markers,
 		AcceptanceStep.CHECK_VIGNETTE: _vignette,
+		AcceptanceStep.CHECK_RUN_ADVANCES: _run_advances,
 	}
 
 
@@ -220,3 +222,7 @@ func _map_markers(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements
 
 func _vignette(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return vignette.run(measurements) if vignette != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
+
+
+func _run_advances(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return AcceptanceRunStep.run(step, runner.main, runner.flown(), measurements)

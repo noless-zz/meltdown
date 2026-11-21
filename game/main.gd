@@ -80,7 +80,7 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	level_start.source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	destroyed.escape.run = level_start.choose(LevelSwitch.requested_path())  # --level, --seed or --run (#291, #382, #989).
 	if not use_level(level_start.source): level_start.source = ""  # The tunnel flies; the panel says so (#747).
 	place_tunnel()
 	attach_cockpit_frame()
@@ -203,10 +203,10 @@ func use_level(path: String) -> bool:
 	return fresh != null
 
 
-## Flies the level again from its start (#616) through the launch's loading path (MP-2).
+## Flies the level, or a run's next one, from its start (#616) through the launch's loading path (MP-2).
 func restart_level() -> void:
 	var paused: bool = session.paused
-	session = level_start.fresh_session(self, input_source)
+	session = level_start.fresh_session(self, input_source, session)  # A run moves on first (#989).
 	session.paused = paused
 	meltdown.attach(self, session)
 	head_recentre.request()
