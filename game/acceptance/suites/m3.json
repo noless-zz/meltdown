@@ -22,7 +22,7 @@
 			"id": "bot_generated_door_escape",
 			"seed": 26,
 			"replay": "res://acceptance/replays/bot_generated_door_escape.replay",
-			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "escape_screen", "door_fallen"],
+			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "escape_screen", "door_fallen", "map_route"],
 			"expected_hash": 854268051,
 			"expected_level_hash": 3088329792,
 			"expected_outcome": "ESCAPED"

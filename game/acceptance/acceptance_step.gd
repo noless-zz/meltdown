@@ -88,12 +88,17 @@ const CHECK_HELD_WHILE_PAUSED: String = "held_while_paused"
 ## flies, match the active preset's `hit_shake` and `hit_spin` (#849, CMF-1;
 ## `AcceptanceHitMotionCheck`). Needs a replay to sample.
 const CHECK_HIT_VIEW_MOTION: String = "hit_view_motion"
+## The held map draws no route before the reactor dies, then the escape route to
+## the exit on every tick of the meltdown, with a cross wherever a fallen door
+## blocks an explored opening (#884, MAP-2; `AcceptanceMapRouteCheck`). Needs a
+## replay to sample.
+const CHECK_MAP_ROUTE: String = "map_route"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
-	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION]
+	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,

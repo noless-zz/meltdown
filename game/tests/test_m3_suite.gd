@@ -233,7 +233,12 @@ func _run(suites: Array[AcceptanceSuite]) -> AcceptanceRunner:
 	var runner: AcceptanceRunner = AcceptanceRunner.new()
 	runner.quit_callback = _on_quit
 	var scene: PackedScene = load("res://main.tscn") as PackedScene
-	runner.setup(scene.instantiate(), suites, null)
+	# Built and readied as on the headset, so the map in the hand that
+	# `map_route` reads is there (#884).
+	var main: Node = scene.instantiate()
+	main.get_node("XRRig").call("build")
+	main.call("_ready")
+	runner.setup(main, suites, null)
 	var frames: int = 0
 	while not runner.finished and frames < FRAME_LIMIT:
 		runner.process_frame()
