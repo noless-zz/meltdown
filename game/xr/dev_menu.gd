@@ -127,6 +127,8 @@ func _refresh() -> void:
 				text += ": < %s >" % model.refresh_text()
 			DevMenuSpec.KIND_SWIVEL:
 				text += ": < %s >" % model.swivel_text()
+			DevMenuSpec.KIND_FOVEATION:
+				text += ": < %s >" % model.foveation_text()
 			DevMenuSpec.KIND_LEVEL:
 				text += ": < %s >" % model.levels.text(model.spec)
 			DevMenuSpec.KIND_UPDATE:

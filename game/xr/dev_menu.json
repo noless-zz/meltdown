@@ -9,6 +9,7 @@
 		{"kind": "controls", "label": "Controls"},
 		{"kind": "hands", "label": "Hands"},
 		{"kind": "pitch", "label": "Pitch"},
+		{"kind": "foveation", "label": "Foveation"},
 		{"kind": "level", "label": "Level"},
 		{"kind": "restart", "label": "Restart level"},
 		{"kind": "flight_test", "label": "Flight test"},
@@ -32,5 +33,8 @@
 	"custom_text": "Custom (base {base})",
 	"refresh_90_text": "90 Hz",
 	"refresh_120_text": "120 Hz",
-	"refresh_note_text": "(preset 4 only)"
+	"refresh_note_text": "(preset 4 only)",
+	"foveation_off_text": "Off",
+	"foveation_dynamic_text": "dynamic",
+	"foveation_note_text": "(this session)"
 }

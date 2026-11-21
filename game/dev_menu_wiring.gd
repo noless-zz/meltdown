@@ -23,7 +23,8 @@ extends RefCounted
 ## Each entry's choice goes to its helper (`DevMenuEntry`, #892): the Panel
 ## corner to `DevMenuCorner`, Controls, Hands and Pitch to `DevMenuControls`,
 ## Comfort to `DevMenuComfort`, Break reminder to `DevMenuBreak`, Refresh to
-## `DevMenuRefresh`, Swivel chair to `DevMenuSwivel`, the update to
+## `DevMenuRefresh`, Swivel chair to `DevMenuSwivel`, Foveation to
+## `DevMenuFoveation` (#871), the update to
 ## `DevMenuUpdate`, and Level, Restart level and Flight test to
 ## `DevMenuRestart`, which owns the fade. A new entry adds one helper and one
 ## line in `_init`. It sits beside `main.gd` because it restarts the `net/`
@@ -89,7 +90,7 @@ var _destroyed: DestroyedWiring = null
 
 func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
 		p_comfort: ComfortWiring = null, p_break_prompt: BreakPromptWiring = null,
-		p_rate: RefreshRate = null) -> void:
+		p_rate: RefreshRate = null, p_foveation: FoveationSwitch = null) -> void:
 	refresh = DevMenuRefresh.new(p_rate, p_comfort) if p_rate != null else null
 	comfort = p_comfort
 	break_prompt = p_break_prompt
@@ -101,7 +102,8 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 	var no_refresh: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_REFRESH], [DevMenuModel.REFRESH_PREFIX])
 	var close: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_CLOSE], [DevMenuModel.CLOSE], true)
 	entries = [_update_entry, _corner, _comfort_entry, _break_entry,
-		refresh if refresh != null else no_refresh, swivel, _controls, _restarts, close]
+		refresh if refresh != null else no_refresh, swivel, _controls,
+		DevMenuFoveation.new(p_foveation), _restarts, close]
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies

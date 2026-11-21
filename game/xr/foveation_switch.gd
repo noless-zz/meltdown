@@ -18,6 +18,11 @@ extends RefCounted
 ## whenever the level read back differs from the last one printed (checked at
 ## most once a second), so a device log shows what was in use when a fault
 ## appears. View side only: nothing here touches simulation state (ARC-3).
+##
+## The dev menu's Foveation entry (#871) steps through `MENU_STEPS` and hands
+## the chosen one to `choose`, which applies it through the same path as the
+## start-up switches and prints a line with source `menu`. The choice is never
+## saved: a setting that collapses the picture must not outlive the launch.
 
 const LEVEL_ARG_PREFIX: String = "--foveation="
 const DYNAMIC_ARG_PREFIX: String = "--foveation-dynamic="
@@ -29,6 +34,11 @@ const MAX_LEVEL: int = 3
 const CHECK_PERIOD_S: float = 1.0
 const SOURCE_DEFAULT: String = "default"
 const SOURCE_SWITCH: String = "switch"
+const SOURCE_MENU: String = "menu"
+## The settings the dev menu steps through, in order: x is the level, y is 1
+## for dynamic. Off is level 0, which has no dynamic form on the menu.
+const MENU_STEPS: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0),
+	Vector2i(3, 0), Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1)]
 const NOT_LOGGED: int = -1
 
 ## The level asked for, valid only when `has_level`.
@@ -44,6 +54,7 @@ var lines: PackedStringArray = PackedStringArray()
 ## The OpenXR interface, or a test's stand-in; null until the session begins.
 var _runtime: Object = null
 var _logged_level: int = NOT_LOGGED
+var _menu_chosen: bool = false
 var _since_check_s: float = 0.0
 
 
@@ -111,6 +122,38 @@ func begin(runtime: Object) -> void:
 	_log_in_use()
 
 
+## The dev menu's choice (#871): applies `p_level` and `p_dynamic` to the
+## interface at once and prints a line with source `menu`. Without an
+## interface (the flat build, tests) it only remembers them; nothing is saved.
+func choose(p_level: int, p_dynamic: bool) -> void:
+	level = clampi(p_level, 0, MAX_LEVEL)
+	has_level = true
+	dynamic = p_dynamic
+	has_dynamic = true
+	_menu_chosen = true
+	if _runtime == null:
+		return
+	_runtime.set("foveation_level", level)
+	_runtime.set("foveation_dynamic", dynamic)
+	_since_check_s = 0.0
+	_log_in_use()
+
+
+## The setting in use as a `MENU_STEPS` value: read back from the interface,
+## or the chosen one (Off when nothing was chosen) before the session begins.
+func in_use() -> Vector2i:
+	if _runtime != null:
+		return Vector2i(int(_runtime.get("foveation_level")), int(bool(_runtime.get("foveation_dynamic"))))
+	return Vector2i(level if has_level else 0, int(dynamic) if has_dynamic else 0)
+
+
+## The `MENU_STEPS` value `direction` steps on from `from`, wrapping. A
+## setting not on the list (Off with dynamic on) steps as Off does.
+static func menu_step(from: Vector2i, direction: int) -> Vector2i:
+	var index: int = maxi(MENU_STEPS.find(from), 0)
+	return MENU_STEPS[posmod(index + direction, MENU_STEPS.size())]
+
+
 ## One rendered frame of `delta_s` seconds; reads the level back once a second
 ## and prints a line when it changed since the last line.
 func advance(delta_s: float) -> void:
@@ -140,9 +183,15 @@ static func _requested(user_args: PackedStringArray, prefix: String, intent: Str
 func _log_in_use() -> void:
 	_logged_level = int(_runtime.get("foveation_level"))
 	var line: String = format_line(_logged_level, bool(_runtime.get("foveation_dynamic")),
-		SOURCE_SWITCH if is_switched() else SOURCE_DEFAULT)
+		_source())
 	lines.append(line)
 	print(line)
+
+
+func _source() -> String:
+	if _menu_chosen:
+		return SOURCE_MENU
+	return SOURCE_SWITCH if is_switched() else SOURCE_DEFAULT
 
 
 func _warn(text: String) -> void:

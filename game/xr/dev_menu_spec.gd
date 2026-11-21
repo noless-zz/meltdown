@@ -29,6 +29,8 @@ extends RefCounted
 ## and `refresh_note_text` after it while the active preset does not allow 120 Hz.
 ## The `swivel` entry (#853) shows `swivel_on_text` / `swivel_off_text`, with
 ## `swivel_custom_text` after it while the custom file decides; each optional.
+## The `foveation` entry (#871) shows `foveation_off_text` or the level, with
+## `foveation_dynamic_text` after it when dynamic and `foveation_note_text` last.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -44,13 +46,15 @@ const KIND_BREAK: String = "break"
 const KIND_FLIGHT_TEST: String = "flight_test"
 const KIND_REFRESH: String = "refresh"
 const KIND_SWIVEL: String = "swivel"
+const KIND_FOVEATION: String = "foveation"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
 	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK, KIND_FLIGHT_TEST,
-	KIND_REFRESH, KIND_SWIVEL]
+	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
 	"break_on_text", "break_off_text", "custom_text", "refresh_90_text", "refresh_120_text",
-	"refresh_note_text", "swivel_on_text", "swivel_off_text", "swivel_custom_text"]
+	"refresh_note_text", "swivel_on_text", "swivel_off_text", "swivel_custom_text",
+	"foveation_off_text", "foveation_dynamic_text", "foveation_note_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
@@ -65,6 +69,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_FLIGHT_TEST: "Flight test",
 	KIND_REFRESH: "Refresh",
 	KIND_SWIVEL: "Swivel chair",
+	KIND_FOVEATION: "Foveation",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
@@ -90,6 +95,9 @@ var refresh_note_text: String = "(preset 4 only)"
 var swivel_on_text: String = "On"
 var swivel_off_text: String = "Off"
 var swivel_custom_text: String = "(custom file)"
+var foveation_off_text: String = "Off"
+var foveation_dynamic_text: String = "dynamic"
+var foveation_note_text: String = "(this session)"
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 

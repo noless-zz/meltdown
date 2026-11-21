@@ -13,6 +13,7 @@ extends RefCounted
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
 ## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805) or `comfort:5`, the custom mode (#837),
 ## `break:<on|off>` (#821), `refresh:<90|120>` (#852), `swivel:<on|off>` (#853),
+## `foveation:<0..3>:<on|off>` with the second part dynamic (#871),
 ## `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
@@ -47,6 +48,7 @@ const REFRESH_STANDARD: String = RefreshChoice.OFF
 const SWIVEL_PREFIX: String = "swivel:"
 const SWIVEL_ON: String = "on"
 const SWIVEL_OFF: String = "off"
+const FOVEATION_PREFIX: String = "foveation:"
 ## The hand and pitch choices, in the order left / right steps through them.
 const HANDS: Array[String] = ["right", "left"]
 const PITCHES: Array[String] = ["normal", "inverted"]
@@ -83,6 +85,8 @@ var refresh_allowed: bool = true
 ## decides it so left / right leave it alone (#853); the wiring sets both.
 var swivel_on: bool = false
 var swivel_locked: bool = false
+## The Foveation entry's setting as a `FoveationSwitch.MENU_STEPS` value (#871).
+var foveation: Vector2i = Vector2i.ZERO
 ## The Level entry's choices and seed.
 var levels: DevMenuLevels
 ## The waiting build the update entry names; "" hides the entry (#763).
@@ -227,6 +231,15 @@ func swivel_text() -> String:
 	return "%s %s" % [text, spec.swivel_custom_text] if swivel_locked else text
 
 
+## The words the Foveation entry shows: Off or the level, "dynamic" after it
+## when on, then the note that the choice lasts this session only; all from the file.
+func foveation_text() -> String:
+	var text: String = spec.foveation_off_text if foveation.x == 0 else str(foveation.x)
+	if foveation.y != 0:
+		text = "%s %s" % [text, spec.foveation_dynamic_text]
+	return "%s %s" % [text, spec.foveation_note_text]
+
+
 ## The words the Break reminder entry shows: the file's On or Off text.
 func break_text() -> String:
 	return spec.break_on_text if break_on else spec.break_off_text
@@ -266,6 +279,8 @@ func _change(direction: int) -> void:
 		refresh_high = not refresh_high
 	elif kind() == DevMenuSpec.KIND_SWIVEL and not swivel_locked:
 		swivel_on = not swivel_on
+	elif kind() == DevMenuSpec.KIND_FOVEATION:
+		foveation = FoveationSwitch.menu_step(foveation, direction)
 	elif kind() == DevMenuSpec.KIND_LEVEL:
 		levels.step(direction)
 
@@ -288,6 +303,8 @@ func _confirm() -> String:
 			return REFRESH_PREFIX + (REFRESH_HIGH if refresh_high else REFRESH_STANDARD)
 		DevMenuSpec.KIND_SWIVEL:
 			return SWIVEL_PREFIX + (SWIVEL_ON if swivel_on else SWIVEL_OFF)
+		DevMenuSpec.KIND_FOVEATION:
+			return "%s%d:%s" % [FOVEATION_PREFIX, foveation.x, "on" if foveation.y != 0 else "off"]
 		DevMenuSpec.KIND_LEVEL:
 			return LEVEL_PREFIX + levels.source()
 		DevMenuSpec.KIND_RESTART:
