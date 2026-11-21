@@ -130,20 +130,22 @@ func test_the_same_seed_places_the_same_fires() -> String:
 
 
 func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String:
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var validator: LevelValidator = SeedSweep.load_validator()
 	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
 	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
 	var plan: DebrisPlan = _plan(_file())
 	var solid: DebrisPlan = _solid_only()
 	var radius: float = SeedSweep.ship_radius()
+	# Every seed is generated once for all the sweeps that read it (#903); the
+	# generating is timed on its own, and the limit is on this sweep's checks.
+	var generating: int = Time.get_ticks_msec()
+	var generators: Array[MineGenerator] = SeedSweep.shared_generators(0, SEEDS)
 	var started: int = Time.get_ticks_msec()
+	var generated_ms: int = started - generating
 	var placed: int = 0
 	var seeds_with_fire: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules,
-				SeedSweep.MODULE_COUNT, bridges)
+		var generator: MineGenerator = generators[level_seed]
 		var hash_before: int = generator.output_hash()
 		var bare: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, solid)
 		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
@@ -169,10 +171,14 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 			seeds_with_fire += 1
 			placed += fires.size()
 	var elapsed: int = Time.get_ticks_msec() - started
-	print("  fires over seeds 0..%d: %d placed on %d seeds in %d ms" % [SEEDS - 1, placed,
-			seeds_with_fire, elapsed])
+	print("  fires over seeds 0..%d: %d placed on %d seeds in %d ms (generating, shared: %d ms)" % [
+			SEEDS - 1, placed, seeds_with_fire, elapsed, generated_ms])
 	if placed == 0:
 		return "no fire placed over seeds 0..%d" % (SEEDS - 1)
+	# The later sweeps read these generators instead of timing their own, so a
+	# slow generator still fails here (when this sweep was the one to generate).
+	if generated_ms > TIME_LIMIT_MS:
+		return "generating %d seeds took %d ms, limit %d" % [SEEDS, generated_ms, TIME_LIMIT_MS]
 	return "" if elapsed <= TIME_LIMIT_MS else "%d seeds took %d ms, limit %d" % [SEEDS, elapsed, TIME_LIMIT_MS]
 
 

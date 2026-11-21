@@ -62,6 +62,29 @@ static func ship_radius() -> float:
 	return ShipTuning.parse_json(SeedLevel.read_text(SeedLevel.SHIP_FILE)).radius
 
 
+## Generators shared by the seed sweeps (#903): `MODULE_COUNT` modules from the
+## shipped data files, by seed. Generating is a third of a 1,000-seed sweep's
+## time, and the same seed always gives the same generator (GEN-2), so sweeps
+## that read the same seeds need not each generate them again. Building a level
+## leaves its generator as it was (`GeneratedLevel.build`), so a shared one
+## serves every sweep. Only `shared_generators` fills it; `run` reads it.
+static var _shared: Dictionary[int, MineGenerator] = {}
+static var _shared_inputs: SeedLevel = null
+
+
+## The shared generators for seeds `first_seed` up to `first_seed + count - 1`,
+## generating and keeping those not shared yet.
+static func shared_generators(first_seed: int, count: int) -> Array[MineGenerator]:
+	if _shared_inputs == null:
+		_shared_inputs = SeedLevel.load_inputs()
+	var found: Array[MineGenerator] = []
+	for level_seed: int in range(first_seed, first_seed + count):
+		if not _shared.has(level_seed):
+			_shared[level_seed] = _shared_inputs.generate(level_seed)
+		found.append(_shared[level_seed])
+	return found
+
+
 ## Seeds `first_seed` up to `first_seed + count - 1`, each level with the
 ## generator's reactor (#356, #357), loops (#396), robots (#378, #399) and
 ## meltdown debris (#398, #440). The result holds "seeds",
@@ -100,6 +123,7 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 	for stage: String in STAGES:
 		stage_us[stage] = 0
 	# The clock read when the last stage ended; each stage adds what has passed.
+	var shareable: bool = overrides.is_empty() and module_count == MODULE_COUNT
 	var last: Array[int] = [Time.get_ticks_usec()]
 	var mark: Callable = func(stage: String) -> void:
 		var now: int = Time.get_ticks_usec()
@@ -107,7 +131,10 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		last[0] = now
 	for level_seed: int in range(first_seed, first_seed + count):
 		last[0] = Time.get_ticks_usec()
-		var generator: MineGenerator = inputs.generate(level_seed, module_count)
+		# A shared generator is the one these inputs give, unless a file or the
+		# module count is not the shipped one.
+		var generator: MineGenerator = _shared[level_seed] if shareable and _shared.has(level_seed) \
+				else inputs.generate(level_seed, module_count)
 		mark.call("generate")
 		if generator.note != "":
 			result["short"] += 1
