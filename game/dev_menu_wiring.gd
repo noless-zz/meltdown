@@ -42,6 +42,8 @@ extends RefCounted
 ## a showing prompt; the entry opens on the reminder's state, so a launch
 ## switch shows. Only the view's prompt changes, never the simulation (CMF-6).
 ##
+## A Flight test choice (#839, CMF-4) restarts the test tunnel behind the same
+## fade and runs the first-launch test again there (`FlightTestWiring.run_again`).
 ## It sits beside `main.gd` because it restarts the `net/` session and reads
 ## the flight test and the end screens; `main.gd` gains only a few lines.
 
@@ -85,6 +87,8 @@ var _level_start: LevelStart = null
 var _restart: Callable = Callable()
 var _flight_test: FlightTestWiring = null
 var _destroyed: DestroyedWiring = null
+var _rig: Node3D = null
+var _test_pending: bool = false  # The pending restart is the Flight test entry's (#839).
 ## The source to fly once the view is black; null while no restart waits.
 var _pending: Variant = null
 ## When the current fade phase began on the steady clock; < 0 when no fade runs.
@@ -111,6 +115,7 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 	_restart = restart
 	_flight_test = flight_test
 	_destroyed = destroyed
+	_rig = rig
 	menu = p_menu if p_menu != null else DevMenu.new()
 	if rig != null:
 		rig.add_child(menu)
@@ -214,6 +219,9 @@ func apply(result: String) -> void:
 		_start_restart(source)
 	elif result == DevMenuModel.RESTART:
 		_start_restart(_level_start.source if _level_start != null else "")
+	elif result == DevMenuModel.FLIGHT_TEST and _flight_test != null:
+		_start_restart("")  # The test flies in the test tunnel, as on first launch.
+		_test_pending = true
 	elif result == DevMenuModel.UPDATE and _update != null:
 		_update.choose_waiting()
 
@@ -288,3 +296,6 @@ func _advance_fade(now: float) -> void:
 		_fade_from = now
 		if _restart.is_valid():
 			_restart.call()
+		if _test_pending:
+			_test_pending = false
+			_flight_test.run_again(_rig)

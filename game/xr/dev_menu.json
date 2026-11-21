@@ -9,6 +9,7 @@
 		{"kind": "pitch", "label": "Pitch"},
 		{"kind": "level", "label": "Level"},
 		{"kind": "restart", "label": "Restart level"},
+		{"kind": "flight_test", "label": "Flight test"},
 		{"kind": "close", "label": "Close"}
 	],
 	"corners": ["bottom_left", "bottom_right", "top_left", "top_right", "centre"],

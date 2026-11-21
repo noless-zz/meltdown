@@ -15,7 +15,7 @@ extends RefCounted
 ## `break:<on|off>` (#821), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
-## `update` or `close`.
+## `flight_test` (#839), `update` or `close`.
 ## The update entry is skipped while `update_version` is empty. The menu
 ## only returns these; it never reads or writes the simulation (MP-2, ARC-3).
 
@@ -46,6 +46,7 @@ const PITCHES: Array[String] = ["normal", "inverted"]
 const LEVEL_PREFIX: String = "level:"
 const RANDOM: String = DevMenuLevels.RANDOM
 const RESTART: String = "restart"
+const FLIGHT_TEST: String = "flight_test"
 const CLOSE: String = "close"
 const UPDATE: String = "update"
 
@@ -242,6 +243,8 @@ func _confirm() -> String:
 			return LEVEL_PREFIX + levels.source()
 		DevMenuSpec.KIND_RESTART:
 			return RESTART
+		DevMenuSpec.KIND_FLIGHT_TEST:
+			return FLIGHT_TEST
 		DevMenuSpec.KIND_UPDATE:
 			return UPDATE
 	return CLOSE
