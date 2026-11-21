@@ -14,6 +14,7 @@ const GENERATOR_FILE: String = SeedLevel.GENERATOR_FILE
 const DEBRIS_ROUTE: String = "debris_route"
 const DebrisKinds := preload("res://tests/sweep_debris_kinds.gd")
 const ReactorDistance := preload("res://tests/sweep_reactor_distance.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 ## Failure messages kept in a result, so 10,000 bad seeds do not flood a log.
 const KEPT_FAILURES: int = 10
 ## Where a sweep's time goes, as `run` keys "stage_ms" (#513): building the
@@ -63,26 +64,13 @@ static func ship_radius() -> float:
 	return ShipTuning.parse_json(SeedLevel.read_text(SeedLevel.SHIP_FILE)).radius
 
 
-## Generators shared by the seed sweeps (#903): `MODULE_COUNT` modules from the
-## shipped data files, by seed. Generating is a third of a 1,000-seed sweep's
-## time, and the same seed always gives the same generator (GEN-2), so sweeps
-## that read the same seeds need not each generate them again. Building a level
-## leaves its generator as it was (`GeneratedLevel.build`), so a shared one
-## serves every sweep. Only `shared_generators` fills it; `run` reads it.
-static var _shared: Dictionary[int, MineGenerator] = {}
-static var _shared_inputs: SeedLevel = null
-
-
-## The shared generators for seeds `first_seed` up to `first_seed + count - 1`,
-## generating and keeping those not shared yet.
+## The generators for seeds `first_seed` up to `first_seed + count - 1`,
+## shared by the seed sweeps through `SeedLevelCache` (#903, #956), generating
+## those not shared yet.
 static func shared_generators(first_seed: int, count: int) -> Array[MineGenerator]:
-	if _shared_inputs == null:
-		_shared_inputs = SeedLevel.load_inputs()
 	var found: Array[MineGenerator] = []
 	for level_seed: int in range(first_seed, first_seed + count):
-		if not _shared.has(level_seed):
-			_shared[level_seed] = _shared_inputs.generate(level_seed)
-		found.append(_shared[level_seed])
+		found.append(SeedLevelCache.generator(level_seed))
 	return found
 
 
@@ -133,16 +121,21 @@ static func run(first_seed: int, count: int, module_count: int = MODULE_COUNT,
 		last[0] = now
 	for level_seed: int in range(first_seed, first_seed + count):
 		last[0] = Time.get_ticks_usec()
-		# A shared generator is the one these inputs give, unless a file or the
-		# module count is not the shipped one.
-		var generator: MineGenerator = _shared[level_seed] if shareable and _shared.has(level_seed) \
-				else inputs.generate(level_seed, module_count)
+		# A shared generator and level are the ones these inputs give, unless a
+		# file or the module count is not the shipped one; they are read when
+		# another sweep made them, never made here, so a nightly 10,000-seed
+		# sweep keeps nothing (#956).
+		var generator: MineGenerator = SeedLevelCache.peek_generator(level_seed) if shareable else null
+		if generator == null:
+			generator = inputs.generate(level_seed, module_count)
 		mark.call("generate")
 		if generator.note != "":
 			result["short"] += 1
 		if generator.loops > 0:
 			result["looped"] += 1
-		var level: LevelDef = inputs.level_of(generator)
+		var level: LevelDef = SeedLevelCache.peek_level(level_seed) if shareable else null
+		if level == null or SeedLevelCache.peek_generator(level_seed) != generator:
+			level = inputs.level_of(generator)
 		mark.call("build")
 		result["robots"] += level.robots.spawns.size()
 		ReactorDistance.add(result["reactor_distance"], level)

@@ -10,6 +10,7 @@ extends RefCounted
 ## robots.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 60000
@@ -124,9 +125,10 @@ func test_seeds_get_debris_that_never_closes_the_escape() -> String:
 	var placed: int = 0
 	var solid: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules,
-				SeedSweep.MODULE_COUNT, bridges)
-		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
+		# The shipped level, shared with the other sweeps (#956), against the
+		# seed generated and built afresh: the same seed gives the same debris.
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
+		var level: LevelDef = SeedLevelCache.level(level_seed)
 		var again: LevelDef = MineGenerator.generate(level_seed, modules, SeedSweep.MODULE_COUNT,
 				bridges).to_level_def(reactor_plan, radius, robot_plan, plan)
 		var problem: String = _same(level.debris, again.debris)

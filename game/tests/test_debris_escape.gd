@@ -11,6 +11,7 @@ extends RefCounted
 ## check reports under its own name in `SeedSweep`.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const SHIP_RADIUS: float = 1.0
 ## `test_box_debris_route.gd`'s two-route level: the short way runs down the
 ## corridor from z -6 to -60 (104.5 m from the reactor to the start), the long
@@ -208,7 +209,7 @@ func test_seeds_0_to_999_pass_with_debris_fallen() -> String:
 	var started: int = Time.get_ticks_msec()
 	var inputs: SeedLevel = SeedLevel.load_inputs()
 	var counts: Array[int] = [0, 0]
-	var problem: String = _sweep(inputs, SEEDS, counts)
+	var problem: String = _sweep(inputs, SEEDS, counts, true)
 	if problem != "":
 		return problem
 	print("  shipped margin over seeds 0..%d: %d entries dropped on %d seeds"
@@ -233,19 +234,23 @@ func test_a_tighter_margin_drops_entries_and_every_level_passes() -> String:
 
 
 ## Builds seeds 0..`count - 1` with and without trimming and checks them;
-## `counts` gets the seeds and the entries trimming dropped.
-func _sweep(inputs: SeedLevel, count: int, counts: Array[int]) -> String:
+## `counts` gets the seeds and the entries trimming dropped. With `shared`, the
+## inputs are the shipped ones and the generators and levels are those shared
+## with the other sweeps (#956).
+func _sweep(inputs: SeedLevel, count: int, counts: Array[int], shared: bool = false) -> String:
 	if inputs.error != "":
 		return inputs.error
 	var untrimmed: DebrisPlan = DebrisPlan.parse_json(SeedLevel.read_text(SeedLevel.DEBRIS_FILE))
 	untrimmed.escape_validator = null
 	var radius: float = inputs.tuning.radius
 	for level_seed: int in count:
-		var generator: MineGenerator = inputs.generate(level_seed)
-		var hash_before: int = generator.output_hash()
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed) if shared \
+				else inputs.generate(level_seed)
+		var hash_before: int = SeedLevelCache.generated_hash(level_seed) if shared \
+				else generator.output_hash()
 		var drawn: LevelDef = generator.to_level_def(inputs.reactor_plan, radius, inputs.robot_plan,
 				untrimmed)
-		var level: LevelDef = inputs.level_of(generator)
+		var level: LevelDef = SeedLevelCache.level(level_seed) if shared else inputs.level_of(generator)
 		var problem: String = _only_entries_dropped(drawn, level)
 		if problem == "" and generator.output_hash() != hash_before:
 			problem = "output_hash moved"

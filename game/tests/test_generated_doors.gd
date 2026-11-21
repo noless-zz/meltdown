@@ -10,6 +10,7 @@ extends RefCounted
 ## through `DebrisRouteGuard`. The counts of doors placed and held are printed.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 90000
@@ -96,10 +97,8 @@ func _rejects(section: Variant, names: Array) -> String:
 
 
 func test_seeds_get_doors_across_openings_that_never_close_the_escape() -> String:
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var validator: LevelValidator = SeedSweep.load_validator()
 	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
 	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
 	var plan: DebrisPlan = _plan(_file())
 	var spheres: DebrisPlan = _spheres_only()
@@ -110,12 +109,14 @@ func test_seeds_get_doors_across_openings_that_never_close_the_escape() -> Strin
 	var on_route: int = 0
 	var seeds_with_doors: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules,
-				SeedSweep.MODULE_COUNT, bridges)
-		var hash_before: int = generator.output_hash()
+		# The generator and the level with doors (the shipped file without its
+		# fires) are shared with the other sweeps (#956); the spheres-only level
+		# is this sweep's own.
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
 		var bare: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, spheres)
-		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
-		var problem: String = _unchanged(bare, level, hash_before, generator.output_hash())
+		var level: LevelDef = SeedLevelCache.level(level_seed, SeedLevelCache.WITHOUT_FIRES)
+		var problem: String = _unchanged(bare, level, SeedLevelCache.generated_hash(level_seed),
+				generator.output_hash())
 		var doors: Array[int] = _door_entries(level.debris)
 		if problem == "":
 			problem = _covers_openings(generator, level.debris, doors, plan.doors)
