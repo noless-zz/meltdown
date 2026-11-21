@@ -67,6 +67,21 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 	return due or escape_due
 
 
+## Puts both end screens back as they are after a restart has faded in: the
+## sequences start over with the same times, the warnings stop as a restart
+## stops them, and both screens are hidden at once. For a run that starts
+## without the restart button: an acceptance step after one that ended
+## destroyed or escaped (#917), so its flight is not hidden behind the last
+## step's end screen.
+func clear_end_screens() -> void:
+	sequence = DestroyedSequence.new({"fade_seconds": sequence.fade_seconds, "hold_seconds": sequence.hold_seconds})
+	haptics.reset()
+	_restart_held = false
+	if screen != null:
+		screen.show_state(false, false, false)
+	escape.clear_end_screen()
+
+
 ## The fade's opacity this frame from either end screen, 0..1.
 func fade_alpha() -> float:
 	return maxf(sequence.fade_alpha(), escape.fade_alpha())

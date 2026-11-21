@@ -140,6 +140,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	_checks = AcceptanceChecks.begin(step, xr_available(), on_headset, screenshots.grab)
 	_checks.errors_at_start = errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
+	AcceptanceStepLevel.clear_end_screens(main)  # Not the last step's end screen (#917).
 	screenshots.begin(suites[_suite_index].name, step)
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)

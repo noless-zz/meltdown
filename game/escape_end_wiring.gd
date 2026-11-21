@@ -47,6 +47,14 @@ static func seconds_left(session: LocalSession) -> float:
 	return MeltdownWiring.seconds_left(reactor) if reactor != null else 0.0
 
 
+## Starts the sequence over with the same times and hides the screen, as
+## after a restart has faded in (#917; `DestroyedWiring.clear_end_screens`).
+func clear_end_screen() -> void:
+	sequence = DestroyedSequence.new({"fade_seconds": sequence.fade_seconds, "hold_seconds": sequence.hold_seconds})
+	if screen != null:
+		screen.show_state(false, false, 0.0, false)
+
+
 ## The fade's opacity this frame from the sequence, 0..1.
 func fade_alpha() -> float:
 	return sequence.fade_alpha()

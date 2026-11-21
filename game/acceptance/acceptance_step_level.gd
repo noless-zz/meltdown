@@ -35,6 +35,20 @@ static func fly_seed(main: Node, level_seed: int, replay: Replay, source: Replay
 	return ""
 
 
+## Clears what the step before left over the scene (#917, DEV-6): the
+## destroyed and escape end screens and the fade they hold, so this step's
+## flight, screenshots and eye samples show the scene, not an end screen on
+## black. The end screens start over through `DestroyedWiring`, as after a
+## restart; the session is the step's own, so nothing it simulates changes.
+static func clear_end_screens(main: Node) -> void:
+	var destroyed: DestroyedWiring = main.get("destroyed") as DestroyedWiring
+	if destroyed != null:
+		destroyed.clear_end_screens()
+	var fade: FadeOverlay = main.get("fade_overlay") as FadeOverlay
+	if fade != null:
+		fade.set_alpha(0.0)
+
+
 ## The hash of everything `replay` records before its inputs: walls, start,
 ## reactor, debris, tuning, weapons, robots and parts, as the session set them
 ## up before the first tick. Those are copies the run never moves, so it reads
