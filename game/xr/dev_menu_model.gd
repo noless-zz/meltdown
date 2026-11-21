@@ -12,7 +12,8 @@ extends RefCounted
 ## `press` returns what was confirmed, or "" when nothing was:
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
 ## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805) or `comfort:5`, the custom mode (#837),
-## `break:<on|off>` (#821), `refresh:<90|120>` (#852), `level:<source>` where the source is in the form
+## `break:<on|off>` (#821), `refresh:<90|120>` (#852), `swivel:<on|off>` (#853),
+## `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
 ## `flight_test` (#839), `update` or `close`.
@@ -43,6 +44,9 @@ const BREAK_OFF: String = "off"
 const REFRESH_PREFIX: String = "refresh:"
 const REFRESH_HIGH: String = RefreshChoice.ON
 const REFRESH_STANDARD: String = RefreshChoice.OFF
+const SWIVEL_PREFIX: String = "swivel:"
+const SWIVEL_ON: String = "on"
+const SWIVEL_OFF: String = "off"
 ## The hand and pitch choices, in the order left / right steps through them.
 const HANDS: Array[String] = ["right", "left"]
 const PITCHES: Array[String] = ["normal", "inverted"]
@@ -75,6 +79,10 @@ var break_on: bool = true
 ## preset allows it; the wiring sets both (`set_refresh`).
 var refresh_high: bool = false
 var refresh_allowed: bool = true
+## Whether the Swivel chair entry shows On, and whether the custom comfort file
+## decides it so left / right leave it alone (#853); the wiring sets both.
+var swivel_on: bool = false
+var swivel_locked: bool = false
 ## The Level entry's choices and seed.
 var levels: DevMenuLevels
 ## The waiting build the update entry names; "" hides the entry (#763).
@@ -206,6 +214,19 @@ func refresh_text() -> String:
 	return text if refresh_allowed else "%s %s" % [text, spec.refresh_note_text]
 
 
+## Shows the swivel in use and whether the custom file decides it.
+func set_swivel(on: bool, locked: bool) -> void:
+	swivel_on = on
+	swivel_locked = locked
+
+
+## The words the Swivel chair entry shows: the file's On or Off text, marked
+## while the custom file decides.
+func swivel_text() -> String:
+	var text: String = spec.swivel_on_text if swivel_on else spec.swivel_off_text
+	return "%s %s" % [text, spec.swivel_custom_text] if swivel_locked else text
+
+
 ## The words the Break reminder entry shows: the file's On or Off text.
 func break_text() -> String:
 	return spec.break_on_text if break_on else spec.break_off_text
@@ -243,6 +264,8 @@ func _change(direction: int) -> void:
 		break_on = not break_on  # Two choices, so either direction flips it.
 	elif kind() == DevMenuSpec.KIND_REFRESH:
 		refresh_high = not refresh_high
+	elif kind() == DevMenuSpec.KIND_SWIVEL and not swivel_locked:
+		swivel_on = not swivel_on
 	elif kind() == DevMenuSpec.KIND_LEVEL:
 		levels.step(direction)
 
@@ -263,6 +286,8 @@ func _confirm() -> String:
 			return BREAK_PREFIX + (BREAK_ON if break_on else BREAK_OFF)
 		DevMenuSpec.KIND_REFRESH:
 			return REFRESH_PREFIX + (REFRESH_HIGH if refresh_high else REFRESH_STANDARD)
+		DevMenuSpec.KIND_SWIVEL:
+			return SWIVEL_PREFIX + (SWIVEL_ON if swivel_on else SWIVEL_OFF)
 		DevMenuSpec.KIND_LEVEL:
 			return LEVEL_PREFIX + levels.source()
 		DevMenuSpec.KIND_RESTART:

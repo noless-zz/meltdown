@@ -46,6 +46,8 @@ var view_log: ViewLog = ViewLog.from_run()
 ## Swivel-chair yaw (CMF-7, #791): added to the input before `filter` when the
 ## active preset switches it on; `set_preset` hands it each new preset.
 var swivel: SwivelWiring = SwivelWiring.new()
+## The dev menu's Swivel chair choice (#853), a `SwivelChoice` UNSET, OFF or ON.
+var swivel_choice: int = SwivelChoice.UNSET
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
@@ -89,7 +91,7 @@ func set_preset(p_number: int) -> void:
 		custom_notice.refused(custom())
 		p_number = number
 	number = p_number
-	preset = preset_for(p_number)
+	preset = SwivelChoice.applied(preset_for(p_number), p_number, swivel_choice)
 	filter = ComfortInputFilter.new(preset)
 	one_tick_pending = false
 	latest_tick_snapped = false
@@ -101,6 +103,13 @@ func set_preset(p_number: int) -> void:
 	swivel.set_preset(preset)
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
 	view_log.event("preset=%d rebuilt=cockpit_frame,input_filter,hit_shake frame_point=unchanged" % p_number)
+
+
+## Sets the swivel on presets 1 to 4 from now on (#853); only the swivel follows.
+func set_swivel_choice(on: bool) -> void:
+	swivel_choice = SwivelChoice.ON if on else SwivelChoice.OFF
+	preset = SwivelChoice.applied(preset, number, swivel_choice)
+	swivel.set_preset(preset)
 
 
 ## The preset numbered `p_number`; the custom file's for `CUSTOM_NUMBER`.
