@@ -19,7 +19,9 @@ extends RefCounted
 ## step's last check: the checks before it read the flown level's end.
 ##
 ## A level change in one step is all this adds; the press itself (fade, hold,
-## A button) stays human-checked in the headset (#950).
+## A button) stays human-checked in the headset (#950). The `shaft_choice`
+## check (#990, `AcceptanceShaftChoiceCheck`) takes the same fields and goes
+## through the shaft panel instead; a step lists one of the two.
 
 const KEY_RUN: String = "run"
 const KEY_NEXT_HASH: String = "expected_next_level_hash"
@@ -28,13 +30,16 @@ const KEY_NEXT_HASH: String = "expected_next_level_hash"
 ## Reads `run` and `expected_next_level_hash` into `step`; "" or the problem,
 ## with the field named. Runs after the step's replay, seed, level and checks are read.
 static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) -> String:
-	var wants: bool = step.has_check(AcceptanceStep.CHECK_RUN_ADVANCES)
-	if wants and step.checks[-1] != AcceptanceStep.CHECK_RUN_ADVANCES:
-		return "%s.checks: %s must be the last check; it moves the scene to the next level" % [
-			field, AcceptanceStep.CHECK_RUN_ADVANCES]
+	var moves: String = moving_check(step)
+	var wants: bool = moves != ""
+	if step.has_check(AcceptanceStep.CHECK_RUN_ADVANCES) and step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE):
+		return "%s.checks: %s and %s both move the scene to the next level; a step lists one" % [
+			field, AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE]
+	if wants and step.checks[-1] != moves:
+		return "%s.checks: %s must be the last check; it moves the scene to the next level" % [field, moves]
 	if not data.has(KEY_RUN):
 		if wants:
-			return "%s.%s: needed by the %s check" % [field, KEY_RUN, AcceptanceStep.CHECK_RUN_ADVANCES]
+			return "%s.%s: needed by the %s check" % [field, KEY_RUN, moves]
 		if data.has(KEY_NEXT_HASH):
 			return "%s.%s: only used by a run step" % [field, KEY_NEXT_HASH]
 		return ""
@@ -54,7 +59,7 @@ static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) ->
 	step.level_seed = plan.level_seed(0)
 	if wants:
 		if not data.has(KEY_NEXT_HASH):
-			return "%s.%s: needed by the %s check" % [field, KEY_NEXT_HASH, AcceptanceStep.CHECK_RUN_ADVANCES]
+			return "%s.%s: needed by the %s check" % [field, KEY_NEXT_HASH, moves]
 		var next: Variant = data[KEY_NEXT_HASH]
 		if not AcceptanceStepParser.is_whole(next) or float(next) < 0.0 \
 				or float(next) > AcceptanceStepParser.MAX_EXACT_INT:
@@ -67,6 +72,14 @@ static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) ->
 	return ""
 
 
+## The check of `step` that moves the scene to the run's next level, or "".
+static func moving_check(step: AcceptanceStep) -> String:
+	for check: String in [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE]:
+		if step.has_check(check):
+			return check
+	return ""
+
+
 ## The plan for `run_seed` from the shipped run file.
 static func plan_for(run_seed: int) -> RunPlan:
 	return RunPlan.build(run_seed, FileAccess.get_file_as_string(RunWiring.RUN_FILE))
@@ -74,12 +87,16 @@ static func plan_for(run_seed: int) -> RunPlan:
 
 ## Before a step flies: a run step's run becomes the scene's, kept in memory
 ## only (no profile is read or saved); any other step flies without a run.
+## The run has the shipped shafts only for a shaft_choice step (#990); the
+## run_advances step pins the run's own level order, as a run without a shaft
+## file flies it.
 static func begin(main: Node, step: AcceptanceStep) -> void:
 	var level_start: LevelStart = main.get("level_start") as LevelStart
 	var destroyed: DestroyedWiring = main.get("destroyed") as DestroyedWiring
 	if level_start == null:
 		return
-	level_start.run = RunWiring.new(step.run_seed) if step.run_seed != AcceptanceStep.NO_SEED else null
+	level_start.run = RunWiring.new(step.run_seed, null, Callable(), "",
+		step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE)) if step.run_seed != AcceptanceStep.NO_SEED else null
 	if level_start.run != null:
 		level_start.source = level_start.run.level_source()
 	if destroyed != null:

@@ -33,7 +33,8 @@ extends RefCounted
 ## with a numbered preset and a refresh_rate or frame_budget check
 ## (`AcceptanceRefresh120`).
 ## `run` (#989) flies a run's first level in place of `seed` or `level`, and
-## `expected_next_level_hash` goes with the run_advances check (`AcceptanceRunStep`).
+## `expected_next_level_hash` goes with the run_advances or shaft_choice check
+## (`AcceptanceRunStep`, `AcceptanceShaftChoiceCheck`).
 ##
 ## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -96,7 +97,7 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 				or check == AcceptanceStep.CHECK_HIT_VIEW_MOTION or check == AcceptanceStep.CHECK_ESCAPE_SCREEN
 				or check == AcceptanceStep.CHECK_MAP_ROUTE or check == AcceptanceStep.CHECK_ESCAPE_CUE
 				or check == AcceptanceStep.CHECK_MAP_MARKERS or check == AcceptanceStep.CHECK_VIGNETTE
-				or check == AcceptanceStep.CHECK_RUN_ADVANCES) \
+				or check == AcceptanceStep.CHECK_RUN_ADVANCES or check == AcceptanceStep.CHECK_SHAFT_CHOICE) \
 				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)

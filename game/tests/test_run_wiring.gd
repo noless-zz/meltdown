@@ -4,7 +4,9 @@ extends RefCounted
 ## an escape moves to the next level with the seed `RunPlan` gives and banks
 ## the level's components, the last escape wins the run, and a loss ends it
 ## keeping what earlier escapes banked. Also the `--run` switch, `LevelStart`'s
-## choice and the escape screen's won line.
+## choice and the escape screen's won line. These runs have no shaft choice, as
+## a run flies when the shaft file is rejected; `test_shaft_choice_wiring.gd`
+## covers the choice (#990).
 
 ## A run of exactly three levels, so the tests know where it ends.
 const THREE_LEVELS: String = "{\"min_levels\": 3, \"max_levels\": 3, \"seed_salt\": 2654435769}"
@@ -14,7 +16,7 @@ const PROFILE_PATH: String = "user://t989_profile.json"
 
 
 func _wiring(store: ProfileStore = null) -> RunWiring:
-	return RunWiring.new(RUN_SEED, store, func() -> int: return NEXT_RUN_SEED, THREE_LEVELS)
+	return RunWiring.new(RUN_SEED, store, func() -> int: return NEXT_RUN_SEED, THREE_LEVELS, false)
 
 
 func _plan(run_seed: int) -> RunPlan:

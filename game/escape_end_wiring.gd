@@ -12,22 +12,35 @@ extends RefCounted
 ## fade back in, with the times from `escape_screen.json`. It sits beside
 ## `main.gd` because it reads the `net/` session; it reads the outcome and a
 ## copy of the reactor only, and the restart is answered to `main.gd` (MP-2).
+##
+## In a run with shafts, the press after a level that is not the last opens the
+## shaft panel (`ShaftChoiceWiring`, #990) instead of answering the restart:
+## the view stays dark, and the restart is answered when a shaft is confirmed.
 
 var look: Dictionary = EscapeScreenLook.load_file()
 var sequence: DestroyedSequence = DestroyedSequence.new(EscapeScreenLook.times(look))
 ## Under the rig origin once `attach` has run, null before.
 var screen: EscapeScreen = null
 ## The run being flown (#989), or null for a single level. Read only to say
-## that escaping its last level wins the run; `LevelStart` moves it on.
+## that escaping its last level wins the run, and handed to the shaft choice;
+## `LevelStart` moves it on.
 var run: RunWiring = null
+var choice: ShaftChoiceWiring = ShaftChoiceWiring.new()
 
 
 ## Hangs the screen under `rig`. Calling it again adds nothing.
 func attach(rig: Node3D) -> void:
+	choice.attach(rig)
 	if screen != null or rig == null:
 		return
 	screen = EscapeScreen.new(look)
 	rig.add_child(screen)
+
+
+## Once per frame, after the dev menu, with the sampled `values`: the shaft
+## panel takes them while it is open (#990).
+func read(values: Dictionary) -> Dictionary:
+	return choice.read(values)
 
 
 ## Once per frame after the ticks, with the screen's place `head_point`.
@@ -35,6 +48,8 @@ func attach(rig: Node3D) -> void:
 ## level should restart.
 func update(session: LocalSession, delta_seconds: float, restart_held: bool, head_point: Transform3D,
 		xr_running: bool) -> bool:
+	if choice.is_open():
+		return choice.update(run, session.paused, head_point, xr_running)
 	var escaped: bool = session.sim.outcome() == ExitRule.Outcome.ESCAPED
 	var due: bool = sequence.update(0.0 if escaped else 1.0, 0.0 if session.paused else delta_seconds,
 		restart_held)
@@ -42,6 +57,9 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 		screen.transform = head_point
 		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), seconds_left(session), xr_running,
 			run_won())
+	if due and escaped and run != null and run.choice_due_after_escape() \
+			and choice.open(run, session.sim.collected.duplicate()):
+		return choice.update(run, session.paused, head_point, xr_running)
 	return due
 
 
@@ -56,13 +74,15 @@ static func seconds_left(session: LocalSession) -> float:
 	return MeltdownWiring.seconds_left(reactor) if reactor != null else 0.0
 
 
-## The fade's opacity this frame from the sequence, 0..1.
+## The fade's opacity this frame from the sequence, 0..1; dark while the
+## shaft panel is open.
 func fade_alpha() -> float:
-	return sequence.fade_alpha()
+	return 1.0 if choice.is_open() else sequence.fade_alpha()
 
 
 ## Back to flying with the end screen down and no fade (#917); see `DestroyedWiring.reset`.
 func reset() -> void:
 	sequence = DestroyedSequence.new(EscapeScreenLook.times(look))
+	choice.close()
 	if screen != null:
 		screen.visible = false
