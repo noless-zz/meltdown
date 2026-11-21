@@ -118,6 +118,11 @@ func test_debris_is_solid_from_exactly_its_tick_after_the_reactor_dies() -> Stri
 	sim.equip(_loadout())
 	sim.set_debris(_debris('[{"position": [8, 0, -15], "radius": 1, "after_seconds": 0.5},'
 		+ ' {"position": [-8, 0, -15], "radius": 1, "after_seconds": 1}]'))
+	# The first tick records the exit 8 m behind the ship, so it does not
+	# escape when the reactor dies and the countdown keeps running (#750).
+	sim.ships[0].position = Vector3(0, 0, 8)
+	sim.step(_idle())
+	sim.ships[0].position = Vector3.ZERO
 	var died_on: int = -1
 	for i: int in 200:
 		var tick: int = sim.tick

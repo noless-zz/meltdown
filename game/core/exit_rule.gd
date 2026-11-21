@@ -34,6 +34,15 @@ static func apply(sim: Sim, events: Array[SimEvent], live_before: Array[bool] = 
 			events.append(SimEvent.new(SimEvent.Kind.SHIP_DESTROYED, i, 0.0, sim.ships[i].position))
 
 
+## One tick of the meltdown countdown, called at the start of `Sim.step`. Once
+## the run is decided (escaped or lost, as the previous tick left it) the clock
+## holds: an escaped ship has left, so the meltdown no longer plays out around
+## it, and `meltdown_ticks_left` keeps the time that was left (#745).
+static func count_down(sim: Sim) -> void:
+	if sim.reactor != null and outcome(sim) == Outcome.RUNNING:
+		sim.reactor.count_down()
+
+
 ## Per ship, whether its hull is above zero, for `apply` to compare with at the
 ## end of the tick. An escaped ship keeps its hull, so it never reports.
 static func live_ships(sim: Sim) -> Array[bool]:

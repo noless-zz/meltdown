@@ -90,8 +90,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	var live_before: Array[bool] = ExitRule.live_ships(self)
 	if tick == 0:
 		_reset.record(ships)
-	if reactor != null:
-		reactor.count_down()
+	ExitRule.count_down(self)
 	if debris != null:
 		DebrisRouteGuard.advance(self, last_events)
 	# Projectiles already in flight move before any new shot, so a shot

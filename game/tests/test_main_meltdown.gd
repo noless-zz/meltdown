@@ -105,9 +105,11 @@ func test_g2_countdown_shows_only_after_the_reactor_dies() -> String:
 	_ticks(main, 30)
 	var hidden_before: bool = not _panel(main).meltdown_visible()
 	var outcome_before: bool = _panel(main).outcome_visible()
+	var session: LocalSession = main.get("session")
+	# Out of the exit, so the run stays running and the countdown runs (#750).
+	session.sim.ships[0].position += Vector3(0.0, 0.0, -20.0)
 	_destroy_reactor(main)
 	_ticks(main, 1)
-	var session: LocalSession = main.get("session")
 	var ticks: int = session.sim.reactor.meltdown_ticks_left
 	var texts: Array[String] = [_meltdown_text(main)]
 	var shown: bool = _panel(main).meltdown_visible()
