@@ -9,6 +9,9 @@ extends RefCounted
 ## The parse functions return "" on success, with the value stored on the
 ## replay, or a problem without the line number, which `Replay.from_text` adds.
 
+## First format version whose tick lines may carry an aim: three more numbers
+## for a ship whose aim is off the nose (CMB-6).
+const AIM_VERSION: int = 17
 ## The two keys of a version 9 robot line's JSON object.
 const ROBOT_LINE_KEYS: Array[String] = ["robot", "weapon"]
 
@@ -195,7 +198,8 @@ static func _split_robot_json(text: String, into: Array) -> String:
 	return ""
 
 
-## One tick: ten integers per ship, ships joined by `Replay.SHIP_SEPARATOR`.
+## One tick: ten integers per ship, thirteen for a ship aiming off the nose,
+## ships joined by `Replay.SHIP_SEPARATOR`.
 static func tick_text(frame: Array) -> String:
 	var parts: PackedStringArray = PackedStringArray()
 	for input: ShipInput in frame:
@@ -205,6 +209,11 @@ static func tick_text(frame: Array) -> String:
 			t.x, t.y, t.z, r.x, r.y, r.z, 1 if input.afterburner else 0,
 			1 if input.reset_to_start else 0, 1 if input.fire_primary else 0,
 			1 if input.slot_held else 0])
+		# Only an aim off the nose is written, so ticks that never aimed read
+		# exactly as before (CMB-6).
+		if input.aims_off_nose():
+			var a: Vector3i = input.aim_q
+			parts[parts.size() - 1] += " %d %d %d" % [a.x, a.y, a.z]
 	return Replay.SHIP_SEPARATOR.join(parts)
 
 
@@ -217,7 +226,11 @@ static func parse_tick_line(replay: Replay, line: String, version: int) -> Strin
 	var inputs: Array[ShipInput] = []
 	for group: String in groups:
 		var words: PackedStringArray = group.split(" ", false)
-		if words.size() != expected:
+		var aimed: bool = version >= AIM_VERSION and words.size() == expected + 3
+		if words.size() != expected and not aimed:
+			if version >= AIM_VERSION:
+				return "each ship needs %d numbers, or %d with an aim, found %d" % [expected,
+					expected + 3, words.size()]
 			return "each ship needs %d numbers, found %d" % [expected, words.size()]
 		var values: Array[int] = []
 		for word: String in words:
@@ -237,10 +250,17 @@ static func parse_tick_line(replay: Replay, line: String, version: int) -> Strin
 		var slot: int = values[9] if expected >= 10 else 0
 		if slot != 0 and slot != 1:
 			return "slot must be 0 or 1, found %d" % slot
-		inputs.append(ShipInput.new(
+		var input: ShipInput = ShipInput.new(
 			Vector3i(values[0], values[1], values[2]),
 			Vector3i(values[3], values[4], values[5]),
-			afterburner == 1, reset == 1, fire == 1, slot == 1))
+			afterburner == 1, reset == 1, fire == 1, slot == 1)
+		if aimed:
+			var aim: Vector3i = Vector3i(values[expected], values[expected + 1], values[expected + 2])
+			if not ShipInput.aim_q_valid(aim) or aim == ShipInput.NOSE_AIM_Q:
+				return "aim %s must be off the nose, not zero, each axis within -%d..%d" % [aim,
+					ShipInput.SCALE, ShipInput.SCALE]
+			input.aim_q = aim
+		inputs.append(input)
 	replay.frames.append(inputs)
 	return ""
 

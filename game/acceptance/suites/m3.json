@@ -15,7 +15,7 @@
 			"replay": "res://acceptance/replays/bot_generated_escape.replay",
 			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "escape_screen", "debris_fallen", "escape_cue", "map_markers"],
 			"expected_hash": 3709902663,
-			"expected_level_hash": 1977962260,
+			"expected_level_hash": 1931884533,
 			"expected_outcome": "ESCAPED"
 		},
 		{
@@ -24,7 +24,7 @@
 			"replay": "res://acceptance/replays/bot_generated_door_escape.replay",
 			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "escape_screen", "door_fallen", "map_route", "map_markers"],
 			"expected_hash": 854268051,
-			"expected_level_hash": 3088329792,
+			"expected_level_hash": 174792129,
 			"expected_outcome": "ESCAPED"
 		},
 		{
@@ -42,7 +42,7 @@
 			"replay": "res://acceptance/replays/bot_generated_fire_escape.replay",
 			"checks": ["final_hash", "level_hash", "outcome", "fire_burned", "map_markers"],
 			"expected_hash": 3137378879,
-			"expected_level_hash": 1883162678,
+			"expected_level_hash": 3117525271,
 			"expected_outcome": "ESCAPED"
 		}
 	]

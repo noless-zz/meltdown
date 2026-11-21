@@ -44,14 +44,19 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 
 
 ## Fires ship `index`'s primary weapon if it is held and ready. The shot
-## leaves the ship's nose at the weapon's speed, without the ship's own
+## leaves along the ship's gun direction (the nose unless look-aim turned it,
+## CMB-6) at the weapon's speed, without the ship's own
 ## velocity, so a weapon's range is exactly what its data file says.
 static func fire(sim: Sim, index: int, held: bool) -> void:
 	var ship: ShipState = sim.ships[index]
 	var weapon: WeaponDef = ship.fire_primary(held)
 	if weapon == null:
 		return
+	# On the nose, exactly the direction shots took before look-aim, so
+	# recorded runs keep their hashes (CMB-6).
 	var forward: Vector3 = -ship.orientation.z.normalized()
+	if ship.gun_direction != LookAim.NOSE:
+		forward = (ship.orientation * ship.gun_direction).normalized()
 	sim.projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
 		index, weapon.lifetime_ticks(), weapon.damage))
 

@@ -9,6 +9,8 @@ extends RefCounted
 ## another device (ARC-2).
 
 const SCALE: int = 1000
+## Straight ahead along the nose, ship space -z.
+const NOSE_AIM_Q: Vector3i = Vector3i(0, 0, -SCALE)
 
 ## Ship-space thrust in thousandths: each axis -1000..1000 (x strafe, y lift,
 ## z forward is negative).
@@ -27,6 +29,12 @@ var fire_primary: bool = false
 ## Slot the part in the hold into a primary weapon slot on this tick (SLV-1).
 ## Set by the cockpit's hand gesture; `PartSlotting` decides what it does.
 var slot_held: bool = false
+## Where the pilot asks the guns to point, in ship space, as a direction in
+## thousandths (CMB-6, decision record 0010). The core keeps the guns inside
+## the look-aim cone and turns them at its gimbal rate (`LookAim`). Defaults to
+## the nose, which replays and network packets leave out, so every run recorded
+## before look-aim reads back unchanged.
+var aim_q: Vector3i = NOSE_AIM_Q
 
 
 func _init(
@@ -58,3 +66,33 @@ func thrust() -> Vector3:
 
 func turn() -> Vector3:
 	return Vector3(turn_q) / float(SCALE)
+
+
+## The aim as a unit direction in ship space; a zero aim is the nose.
+func aim() -> Vector3:
+	if aim_q == Vector3i.ZERO or aim_q == NOSE_AIM_Q:
+		return LookAim.NOSE
+	return Vector3(aim_q).normalized()
+
+
+## Whether the aim is anywhere but the nose, so it must be carried.
+func aims_off_nose() -> bool:
+	return aim_q != NOSE_AIM_Q
+
+
+## Rounds a ship-space aim direction of any non-zero length to the stored
+## precision, as a unit vector in thousandths. A zero direction is the nose.
+static func aim_q_from(direction: Vector3) -> Vector3i:
+	if direction.is_zero_approx():
+		return NOSE_AIM_Q
+	return Vector3i((direction.normalized() * SCALE).round())
+
+
+## Whether `value` can be an aim: every axis within -SCALE..SCALE and not zero.
+static func aim_q_valid(value: Vector3i) -> bool:
+	if value == Vector3i.ZERO:
+		return false
+	for axis: int in 3:
+		if absi(value[axis]) > SCALE:
+			return false
+	return true

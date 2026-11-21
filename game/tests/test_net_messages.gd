@@ -5,7 +5,7 @@ extends RefCounted
 
 
 func _same_input(a: ShipInput, b: ShipInput) -> String:
-	for field: String in NetMessages.VECTOR_FIELDS + NetMessages.BOOL_FIELDS:
+	for field: String in NetMessages.VECTOR_FIELDS + NetMessages.BOOL_FIELDS + [NetMessages.AIM_FIELD]:
 		if a.get(field) != b.get(field):
 			return "%s: sent %s, received %s" % [field, a.get(field), b.get(field)]
 	return ""
@@ -116,6 +116,7 @@ func test_input_packet_is_at_most_32_bytes() -> String:
 
 func test_net_messages_carries_every_ship_input_property() -> String:
 	var carried: Array[String] = NetMessages.VECTOR_FIELDS + NetMessages.BOOL_FIELDS
+	carried.append(NetMessages.AIM_FIELD)
 	var declared: Array[String] = []
 	for property: Dictionary in ShipInput.new().get_property_list():
 		if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:

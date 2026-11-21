@@ -4,8 +4,8 @@ extends RefCounted
 ## (#129). These pin the text so the move cannot change the format.
 
 ## Written by `Replay.to_text()` before the split, for `_sample()`; only the
-## version number has changed since (16, #600).
-const EXPECTED_TEXT: String = "meltdown-replay 16\nseed 7\nships 2\nhash 42\n" \
+## version number has changed since (17, #922).
+const EXPECTED_TEXT: String = "meltdown-replay 17\nseed 7\nships 2\nhash 42\n" \
 	+ "box -5000 -4000 -40000 5000 4000 1\n" \
 	+ "tuning {\"max_speed\":23.456789012345,\"acceleration\":40.0,\"damping\":2.0," \
 	+ "\"max_energy\":100.0,\"afterburner_max_speed\":35.0,\"afterburner_acceleration\":80.0," \
@@ -89,7 +89,7 @@ func test_rejections_keep_their_messages() -> String:
 
 
 func test_numbers_per_ship_follows_the_format_versions() -> String:
-	var expected: Array[int] = [6, 7, 7, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10]
+	var expected: Array[int] = [6, 7, 7, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10]
 	for version: int in range(1, Replay.FORMAT_VERSION + 1):
 		if ReplayLines.numbers_per_ship(version) != expected[version - 1]:
 			return "version %d: %d numbers" % [version, ReplayLines.numbers_per_ship(version)]
