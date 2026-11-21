@@ -10,6 +10,7 @@
 	"level_tunnel_text": "Test tunnel",
 	"level_seed_text": "Seed {seed}",
 	"level_file_text": "{name}",
+	"preset_swivel_text": "Swivel",
 	"corners": {
 		"top_left": [-0.157, 0.124, -0.512],
 		"top_right": [0.157, 0.124, -0.512],

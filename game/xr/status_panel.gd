@@ -112,9 +112,10 @@ var level_text_changes: int:
 ## Seconds the large preset label has left; 0 when it is hidden.
 var large_seconds_left: float:
 	get:
-		return _preset_row.seconds_left if _preset_row != null else 0.0
+		return preset_row.seconds_left if preset_row != null else 0.0
 
-var _preset_row: StatusPanelPresetRow
+## The preset row; `RigViews.show_swivel` tags it (#792).
+var preset_row: StatusPanelPresetRow
 var _level_row: StatusPanelLevelRow
 var _speed: Label3D
 var _boost: Label3D
@@ -130,7 +131,7 @@ var _hull_bar: PanelBar
 
 func _init() -> void:
 	name = NODE_NAME
-	_preset_row = StatusPanelPresetRow.new(self)
+	preset_row = StatusPanelPresetRow.new(self)
 	_speed = StatusPanelLabels.make(self, SPEED_NAME, Vector3(LABEL_X, SPEED_Y, 0.0), SMALL_FONT)
 	StatusPanelLabels.make(self, ENERGY_LABEL_NAME, Vector3(LABEL_X, ENERGY_Y, 0.0), SMALL_FONT).text = "Energy"
 	StatusPanelLabels.make(self, SHIELD_LABEL_NAME, Vector3(LABEL_X, SHIELD_Y, 0.0), SMALL_FONT).text = "Shield"
@@ -144,7 +145,7 @@ func _init() -> void:
 	_weapon.text = WEAPON_NONE
 	_meltdown_row = StatusPanelMeltdownRow.new(
 		StatusPanelLabels.make(self, MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT))
-	_preset_row.add_large(self)
+	preset_row.add_large(self)
 	_level_row = StatusPanelLevelRow.new(self, StatusPanelLook.shared())
 	_outcome_row = StatusPanelOutcomeRow.new(
 		StatusPanelLabels.make(self, OUTCOME_NAME, Vector3(0.0, OUTCOME_Y, 0.0), LARGE_FONT),
@@ -162,7 +163,7 @@ func _init() -> void:
 ## preset large for `PRESET_LARGE_SECONDS`.
 func show_values(preset_number: int, preset_name: String, speed_mps: float,
 		energy_fraction: float, boost: String, build_text: String) -> void:
-	_preset_row.show(preset_number, preset_name, build_text)
+	preset_row.show(preset_number, preset_name, build_text)
 	StatusPanelLabels.set_text(_speed, "Speed %d m/s" % roundi(speed_mps))
 	StatusPanelLabels.set_text(_boost, boost)
 	_boost.modulate = RECHARGING_COLOR if boost == BOOST_RECHARGING else BOOST_COLOR
@@ -246,7 +247,7 @@ func show_level(level_seed: String, level_name: String) -> void:
 ## seconds.
 func advance(delta: float) -> void:
 	_hold_row.advance(delta)
-	_preset_row.advance(delta)
+	preset_row.advance(delta)
 
 
 ## The text each label shows, by node name, for tests and logs.
@@ -259,7 +260,7 @@ func texts() -> Dictionary:
 
 
 func large_preset_visible() -> bool:
-	return _preset_row.large_visible()
+	return preset_row.large_visible()
 
 
 ## The energy bar's length as a fraction of the full bar, 0..1.
