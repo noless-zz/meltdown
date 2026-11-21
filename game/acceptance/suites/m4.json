@@ -17,7 +17,7 @@
 			"replay": "res://acceptance/replays/run_advances.replay",
 			"checks": ["outcome", "no_script_errors", "shaft_choice"],
 			"expected_outcome": "ESCAPED",
-			"expected_next_level_hash": 1431193924
+			"expected_next_level_hash": 200686444
 		},
 		{
 			"id": "components_bank",

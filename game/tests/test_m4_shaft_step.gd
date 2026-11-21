@@ -27,12 +27,13 @@ static func step() -> AcceptanceStep:
 	return null
 
 
-## The level hash of level 2 of `run_seed` through the second shaft offered after level 1.
+## The level hash of level 2 of `run_seed` through the second shaft offered
+## after level 1, built busier by that shaft's `risk.robot_count` (#1011).
 static func next_level_hash(run_seed: int) -> int:
 	var run: RunWiring = RunWiring.new(run_seed)
 	var kind: String = run.escape_for_choice({})[AcceptanceShaftChoiceCheck.PICK]
-	var level_seed: int = run.state.plan.level_seed_through(1, run.shafts, kind)
-	var next: LocalSession = LocalSession.for_level(SeedLevel.load_level(level_seed), 0, null,
+	run.choose(kind)
+	var next: LocalSession = LocalSession.for_level(LevelSwitch.load_level(run.level_source()), 0, null,
 		LocalSession.load_tuning(LevelStart.SHIP_TUNING_PATH))
 	return AcceptanceStepLevel.level_hash(next.replay)
 
@@ -65,6 +66,10 @@ func test_the_step_chooses_a_shaft_in_run_12345() -> String:
 		return "the step flies run %d, seed %d" % [found.run_seed, found.level_seed]
 	if found.checks[-1] != AcceptanceStep.CHECK_SHAFT_CHOICE or found.expected_outcome != ExitRule.Outcome.ESCAPED:
 		return "the step checks %s" % [found.checks]
+	var kind: String = RunWiring.new(12345).escape_for_choice({})[AcceptanceShaftChoiceCheck.PICK]
+	var shafts: ShaftOffer = ShaftOffer.build(FileAccess.get_file_as_string(RunWiring.SHAFTS_FILE))
+	if float(shafts.risks[kind]["robot_count"]) <= 1.0:
+		return "the step picks %s, which does not scale the robots, so no busier level is pinned (#1011)" % kind
 	if found.expected_next_level_hash != next_level_hash(12345):
 		return "the pinned hash %d is not level 2's through the second shaft" % found.expected_next_level_hash
 	return ""
@@ -81,7 +86,8 @@ func test_the_runner_passes_the_step() -> String:
 		var run: RunWiring = RunWiring.new(12345)
 		var offered: Array[String] = run.escape_for_choice({})
 		var kind: String = offered[AcceptanceShaftChoiceCheck.PICK]
-		var want: String = LevelSwitch.SEED_PREFIX + str(run.state.plan.level_seed_through(1, run.shafts, kind))
+		var want: String = LevelSwitch.seed_source(run.state.plan.level_seed_through(1, run.shafts, kind),
+			float(run.shafts.risks[kind]["robot_count"]))
 		if measured.get("chosen") != kind or measured.get("next_level_source") != want \
 				or measured.get("offered") != ",".join(offered):
 			problem = "measured %s" % measured

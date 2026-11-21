@@ -27,6 +27,12 @@ extends RefCounted
 ## `random` picks and prints a seed as `--seed=random` does. `--level` and
 ## `--seed` win over it when given.
 ##
+## A run level reached through a riskier shaft is built busier (#1011, RUN-1):
+## its source is `seed:<n>:robots=<scale>`, and `load_level` hands the scale to
+## `SeedLevel`. The source names the level, so the same source always builds the
+## same level (ARC-2). `seed:<n>` alone still means a scale of 1.0, and a scale
+## of 1.0 is never written, so every unscaled level keeps its source.
+##
 ## It sits beside `main.gd`, like `CombatWiring`, because it joins the `net/`
 ## session's level to the `view/` level drawing. It reads the level file and
 ## hands the drawing the level's walls; it never writes simulation state (MP-2).
@@ -56,6 +62,9 @@ const RUN_ARG_PREFIX: String = "--run="
 const RUN_INTENT_EXTRA: String = "meltdown_run"
 ## A source naming a run: `run:<n>`.
 const RUN_PREFIX: String = "run:"
+## What follows the seed in a generated level's source when its robot count is
+## scaled: `seed:<n>:robots=<scale>` (#1011).
+const ROBOTS_SUFFIX: String = ":robots="
 
 
 ## The level name asked for, or "" when the switch is off. A command-line
@@ -159,16 +168,45 @@ static func seed_from(text: String) -> int:
 	return text.to_int()
 
 
+## The source of generated level `level_seed` with its robot count scaled by
+## `robot_scale`: `seed:<n>`, with `:robots=<scale>` only when the scale is not 1.0.
+static func seed_source(level_seed: int, robot_scale: float = 1.0) -> String:
+	var source: String = SEED_PREFIX + str(level_seed)
+	return source if robot_scale == 1.0 else source + ROBOTS_SUFFIX + str(robot_scale)
+
+
+## The seed a `seed:` source names, or -1 when it is not one.
+static func source_seed(source: String) -> int:
+	if not source.begins_with(SEED_PREFIX):
+		return -1
+	var rest: String = source.substr(SEED_PREFIX.length())
+	var cut: int = rest.find(ROBOTS_SUFFIX)
+	return seed_from(rest if cut < 0 else rest.substr(0, cut))
+
+
+## The robot count scale a `seed:` source names: 1.0 when it names none, -1.0
+## when its scale is not a number above 0, so a bad source is never flown.
+static func source_robot_scale(source: String) -> float:
+	var cut: int = source.find(ROBOTS_SUFFIX)
+	if cut < 0:
+		return 1.0
+	var text: String = source.substr(cut + ROBOTS_SUFFIX.length())
+	if not text.is_valid_float() or text.to_float() <= 0.0 or not is_finite(text.to_float()):
+		return -1.0
+	return text.to_float()
+
+
 ## The level `path` names, a level file or `seed:<n>` (`requested_path`), or
 ## null after printing why when it is missing or rejected, so the caller keeps
 ## the test tunnel. What the level leaves out comes from `defaults_path`.
 static func load_level(path: String, defaults_path: String = DEFAULTS_FILE) -> LevelDef:
 	if path.begins_with(SEED_PREFIX):
-		var level_seed: int = seed_from(path.substr(SEED_PREFIX.length()))
-		if level_seed < 0:
+		var level_seed: int = source_seed(path)
+		var robot_scale: float = source_robot_scale(path)
+		if level_seed < 0 or robot_scale <= 0.0:
 			print("Meltdown: %s is not a seed; flying the test tunnel" % path)
 			return null
-		return SeedLevel.load_level(level_seed, defaults_path)
+		return SeedLevel.load_level(level_seed, defaults_path, "", {}, robot_scale)
 	var problem: String = ""
 	var level: LevelDef = null
 	var defaults: LevelDefaults = load_defaults(defaults_path)

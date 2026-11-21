@@ -99,11 +99,13 @@ func fresh_session(world: Node3D, input: ShipInputSource, ended: LocalSession = 
 
 ## The seed digits and level name the status panel names `p_source` by
 ## (#747): `seed:31` is ["31", ""], a level file is ["", its file name without
-## `_level.json`, upper-cased, so `g2` is "G2"], and the tunnel is ["", ""].
+## `_level.json`, upper-cased, so `g2` is "G2"], and the tunnel is ["", ""]. A
+## scaled run level (#1011) is named by its seed alone: `seed:31:robots=1.3` is ["31", ""].
 ## Level files carry no name of their own yet.
 static func shown_level(p_source: String) -> PackedStringArray:
 	if p_source == "":
 		return PackedStringArray(["", ""])
 	if p_source.begins_with(LevelSwitch.SEED_PREFIX):
-		return PackedStringArray([p_source.substr(LevelSwitch.SEED_PREFIX.length()), ""])
+		var digits: String = p_source.substr(LevelSwitch.SEED_PREFIX.length())
+		return PackedStringArray([digits.get_slice(LevelSwitch.ROBOTS_SUFFIX, 0), ""])
 	return PackedStringArray(["", p_source.get_file().trim_suffix(LevelSwitch.LEVEL_SUFFIX).to_upper()])

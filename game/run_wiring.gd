@@ -5,7 +5,8 @@ extends RefCounted
 ## `RunState` built from `data/run/run.json` for `--run=<n>` and says which
 ## level the main scene flies next. Each level of the run is the generated
 ## level `SeedLevel` builds for `RunState.current_level_seed()`, so its source
-## is `seed:<level seed>`, the form `LevelStart.source` already flies.
+## is `seed:<level seed>`, the form `LevelStart.source` already flies; a level
+## whose shaft scales the robots adds `:robots=<scale>` (#1011).
 ##
 ## When an end screen's restart press ends a level, `after_level` reads the
 ## ended session's outcome, ship hull and collected components:
@@ -110,9 +111,17 @@ func level_reward() -> Array[float]:
 	return state.current_reward() if active() else ([] as Array[float])
 
 
-## The level source of the run's current level, `seed:<n>`, or "" without a run.
+## The robot count scale the current level is built with (#1011, RUN-1, GEN-2):
+## the chosen shaft's `risk.robot_count`, or 1.0 for the first level, a run
+## without shafts, or no run.
+func level_robot_scale() -> float:
+	return float(state.current_risk()["robot_count"]) if active() else 1.0
+
+
+## The level source of the run's current level, or "" without a run:
+## `seed:<n>`, with `:robots=<scale>` when its shaft scales the robots (#1011).
 func level_source() -> String:
-	return LevelSwitch.SEED_PREFIX + str(state.current_level_seed()) if active() else ""
+	return LevelSwitch.seed_source(state.current_level_seed(), level_robot_scale()) if active() else ""
 
 
 ## True when the level flown now is the run's last: escaping it wins the run.
