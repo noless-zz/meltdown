@@ -20,7 +20,8 @@ extends RefCounted
 ## one of them, at most once. The `hands` and `pitch` entries (#790) show
 ## `right_handed_text` / `left_handed_text` and `normal_pitch_text` /
 ## `inverted_pitch_text`, each optional. The `comfort` entry (#805) shows
-## each comfort preset's own `display_name`, from the preset files.
+## each comfort preset's own `display_name`, from the preset files. The
+## `break` entry (#821) shows `break_on_text` / `break_off_text`, each optional.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -32,10 +33,12 @@ const KIND_CONTROLS: String = "controls"
 const KIND_HANDS: String = "hands"
 const KIND_PITCH: String = "pitch"
 const KIND_COMFORT: String = "comfort"
+const KIND_BREAK: String = "break"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
-	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT]
+	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
-	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text"]
+	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
+	"break_on_text", "break_off_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
@@ -46,6 +49,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_HANDS: "Hands",
 	KIND_PITCH: "Pitch",
 	KIND_COMFORT: "Comfort",
+	KIND_BREAK: "Break reminder",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
@@ -62,6 +66,8 @@ var right_handed_text: String = "right-handed"
 var left_handed_text: String = "left-handed"
 var normal_pitch_text: String = "normal"
 var inverted_pitch_text: String = "inverted"
+var break_on_text: String = "On"
+var break_off_text: String = "Off"
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 

@@ -25,7 +25,7 @@ static func _select(model: DevMenuModel, kind: String) -> void:
 
 func test_entries_and_their_order_come_from_the_data_file() -> String:
 	var shipped: DevMenuSpec = DevMenuSpec.load_file()
-	if shipped.error != "" or shipped.entries.size() != 9:
+	if shipped.error != "" or shipped.entries.size() != 10:
 		return "the shipped file was not read: %s" % shipped.error
 	var text: String = JSON.stringify({"entries": [{"kind": "close", "label": "Done"},
 		{"kind": "level", "label": "Fly"}], "corners": ["top_left"]})
@@ -77,35 +77,35 @@ func test_the_seed_steps_by_one_and_ten_within_the_limits() -> String:
 	var seen: Array[int] = []
 	for action: String in [DevMenuModel.SEED_UP, DevMenuModel.SEED_UP_FAR, DevMenuModel.SEED_DOWN_FAR]:
 		_tap(model, action)
-		seen.append(model.level_seed)
+		seen.append(model.levels.level_seed)
 	if seen != [32, 42, 32]:
 		return "31 stepped +1, +10, -10 gave %s" % [seen]
 	model.open("centre", "seed:3")
 	_select(model, DevMenuSpec.KIND_LEVEL)
 	_tap(model, DevMenuModel.SEED_DOWN_FAR)
 	_tap(model, DevMenuModel.SEED_DOWN)
-	if model.level_seed != 0:
-		return "stepping down from 3 gave %d, not 0" % model.level_seed
+	if model.levels.level_seed != 0:
+		return "stepping down from 3 gave %d, not 0" % model.levels.level_seed
 	model.open("centre", "seed:999999999999999995")
 	_select(model, DevMenuSpec.KIND_LEVEL)
 	_tap(model, DevMenuModel.SEED_UP_FAR)
 	_tap(model, DevMenuModel.SEED_UP)
-	if model.level_seed != DevMenuModel.SEED_MAX or str(model.level_seed).length() != LevelSwitch.SEED_MAX_DIGITS:
-		return "stepping up near the top gave %d" % model.level_seed
-	if LevelSwitch.seed_from(str(model.level_seed)) != model.level_seed:
+	if model.levels.level_seed != DevMenuLevels.SEED_MAX or str(model.levels.level_seed).length() != LevelSwitch.SEED_MAX_DIGITS:
+		return "stepping up near the top gave %d" % model.levels.level_seed
+	if LevelSwitch.seed_from(str(model.levels.level_seed)) != model.levels.level_seed:
 		return "the largest seed is not one LevelSwitch accepts"
 	# Away from the seed choice the seed buttons do nothing.
 	model.open("centre", "")
 	_select(model, DevMenuSpec.KIND_LEVEL)
-	var kept: int = model.level_seed
+	var kept: int = model.levels.level_seed
 	_tap(model, DevMenuModel.SEED_UP)
-	if model.level_seed != kept or model.level_source() != "":
+	if model.levels.level_seed != kept or model.levels.source() != "":
 		return "the seed stepped while the tunnel was chosen"
 	return ""
 
 
 func test_the_level_entry_lists_every_level_file_plus_tunnel_seed_and_random() -> String:
-	var files: Array[String] = DevMenuModel.level_files()
+	var files: Array[String] = DevMenuLevels.files()
 	var expected: Array[String] = []
 	for file: String in DirAccess.get_files_at(LevelSwitch.LEVEL_DIR):
 		var path: String = LevelSwitch.path_for(file.trim_suffix(LevelSwitch.LEVEL_SUFFIX))
@@ -115,11 +115,11 @@ func test_the_level_entry_lists_every_level_file_plus_tunnel_seed_and_random() -
 	if files != expected or not files.has("res://data/levels/g2_level.json"):
 		return "level files %s, expected %s" % [files, expected]
 	var model: DevMenuModel = DevMenuModel.new(DevMenuSpec.fallback(), files)
-	var choices: Array[String] = [DevMenuModel.CHOICE_TUNNEL]
+	var choices: Array[String] = [DevMenuLevels.CHOICE_TUNNEL]
 	choices.append_array(files)
-	choices.append_array([DevMenuModel.CHOICE_SEED, DevMenuModel.CHOICE_RANDOM])
-	if model.level_choices != choices:
-		return "the choices are %s" % [model.level_choices]
+	choices.append_array([DevMenuLevels.CHOICE_SEED, DevMenuLevels.CHOICE_RANDOM])
+	if model.levels.choices != choices:
+		return "the choices are %s" % [model.levels.choices]
 	return ""
 
 
