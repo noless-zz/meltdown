@@ -61,10 +61,14 @@ const CHECK_COMFORT_MOTION: String = "comfort_motion"
 ## uses is bound in the runtime's interaction profile (#717, PLT-5;
 ## `AcceptanceControllersCheck`); skipped without an OpenXR runtime.
 const CHECK_CONTROLLERS_BOUND: String = "controllers_bound"
+## The eye image, sampled every couple of seconds while the step runs, never
+## collapses to one flat colour (#737, DEV-6, GFX-1; `AcceptanceViewFlatCheck`);
+## skipped off the headset.
+const CHECK_VIEW_NOT_FLAT: String = "view_not_flat"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
-	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND]
+	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_VIEW_NOT_FLAT]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -113,6 +117,8 @@ var settle_seconds: float = 0.0
 var measure_seconds: float = 0.0
 var max_over_budget_share: float = 0.0
 var budget_slack_ms: float = 0.0
+## For the view_not_flat check: seconds the eye image is sampled.
+var view_seconds: float = 0.0
 ## Ticks into the replay at which the runner saves a screenshot, and whether
 ## it saves one at the replay's end (#718; `AcceptanceScreenshots`).
 var screenshot_ticks: Array[int] = []

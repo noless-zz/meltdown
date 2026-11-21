@@ -54,6 +54,11 @@
 			"preset": 2,
 			"checks": ["final_hash", "comfort_motion", "no_script_errors"],
 			"expected_hash": 157308001
+		},
+		{
+			"id": "view_not_flat",
+			"checks": ["view_not_flat"],
+			"view_seconds": 60.0
 		}
 	]
 }

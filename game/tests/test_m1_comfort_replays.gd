@@ -126,7 +126,8 @@ func test_the_steps_fly_their_own_replays() -> String:
 	var ids: Array[String] = []
 	for step: AcceptanceStep in suite.steps:
 		ids.append(step.id)
-	if ids != EARLIER_IDS + [step_id(1), step_id(2)]:
+	# Later steps (view_not_flat, #737) may follow these eight.
+	if ids.slice(0, EARLIER_IDS.size() + 2) != EARLIER_IDS + [step_id(1), step_id(2)]:
 		return "m1 steps %s" % [ids]
 	var found: Dictionary = _suite_steps()
 	if found[EARLIER_IDS[3]].expected_hash != 3139276631 or found[EARLIER_IDS[4]].expected_hash != 3139276631:

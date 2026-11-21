@@ -5,11 +5,10 @@ extends Node
 ## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
 ## is set, so a normal start never sees it.
 ##
-## Each step sets its comfort preset, switches to its level (#334) or builds its
-## seed's level (#460), flies its replay through the scene's `advance_frame` (one
-## tick per frame, replay inputs in place of the controllers), takes its screenshots
-## (#718), runs its checks and records them in an `AcceptanceReport`. Reports go to
-## `user://acceptance/` and the log; the game quits with 0 if every suite passed.
+## Each step sets its comfort preset, switches to its level (#334) or builds its seed's
+## level (#460), flies its replay through the scene's `advance_frame` (one tick per frame,
+## replay inputs in place of the controllers), takes its screenshots (#718), runs its checks
+## and records them in an `AcceptanceReport` in `user://acceptance/` and the log. Exit 0 if all pass.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
 const ARG_PREFIX: String = "--acceptance="
@@ -56,12 +55,11 @@ var _step_started: bool = false
 var _xr_waited: int = 0
 var _errors_at_step_start: int = 0
 var _source: ReplayInputSource = null
-## Why the step's level could not be flown, or "".
-var _level_problem: String = ""
-## The frame times of a frame_budget step measured here, or null.
+var _level_problem: String = ""  # Why the step's level could not be flown, or "".
+## What a frame_budget, comfort_motion or view_not_flat (#737) step samples here, or null.
 var _frames: AcceptanceFrameBudgetCheck = null
-## The view's rotation sampled each frame of a comfort_motion step, or null.
 var _comfort: AcceptanceComfortCheck = null
+var _view: AcceptanceViewFlatCheck = null
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -109,8 +107,7 @@ func _process(delta: float) -> void:
 	process_frame(delta)
 
 
-## One frame of work, which took `frame_seconds` to show. Public so tests can
-## drive the runner outside a tree.
+## One frame of work, which took `frame_seconds` to show; public so tests drive it.
 func process_frame(frame_seconds: float = 0.0) -> void:
 	if finished:
 		return
@@ -136,6 +133,8 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 		_start_step(step)
 	elif _frames != null:
 		_frames.add(frame_seconds)
+	if _view != null:
+		_view.add(frame_seconds)
 	if not _step_ready(step):
 		return
 	_record_step(step)
@@ -152,6 +151,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	if step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET) \
 			and AcceptanceFrameBudgetCheck.measures_here(_xr_available(), on_headset):
 		_frames = AcceptanceFrameBudgetCheck.new(step)
+	_view = AcceptanceViewFlatCheck.for_step(step, _xr_available(), on_headset, screenshots.grab)
 	_errors_at_step_start = _errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	screenshots.begin(suites[_suite_index].name, step)
@@ -179,8 +179,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
-## False while the step still needs frames: flying its replay, measuring its
-## frame times, or waiting for the OpenXR session to begin.
+## False while the step still needs frames: replay, sampling, or the OpenXR session.
 func _step_ready(step: AcceptanceStep) -> bool:
 	if _source != null:
 		var session: LocalSession = main.get("session")
@@ -191,7 +190,7 @@ func _step_ready(step: AcceptanceStep) -> bool:
 				_comfort.sample_main(main, ShipState.TICK_DT)
 			return false
 		main.set_process(true)
-	if _frames != null and not _frames.done():
+	if (_frames != null and not _frames.done()) or (_view != null and not _view.done()):
 		return false
 	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
 		_xr_waited += 1
@@ -248,6 +247,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			return AcceptanceRefreshCheck.run(main, _xr_available(), step.required, measurements)
 		AcceptanceStep.CHECK_FRAME_BUDGET:
 			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
+		AcceptanceStep.CHECK_VIEW_NOT_FLAT:
+			return AcceptanceViewFlatCheck.run(_xr_available(), on_headset, step, _view, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
@@ -259,8 +260,7 @@ func _on_xr_session_begun() -> void:
 	_xr_begun = true
 
 
-## Writes the report to REPORT_DIR and echoes it to the log. A write that
-## fails is said, but the log copy still carries the result.
+## Writes the report to REPORT_DIR and the log; a failed write is said, the log still has it.
 func _write_report(report: AcceptanceReport) -> void:
 	var path: String = report.write_file(REPORT_DIR, _build().short_commit())
 	if path == "":
@@ -291,7 +291,6 @@ func _stop_logging() -> void:
 func _build() -> BuildInfo:
 	var info: Variant = main.get("build_info") if main != null else null
 	return info if info is BuildInfo else BuildInfo.new()
-
 
 
 func _say(line: String) -> void:
