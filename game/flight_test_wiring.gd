@@ -11,6 +11,11 @@ extends RefCounted
 ## `ShipState` or `Sim` (ARC-3, MP-2). Presets change only through the
 ## caller's `set_comfort_preset`, the same path as an X press, so nothing but
 ## the ship moves the view (CMF-6, CMF-8).
+##
+## The dev menu's Flight test entry (#839) runs it again through `run_again`:
+## the same plan, answers and skip hold, and the recommendation is saved as on
+## first launch, but a skip keeps the preset that was active before and leaves
+## the saved choice alone.
 
 ## How the run was started, which decides whether the test may run.
 enum Start {
@@ -51,6 +56,10 @@ var _menu_held_s: float = 0.0
 var _hold_until_release: bool = false
 var _finish_handled: bool = false
 var _result_left_s: float = 0.0
+## True while the running or just finished test was started by `run_again`.
+var _again: bool = false
+## The preset active when `run_again` started the test; a skip goes back to it.
+var _preset_before: int = 0
 
 
 ## How a run with user arguments `args`, acceptance suite `suite` and level
@@ -83,22 +92,34 @@ func attach(host: Node, comfort: ComfortWiring, level_source: String, rig: Node3
 
 
 ## Starts as `p_start` says. `apply_preset(number)` makes a preset active; the
-## panel goes under `rig` when a test runs and a rig is given.
-func begin(p_start: Start, comfort: ComfortWiring, apply_preset: Callable, rig: Node3D = null) -> void:
+## panel goes under `rig` when a test runs and a rig is given. `again` runs the
+## test in the tunnel even when it was done before (`run_again`).
+func begin(p_start: Start, comfort: ComfortWiring, apply_preset: Callable, rig: Node3D = null,
+		again: bool = false) -> void:
 	start = p_start
 	_comfort = comfort
 	_apply_preset = apply_preset
 	if start == Start.OFF:
 		return
 	choice.load_from(choice_path)
-	if start == Start.TUNNEL and choice.first_launch():
-		_begin_test(rig)
+	if start == Start.TUNNEL and (again or choice.first_launch()):
+		_begin_test(rig, again)
 		return
 	var number: int = choice.preset()
 	if number == ComfortPresetFiles.CUSTOM_NUMBER and not comfort.custom_available():
 		number = choice.custom_base()  # The custom file is gone or now rejected (#806).
 	_apply(number)
 	_known_preset = number
+
+
+## Runs the test again, as the dev menu's Flight test entry asks (#839), once
+## `begin` has run and no test is running; the caller has just restarted the
+## test tunnel. Returns whether the test started.
+func run_again(rig: Node3D = null) -> bool:
+	if _comfort == null or running():
+		return false
+	begin(Start.TUNNEL, _comfort, _apply_preset, rig, true)
+	return running()
 
 
 ## True while the test is being flown or answered.
@@ -172,15 +193,21 @@ func update(delta_seconds: float, paused: bool) -> void:
 	_show(delta_seconds)
 
 
-func _begin_test(rig: Node3D) -> void:
+func _begin_test(rig: Node3D, again: bool) -> void:
+	_again = again
+	_preset_before = _comfort.number
+	_finish_handled = false
+	_result_left_s = 0.0
+	_menu_held_s = 0.0
+	_drop_panel()  # A result still showing from the last test.
 	answers = FlightTestAnswers.load_file(answers_path)
 	test = FlightTestSession.new(FlightTestPlan.load_file(plan_path))
 	if test.finished():
 		# A rejected plan cannot be flown; the next start tries again.
 		push_warning("Meltdown: flight test not run, its plan was rejected")
 		test = null
-		_apply(FlightTestSession.SKIP_PRESET)
-		_known_preset = choice.preset()
+		_apply(_preset_before if again else FlightTestSession.SKIP_PRESET)
+		_known_preset = _preset_before if again else choice.preset()
 		return
 	print("Meltdown: flight test started")
 	_apply(test.preset_now())
@@ -191,6 +218,13 @@ func _begin_test(rig: Node3D) -> void:
 
 func _finish() -> void:
 	_finish_handled = true
+	if _again and test.skipped():
+		# A skipped rerun changes nothing: the old preset, the saved choice untouched.
+		_apply(_preset_before)
+		_known_preset = _preset_before
+		_result_left_s = 0.0  # No recommendation to show; the panel goes.
+		print("Meltdown: flight test skipped, preset %d kept" % _preset_before)
+		return
 	var number: int = test.recommended()
 	_apply(number)
 	choice.finish_test(number)
@@ -223,12 +257,18 @@ func _show(delta_seconds: float) -> void:
 	if _finish_handled:
 		_result_left_s -= delta_seconds
 		if _result_left_s <= 0.0:
-			if panel.is_inside_tree():
-				panel.queue_free()
-			else:
-				panel.free()
-			panel = null
+			_drop_panel()
 			return
 	var frame: CockpitFrame = _comfort.cockpit_frame
 	panel.transform = panel.rig_transform(frame.transform if frame != null else Transform3D.IDENTITY)
 	panel.show_session(test)
+
+
+func _drop_panel() -> void:
+	if panel == null:
+		return
+	if panel.is_inside_tree():
+		panel.queue_free()
+	else:
+		panel.free()
+	panel = null
