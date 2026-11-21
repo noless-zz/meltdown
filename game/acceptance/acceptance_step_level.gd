@@ -35,6 +35,25 @@ static func fly_seed(main: Node, level_seed: int, replay: Replay, source: Replay
 	return ""
 
 
+## Takes down an end screen and its fade left by the step before (#917), so
+## the step's frames and screenshots show its scene. A step replaces the
+## session without the restart press that would take them down in play, and
+## a `SHIP DESTROYED` or `ESCAPED` screen otherwise stays up for every later
+## step. View only: the session and its hash are untouched (ARC-3).
+static func clear_end_screens(main: Node) -> void:
+	var destroyed: DestroyedWiring = main.get("destroyed") as DestroyedWiring
+	if destroyed == null:
+		return
+	destroyed.reset()
+	var overlay: FadeOverlay = main.get("fade_overlay") as FadeOverlay
+	if overlay != null:
+		# The same sum `main.advance_frame` draws, with the end screens' part now 0.
+		var reset_hold: ResetHold = main.get("reset_hold") as ResetHold
+		var dev_menu: DevMenuWiring = main.get("dev_menu") as DevMenuWiring
+		overlay.set_alpha(maxf(maxf(reset_hold.alpha if reset_hold != null else 0.0, destroyed.fade_alpha()),
+			dev_menu.alpha if dev_menu != null else 0.0))
+
+
 ## The hash of everything `replay` records before its inputs: walls, start,
 ## reactor, debris, tuning, weapons, robots and parts, as the session set them
 ## up before the first tick. Those are copies the run never moves, so it reads
