@@ -31,6 +31,8 @@ var download: UpdateDownload = null
 ## Null off Android: then a checked download is only passed on.
 var install: UpdateInstall = null
 var tap: MenuTap = MenuTap.new()
+## Offered each tap first; returning true takes it. The break prompt (#716) sets it.
+var tap_taker: Callable = Callable()
 
 var _offered: Dictionary = {}
 
@@ -89,14 +91,18 @@ func attach_with(notice_parent: Node3D, p_request: UpdateRequest, p_download: Up
 
 ## Once per frame with whether the menu button (or Backspace) is down. It also
 ## steps a running download, since this is the wiring's one per-frame call. A
-## tap cancels a running download, chooses "Update" while the offer is up,
-## retries an install that waits and asks for a check otherwise.
+## tap `tap_taker` takes does nothing more; any other tap cancels a running
+## download, chooses "Update" while the offer is up, retries an install that
+## waits and asks for a check otherwise.
 func press_menu(held: bool, now: float = MenuTap.steady_seconds()) -> void:
+	var tapped: bool = tap.feed(held, now)  # Fed even without a request, for `tap_taker`.
+	if tapped and tap_taker.is_valid() and bool(tap_taker.call()):
+		tapped = false
 	if request == null:
 		return
 	if download != null and download.is_busy():
 		download.step()
-	if not tap.feed(held, now):
+	if not tapped:
 		return
 	if download != null and download.is_busy():
 		download.cancel()
