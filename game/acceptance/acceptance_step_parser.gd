@@ -24,6 +24,9 @@ extends RefCounted
 ## `loop_replay` (#788, default false) restarts the replay from its first tick
 ## each time it ends until those seconds pass; it needs frame_budget, not
 ## final_hash (`AcceptanceLoopReplay`).
+## `controls` (#818) flies a file of raw controller values through the scene's
+## mapping in place of the replay's inputs, left-handed when `left_handed` is
+## true (`AcceptanceControlsScript`).
 ##
 ## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -33,7 +36,8 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	"measure_seconds", "max_over_budget_share", "budget_slack_ms", AcceptanceScreenshots.KEY_TICKS,
 	AcceptanceScreenshots.KEY_END,
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
-	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS]
+	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS,
+	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -99,6 +103,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptancePresetChanges.parse_step(data, field, step)
 	if problem == "":
 		problem = AcceptancePauseCheck.parse_step(data, field, step)
+	if problem == "":
+		problem = AcceptanceControlsScript.parse_step(data, field, step)
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

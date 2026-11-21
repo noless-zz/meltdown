@@ -105,6 +105,22 @@
 			"pause_at_tick": 300,
 			"pause_seconds": 3,
 			"expected_hash": 861662111
+		},
+		{
+			"id": "right_handed_flight",
+			"replay": "res://acceptance/replays/basic_flight.replay",
+			"controls": "res://acceptance/replays/m1_controls.controls.json",
+			"left_handed": false,
+			"checks": ["final_hash", "no_script_errors"],
+			"expected_hash": 1617769301
+		},
+		{
+			"id": "left_handed_flight",
+			"replay": "res://acceptance/replays/basic_flight.replay",
+			"controls": "res://acceptance/replays/m1_controls_mirrored.controls.json",
+			"left_handed": true,
+			"checks": ["final_hash", "no_script_errors"],
+			"expected_hash": 1617769301
 		}
 	]
 }
