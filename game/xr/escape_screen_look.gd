@@ -12,8 +12,11 @@ extends RefCounted
 ##      "line_position_m": [x, y, z], "time_position_m": [x, y, z],
 ##      "prompt_position_m": [x, y, z],
 ##      "line_font_size": 16..256, "time_font_size": 16..256,
-##      "prompt_font_size": 16..256, "pixel_size": 0.0001..0.002}
+##      "prompt_font_size": 16..256, "pixel_size": 0.0001..0.002,
+##      "won_text": "..."}
 ##
+## `won_text` (#989), shown in place of `line_text` when the escape ends a
+## run's last level, may be left out; it then reads as `FALLBACK` has it.
 ## `{time}` in `time_text` is replaced by the meltdown time left as `m:ss`.
 ## Positions are from the eye point, x right, y up and forward as -z, and must
 ## lie in front of the eye so a typo cannot put the words behind the head.
@@ -23,7 +26,9 @@ const TIME_MARK: String = "{time}"
 
 const COLOR_KEYS: Array[String] = ["line_color", "time_color", "prompt_color"]
 const POSITION_KEYS: Array[String] = ["line_position_m", "time_position_m", "prompt_position_m"]
-const TEXT_KEYS: Array[String] = ["line_text", "time_text", "prompt_xr", "prompt_flat"]
+const TEXT_KEYS: Array[String] = ["line_text", "time_text", "prompt_xr", "prompt_flat", "won_text"]
+## Keys a file may leave out; `FALLBACK` gives their values.
+const OPTIONAL_KEYS: Array[String] = ["won_text"]
 ## Inclusive ranges of the number keys. The two times share the destroyed
 ## screen's ranges (`DestroyedSequence.RANGES`), as they drive the same sequence.
 const RANGES: Dictionary[String, Array] = {
@@ -56,6 +61,7 @@ const FALLBACK: Dictionary = {
 	"time_font_size": 64.0,
 	"prompt_font_size": 48.0,
 	"pixel_size": 0.001,
+	"won_text": "RUN WON",
 }
 
 
@@ -104,8 +110,11 @@ static func parse(text: String) -> Dictionary:
 		if typeof(key) != TYPE_STRING or not FALLBACK.has(key):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	for key: String in FALLBACK:
-		if not data.has(key):
+		if not data.has(key) and not OPTIONAL_KEYS.has(key):
 			return {"error": "missing key \"%s\"" % key}
+	for key: String in OPTIONAL_KEYS:
+		if not data.has(key):
+			data[key] = FALLBACK[key]
 	var look: Dictionary = {}
 	for key: String in COLOR_KEYS:
 		var parts: Array = _three_numbers(data[key])

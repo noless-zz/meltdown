@@ -21,6 +21,12 @@ extends RefCounted
 ## unseeded generator here, never in `core/` or `gen/` (ARC-1): from the picked
 ## seed on, everything is as if `--seed=<n>` had been given.
 ##
+## `--run=<n>`, or the `meltdown_run` intent extra, flies the run with seed
+## `n` (#989, RUN-1): the source is `run:<n>` and `LevelStart.choose` hands it
+## to `RunWiring`, which flies each of the run's levels as `seed:<level seed>`.
+## `random` picks and prints a seed as `--seed=random` does. `--level` and
+## `--seed` win over it when given.
+##
 ## It sits beside `main.gd`, like `CombatWiring`, because it joins the `net/`
 ## session's level to the `view/` level drawing. It reads the level file and
 ## hands the drawing the level's walls; it never writes simulation state (MP-2).
@@ -46,6 +52,10 @@ const RANDOM_SEED: String = "random"
 ## Range of a picked seed: positive, and short enough to read off a log and type.
 const RANDOM_SEED_MIN: int = 1
 const RANDOM_SEED_MAX: int = 999999999
+const RUN_ARG_PREFIX: String = "--run="
+const RUN_INTENT_EXTRA: String = "meltdown_run"
+## A source naming a run: `run:<n>`.
+const RUN_PREFIX: String = "run:"
 
 
 ## The level name asked for, or "" when the switch is off. A command-line
@@ -77,7 +87,8 @@ static func requested_path() -> String:
 	var runtime: Object = InstallerProbe.android_runtime()
 	var level_intent: String = InstallerProbe.intent_extra(runtime, INTENT_EXTRA) if runtime != null else ""
 	var seed_intent: String = InstallerProbe.intent_extra(runtime, SEED_INTENT_EXTRA) if runtime != null else ""
-	return requested_source(OS.get_cmdline_user_args(), level_intent, seed_intent)
+	var run_intent: String = InstallerProbe.intent_extra(runtime, RUN_INTENT_EXTRA) if runtime != null else ""
+	return requested_source(OS.get_cmdline_user_args(), level_intent, seed_intent, Callable(), run_intent)
 
 
 ## The source for these arguments and intent extras: `--level` (argument, then
@@ -85,9 +96,10 @@ static func requested_path() -> String:
 ## counts). A bad value is printed and the tunnel stays, even when the other
 ## switch is on, so a typo is never covered up by another level. A seed of
 ## `random` is replaced by `pick_seed`'s result (`random_seed` when not given;
-## tests inject one so they are not flaky), printed once.
+## tests inject one so they are not flaky), printed once. Without either,
+## `--run` (argument, then `run_intent`) gives `run:<n>` the same way (#989).
 static func requested_source(user_args: PackedStringArray, level_intent: String,
-		seed_intent: String, pick_seed: Callable = Callable()) -> String:
+		seed_intent: String, pick_seed: Callable = Callable(), run_intent: String = "") -> String:
 	var level_name: String = requested(user_args, level_intent)
 	if level_name != "":
 		var path: String = path_for(level_name)
@@ -101,15 +113,32 @@ static func requested_source(user_args: PackedStringArray, level_intent: String,
 	if asked == "":
 		asked = seed_intent.strip_edges()
 	if asked == "":
-		return ""
+		return _run_source(user_args, run_intent, pick_seed)
+	return _numbered(SEED_PREFIX, "seed", asked, pick_seed)
+
+
+## `run:<n>` for the last `--run=` given, else `run_intent`; "" for neither (#989).
+static func _run_source(user_args: PackedStringArray, run_intent: String, pick_seed: Callable) -> String:
+	var asked: String = ""
+	for arg: String in user_args:
+		if arg.begins_with(RUN_ARG_PREFIX):
+			asked = arg.substr(RUN_ARG_PREFIX.length()).strip_edges()
+	if asked == "":
+		asked = run_intent.strip_edges()
+	return _numbered(RUN_PREFIX, "run", asked, pick_seed) if asked != "" else ""
+
+
+## `prefix` and the seed `asked` names: a picked one for `random`, printed, or
+## "" after printing why for a value that is not a seed.
+static func _numbered(prefix: String, what: String, asked: String, pick_seed: Callable) -> String:
 	if asked == RANDOM_SEED:
 		var picked: int = pick_seed.call() if pick_seed.is_valid() else random_seed()
-		print("Meltdown: flying random seed %d" % picked)
-		return SEED_PREFIX + str(picked)
+		print("Meltdown: flying random %s %d" % [what, picked])
+		return prefix + str(picked)
 	if seed_from(asked) < 0:
-		print("Meltdown: seed \"%s\" is not a non-negative whole number; flying the test tunnel" % asked)
+		print("Meltdown: %s \"%s\" is not a non-negative whole number; flying the test tunnel" % [what, asked])
 		return ""
-	return SEED_PREFIX + str(seed_from(asked))
+	return prefix + str(seed_from(asked))
 
 
 ## A fresh seed from `RANDOM_SEED_MIN` to `RANDOM_SEED_MAX`. Deliberately

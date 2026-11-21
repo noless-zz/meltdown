@@ -20,6 +20,8 @@ const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  #
 ## path, `seed:<n>`, or "" for the test tunnel. Kept so a restart flies the
 ## same level, and a `--seed=random` pick is not drawn again.
 var source: String = ""
+## The run `--run=<n>` flies (#989), or null when the launch flies one level.
+var run: RunWiring = null
 
 
 ## The test tunnel's session: inside the walls the tunnel is drawn around
@@ -44,9 +46,30 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource) -
 	return session
 
 
+## Takes what the launch asks to fly (`LevelSwitch.requested_path`). A run,
+## `run:<n>`, starts a `RunWiring` whose current level becomes `source`.
+## Returns the run, or null for a single level.
+func choose(p_source: String, profiles: ProfileStore = null) -> RunWiring:
+	source = p_source
+	run = null
+	if p_source.begins_with(LevelSwitch.RUN_PREFIX):
+		run = RunWiring.new(LevelSwitch.seed_from(p_source.substr(LevelSwitch.RUN_PREFIX.length())),
+			profiles if profiles != null else ProfileStore.new())
+		source = run.level_source()
+	return run
+
+
 ## A new session for `source` from its start: the level again, or the tunnel,
-## drawn again in place of any level drawn before (#795).
-func fresh_session(world: Node3D, input: ShipInputSource) -> LocalSession:
+## drawn again in place of any level drawn before (#795). With a run, `ended`
+## (the session the restart replaces) moves it on first (#989): an escape or a
+## lost ship flies the run's next level or a new run. A `source` the dev menu
+## changed leaves the run.
+func fresh_session(world: Node3D, input: ShipInputSource, ended: LocalSession = null) -> LocalSession:
+	if run != null and run.active() and ended != null:
+		if source != run.level_source():
+			run.stop()
+		elif RunWiring.ends_level(ended.sim.outcome(), ended.current_ship().hull):
+			source = run.after_session(ended)
 	var session: LocalSession = level_session(world, source, input)
 	if session != null:
 		return session

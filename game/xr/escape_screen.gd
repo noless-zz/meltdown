@@ -34,12 +34,16 @@ func _init(look: Dictionary = EscapeScreenLook.FALLBACK) -> void:
 
 ## Shows the line and the time line with `seconds_left` when `line` is true,
 ## and the prompt under them when `prompt` is true; `xr_running` picks the
-## button the prompt names.
-func show_state(line: bool, prompt: bool, seconds_left: float, xr_running: bool) -> void:
+## button the prompt names. `won` shows the run's won line in place of the
+## escape's (#989).
+func show_state(line: bool, prompt: bool, seconds_left: float, xr_running: bool, won: bool = false) -> void:
 	visible = line
 	_prompt.visible = line and prompt
 	if not line:
 		return
+	var line_text: String = _look["won_text"] if won else _look["line_text"]
+	if _line.text != line_text:
+		_line.text = line_text
 	# Label3D rebuilds its glyphs on every assignment; most frames change nothing.
 	var time: String = EscapeScreenLook.time_line(_look, seconds_left)
 	if _time.text != time:
