@@ -16,7 +16,7 @@ const MAX_LEADER_M: float = 0.08
 ## Every control with a long, two-action text, to fill each column.
 const EVERY_CONTROL: Dictionary = {
 	"stick": "back, nose down\nstrafe left, yaw left  +  strafe right, yaw right\nforward, nose up",
-	"stick_click": "click: labels, hold: map",
+	"stick_click": "click: map, hold: labels",
 	"button_upper": "nose down / up",
 	"button_lower": "strafe left / right",
 	"menu": "tap: menu, hold: reset",

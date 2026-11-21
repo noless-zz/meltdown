@@ -130,3 +130,26 @@ stick and throttle; the thumbsticks stay the default. The scheme's buttons:
 
 This is the Planner's choice for the owner to overrule. Headset check: Y boosts, X still
 changes the preset, and boost on Y feels right with the left hand on the throttle.
+
+## Amendment (#914), proposed; confirmed by the owner after a headset session
+
+From the owner's play on generated mines of 2026-11-21: holding the left stick pressed to
+show the map while steering with the same stick moved the ship in ways he did not intend
+("maybe change to toggle and not press"). The two meanings of the left stick click swap:
+
+| Control | Thumbsticks (default and paired) and gripped scheme | Left-handed |
+| --- | --- | --- |
+| Left stick click, short (released before `MapHologram.HOLD_SECONDS`, 0.4 s) | Open / close the map | Right stick click |
+| Left stick click, held 0.4 s | Show / hide control labels (flips once, when the hold reaches 0.4 s) | Right stick click |
+
+- The map stays open with the button released until the next click. Nothing is held while
+  steering.
+- One `ClickHold` still decides both answers, so a press is never both a click and a hold.
+- The map closes on a level restart, a level switch and a destroyed ship, so it never greets
+  a new level open.
+- The labels read "click: map, hold: labels". With `show_map` remapped off the label button,
+  that button's click still flips the labels on press and the map toggles on each press of
+  its own control.
+
+Headset check: click the left stick to open the map, fly and steer with it open, click again
+to close; hold to toggle the labels.

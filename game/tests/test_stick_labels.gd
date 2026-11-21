@@ -13,7 +13,7 @@ const PRESET1_VIEW: GDScript = preload("res://tests/test_cockpit_preset1_view.gd
 ## The flying stick's cross and the turning stick's cross, in every layout file.
 const MOVE_CROSS: String = "forward\nleft  <  strafe  >  right\nback"
 const TURN_CROSS: String = "nose up\nleft  <  yaw  >  right\nnose down"
-const LABEL_CLICK: String = "click: labels, hold: map"
+const LABEL_CLICK: String = "click: map, hold: labels"
 const SLOT_CLICK: String = "click: slot held part"
 
 
@@ -83,7 +83,8 @@ func test_label_click_is_where_the_wiring_reads_it() -> String:
 		mapping.left_handed = left_handed
 		var wiring: ComfortWiring = ComfortWiring.new(LatestInputSource.new(), mapping)
 		var labels: Dictionary = ControlLabels.for_mapping(mapping)
-		if not str(labels.get(wiring.label_button(), "")).begins_with(ControlLabels.LABEL_TOGGLE_WORD):
+		# The map's click shares it, so the toggle is the hold, named last (#914).
+		if not str(labels.get(wiring.label_button(), "")).ends_with(ControlLabels.LABEL_HOLD_WORD):
 			return "left-handed %s: the toggle %s is labelled '%s'" % [
 				left_handed, wiring.label_button(), labels.get(wiring.label_button(), "")]
 	return ""

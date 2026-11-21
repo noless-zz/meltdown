@@ -21,7 +21,7 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_trigger": "fire",
 	"right_stick_click": "click: slot held part",
 	# A short click is the label toggle; holding it shows the map (#314, #606).
-	"left_stick_click": "click: labels, hold: map",
+	"left_stick_click": "click: map, hold: labels",
 	"left_menu": "tap: menu, hold: reset",
 }
 

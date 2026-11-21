@@ -1,14 +1,13 @@
 extends RefCounted
 
 ## The map hologram held in the hand (#314, MAP-1, CMF-6, ARC-3): hidden until
-## `show_map` is held long enough, hidden again on release, one line segment
+## `show_map` is pressed, open until the next press (#914), one line segment
 ## per `MapWireframe` segment, the ship marker fitted like the lines, a broken
 ## look file falls back, and nothing it does reaches the simulation or comfort.
 
 const LEVEL_FILE: String = "res://data/levels/g2_level.json"
 const RIG_SCENE: String = "res://xr/xr_rig.tscn"
 const SCRATCH_PATH: String = "user://test_map_look.json"
-const FRAME: float = 1.0 / 72.0
 const EPSILON: float = 1e-4
 ## Classes the hologram must never name: simulation state, the session and
 ## comfort settings.
@@ -34,11 +33,11 @@ func _all(union: BoxUnion) -> Array[int]:
 	return indices
 
 
-## Holds `held` for `frames` frames; returns `visible` after each.
-func _frames(map: MapHologram, held: bool, frames: int) -> Array[bool]:
+## Feeds `pattern` to `press`, one frame each; returns `visible` after each.
+func _frames(map: MapHologram, pattern: Array[bool]) -> Array[bool]:
 	var seen: Array[bool] = []
-	for i: int in frames:
-		map.hold(held, FRAME)
+	for pressed: bool in pattern:
+		map.press(pressed)
 		seen.append(map.visible)
 	return seen
 
@@ -50,45 +49,37 @@ func test_hidden_by_default() -> String:
 	return "the map starts shown" if shown else ""
 
 
-func test_holding_shows_it_and_releasing_hides_it() -> String:
+func test_a_press_opens_it_and_the_next_closes_it() -> String:
 	var map: MapHologram = MapHologram.new()
 	map.build(_one_box(), [0])
-	var before: int = int(ceil(MapHologram.HOLD_SECONDS / FRAME)) - 1
-	var short: Array[bool] = _frames(map, true, before)
-	var reached: Array[bool] = _frames(map, true, 2)
-	var released: Array[bool] = _frames(map, false, 1)
-	var again: Array[bool] = _frames(map, true, 1)
+	var seen: Array[bool] = _frames(map, [true, true, true, false, false, true, false, true])
+	map.close()
+	var closed: bool = map.visible
 	map.free()
-	if short.has(true):
-		return "shown before %s s of holding" % MapHologram.HOLD_SECONDS
-	if not reached[1]:
-		return "not shown after holding past %s s" % MapHologram.HOLD_SECONDS
-	if released[0]:
-		return "still shown after release"
-	if again[0]:
-		return "a new hold showed it at once; the hold time did not restart"
+	if seen != [true, true, true, true, true, false, false, true]:
+		return "presses gave %s" % str(seen)
+	if closed:
+		return "close left it open"
 	return ""
 
 
 func test_show_map_is_read_through_the_layout() -> String:
 	var mapping: ThumbstickMapping = ThumbstickMapping.new()
 	var map: MapHologram = MapHologram.new()
-	var frames: int = int(ceil(MapHologram.HOLD_SECONDS / FRAME)) + 1
-	for i: int in frames:
-		map.read(mapping, {"left_stick_click": true}, FRAME)
+	map.read(mapping, {"left_stick_click": true})
 	var right_handed: bool = map.visible
-	map.read(mapping, {}, FRAME)
+	map.read(mapping, {})
 	var released: bool = map.visible
+	map.close()
 	mapping.left_handed = true
-	for i: int in frames:
-		map.read(mapping, {"left_stick_click": true}, FRAME)
+	map.read(mapping, {"left_stick_click": true})
+	map.read(mapping, {})
 	var wrong_hand: bool = map.visible
-	for i: int in frames:
-		map.read(mapping, {"right_stick_click": true}, FRAME)
+	map.read(mapping, {"right_stick_click": true})
 	var left_handed: bool = map.visible
 	map.free()
-	if not right_handed or released:
-		return "right-handed: held %s, released %s" % [right_handed, released]
+	if not right_handed or not released:
+		return "right-handed: pressed %s, released %s" % [right_handed, released]
 	if wrong_hand or not left_handed:
 		return "left-handed: left click %s, right click %s" % [wrong_hand, left_handed]
 	return ""
@@ -242,7 +233,7 @@ func test_it_never_touches_simulation_or_comfort() -> String:
 	var map: MapHologram = MapHologram.new()
 	map.build(_g2(), _all(_g2()))
 	for i: int in 40:
-		map.read(mapping, {"left_stick_click": i < 30}, FRAME)
+		map.read(mapping, {"left_stick_click": i % 10 < 3})
 	map.set_ship_position(Vector3(1, 2, 3))
 	map.free()
 	if var_to_str([mapping.layout, mapping.left_handed, mapping.invert_pitch]) != before:

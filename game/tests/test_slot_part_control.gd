@@ -96,7 +96,7 @@ func test_the_labels_name_it_on_the_bound_control() -> String:
 	m.left_handed = true
 	var left: Dictionary = ControlLabels.for_mapping(m)
 	if left.get("left_stick_click", "") != "click: slot held part" \
-			or left.get("right_stick_click", "") != "click: labels, hold: map":
+			or left.get("right_stick_click", "") != "click: map, hold: labels":
 		return "left-handed labels: %s" % left
 	return ""
 

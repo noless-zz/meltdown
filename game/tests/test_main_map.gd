@@ -11,15 +11,6 @@ const SHAFT_BOX: int = 1
 const INTO_SHAFT_Z: float = -38.0
 
 
-## A clock the test moves by hand, for the label button's `ClickHold`.
-class StepClock:
-	extends RefCounted
-	var now: float = 100.0
-
-	func read() -> float:
-		return now
-
-
 ## The main scene with its rig built and `_ready` run, as in play; with
 ## `level_name`, that level is switched in first, as `--level` does.
 func _main(level_name: String = "") -> Node:
@@ -154,37 +145,6 @@ func test_without_a_level_the_test_tunnel_box_is_mapped() -> String:
 	if explored != [0]:
 		return "in the tunnel the explored boxes are %s" % [explored]
 	return problem
-
-
-func test_holding_the_label_button_shows_the_map_without_flipping_labels() -> String:
-	var main: Node = _main()
-	var clock: StepClock = StepClock.new()
-	(main.get("comfort") as ComfortWiring).clock = clock.read
-	var wiring: MapWiring = main.get("map")
-	var labels_before: bool = main.get_node("XRRig").get("show_labels")
-	var shown_at: Array[int] = []
-	for frame: int in 60:
-		clock.now += FRAME
-		main.call("apply_controls", {"buttons": {"left_stick_click": true}})
-		main.call("advance_frame", FRAME)
-		if wiring.hologram.visible:
-			shown_at.append(frame)
-	clock.now += FRAME
-	main.call("apply_controls", {"buttons": {}})
-	main.call("advance_frame", FRAME)
-	var hidden_after: bool = not wiring.hologram.visible
-	var labels_after: bool = main.get_node("XRRig").get("show_labels")
-	main.free()
-	# 0.4 s at 90 frames a second is reached on the 36th held frame.
-	if shown_at.is_empty() or shown_at[0] < 34 or shown_at[0] > 37:
-		return "the map showed from frame %s of a held click" % [shown_at.slice(0, 1)]
-	if shown_at.size() != 60 - shown_at[0]:
-		return "the map flickered while held (%d frames shown)" % shown_at.size()
-	if not hidden_after:
-		return "the map stayed up after release"
-	if labels_after != labels_before:
-		return "a held map click flipped the labels"
-	return ""
 
 
 func test_the_wiring_reads_only_session_copies() -> String:

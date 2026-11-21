@@ -1,9 +1,9 @@
 extends RefCounted
 
-## One timer for the map hold and the label click (#335, MAP-1, PLT-5, CMF-8):
-## while the label button also shows the map, `ComfortWiring.read_label_button`
+## One timer for the map click and the label hold (#335, #914, MAP-1, PLT-5,
+## CMF-8): while the label button also toggles the map, `ComfortWiring.read_label_button`
 ## and `MapHologram` both answer from one `ClickHold`, so every press either
-## shows the map or flips the labels, never both and never neither.
+## toggles the map or flips the labels, never both and never neither.
 
 ## The clock starts here rather than at 0, as a steady clock does in play.
 const ORIGIN_MS: int = 1_000_000
@@ -19,14 +19,15 @@ class StepClock:
 		return now
 
 
-## What one press did: frames the map showed on, label flips, and the time in
-## ms after the press of the first and last frame the map showed.
+## What one press did: frames the map showed on, label flips, the time in ms
+## after the press of the last flip and of the first frame the map showed, and
+## whether the map was open at the end.
 class PressResult:
 	var map_frames: int = 0
 	var flips: int = 0
 	var flip_at_ms: int = -1
 	var first_map_ms: int = -1
-	var last_map_ms: int = -1
+	var open_at_end: bool = false
 
 
 ## Frame length in ms at `t_ms` after the press for each frame pattern.
@@ -54,60 +55,97 @@ func _press(press_ms: int, pattern: String, mapping: ThumbstickMapping = null) -
 	var map: MapHologram = MapHologram.new()
 	var result: PressResult = PressResult.new()
 	var t_ms: int = 0
-	var delta: float = 0.0
 	while t_ms <= press_ms + TAIL_MS:
 		clock.now = float(ORIGIN_MS + t_ms) / 1000.0
 		var buttons: Dictionary = {"left_stick_click": t_ms < press_ms}
 		if wiring.read_label_button(buttons):
 			result.flips += 1
 			result.flip_at_ms = t_ms
-		map.read(map_mapping, buttons, delta, wiring.shared_click_hold())
+		map.read(map_mapping, buttons, wiring.shared_click_hold())
 		if map.visible:
 			result.map_frames += 1
-			result.last_map_ms = t_ms
 			if result.first_map_ms < 0:
 				result.first_map_ms = t_ms
-		var step: int = _step(pattern, t_ms)
-		delta = float(step) / 1000.0
-		t_ms += step
+		t_ms += _step(pattern, t_ms)
+	result.open_at_end = map.visible
 	map.free()
 	return result
 
 
 func test_presses_at_the_edge_do_exactly_one_thing() -> String:
 	# 400 ms is the threshold; the frame at 400 ms already sees the release.
-	var expected: Dictionary[int, String] = {390: "labels", 400: "labels", 410: "map"}
+	var expected: Dictionary[int, String] = {390: "map", 400: "map", 410: "labels"}
 	for press_ms: int in expected:
 		var result: PressResult = _press(press_ms, "5ms")
-		var did: String = "map" if result.map_frames > 0 else "labels"
-		if (result.map_frames > 0) == (result.flips > 0) or result.flips > 1:
-			return "a %d ms press showed the map on %d frames and flipped %d times" % [
-				press_ms, result.map_frames, result.flips]
+		var did: String = "map" if result.open_at_end else "labels"
+		if result.open_at_end == (result.flips > 0) or result.flips > 1:
+			return "a %d ms press left the map %s and flipped %d times" % [
+				press_ms, "open" if result.open_at_end else "closed", result.flips]
 		if did != expected[press_ms]:
 			return "a %d ms press did %s, want %s" % [press_ms, did, expected[press_ms]]
 	return ""
 
 
-func test_a_hold_shows_the_map_until_release_and_never_flips() -> String:
+func test_a_hold_flips_once_at_the_threshold_and_never_shows_the_map() -> String:
 	var result: PressResult = _press(1000, "5ms")
-	if result.flips != 0:
-		return "a 1 s hold flipped the labels %d times" % result.flips
 	var threshold_ms: int = roundi(MapHologram.HOLD_SECONDS * 1000.0)
-	if result.first_map_ms != threshold_ms:
-		return "the map first showed at %d ms, want %d" % [result.first_map_ms, threshold_ms]
-	if result.last_map_ms != 995:
-		return "the map last showed at %d ms, want 995 (the frame before release)" % result.last_map_ms
-	if result.map_frames != (995 - threshold_ms) / 5 + 1:
-		return "the map showed on %d frames, so it blinked during the hold" % result.map_frames
+	if result.flips != 1 or result.flip_at_ms != threshold_ms:
+		return "a 1 s hold flipped %d times, last at %d ms; want once at %d ms" % [
+			result.flips, result.flip_at_ms, threshold_ms]
+	if result.map_frames != 0:
+		return "a 1 s hold showed the map on %d frames" % result.map_frames
 	return ""
 
 
-func test_a_quick_click_flips_once_on_release() -> String:
+func test_a_click_opens_the_map_on_release_and_it_stays_open() -> String:
 	var result: PressResult = _press(100, "5ms")
-	if result.flips != 1 or result.flip_at_ms != 100:
-		return "a 100 ms click flipped %d times, last at %d ms" % [result.flips, result.flip_at_ms]
-	if result.map_frames != 0:
-		return "a 100 ms click showed the map"
+	if result.flips != 0:
+		return "a 100 ms click flipped the labels %d times" % result.flips
+	if result.first_map_ms != 100:
+		return "the map first showed at %d ms, want 100 (the release)" % result.first_map_ms
+	if not result.open_at_end or result.map_frames != TAIL_MS / 5 + 1:
+		return "the map closed again with the button released (%d frames)" % result.map_frames
+	return ""
+
+
+func test_a_second_click_closes_the_map() -> String:
+	var mapping: ThumbstickMapping = ThumbstickMapping.new()
+	var wiring: ComfortWiring = ComfortWiring.new(LatestInputSource.new(), mapping)
+	var clock: StepClock = StepClock.new()
+	wiring.clock = clock.read
+	var map: MapHologram = MapHologram.new()
+	var seen: Array[bool] = []
+	for pressed: bool in [true, false, false, true, false, true, false]:
+		clock.now += 0.1
+		var buttons: Dictionary = {"left_stick_click": pressed}
+		wiring.read_label_button(buttons)
+		map.read(mapping, buttons, wiring.shared_click_hold())
+		seen.append(map.visible)
+	map.free()
+	# Each click acts on its release: open, closed, open again.
+	if seen != [false, true, true, true, false, false, true]:
+		return "three clicks left the map %s" % str(seen)
+	return ""
+
+
+func test_a_hold_leaves_an_open_map_open() -> String:
+	var mapping: ThumbstickMapping = ThumbstickMapping.new()
+	var wiring: ComfortWiring = ComfortWiring.new(LatestInputSource.new(), mapping)
+	var clock: StepClock = StepClock.new()
+	wiring.clock = clock.read
+	var map: MapHologram = MapHologram.new()
+	var flips: int = 0
+	for step: Array in [[true, 0.1], [false, 0.1], [true, 0.1], [true, 0.5], [true, 0.5], [false, 0.1]]:
+		clock.now += float(step[1])
+		var buttons: Dictionary = {"left_stick_click": step[0]}
+		if wiring.read_label_button(buttons):
+			flips += 1
+		map.read(mapping, buttons, wiring.shared_click_hold())
+	var open: bool = map.visible
+	map.free()
+	if not open or flips != 1:
+		return "a hold with the map open left it %s and flipped %d times" % [
+			"open" if open else "closed", flips]
 	return ""
 
 
@@ -115,13 +153,13 @@ func test_uneven_frames_give_the_same_answers() -> String:
 	for pattern: String in ["5ms", "50ms", "50ms_then_5ms", "5ms_then_50ms"]:
 		for press_ms: int in [390, 400, 410]:
 			var result: PressResult = _press(press_ms, pattern)
-			var map: bool = result.map_frames > 0
+			var map: bool = result.open_at_end
 			if map == (result.flips == 1) or result.flips > 1:
-				return "%s frames: a %d ms press showed the map on %d frames and flipped %d times" % [
-					pattern, press_ms, result.map_frames, result.flips]
-			if map != (press_ms == 410):
+				return "%s frames: a %d ms press left the map %s and flipped %d times" % [
+					pattern, press_ms, "open" if map else "closed", result.flips]
+			if map != (press_ms != 410):
 				return "%s frames: a %d ms press %s the map" % [
-					pattern, press_ms, "showed" if map else "did not show"]
+					pattern, press_ms, "opened" if map else "did not open"]
 	return ""
 
 
@@ -137,14 +175,15 @@ func test_remapped_show_map_keeps_flip_on_press() -> String:
 			result.flips, result.flip_at_ms]
 	if result.map_frames != 0:
 		return "the stick click showed the map with show_map on Y"
-	# The map keeps timing its own control with frame deltas.
+	# Alone on its control, the map toggles on each press of it.
 	var map: MapHologram = MapHologram.new()
-	for i: int in 50:
-		map.read(mapping, {"left_button_upper": true}, 0.01, wiring.shared_click_hold())
-	var shown: bool = map.visible
+	var seen: Array[bool] = []
+	for pressed: bool in [true, true, false, true, false]:
+		map.read(mapping, {"left_button_upper": pressed}, wiring.shared_click_hold())
+		seen.append(map.visible)
 	map.free()
-	if not shown:
-		return "holding Y for 0.5 s did not show the remapped map"
+	if seen != [true, true, true, false, false]:
+		return "pressing Y twice left the remapped map %s" % str(seen)
 	return ""
 
 
@@ -160,11 +199,11 @@ func test_one_press_never_gives_both_answers() -> String:
 		var clicks: int = 0
 		while now - start < press_s + 0.2:
 			hold.feed(now - start < press_s, now)
-			if hold.is_long_hold():
+			if hold.long_hold_started():
 				long_frames += 1
 			if hold.short_click_released():
 				clicks += 1
 			now += rng.randf_range(0.002, 0.06)
-		if (long_frames > 0) == (clicks == 1) or clicks > 1:
+		if (long_frames == 1) == (clicks == 1) or clicks > 1 or long_frames > 1:
 			return "a %.3f s press gave %d long frames and %d clicks" % [press_s, long_frames, clicks]
 	return ""
