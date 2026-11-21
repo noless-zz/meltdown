@@ -19,7 +19,7 @@ func _init(replay: Replay, looping: bool = false) -> void:
 
 
 ## A fresh session fed by this source, from the replay's own seed, walls,
-## tuning, weapons, robots and part catalogue, so it flies exactly the run the replay
+## tuning, weapons, robots, part catalogue and look-aim values, so it flies exactly the run the replay
 ## recorded. Every box of a level's walls, its start pose and its reactor are
 ## taken over, as `LocalSession.for_level` does (#334, #401, #332), and so is
 ## its debris (#456).
@@ -36,6 +36,9 @@ func new_session() -> LocalSession:
 		session.replay.start_facings_mm[ship] = _replay.start_facings_mm[ship]
 	ReplayStartLine.apply(session.replay, session.sim)
 	session.use_salvage_rules(_replay.salvage_rules)
+	# A replay that aims off the nose turns its guns by these values (CMB-6).
+	if _replay.look_aim != null and session.sim.set_look_aim(_replay.look_aim) == "":
+		session.replay.look_aim = _replay.look_aim
 	session.reset_ship_snapshots()
 	# A level's reactor stops shots and counts down, so a replay recorded with
 	# one flies differently without it (#332).

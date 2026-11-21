@@ -27,6 +27,12 @@
 			"replay": "res://acceptance/replays/bot_g2_level.replay",
 			"checks": ["final_hash", "robots_cleared", "ship_alive"],
 			"expected_hash": 1416572801
+		},
+		{
+			"id": "look_aim_shot",
+			"replay": "res://acceptance/replays/look_aim_shot.replay",
+			"checks": ["final_hash"],
+			"expected_hash": 1998918371
 		}
 	]
 }

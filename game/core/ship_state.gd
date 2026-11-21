@@ -98,6 +98,10 @@ var slot_was_held: bool = false
 ## state's hash: `Sim` hashes it with the reactor, so levels without one keep
 ## their hashes.
 var escaped: bool = false
+## Where the primary guns point, in ship space, as a unit vector (CMB-6). It
+## follows `ShipInput.aim_q` inside the look-aim cone at the gimbal rate
+## (`LookAim.turn_gun`); primary shots leave along it. Rests on the nose.
+var gun_direction: Vector3 = LookAim.NOSE
 
 const MIN_WALL_RESTITUTION: float = 0.05
 
@@ -247,6 +251,9 @@ func state_hash() -> int:
 		armed = armed or slot != null
 	if armed:
 		parts.append(weapons)
+	# Joins only off the nose, so runs that never aimed keep their hashes.
+	if gun_direction != LookAim.NOSE:
+		parts.append(["gun", gun_direction])
 	# Joins only once something is held, so earlier replays keep their hashes.
 	if not hold.is_empty():
 		parts.append(["hold", hold.duplicate()])

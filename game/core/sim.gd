@@ -56,6 +56,10 @@ var _parts: Dictionary[String, WeaponDef] = {}
 ## part of the hash: fixed for the run and recorded in the replay's header,
 ## like the walls; what they do to the parts shows in the parts' own state.
 var salvage_rules: SalvageRules = SalvageRules.new()
+## How far and how fast ships' guns follow their aim (CMB-6); see
+## `set_look_aim`. Not part of the hash, like the salvage rules: what it does
+## shows in each ship's gun direction.
+var look_aim: LookAim = LookAim.new()
 ## Projectile hit events of the tick being stepped. Hits are found when
 ## projectiles move, before the ships, but their events follow the ship events.
 var _hit_events: Array[SimEvent] = []
@@ -119,6 +123,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 		if inputs[i].slot_held and not ship.slot_was_held:
 			PartSlotting.slot_held(self, i, slot_drops)
 		ship.slot_was_held = inputs[i].slot_held
+		look_aim.turn_gun(ship, inputs[i].aim())
 		ProjectileHits.fire(self, i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
@@ -228,6 +233,18 @@ func set_salvage_rules(rules: SalvageRules) -> String:
 	return ""
 
 
+## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6). Only before the
+## first tick, like the salvage rules, so a replay can set the same values from
+## its header. Returns "" on success, or the problem, changing nothing.
+func set_look_aim(aim: LookAim) -> String:
+	if tick != 0 or _stepping:
+		return "look-aim is set before the first tick"
+	if aim == null or aim.error != "":
+		return "look-aim is not resolved"
+	look_aim = aim
+	return ""
+
+
 ## The weapon part `id` is, or null if the catalogue has no such part.
 func part(id: String) -> WeaponDef:
 	return _parts.get(id, null)
@@ -271,34 +288,6 @@ func set_start_pose(index: int, position: Vector3, orientation: Basis) -> void:
 		ships[index].orientation = orientation
 
 
-## Hash of the whole simulation state. Projectiles, robots, salvage, the part
-## catalogue, the reactor, with the run's outcome, and debris join only while
-## there are any, so runs recorded before them keep their hashes.
+## Hash of the whole simulation state; see `SimHash`.
 func state_hash() -> int:
-	var parts: Array[int] = [run_seed, tick]
-	for ship: ShipState in ships:
-		parts.append(ship.state_hash())
-	if not projectiles.is_empty():
-		parts.append(hash("projectiles"))
-		for projectile: Projectile in projectiles:
-			parts.append(projectile.state_hash())
-	if not robots.is_empty():
-		parts.append(hash("robots"))
-		for robot: RobotState in robots:
-			parts.append(robot.state_hash())
-	if not salvage.is_empty():
-		parts.append(hash("salvage"))
-		for item: SalvageItem in salvage:
-			parts.append(item.state_hash())
-	if not _parts.is_empty():
-		parts.append(hash("parts"))
-		for id: String in part_ids():
-			parts.append(hash(id))
-			parts.append(_parts[id].values_hash())
-	if reactor != null:
-		parts.append(hash("reactor"))
-		parts.append(reactor.state_hash())
-		parts.append(ExitRule.state_hash(self))
-	if debris != null:
-		parts.append(debris.state_hash())
-	return hash(parts)
+	return SimHash.of(self)
