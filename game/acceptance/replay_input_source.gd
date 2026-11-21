@@ -55,6 +55,12 @@ func tick_count() -> int:
 	return _replay.frames.size()
 
 
+## Called by the acceptance runner when the step's flight ends; a source
+## that changed something for the flight puts it back (#818).
+func finish() -> void:
+	pass
+
+
 func next_input(tick: int) -> ShipInput:
 	if _looping and tick >= 0 and not _replay.frames.is_empty():
 		tick = tick % _replay.frames.size()

@@ -154,12 +154,13 @@ func _start_step(step: AcceptanceStep) -> void:
 	var replay: Replay = Replay.load_file(step.replay_path)
 	if replay.error != "" or replay.ship_count != 1:
 		return  # `replay_problem` reports it when the step is recorded.
-	_source = ReplayInputSource.new(replay, step.loop_replay)
+	_source = AcceptanceControlsScript.source_for(step, replay, main)  # Its inputs, or scripted controls (#818).
 	if step.level_seed == AcceptanceStep.NO_SEED:
 		main.set("session", _source.new_session())
 	else:
 		_level_problem = AcceptanceStepLevel.fly_seed(main, step.level_seed, replay, _source, seed_overrides)
 		if _level_problem != "":
+			_source.finish()
 			_source = null
 			return
 	main.set_process(false)  # The runner drives the frames until the replay ends.
@@ -175,6 +176,7 @@ func _step_ready(step: AcceptanceStep) -> bool:
 			main.call("advance_frame", ShipState.TICK_DT)
 			_checks.after_tick(main)
 			return false
+		_source.finish()
 		main.set_process(true)
 	if _checks.sampling():
 		return false

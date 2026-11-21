@@ -143,6 +143,8 @@ func test_the_m1_and_m2_suite_replays_still_end_on_their_hashes() -> String:
 		for step: AcceptanceStep in suite.steps:
 			if step.replay_path == "" or not step.checks.has(AcceptanceStep.CHECK_FINAL_HASH):
 				continue
+			if step.controls_path != "":
+				continue  # Scripted controls fly, not the replay's inputs (#818).
 			var replay: Replay = Replay.load_file(step.replay_path)
 			if replay.error != "":
 				return "%s: %s" % [step.replay_path, replay.error]

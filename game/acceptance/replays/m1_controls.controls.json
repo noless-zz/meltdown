@@ -1,0 +1,15 @@
+{
+	"segments": [
+		{"ticks": 30},
+		{"ticks": 90, "left_stick": [0, 1]},
+		{"ticks": 60, "left_stick": [0, 0.5], "right_stick": [0.7, 0]},
+		{"ticks": 60, "right_stick": [0, -0.6]},
+		{"ticks": 45, "left_grip": 1},
+		{"ticks": 45, "right_grip": 0.8},
+		{"ticks": 60, "left_stick": [-0.5, 0], "buttons": ["right_button_upper"]},
+		{"ticks": 40, "buttons": ["left_button_upper"]},
+		{"ticks": 60, "buttons": ["right_button_lower"]},
+		{"ticks": 30, "right_stick": [-0.4, 0.3], "right_trigger": 1},
+		{"ticks": 60}
+	]
+}

@@ -161,6 +161,12 @@ var preset_change_presets: Array[int] = []
 ## off before, or NO_PAUSE, and how long it stays off.
 var pause_at_tick: int = NO_PAUSE
 var pause_seconds: float = 0.0
+## A flight scripted as raw controller values (#818, PLT-5), flown through the
+## scene's `ThumbstickMapping` in place of the replay's inputs, or "" for none;
+## and whether the mapping is left-handed while it flies
+## (`AcceptanceControlsScript`).
+var controls_path: String = ""
+var left_handed: bool = false
 
 
 func has_check(check: String) -> bool:
