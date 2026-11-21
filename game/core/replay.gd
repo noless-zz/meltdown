@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## Text format, one item per line:
 ##
-##     meltdown-replay 16       format name and version
+##     meltdown-replay 17       format name and version
 ##     seed 20261114            run seed
 ##     ships 1                  number of ships
 ##     hash 1234567890          optional: expected Sim.state_hash() at the end
@@ -46,11 +46,14 @@ extends RefCounted
 ##                              weapon's data file on one line (`Sim.set_parts`)
 ##     salvage {"pickup_reach":2.5,...}
 ##                              optional (version 16): `ReplaySalvageLine`
+##     aim {"cone_degrees":35.0,...}
+##                              optional (version 17): `ReplayAimLine`
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1 0
 ##                              one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start, fire primary,
-##                              slot held part (0 off, 1 on)
+##                              slot held part (0 off, 1 on); from version 17
+##                              then aim x y z only when it is off the nose
 ##     0 0 -1000 0 0 0 0 0 0 0 | ...
 ##                              further ships follow after " | "
 ##
@@ -61,7 +64,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 16
+const FORMAT_VERSION: int = 17
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -99,6 +102,8 @@ var robots: Array[RobotSpawn] = []
 var parts: Dictionary[String, WeaponDef] = {}
 ## How parts are picked up, pulled and dropped, or null for the defaults.
 var salvage_rules: SalvageRules = null
+## Look-aim cone and gimbal rate (CMB-6), or null for the defaults.
+var look_aim: LookAim = null
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -146,6 +151,7 @@ func run() -> Sim:
 		return null
 	if salvage_rules != null:
 		sim.set_salvage_rules(salvage_rules)
+	ReplayAimLine.apply(self, sim)
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -246,6 +252,7 @@ func to_text() -> String:
 	lines.append_array(ReplayPartLines.part_lines(parts))
 	if salvage_rules != null:
 		lines.append(ReplaySalvageLine.text(salvage_rules))
+	lines.append_array(ReplayAimLine.lines(self))
 	lines.append("inputs")
 	for frame: Array in frames:
 		lines.append(ReplayLines.tick_text(frame))
@@ -254,31 +261,7 @@ func to_text() -> String:
 
 ## Parses replay text. On failure the returned replay has `error` set.
 static func from_text(text: String) -> Replay:
-	var replay: Replay = Replay.new()
-	var in_header: bool = true
-	var seen: Dictionary[String, bool] = {}
-	var line_number: int = 0
-	for raw_line: String in text.split("\n"):
-		line_number += 1
-		var line: String = raw_line.strip_edges()
-		if line == "" or line.begins_with("#"):
-			continue
-		var problem: String = ""
-		if in_header:
-			if line == "inputs":
-				in_header = false
-				if not (seen.has("seed") and seen.has("ships")):
-					problem = "header needs both seed and ships"
-			else:
-				problem = ReplayHeader.parse_line(replay, line, seen)
-		else:
-			problem = ReplayLines.parse_tick_line(replay, line, replay.parse_version)
-		if problem != "":
-			replay.error = "line %d: %s" % [line_number, problem]
-			return replay
-	if in_header:
-		replay.error = "no inputs section"
-	return replay
+	return ReplayHeader.read_text(text)
 
 
 func save(path: String) -> Error:

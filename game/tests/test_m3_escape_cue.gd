@@ -7,7 +7,8 @@ extends RefCounted
 
 const STEP_ID: String = "bot_generated_escape"
 const EXPECTED_HASH: int = 3709902663
-const EXPECTED_LEVEL_HASH: int = 1977962260
+## The replay header written as format version 17 since #922.
+const EXPECTED_LEVEL_HASH: int = 1931884533
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
 ## The escape takes a few thousand ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 40000

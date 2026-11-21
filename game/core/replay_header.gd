@@ -4,7 +4,7 @@ extends RefCounted
 ## Reads one header line of a replay (everything before `inputs`) into the
 ## replay. Split out of `Replay` to keep it short; the format is documented
 ## there. Data lines go to `ReplayLines`, `ReplayBoxLine`, `ReplayPartLines`,
-## `ReplayReactorLine`, `ReplayDebrisLine`, `ReplaySalvageLine` and
+## `ReplayReactorLine`, `ReplayDebrisLine`, `ReplaySalvageLine`, `ReplayAimLine` and
 ## `ReplayStartLine`.
 ##
 ## Version 1 has no afterburner column: six numbers per ship, read with the
@@ -15,7 +15,7 @@ extends RefCounted
 ## versions 1 to 6 no weapon lines, versions 1 to 7 no robot lines, versions 1
 ## to 9 no part lines, versions 1 to 12 no reactor line, versions 1 to 13 no
 ## start line, versions 1 to 14 no debris line, versions 1 to 15 no salvage
-## line. Version 8 robot lines hold the robot's data file alone, with no
+## line, versions 1 to 16 no aim line and no aim columns. Version 8 robot lines hold the robot's data file alone, with no
 ## "robot" or "weapon" key, and read as unarmed.
 
 
@@ -34,6 +34,8 @@ static func parse_line(replay: Replay, line: String, seen: Dictionary[String, bo
 		return ReplayDebrisLine.parse(replay, line.substr(7), seen, replay.parse_version)
 	if line.begins_with("salvage "):
 		return ReplaySalvageLine.parse(replay, line.substr(8), seen, replay.parse_version)
+	if line.begins_with("aim "):
+		return ReplayAimLine.parse(replay, line.substr(4), seen, replay.parse_version)
 	if line.begins_with("part "):
 		return ReplayPartLines.parse_part_line(replay, line, seen, replay.parse_version)
 	var words: PackedStringArray = line.split(" ", false)
@@ -73,3 +75,33 @@ static func parse_line(replay: Replay, line: String, seen: Dictionary[String, bo
 		_:
 			return "unknown header line '%s'" % key
 	return ""
+
+
+## Parses whole replay text for `Replay.from_text`, which documents it; here so
+## `replay.gd` stays under its size limit.
+static func read_text(text: String) -> Replay:
+	var replay: Replay = Replay.new()
+	var in_header: bool = true
+	var seen: Dictionary[String, bool] = {}
+	var line_number: int = 0
+	for raw_line: String in text.split("\n"):
+		line_number += 1
+		var line: String = raw_line.strip_edges()
+		if line == "" or line.begins_with("#"):
+			continue
+		var problem: String = ""
+		if in_header:
+			if line == "inputs":
+				in_header = false
+				if not (seen.has("seed") and seen.has("ships")):
+					problem = "header needs both seed and ships"
+			else:
+				problem = parse_line(replay, line, seen)
+		else:
+			problem = ReplayLines.parse_tick_line(replay, line, replay.parse_version)
+		if problem != "":
+			replay.error = "line %d: %s" % [line_number, problem]
+			return replay
+	if in_header:
+		replay.error = "no inputs section"
+	return replay
