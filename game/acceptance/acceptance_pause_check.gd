@@ -12,6 +12,9 @@ extends RefCounted
 ## pose did not change on any held frame (CMF-8), and the first frame after
 ## the pause flew exactly the next recorded tick, so no input was skipped.
 ## The step's final_hash shows the pause did not change the flight (ARC-2).
+## During a meltdown the cockpit's countdown is the cue the player watches, so
+## its text must not change on a held frame either (#886): a countdown that
+## ticked on while the headset was off would cost the run.
 ##
 ## In a suite: `"pause_at_tick": <n>` (a tick inside the replay) and
 ## `"pause_seconds": <s>` go together with the held_while_paused check. The
@@ -35,6 +38,7 @@ var _held: int = 0
 var _paused_tick: int = -1
 var _paused_hash: int = 0
 var _paused_pose: Transform3D = Transform3D.IDENTITY
+var _paused_countdown: String = ""
 var _resume_tick: int = -1
 var _problem: String = ""
 
@@ -58,11 +62,8 @@ func hold_frames() -> int:
 ## once the hold is over, puts the headset back on.
 func before_frame(main: Node, tick: int) -> void:
 	if not _started and tick >= _step.pause_at_tick:
-		_started = true
 		var session: LocalSession = main.get("session")
-		_paused_tick = session.sim.tick
-		_paused_hash = session.sim.state_hash()
-		_paused_pose = world_pose(main)
+		hold_from(session.sim.tick, session.sim.state_hash(), world_pose(main), countdown_text(main))
 		main.call("on_session_visible")
 	elif _started and not _resumed and _held >= _hold_frames:
 		_resumed = true
@@ -76,8 +77,7 @@ func after_frame(main: Node) -> void:
 		return
 	var session: LocalSession = main.get("session")
 	if not _resumed:
-		_held += 1
-		_problem = _held_problem(session, world_pose(main))
+		held_frame(session.sim.tick, session.sim.state_hash(), world_pose(main), countdown_text(main))
 	elif not _judged_resume:
 		_judged_resume = true
 		_resume_tick = session.sim.tick
@@ -89,16 +89,53 @@ func after_frame(main: Node) -> void:
 				session.replay.frames.size(), session.sim.tick]
 
 
-func _held_problem(session: LocalSession, pose: Transform3D) -> String:
+## Starts the hold from what the frame before it showed. `before_frame` calls
+## it from the scene; the tests call it with hand-fed values.
+func hold_from(tick: int, state_hash: int, pose: Transform3D, countdown: String) -> void:
+	_started = true
+	_paused_tick = tick
+	_paused_hash = state_hash
+	_paused_pose = pose
+	_paused_countdown = countdown
+
+
+## Judges one held frame from what it showed; the first problem found stays.
+func held_frame(tick: int, state_hash: int, pose: Transform3D, countdown: String) -> void:
+	if _problem != "":
+		return
+	_held += 1
+	_problem = _held_problem(tick, state_hash, pose, countdown)
+
+
+func _held_problem(tick: int, state_hash: int, pose: Transform3D, countdown: String) -> String:
 	var where: String = "held frame %d (paused at tick %d)" % [_held, _paused_tick]
-	if session.sim.tick != _paused_tick:
-		return "%s: the simulation advanced to tick %d" % [where, session.sim.tick]
-	if session.sim.state_hash() != _paused_hash:
+	if tick != _paused_tick:
+		return "%s: the simulation advanced to tick %d" % [where, tick]
+	if state_hash != _paused_hash:
 		return "%s: the state hash changed" % where
 	if pose.origin.distance_to(_paused_pose.origin) > POSE_EPSILON \
 			or not _bases_match(pose.basis, _paused_pose.basis):
 		return "%s: the camera moved from %s to %s" % [where, _paused_pose, pose]
+	if countdown != _paused_countdown:
+		return "%s: the meltdown countdown changed from '%s' to '%s'" % [where, _paused_countdown, countdown]
 	return ""
+
+
+## The meltdown countdown texts the cockpit shows: the status panel's row and
+## the large escape cue, each only while visible, so "" outside a meltdown.
+## Read from the nodes the player sees rather than the simulation, since the
+## check is that what is shown holds still.
+static func countdown_text(main: Node) -> String:
+	var shown: PackedStringArray = []
+	var panel: StatusPanel = main.get("status_panel") as StatusPanel
+	if panel != null:
+		var row: Label3D = panel.get_node_or_null(StatusPanel.MELTDOWN_NAME) as Label3D
+		if row != null and row.visible:
+			shown.append(row.text)
+	var meltdown: MeltdownWiring = main.get("meltdown") as MeltdownWiring
+	if meltdown != null and meltdown.escape.cue != null and meltdown.escape.cue.countdown.visible:
+		shown.append(meltdown.escape.cue.countdown.text)
+	return " | ".join(shown)
 
 
 static func _bases_match(a: Basis, b: Basis) -> bool:
@@ -113,6 +150,7 @@ func judge(measurements: Dictionary) -> Array:
 	measurements["pause_tick"] = _paused_tick
 	measurements["paused_frames"] = _held
 	measurements["resume_tick"] = _resume_tick
+	measurements["pause_countdown"] = _paused_countdown
 	if not _started:
 		return [AcceptanceReport.RESULT_FAIL, "the replay never reached tick %d to pause" % _step.pause_at_tick]
 	if _problem != "":

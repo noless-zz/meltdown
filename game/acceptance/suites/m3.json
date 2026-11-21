@@ -44,6 +44,16 @@
 			"expected_hash": 3137378879,
 			"expected_level_hash": 3117525271,
 			"expected_outcome": "ESCAPED"
+		},
+		{
+			"id": "meltdown_pause",
+			"seed": 43,
+			"replay": "res://acceptance/replays/bot_generated_escape.replay",
+			"checks": ["held_while_paused", "final_hash", "outcome", "escape_cue"],
+			"pause_at_tick": 4342,
+			"pause_seconds": 5,
+			"expected_hash": 3709902663,
+			"expected_outcome": "ESCAPED"
 		}
 	]
 }
