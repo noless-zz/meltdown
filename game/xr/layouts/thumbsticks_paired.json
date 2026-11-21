@@ -1,4 +1,5 @@
 {
+	"stick_dead_zone": 0.15,
 	"strafe": {"left_stick_x": 1.0},
 	"forward": {"left_stick_y": 1.0},
 	"yaw": {"right_stick_x": 1.0},

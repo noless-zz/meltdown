@@ -55,10 +55,12 @@ extends RefCounted
 ## Layouts are data files (ARC-4) under `res://xr/layouts/`, one JSON object
 ## of the same shape as `layout`. `from_file` and `from_json` validate them;
 ## a rejected file leaves the built-in default in place and sets `error`.
+## A file may also set the stick dead zone (`StickDeadZone`, #855).
 
-## Radial dead zone of each stick as a fraction of full deflection. Drift
-## inside it gives exactly zero, so a resting stick never moves the ship.
-const STICK_DEAD_ZONE: float = 0.15
+## Radial dead zone of each stick as a fraction of full deflection, used when
+## the layout sets none. Drift inside it gives exactly zero, so a resting
+## stick never moves the ship.
+const STICK_DEAD_ZONE: float = StickDeadZone.DEFAULT
 const MAX_PITCH_RATE: float = PI / 2.0
 const MAX_YAW_RATE: float = PI / 2.0
 const MAX_ROLL_RATE: float = PI * 0.75
@@ -104,6 +106,11 @@ const PAIRED_LAYOUT_FILE: String = LAYOUTS_DIR + "/thumbsticks_paired.json"
 var layout: Dictionary = {}
 var left_handed: bool = false
 var invert_pitch: bool = false
+## Applied to both sticks, whichever hand flies (#855).
+var stick_dead_zone: float = STICK_DEAD_ZONE
+## Set when the layout's dead zone was rejected and the default used; the
+## bindings still loaded. Empty otherwise.
+var warning: String = ""
 ## Set by `from_json` or `from_file` when the layout was rejected; empty otherwise.
 var error: String = ""
 
@@ -138,7 +145,7 @@ static func default_layout() -> Dictionary:
 static func from_file(path: String) -> ThumbstickMapping:
 	if not FileAccess.file_exists(path):
 		return _default_with_error("no layout file at %s" % path)
-	return from_json(FileAccess.get_file_as_string(path))
+	return from_json(FileAccess.get_file_as_string(path), path)
 
 
 ## A mapping with the layout parsed from the text of a layout file: a JSON
@@ -146,8 +153,10 @@ static func from_file(path: String) -> ThumbstickMapping:
 ## be one of `AXES`, `BUTTON_ACTIONS`, `VIEW_ACTIONS` or `CONTROLS` and every weight a number
 ## in -1..1. A name outside the lists is rejected rather than ignored, so a
 ## typo cannot silently leave a control unbound. On failure the mapping has
-## the built-in default layout and `error` names what was wrong.
-static func from_json(text: String) -> ThumbstickMapping:
+## the built-in default layout and `error` names what was wrong. The
+## optional `StickDeadZone.FIELD` is read apart from the bindings; `source`
+## names the file in its warning.
+static func from_json(text: String, source: String = "layout") -> ThumbstickMapping:
 	var json: JSON = JSON.new()
 	if json.parse(text) != OK:
 		return _default_with_error("invalid JSON at line %d: %s" % [
@@ -157,6 +166,8 @@ static func from_json(text: String) -> ThumbstickMapping:
 	var data: Dictionary = json.data
 	var parsed: Dictionary = {}
 	for action: Variant in data:
+		if action == StickDeadZone.FIELD:
+			continue
 		if typeof(action) != TYPE_STRING \
 				or not (AXES.has(action) or BUTTON_ACTIONS.has(action) or VIEW_ACTIONS.has(action)):
 			return _default_with_error("unknown axis or action \"%s\"" % str(action))
@@ -176,7 +187,13 @@ static func from_json(text: String) -> ThumbstickMapping:
 					control, action, float(weight)])
 			weights[control] = float(weight)
 		parsed[action] = weights
-	return ThumbstickMapping.new(parsed)
+	var mapping: ThumbstickMapping = ThumbstickMapping.new(parsed)
+	var dead_zone: Dictionary = StickDeadZone.read(data, source)
+	mapping.stick_dead_zone = dead_zone["value"]
+	mapping.warning = dead_zone["warning"]
+	if mapping.warning != "":
+		push_warning(mapping.warning)
+	return mapping
 
 
 static func _default_with_error(message: String) -> ThumbstickMapping:
@@ -185,16 +202,9 @@ static func _default_with_error(message: String) -> ThumbstickMapping:
 	return mapping
 
 
-## Scales a stick so that the dead zone gives exactly zero and the output
-## rises from zero at its edge to 1 at full deflection, in the same direction.
-static func apply_dead_zone(stick: Vector2) -> Vector2:
-	var length: float = stick.length()
-	# Vector2 holds 32-bit floats, so a stick reading exactly on the edge can
-	# come out a hair longer than the 64-bit constant.
-	if length <= STICK_DEAD_ZONE or is_equal_approx(length, STICK_DEAD_ZONE):
-		return Vector2.ZERO
-	var scaled: float = (minf(length, 1.0) - STICK_DEAD_ZONE) / (1.0 - STICK_DEAD_ZONE)
-	return stick / length * scaled
+## `StickDeadZone.apply`; the default dead zone unless one is given.
+static func apply_dead_zone(stick: Vector2, dead_zone: float = STICK_DEAD_ZONE) -> Vector2:
+	return StickDeadZone.apply(stick, dead_zone)
 
 
 ## Maps one frame of controller values to the input for one tick. Triggers
@@ -205,8 +215,8 @@ func map_controls(left_stick: Vector2, right_stick: Vector2,
 		left_trigger: float, right_trigger: float,
 		left_grip: float, right_grip: float,
 		buttons: Dictionary = {}) -> ShipInput:
-	var left: Vector2 = apply_dead_zone(left_stick)
-	var right: Vector2 = apply_dead_zone(right_stick)
+	var left: Vector2 = apply_dead_zone(left_stick, stick_dead_zone)
+	var right: Vector2 = apply_dead_zone(right_stick, stick_dead_zone)
 	var controls: Dictionary = {
 		"left_stick_x": left.x, "left_stick_y": left.y,
 		"right_stick_x": right.x, "right_stick_y": right.y,

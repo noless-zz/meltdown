@@ -24,6 +24,7 @@ extends RefCounted
 ## `break` entry (#821) shows `break_on_text` / `break_off_text`, each optional.
 ## With a valid custom comfort file the `comfort` entry also offers the custom
 ## mode (#837), shown as `custom_text` with `{base}` naming its base preset.
+## The `flight_test` entry (#839) runs the first-launch flight test again.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -36,8 +37,9 @@ const KIND_HANDS: String = "hands"
 const KIND_PITCH: String = "pitch"
 const KIND_COMFORT: String = "comfort"
 const KIND_BREAK: String = "break"
+const KIND_FLIGHT_TEST: String = "flight_test"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
-	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK]
+	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK, KIND_FLIGHT_TEST]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
 	"break_on_text", "break_off_text", "custom_text"]
@@ -52,6 +54,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_PITCH: "Pitch",
 	KIND_COMFORT: "Comfort",
 	KIND_BREAK: "Break reminder",
+	KIND_FLIGHT_TEST: "Flight test",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"

@@ -99,6 +99,27 @@
 			"expected_hash": 3298909347
 		},
 		{
+			"id": "comfort_hits_preset_2",
+			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
+			"preset": 2,
+			"checks": ["hit_view_motion", "comfort_motion", "final_hash", "no_script_errors"],
+			"expected_hash": 3298909347
+		},
+		{
+			"id": "comfort_hits_preset_3",
+			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
+			"preset": 3,
+			"checks": ["hit_view_motion", "comfort_motion", "final_hash", "no_script_errors"],
+			"expected_hash": 3298909347
+		},
+		{
+			"id": "comfort_hits_preset_4",
+			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
+			"preset": 4,
+			"checks": ["hit_view_motion", "comfort_motion", "final_hash", "no_script_errors"],
+			"expected_hash": 3298909347
+		},
+		{
 			"id": "focus_pause",
 			"replay": "res://acceptance/replays/basic_flight.replay",
 			"checks": ["held_while_paused", "final_hash", "no_script_errors"],
