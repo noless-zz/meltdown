@@ -171,7 +171,7 @@ func test_the_look_file_loads() -> String:
 	map.free()
 	if error != "":
 		return "map_look.json rejected: %s" % error
-	if look != MapHologram.parse_look(FileAccess.get_file_as_string(MapHologram.DEFAULT_LOOK_FILE)):
+	if look != MapLook.parse(FileAccess.get_file_as_string(MapHologram.DEFAULT_LOOK_FILE)):
 		return "the loaded look is not the file's"
 	return ""
 

@@ -12,13 +12,18 @@ extends RefCounted
 ##
 ## It also marks the exit and the reactor (#380, RUN-2, RUN-3). The exit is
 ## where ship 0 starts, read from the replay's start line, because the exit is
-## the entrance. The reactor is marked only once the ship has been in a box
-## that holds the reactor's centre (Planner decision, 2026-11-17), so the map
-## does not give the level away before the player has found it.
+## the entrance. The reactor is marked from the first frame the ship has been
+## in a box that holds the reactor's centre or had a clear line to that centre
+## (`LineOfSight.clear` over the replay's copy of the walls), and always once
+## the reactor is destroyed (#913, Planner decisions of 2026-11-17 and
+## 2026-11-21), so the map does not give the level away before the player has
+## found it, yet a pilot who shoots it from a doorway sees it. A destroyed
+## reactor stays marked, dimmed, where the escape began. Whether it is
+## destroyed comes from `MapRouteWiring.reactor_destroyed`, which reads a copy.
 ##
 ## While the meltdown runs, `MapRouteWiring` hands the map the escape route the
-## player knows (#402, MAP-2). It lives in its own file because it must read the
-## meltdown from the simulation, which this file never names.
+## player knows (#402, MAP-2). It lives in its own file because it searches the
+## meltdown's debris and names the simulation, which this file never does.
 
 ## The map, under a hand of the rig once `attach` has run, null before. A
 ## wiring that was never attached does nothing, so a scene can go without it.
@@ -39,8 +44,11 @@ var _drawn: Array[int] = []
 var _hand: String = ""
 ## Boxes holding the reactor's centre; empty without a reactor.
 var _reactor_boxes: Array[int] = []
-## The last `reactor_known` handed to `set_markers`.
+## The last `reactor_known` and `reactor_destroyed` handed to `set_markers`.
 var _reactor_known: bool = false
+var _reactor_destroyed: bool = false
+## The reactor's centre in metres; meaningless without a reactor.
+var _reactor_at: Vector3 = Vector3.ZERO
 ## The known escape route on the map during the meltdown (#402).
 var route_wiring: MapRouteWiring = MapRouteWiring.new()
 
@@ -76,9 +84,11 @@ func update(session: LocalSession, delta_seconds: float, shared: ClickHold = nul
 		_drawn = now
 		hologram.build(_union, _drawn)
 		rebuilds += 1
-	var known: bool = _reactor_found(now)
-	if known != _reactor_known:
+	var destroyed: bool = MapRouteWiring.reactor_destroyed(session)
+	var known: bool = _reactor_known or destroyed or _reactor_seen(now, session.current_ship().position)
+	if known != _reactor_known or destroyed != _reactor_destroyed:
 		_reactor_known = known
+		_reactor_destroyed = destroyed
 		_mark(session)
 	route_wiring.update(session, _union, _drawn, grew, hologram)
 	hologram.set_ship_position(session.previous_ship().position.lerp(
@@ -102,11 +112,12 @@ func _start(session: LocalSession) -> void:
 	_reactor_boxes = []
 	var reactor: ReactorState = session.replay.reactor
 	if reactor != null:
-		var centre: Vector3 = _centre(reactor)
+		_reactor_at = _centre(reactor)
 		for index: int in _union.boxes.size():
-			if _union.boxes[index].holds(centre, 0.0):
+			if _union.boxes[index].holds(_reactor_at, 0.0):
 				_reactor_boxes.append(index)
 	_reactor_known = false
+	_reactor_destroyed = false
 	_mark(session)
 	route_wiring.clear(hologram)
 
@@ -117,7 +128,7 @@ func _mark(session: LocalSession) -> void:
 	var exit_at: Vector3 = ReplayStartLine.position(session.replay, 0)
 	var reactor: ReactorState = session.replay.reactor
 	var reactor_at: Vector3 = Vector3.ZERO if reactor == null else _centre(reactor)
-	hologram.set_markers(exit_at, reactor_at, _reactor_known)
+	hologram.set_markers(exit_at, reactor_at, _reactor_known, _reactor_destroyed)
 
 
 ## The reactor's centre in metres.
@@ -125,12 +136,16 @@ static func _centre(reactor: ReactorState) -> Vector3:
 	return Vector3(reactor.position_mm) / float(RobotSpawn.SCALE)
 
 
-## Whether any box holding the reactor's centre is among `explored`.
-func _reactor_found(explored: Array[int]) -> bool:
+## Whether the ship at `ship_at` finds the reactor now: a box holding its centre
+## is among `explored`, or the ship has a clear line to that centre. Without a
+## reactor there is nothing to find.
+func _reactor_seen(explored: Array[int], ship_at: Vector3) -> bool:
+	if _session.replay.reactor == null:
+		return false
 	for index: int in _reactor_boxes:
 		if explored.has(index):
 			return true
-	return false
+	return LineOfSight.clear(_union, ship_at, _reactor_at)
 
 
 ## Moves the map to the other hand when left-handed mode or a remap moved the

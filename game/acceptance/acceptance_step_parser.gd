@@ -91,7 +91,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 	for check: String in step.checks:
 		if (AcceptanceStep.REPLAY_CHECKS.has(check) or check == AcceptanceStep.CHECK_COMFORT_MOTION
 				or check == AcceptanceStep.CHECK_HIT_VIEW_MOTION or check == AcceptanceStep.CHECK_ESCAPE_SCREEN
-				or check == AcceptanceStep.CHECK_MAP_ROUTE or check == AcceptanceStep.CHECK_ESCAPE_CUE) \
+				or check == AcceptanceStep.CHECK_MAP_ROUTE or check == AcceptanceStep.CHECK_ESCAPE_CUE
+				or check == AcceptanceStep.CHECK_MAP_MARKERS) \
 				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)

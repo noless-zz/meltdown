@@ -102,12 +102,17 @@ const CHECK_FIRE_BURNED: String = "fire_burned"
 ## known route, and is gone after the escape (#885, RUN-5, MAP-2;
 ## `AcceptanceEscapeCueCheck`). Needs a replay to sample.
 const CHECK_ESCAPE_CUE: String = "escape_cue"
+## The held map shows the exit marker on every tick and, from the tick the
+## reactor dies, the reactor marker (#913, MAP-1, MAP-2;
+## `AcceptanceMapMarkersCheck`). Needs a replay to sample.
+const CHECK_MAP_MARKERS: String = "map_markers"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
-	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE]
+	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
+	CHECK_MAP_MARKERS]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,

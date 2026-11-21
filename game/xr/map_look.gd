@@ -9,6 +9,7 @@ extends RefCounted
 ##      "marker_color": [r, g, b], "marker_radius_m": 0.002..0.05,
 ##      "exit_color": [r, g, b], "exit_radius_m": 0.002..0.05,
 ##      "reactor_color": [r, g, b], "reactor_radius_m": 0.002..0.05,
+##      "reactor_dead_color": [r, g, b], "exit_alpha": 0.05..1,
 ##      "route_color": [r, g, b], "route_width_m": 0.0005..0.01,
 ##      "blocked_color": [r, g, b], "blocked_size_m": 0.002..0.05,
 ##      "distance_color": [r, g, b], "distance_height_m": 0.003..0.03,
@@ -17,13 +18,16 @@ extends RefCounted
 ##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10,
 ##      "fires_explored_only": true | false}
 ##
-## `exit_radius_m` is half the edge of the exit cube; `blocked_size_m` is the
+## `exit_radius_m` is half the edge of the exit cube, drawn see-through with
+## opacity `exit_alpha` so it never hides the tunnel beside it (#913). Once the
+## reactor is destroyed its ball takes `reactor_dead_color` and stays, so the
+## player still sees where the escape began. `blocked_size_m` is the
 ## length of each bar of a blocked opening's cross. `distance_height_m` is the
 ## height of the route's distance label (#442) and `distance_offset_m` how far
 ## above the ship's end of the route it sits, both in the hologram whatever its
 ## scale. `fire_size_m` is the smallest tip-to-tip span of a fire marker
 ## (#519). The exit, reactor, route, blocked, distance and fire keys are
-## optional, so a file written before #338, #400, #442 or #519 still loads and
+## optional, so a file written before #338, #400, #442, #519 or #913 still loads and
 ## keeps the built-in values for them.
 ##
 ## `min_zoom` and `max_zoom` bound `MapZoom`'s factor and `zoom_per_second` is
@@ -37,9 +41,10 @@ extends RefCounted
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
-		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second", "fires_explored_only"]
+		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second", "fires_explored_only", "reactor_dead_color",
+		"exit_alpha"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
-		"blocked_color", "distance_color", "fire_color"]
+		"blocked_color", "distance_color", "fire_color", "reactor_dead_color"]
 const BOOL_KEYS: Array[String] = ["fires_explored_only"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
@@ -48,6 +53,8 @@ const RANGES: Dictionary[String, Array] = {
 	"marker_radius_m": [0.002, 0.05],
 	"exit_radius_m": [0.002, 0.05],
 	"reactor_radius_m": [0.002, 0.05],
+	# Below 5 % the exit vanishes against the room; 1 is solid, as before #913.
+	"exit_alpha": [0.05, 1.0],
 	# Thinner than half a millimetre vanishes at arm's length on the Quest 3
 	# panel; thicker than a centimetre hides the wireframe under it.
 	"route_width_m": [0.0005, 0.01],
@@ -80,6 +87,10 @@ const FALLBACK: Dictionary = {
 	"exit_radius_m": 0.01,
 	"reactor_color": Color(1.0, 0.25, 0.75),
 	"reactor_radius_m": 0.01,
+	# A dim magenta: still the reactor's hue, but plainly no longer the target (#913).
+	"reactor_dead_color": Color(0.45, 0.12, 0.35),
+	# See-through enough that the lines behind and beside the exit show (#913).
+	"exit_alpha": 0.35,
 	"route_color": Color(0.95, 0.95, 0.95),
 	"route_width_m": 0.0015,
 	"blocked_color": Color(1.0, 0.1, 0.1),

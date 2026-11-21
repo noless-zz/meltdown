@@ -61,6 +61,7 @@ var _exit_at: Vector3 = Vector3.ZERO
 var _reactor_at: Vector3 = Vector3.ZERO
 var _markers_set: bool = false
 var _reactor_known: bool = false
+var _reactor_destroyed: bool = false
 var _ship_at: Vector3 = Vector3.ZERO
 var _zoom: float = MapZoom.START
 
@@ -78,11 +79,6 @@ func _init() -> void:
 	add_child(_route)
 	add_child(_fires)
 	load_look()
-
-
-## Parses the text of a look file; see `MapLook.parse`.
-static func parse_look(text: String) -> Dictionary:
-	return MapLook.parse(text)
 
 
 ## Applies the look file at `path` via `MapLook.load_file`; a missing or rejected
@@ -122,11 +118,8 @@ func build(union: BoxUnion, explored: Array[int]) -> void:
 		_lines.mesh = mesh
 	var energy: float = float(_look["line_energy"])
 	_marker.mesh = MapShipMarker.mesh(_look["marker_color"], float(_look["marker_radius_m"]), energy)
-	var cube: BoxMesh = BoxMesh.new()
-	cube.size = Vector3.ONE * float(_look["exit_radius_m"]) * 2.0
-	cube.material = MapShapes.glow(_look["exit_color"], energy)
-	_exit.mesh = cube
-	_reactor.mesh = MapShapes.ball(_look["reactor_color"], float(_look["reactor_radius_m"]), energy)
+	_exit.mesh = MapShapes.exit_cube(_look)
+	_reactor.mesh = MapShapes.reactor_ball(_look, _reactor_destroyed, energy)
 	_place_markers()
 	_place_route()
 
@@ -156,13 +149,22 @@ func set_ship_orientation(orientation: Basis) -> void:
 
 
 ## Marks the exit (the entrance, RUN-3) and the reactor at level-space copies of
-## their positions, fitted like the lines; the reactor shows only while `reactor_known`.
-func set_markers(exit_position: Vector3, reactor_position: Vector3, reactor_known: bool) -> void:
-	_exit_at = exit_position
-	_reactor_at = reactor_position
+## their positions, fitted like the lines; the reactor shows only while `reactor_known`,
+## in the look's dead colour once `reactor_destroyed` (#913).
+func set_markers(exit_at: Vector3, reactor_at: Vector3, reactor_known: bool, reactor_destroyed: bool = false) -> void:
+	_exit_at = exit_at
+	_reactor_at = reactor_at
 	_reactor_known = reactor_known
+	if reactor_destroyed != _reactor_destroyed:
+		_reactor_destroyed = reactor_destroyed
+		_reactor.mesh = MapShapes.reactor_ball(_look, _reactor_destroyed, float(_look["line_energy"]))
 	_markers_set = true
 	_place_markers()
+
+
+## The exit and reactor markers' nodes, for reading their meshes and materials.
+func marker_nodes() -> Array[MeshInstance3D]:
+	return [_exit, _reactor]
 
 
 ## The exit marker's position in the hologram.
