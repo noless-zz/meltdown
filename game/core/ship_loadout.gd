@@ -32,9 +32,12 @@ const ID_MAX_LENGTH: int = 64
 ## Key of the utility module list inside `loadout`. Not one of `KINDS`: those
 ## are weapon slots, which replays write on weapon lines.
 const UTILITY_KEY: String = "utility"
-## Utility module kinds core knows. None yet (#929), so every module id is
-## rejected until the first kind is added here.
-const UTILITY_MODULE_KINDS: Array[String] = []
+## The look-aim module (CMB-8, #1042): while fitted, look-aim stays on at every
+## comfort preset. Core only carries the id; the headset side reads it.
+const LOOK_AIM_MODULE: String = "look_aim"
+## Utility module kinds core knows; any other module id is rejected, naming
+## the field. Look-aim is the first (#1042); radar and scanner come later.
+const UTILITY_MODULE_KINDS: Array[String] = ["look_aim"]
 
 ## Weapon id of each slot, "" when empty.
 var primary_ids: Array[String] = ["", ""]

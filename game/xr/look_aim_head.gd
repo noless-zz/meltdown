@@ -16,9 +16,19 @@ extends RefCounted
 ## by the `HeadRecentre` offset, the same mapping that puts the eye point at
 ## the ship's centre. A head that cannot be trusted (tracking lost) aims at the
 ## nose rather than at the last pose.
+##
+## A fitted look-aim module (CMB-8, #1042) keeps look-aim on at every preset,
+## through any `set_preset`; without it the preset decides (record 0010). The
+## flag is read from the local ship's loadout and only changes which aim this
+## player's input carries, never the cone or gimbal rate.
 
-## Whether the active preset aims with the head; `set_preset` keeps it.
+## Whether this player aims with the head: the preset's value, or on while the
+## module is fitted. `set_preset` and `set_module` keep it.
 var enabled: bool = false
+## Whether the local ship carries the look-aim module; set with `set_module`.
+var module_fitted: bool = false
+## The active preset's own look-aim value, kept so removing the module restores it.
+var preset_on: bool = false
 ## The headset camera under the rig, tracked space; null until `attach`.
 var camera: Node3D = null
 ## Maps tracked space to the ship; null until `attach` (identity then).
@@ -29,8 +39,17 @@ var head_trusted: Callable = LookAimHead.head_pose_trusted
 
 ## Takes the look-aim value of `preset`, used from the next input handed on
 ## (CMB-8: a preset change, mid-run too, sets look-aim to the new preset's).
+## With the module fitted look-aim stays on whatever the preset says.
 func set_preset(preset: ComfortPreset) -> void:
-	enabled = preset != null and preset.look_aim
+	preset_on = preset != null and preset.look_aim
+	enabled = preset_on or module_fitted
+
+
+## Reads the module flag from `utility_ids`, the local ship's
+## `ShipLoadout.utility_ids` (read only, MP-2), from the next input handed on.
+func set_module(utility_ids: Array[String]) -> void:
+	module_fitted = utility_ids.has(ShipLoadout.LOOK_AIM_MODULE)
+	enabled = preset_on or module_fitted
 
 
 ## Reads the head from `rig`'s camera, mapped to ship space by `p_recentre`.
