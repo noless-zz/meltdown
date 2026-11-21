@@ -13,7 +13,7 @@
 			"id": "bot_generated_escape",
 			"seed": 43,
 			"replay": "res://acceptance/replays/bot_generated_escape.replay",
-			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "escape_screen", "debris_fallen"],
+			"checks": ["final_hash", "level_hash", "robots_cleared", "outcome", "escape_screen", "debris_fallen", "escape_cue"],
 			"expected_hash": 3709902663,
 			"expected_level_hash": 1977962260,
 			"expected_outcome": "ESCAPED"
