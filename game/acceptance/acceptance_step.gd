@@ -175,6 +175,9 @@ var left_handed: bool = false
 ## (#836, CMF-1; `AcceptanceCustomComfort`), or "" for none. A step names this
 ## or `preset`, not both.
 var custom_file: String = ""
+## The pilot's 120 Hz option is on for this step only (#851, PRF-1;
+## `AcceptanceRefresh120`); the refresh_rate check then wants 120 Hz.
+var refresh_120: bool = false
 
 
 func has_check(check: String) -> bool:

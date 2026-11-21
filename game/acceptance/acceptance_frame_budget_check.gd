@@ -110,6 +110,10 @@ static func run(main: Node, xr_available: bool, on_headset: bool, step: Acceptan
 	var rate: RefreshRate = main.get("refresh_rate") as RefreshRate
 	if rate == null:
 		return [AcceptanceReport.RESULT_FAIL, "the scene has no refresh rate"]
+	# A 120 Hz step where 120 is not offered would only measure 90 again (#851).
+	var reason: String = AcceptanceRefresh120.not_offered_reason(rate) if step.refresh_120 else ""
+	if reason != "":
+		return [AcceptanceReport.RESULT_FAIL if step.required else AcceptanceReport.RESULT_SKIPPED, reason]
 	return judge(measured.frames, rate.in_use_hz, step, measurements)
 
 

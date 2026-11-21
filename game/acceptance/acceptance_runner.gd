@@ -200,6 +200,7 @@ func _record_step(step: AcceptanceStep) -> void:
 		var outcome: Array = _checks.run(check, step, self, measurements)
 		outcomes.append(outcome[0])
 		notes.append("%s: %s" % [check, outcome[1]])
+	_checks.end_step(main)  # Puts back what the step changed in the scene (#851).
 	var result: String = AcceptanceReport.combine(outcomes)
 	reports[_suite_index].add_step(step.id, result, "; ".join(notes), measurements, screenshots.finish_step())
 	_say("%s: step %s %s" % [LOG_PREFIX, step.id, result])

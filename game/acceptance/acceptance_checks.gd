@@ -21,6 +21,7 @@ var flight: AcceptanceFlightTestCheck = null
 var changes: AcceptancePresetChanges = null  # The step's mid-flight presets (#777), or null.
 var pause: AcceptancePauseCheck = null  # The step's solo pause (#804), or null.
 var hit_motion: AcceptanceHitMotionCheck = null  # The step's hit shake and spin (#849), or null.
+var refresh_120: AcceptanceRefresh120 = null  # The choice a 120 Hz step replaced (#851), or null.
 ## Script errors logged before the step started, set by the runner once the
 ## samplers above exist; no_script_errors counts the rest.
 var errors_at_start: int = 0
@@ -43,6 +44,14 @@ func begin_scene(step: AcceptanceStep, main: Node) -> void:
 	changes = AcceptancePresetChanges.for_step(step)
 	pause = AcceptancePauseCheck.for_step(step)
 	hit_motion = AcceptanceHitMotionCheck.for_step(step)
+	refresh_120 = AcceptanceRefresh120.apply(main, step)  # After the preset, so its rate is asked again.
+
+
+## After the step's checks ran: the scene gets back what the step changed.
+func end_step(main: Node) -> void:
+	if refresh_120 != null:
+		refresh_120.restore(main)
+		refresh_120 = null
 
 
 ## One rendered frame. The frame the step starts on is not a frame budget sample.
@@ -146,7 +155,8 @@ func _controllers_bound(step: AcceptanceStep, runner: AcceptanceRunner, measurem
 
 
 func _refresh_rate(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
-	return AcceptanceRefreshCheck.run(runner.main, runner.xr_available(), step.required, measurements)
+	return AcceptanceRefreshCheck.run(runner.main, runner.xr_available(), step.required, measurements,
+		step.refresh_120)
 
 
 func _escape_screen(_step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
