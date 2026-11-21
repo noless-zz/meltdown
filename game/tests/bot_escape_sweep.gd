@@ -31,9 +31,10 @@ extends SceneTree
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const Losses := preload("res://tests/bot_sweep_losses.gd")
-const SHIP_TUNING_PATH: String = "res://data/ships/default_ship.json"
-## Read here as `seed_sweep.gd` reads its data files; `gen/` never opens files.
-const DEBRIS_FILE: String = "res://data/gen/debris.json"
+## Reads the data files and builds the levels, shared with `bot_run_sweep.gd`.
+const Levels := preload("res://tests/bot_sweep_levels.gd")
+const SHIP_TUNING_PATH: String = Levels.SHIP_TUNING_PATH
+const DEBRIS_FILE: String = Levels.DEBRIS_FILE
 const SUMMARY_TAG: String = "MELTDOWN_BOT_ESCAPE"
 ## G3's bar (DEV-6).
 const REQUIRED_RATE: float = 0.95
@@ -89,7 +90,7 @@ static func build_level(level_seed: int, modules: Array[ModuleDef], plan: Reacto
 
 
 static func load_debris_plan() -> DebrisPlan:
-	return DebrisPlan.parse_json(FileAccess.get_file_as_string(DEBRIS_FILE))
+	return Levels.load_debris_plan()
 
 
 ## The bot flies `level` until the run ends, its ship is destroyed, or
@@ -151,38 +152,21 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 static func run(first_seed: int, count: int, with_robots: bool = false,
 		with_debris: bool = false) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
-	var plan: ReactorPlan = SeedSweep.load_reactor_plan()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
-	var robot_plan: RobotPlan = SeedSweep.load_robot_plan() if with_robots else null
-	var debris_plan: DebrisPlan = load_debris_plan() if with_debris else null
-	var radius: float = SeedSweep.ship_radius()
-	var tuning: ShipTuning = LocalSession.load_tuning(SHIP_TUNING_PATH)
+	var levels: Levels = Levels.new(with_robots, with_debris)
 	var result: Dictionary = {"seeds": count, "cleared": 0, "escaped": 0, "looped": 0,
 			"no_reactor": 0, "lost_before_reactor": 0, "timed_out": 0, "robots": with_robots, "debris": with_debris, "robots_destroyed": 0,
 			"rate": 0.0,
 			"failures": [] as Array[String], "lost": [] as Array[Dictionary]}
-	# A broken file would give levels with no reactor, no loops or no robots,
-	# and a rate that measures something other than the levels the player flies.
-	var broken: String = ""
-	if plan.error != "":
-		broken = "reactor.json: %s" % plan.error
-	elif bridges.error != "":
-		broken = "generator.json: %s" % bridges.error
-	elif robot_plan != null and robot_plan.error != "":
-		broken = "robots.json: %s" % robot_plan.error
-	elif debris_plan != null and debris_plan.error != "":
-		broken = "debris.json: %s" % debris_plan.error
+	var broken: String = levels.broken()
 	if broken != "":
 		result["failures"].append(broken)
 		result["ms"] = Time.get_ticks_msec() - started
 		return result
 	for level_seed: int in range(first_seed, first_seed + count):
-		var generator: MineGenerator = generate(level_seed, modules, bridges)
+		var generator: MineGenerator = levels.generate(level_seed)
 		if generator.loops > 0:
 			result["looped"] += 1
-		var level: LevelDef = generator.to_level_def(plan, radius, robot_plan, debris_plan)
-		var flown: SeedResult = fly(level_seed, level, tuning)
+		var flown: SeedResult = fly(level_seed, levels.level_of(generator), levels.tuning)
 		result["robots_destroyed"] += flown.robots_destroyed
 		if flown.outcome == "NO_REACTOR":
 			result["no_reactor"] += 1
