@@ -19,7 +19,7 @@
 		"count": [0, 2],
 		"radius": [2, 3],
 		"damage_per_second": 5,
-		"after_seconds": [10, 50],
+		"after_fraction": [0.03, 0.12],
 		"min_start_distance": 15,
 		"min_reactor_distance": 6,
 		"min_robot_distance": 2

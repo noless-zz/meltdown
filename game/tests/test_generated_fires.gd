@@ -15,7 +15,7 @@ const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 120000
 const FIRES: Dictionary = {"count": [1, 2], "radius": [2, 3], "damage_per_second": 5,
-		"after_seconds": [10, 40], "min_start_distance": 15, "min_reactor_distance": 6,
+		"after_fraction": [0.05, 0.2], "min_start_distance": 15, "min_reactor_distance": 6,
 		"min_robot_distance": 2}
 
 
@@ -48,8 +48,8 @@ func test_the_fires_section_reads() -> String:
 		return "FIRES read as \"%s\"" % parsed.error
 	var read: DebrisFires = parsed.fires
 	if read.min_count != 1 or read.max_count != 2 or read.min_radius_mm != 2000 \
-			or read.max_radius_mm != 3000 or read.milli_dps != 5000 or read.min_after_ticks != 600 \
-			or read.max_after_ticks != 2400 or read.min_start_distance_mm != 15000 \
+			or read.max_radius_mm != 3000 or read.milli_dps != 5000 or read.min_after_permille != 50 \
+			or read.max_after_permille != 200 or read.min_start_distance_mm != 15000 \
 			or read.min_reactor_distance_mm != 6000 or read.min_robot_distance_mm != 2000:
 		return "FIRES read with the wrong values"
 	data[DebrisPlan.FIRES_KEY]["count"] = [0, 0]
@@ -67,8 +67,12 @@ func test_a_bad_fires_section_is_rejected_naming_the_key() -> String:
 		["damage_per_second", -3, "fires.damage_per_second"],
 		["damage_per_second", "hot", "fires.damage_per_second"],
 		["damage_per_second", 1000000, "fires.damage_per_second"],
-		["after_seconds", [0, 10], "fires.after_seconds"],
-		["after_seconds", [20, 10], "fires.after_seconds"],
+		["after_fraction", [0, 0.1], "fires.after_fraction"],
+		["after_fraction", [0.2, 0.1], "fires.after_fraction"],
+		["after_fraction", [0.1, 1.5], "fires.after_fraction"],
+		["after_fraction", [5, 10], "fires.after_fraction"],
+		["after_fraction", 0.1, "fires.after_fraction"],
+		["after_seconds", [10, 50], "fires.after_seconds"],
 		["min_start_distance", -1, "fires.min_start_distance"],
 		["min_reactor_distance", "far", "fires.min_reactor_distance"],
 		["min_robot_distance", [2], "fires.min_robot_distance"], ["colour", "red", "fires.colour"],
@@ -223,9 +227,13 @@ func _fires_fit(generator: MineGenerator, level: LevelDef, fires: Array[int], pl
 		if debris.fire_milli_dps[index] != section.milli_dps:
 			return "fire %d burns %d milli per second" % [index, debris.fire_milli_dps[index]]
 		var ticks: int = debris.after_ticks[index]
+		var countdown: int = DebrisPlan.countdown_ticks(level)
 		var limit: int = plan.fall_limit_ticks(level)
-		if ticks < mini(section.min_after_ticks, limit) or ticks > mini(section.max_after_ticks, limit):
-			return "fire %d starts after %d ticks, outside the section or the limit" % [index, ticks]
+		var earliest: int = DebrisFires.after_ticks(section.min_after_permille, countdown, limit)
+		var latest: int = DebrisFires.after_ticks(section.max_after_permille, countdown, limit)
+		if ticks < earliest or ticks > latest:
+			return "fire %d starts after %d ticks, outside %d..%d of a %d-tick countdown" % [
+					index, ticks, earliest, latest, countdown]
 		var inside: bool = false
 		for box: int in generator.min_mm.size():
 			var low: Vector3i = generator.min_mm[box] + Vector3i(r, r, r)

@@ -164,7 +164,8 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 	# Fire goes in after the trimming: it never closes an opening, so it cannot
 	# lengthen the escape, and the solid entries stay those a plan without fire
 	# keeps (#497).
-	var fire_note: String = "" if fires == null else fires.place(generator, level, debris, robot_radii, limit)
+	var fire_note: String = "" if fires == null \
+			else fires.place(generator, level, debris, robot_radii, countdown_ticks(level), limit)
 	if fire_note != "":
 		notes.append(fire_note)
 	generator.debris_note = "; ".join(notes)
@@ -172,14 +173,19 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 
 
 ## The latest tick after the reactor dies an entry of `level` may fall on:
-## `latest_fall_fraction` of the countdown for its escape path, at least 1.
-## Without a route the unscaled countdown is used.
+## `latest_fall_fraction` of its countdown, at least 1.
 func fall_limit_ticks(level: LevelDef) -> int:
+	return maxi(1, floori(countdown_ticks(level) * latest_fall_fraction))
+
+
+## The meltdown countdown `level` gets when its reactor dies (RUN-5): the one
+## for its escape path from the reactor to the start, or the unscaled countdown
+## without a route.
+static func countdown_ticks(level: LevelDef) -> int:
 	var path_mm: int = EscapePath.length_mm(level.union, level.reactor.position(),
 			level.start_position())
-	var countdown: int = level.reactor.meltdown_ticks() if path_mm == EscapePath.UNREACHABLE \
+	return level.reactor.meltdown_ticks() if path_mm == EscapePath.UNREACHABLE \
 			else level.reactor.meltdown_ticks_for_path(path_mm)
-	return maxi(1, floori(countdown * latest_fall_fraction))
 
 
 ## `ticks`, or when it is past `limit` a fresh draw in `min_after_ticks..limit`.
