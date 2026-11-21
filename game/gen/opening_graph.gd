@@ -29,6 +29,14 @@ var _seconds: Array[int] = []
 var _from_boxes: Array[int] = []
 var _to_boxes: Array[int] = []
 var _radius_mm: int = 0
+## `BoxSplit.splits` answers by (box corners, entry centre and size, ship
+## radius), shared by every graph: each level builds a graph several times (the
+## generator's trimming, the validator, the sweep's guard check) and `BoxSplit`
+## is the dearest step. The answer depends on nothing else, so a remembered one
+## is the same on every device. Emptied when it grows past `MEMO_LIMIT`.
+static var _split_memo: Dictionary = {}
+const MEMO_LIMIT: int = 4096
+
 ## The openings of each box, lowest first.
 var _by_box: Array[Array] = []
 ## The centre of each opening's shared region.
@@ -128,13 +136,55 @@ func splits_by(debris: MeltdownDebris, index: int) -> Array[Vector4i]:
 	one.after_ticks.append(1)
 	one.skipped.append(false)
 	one.elapsed_ticks = 1
+	# Doubled so an odd size's half stays whole, as `BoxSplit` tests overlap.
+	var low: Vector3i = 2 * one.positions_mm[0] - one.sizes_mm[0]
+	var high: Vector3i = 2 * one.positions_mm[0] + one.sizes_mm[0]
 	for box: int in _mins.size():
-		for cut: Vector3i in BoxSplit.splits(_mins[box], _maxs[box], one, _radius_mm):
+		# This runs for every entry of every level, so boxes the entry could not
+		# split are skipped before `BoxSplit` builds anything (see `_may_split`).
+		if not _may_split(low, high, 2 * _mins[box], 2 * _maxs[box]):
+			continue
+		for cut: Vector3i in _box_splits(box, one):
 			var own: Array[Vector3i] = []
 			own.assign(_own[box])
 			if BoxSplit.separates(cut, own):
 				found.append(Vector4i(box, index, cut.y, cut.z))
 	return found
+
+
+## `BoxSplit.splits` of box `box` for the one entry of `one`, remembered.
+func _box_splits(box: int, one: MeltdownDebris) -> Array[Vector3i]:
+	var key: Array = [_mins[box], _maxs[box], one.positions_mm[0], one.sizes_mm[0], _radius_mm]
+	if _split_memo.has(key):
+		return _split_memo[key]
+	if _split_memo.size() >= MEMO_LIMIT:
+		_split_memo.clear()
+	var cuts: Array[Vector3i] = BoxSplit.splits(_mins[box], _maxs[box], one, _radius_mm)
+	_split_memo[key] = cuts
+	return cuts
+
+
+## False when an entry spanning `low`..`high` (doubled mm) surely splits no box
+## spanning `box_low`..`box_high` (doubled mm); `BoxSplit` decides the rest. That
+## is `BoxSplit`'s reach made coarser, as `openings_near` coarsens
+## `OpeningClearance`'s: the entry must share volume with the box, and on some
+## axis come within a ship's diameter (one millimetre more for rounding) of the
+## box's walls on both sides across both other axes, since the ship's line
+## keeps a radius from the walls and from the entry.
+func _may_split(low: Vector3i, high: Vector3i, box_low: Vector3i, box_high: Vector3i) -> bool:
+	for axis: int in 3:
+		if high[axis] <= box_low[axis] or low[axis] >= box_high[axis]:
+			return false
+	var gap: int = 2 * (2 * _radius_mm + 1)
+	for axis: int in 3:
+		var spans: bool = true
+		for across: int in 3:
+			if across != axis and (low[across] > box_low[across] + gap \
+					or high[across] < box_high[across] - gap):
+				spans = false
+		if spans:
+			return true
+	return false
 
 
 ## True when the start can be reached from the reactor through the openings
@@ -143,9 +193,12 @@ func splits_by(debris: MeltdownDebris, index: int) -> Array[Vector4i]:
 func connected(closed: Array[bool], splits: Array[Vector4i] = []) -> bool:
 	if _from_boxes.is_empty() or _to_boxes.is_empty():
 		return false
+	if splits.is_empty():
+		return _boxes_connected(closed)
 	var cuts: Array[Array] = []
 	for box: int in _mins.size():
-		cuts.append([] as Array[Vector3i])
+		var none: Array[Vector3i] = []
+		cuts.append(none)
 	for split: Vector4i in splits:
 		cuts[split.x].append(Vector3i(split.y, split.z, split.w))
 	# A node is a part of a box: (box, part along x, y, z).
@@ -174,9 +227,35 @@ func connected(closed: Array[bool], splits: Array[Vector4i] = []) -> bool:
 	return false
 
 
-## The part of box `box` that `point_mm` lies in, as (box, part along x, y, z).
+## `connected` with no box split, where every part is the whole box: the walk
+## over boxes it always was, kept apart since it runs for most levels and the
+## sweep's time is watched.
+func _boxes_connected(closed: Array[bool]) -> bool:
+	var reached: Array[bool] = []
+	reached.resize(_mins.size())
+	reached.fill(false)
+	var queue: Array[int] = _from_boxes.duplicate()
+	for box: int in queue:
+		reached[box] = true
+	while not queue.is_empty():
+		var box: int = queue.pop_back()
+		if _to_boxes.has(box):
+			return true
+		for k: int in _by_box[box]:
+			if closed[k]:
+				continue
+			var other: int = _seconds[k] if _firsts[k] == box else _firsts[k]
+			if not reached[other]:
+				reached[other] = true
+				queue.append(other)
+	return false
+
+
+## The part of box `box` that `point_mm` lies in, as (box, part along x, y, z):
+## `BoxSplit.part`, which takes a typed list, so it is called only for a box
+## that has splits; every other box is all part zero.
 static func _node(cuts: Array[Array], box: int, point_mm: Vector3i) -> Vector4i:
-	var box_cuts: Array[Vector3i] = []
-	box_cuts.assign(cuts[box])
-	var part: Vector3i = BoxSplit.part(box_cuts, point_mm)
+	if cuts[box].is_empty():
+		return Vector4i(box, 0, 0, 0)
+	var part: Vector3i = BoxSplit.part(cuts[box], point_mm)
 	return Vector4i(box, part.x, part.y, part.z)
