@@ -226,6 +226,7 @@ func apply(result: String) -> void:
 	if result.begins_with(DevMenuModel.REFRESH_PREFIX):
 		if refresh != null:
 			refresh.choose(result)
+		return
 	if result.begins_with(DevMenuModel.SWIVEL_PREFIX):
 		swivel.choose(result)
 		return
