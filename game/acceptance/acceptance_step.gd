@@ -64,6 +64,10 @@ const CHECK_CONTROLLERS_BOUND: String = "controllers_bound"
 ## The escape's end screen shows, not the destroyed one, when the replay ends
 ## (#751, RUN-7; `AcceptanceEscapeScreenCheck`). Needs a replay that escapes.
 const CHECK_ESCAPE_SCREEN: String = "escape_screen"
+## The eye image, sampled every couple of seconds while the step runs, never
+## collapses to one flat colour (#737, DEV-6, GFX-1; `AcceptanceViewFlatCheck`);
+## skipped off the headset.
+const CHECK_VIEW_NOT_FLAT: String = "view_not_flat"
 ## The first-launch flight test, answered from `flight_test_answers`, ends on
 ## `expected_preset` with the ship held while each answer was due (#762, CMF-4;
 ## `AcceptanceFlightTestCheck`). Flies no replay.
@@ -72,7 +76,7 @@ const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_N
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
-	CHECK_FLIGHT_TEST_RESULT]
+	CHECK_VIEW_NOT_FLAT, CHECK_FLIGHT_TEST_RESULT]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -121,6 +125,8 @@ var settle_seconds: float = 0.0
 var measure_seconds: float = 0.0
 var max_over_budget_share: float = 0.0
 var budget_slack_ms: float = 0.0
+## For the view_not_flat check: seconds the eye image is sampled.
+var view_seconds: float = 0.0
 ## Ticks into the replay at which the runner saves a screenshot, and whether
 ## it saves one at the replay's end (#718; `AcceptanceScreenshots`).
 var screenshot_ticks: Array[int] = []

@@ -5,10 +5,10 @@ extends Node
 ## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
 ## is set, so a normal start never sees it.
 ##
-## Each step sets its preset, switches to its level (#334) or seed (#460), flies its
-## replay through the scene's `advance_frame` (one tick per frame), takes screenshots
-## (#718) and records its checks in an `AcceptanceReport`, written to
-## `user://acceptance/` and the log; the game quits with 0 if every suite passed.
+## Each step sets its comfort preset, switches to its level (#334) or builds its seed's
+## level (#460), flies its replay through the scene's `advance_frame` (one tick per frame,
+## replay inputs in place of the controllers), takes its screenshots (#718), runs its checks
+## and records them in an `AcceptanceReport` in `user://acceptance/` and the log. Exit 0 if all pass.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
 const ARG_PREFIX: String = "--acceptance="
@@ -24,12 +24,9 @@ const LOG_PREFIX: String = "Meltdown: acceptance"
 ## The game scene (`main.gd`), read through its `session`, `advance_frame` and the like.
 var main: Node = null
 var suites: Array[AcceptanceSuite] = []
-## The OpenXR interface, or null when there is none; tests pass their own.
-var xr_interface: XRInterface = null
-## Whether this is the Quest itself, where frame times count (#643); tests set it.
-var on_headset: bool = OS.get_name() == "Android"
-## Called once with the exit code; quits the game unless a test replaces it.
-var quit_callback: Callable = Callable()
+var xr_interface: XRInterface = null  # OpenXR, or null when there is none; tests pass their own.
+var on_headset: bool = OS.get_name() == "Android"  # Frame times count only there (#643).
+var quit_callback: Callable = Callable()  # Called with the exit code; quits unless a test sets it.
 ## Reads the hands for the controllers_bound check (#717); tests pass a fake.
 var controllers: AcceptanceControllersCheck = AcceptanceControllersCheck.live()
 ## Saves a step's screenshots (#718); tests pass their own image source.
@@ -53,12 +50,11 @@ var _step_started: bool = false
 var _xr_waited: int = 0
 var _errors_at_step_start: int = 0
 var _source: ReplayInputSource = null
-## Why the step's level could not be flown, or "".
-var _level_problem: String = ""
-## The frame times of a frame_budget step measured here, or null.
+var _level_problem: String = ""  # Why the step's level could not be flown, or "".
+## What a frame_budget, comfort_motion or view_not_flat (#737) step samples here, or null.
 var _frames: AcceptanceFrameBudgetCheck = null
-## The view's rotation sampled each frame of a comfort_motion step, or null.
 var _comfort: AcceptanceComfortCheck = null
+var _view: AcceptanceViewFlatCheck = null
 var _flight: AcceptanceFlightTestCheck = null  # A flight_test_result step's test, or null.
 
 
@@ -106,8 +102,7 @@ func _process(delta: float) -> void:
 	process_frame(delta)
 
 
-## One frame of work, which took `frame_seconds` to show. Public so tests can
-## drive the runner outside a tree.
+## One frame of work, which took `frame_seconds` to show; public so tests drive it.
 func process_frame(frame_seconds: float = 0.0) -> void:
 	if finished:
 		return
@@ -133,6 +128,8 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 		_start_step(step)
 	elif _frames != null:
 		_frames.add(frame_seconds)
+	if _view != null:
+		_view.add(frame_seconds)
 	if _flight != null:
 		_flight.add_frame(frame_seconds)
 	if not _step_ready(step):
@@ -151,6 +148,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	if step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET) \
 			and AcceptanceFrameBudgetCheck.measures_here(_xr_available(), on_headset):
 		_frames = AcceptanceFrameBudgetCheck.new(step)
+	_view = AcceptanceViewFlatCheck.for_step(step, _xr_available(), on_headset, screenshots.grab)
 	_errors_at_step_start = _errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	screenshots.begin(suites[_suite_index].name, step)
@@ -179,8 +177,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
-## False while the step still needs frames: flying its replay, measuring its
-## frame times, or waiting for the OpenXR session to begin.
+## False while the step still needs frames: replay, sampling, or the OpenXR session.
 func _step_ready(step: AcceptanceStep) -> bool:
 	if _source != null:
 		var session: LocalSession = main.get("session")
@@ -191,7 +188,8 @@ func _step_ready(step: AcceptanceStep) -> bool:
 				_comfort.sample_main(main, ShipState.TICK_DT)
 			return false
 		main.set_process(true)
-	if (_frames != null and not _frames.done()) or (_flight != null and not _flight.done()):
+	if (_frames != null and not _frames.done()) or (_view != null and not _view.done()) \
+			or (_flight != null and not _flight.done()):
 		return false
 	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
 		_xr_waited += 1
@@ -249,6 +247,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			return AcceptanceEscapeScreenCheck.run(main, _source != null, measurements)
 		AcceptanceStep.CHECK_FRAME_BUDGET:
 			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
+		AcceptanceStep.CHECK_VIEW_NOT_FLAT:
+			return AcceptanceViewFlatCheck.run(_xr_available(), on_headset, step, _view, measurements)
 		AcceptanceStep.CHECK_FLIGHT_TEST_RESULT:
 			return _flight.run(measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
@@ -262,7 +262,7 @@ func _on_xr_session_begun() -> void:
 	_xr_begun = true
 
 
-## Writes the report to REPORT_DIR and echoes it to the log, which carries it if the write fails.
+## Writes the report to REPORT_DIR and the log; a failed write is said, the log still has it.
 func _write_report(report: AcceptanceReport) -> void:
 	var path: String = report.write_file(REPORT_DIR, _build().short_commit())
 	if path == "":
