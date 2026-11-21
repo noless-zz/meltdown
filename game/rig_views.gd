@@ -60,6 +60,7 @@ static func place_at(at: Transform3D, frame: CockpitFrame, panel: StatusPanel) -
 static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel: StatusPanel,
 		camera: Node3D, ship: ShipState, xr_running: bool) -> void:
 	show_swivel(panel, comfort)
+	show_custom(panel, comfort)
 	var frame: CockpitFrame = comfort.cockpit_frame
 	if camera == null or frame == null or frame.spec == null:
 		place(recentre, frame, panel)
@@ -80,6 +81,18 @@ static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel:
 static func show_swivel(panel: StatusPanel, comfort: ComfortWiring) -> void:
 	if panel != null:
 		panel.preset_row.show_swivel(comfort.preset != null and comfort.preset.swivel_enabled)
+
+
+## Tells `panel` the custom mode's base while it is active, and any new
+## rejection of the custom file (#807). The first call is the start of the
+## run, so a file already rejected then is shown too. Reads only (ARC-3).
+static func show_custom(panel: StatusPanel, comfort: ComfortWiring) -> void:
+	if panel == null:
+		return
+	comfort.custom_notice.check_start(comfort.custom())
+	var custom_active: bool = comfort.number == ComfortPresetFiles.CUSTOM_NUMBER
+	panel.preset_row.show_custom_base(comfort.custom().base if custom_active else 0)
+	panel.preset_row.show_rejections(comfort.custom_notice.reports, comfort.custom_notice.field)
 
 
 ## Hands `panel` this frame's values from `ship`, a copy of the latest ship

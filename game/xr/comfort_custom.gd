@@ -30,6 +30,23 @@ var error: String = ""
 var base: int = 0
 
 
+## The field `error` names, short enough for the status panel's preset row
+## (#807): `base` for `field "base" is 7, ...`, the field a range check names,
+## or, for a file that is not a usable object at all, the reason without its
+## detail (`not JSON`). Empty when the file was not rejected.
+func rejected_field() -> String:
+	if error.is_empty():
+		return ""
+	var quoted: RegExMatch = RegEx.create_from_string("field \"([^\"]+)\"").search(error)
+	if quoted != null:
+		return quoted.get_string(1)
+	# `ComfortPreset.validation_error` starts with the field's name.
+	var named: RegExMatch = RegEx.create_from_string("^([a-z_]+) is ").search(error)
+	if named != null:
+		return named.get_string(1)
+	return error.get_slice(" (", 0)
+
+
 ## Reads `path`. A missing file gives no preset. A file that cannot be read, or
 ## whose base is bad, gives the start preset; a bad field gives the base preset
 ## unchanged. Either way `error` names the reason.
