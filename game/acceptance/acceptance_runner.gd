@@ -21,16 +21,12 @@ const EXIT_FAIL: int = 1
 const XR_WAIT_FRAMES: int = 900
 const LOG_PREFIX: String = "Meltdown: acceptance"
 
-## The game scene (`main.gd`): read through `session`, `build_info`,
-## `advance_frame`, `set_comfort_preset` and `use_level`.
+## The game scene (`main.gd`), read through its `session`, `advance_frame` and the like.
 var main: Node = null
 var suites: Array[AcceptanceSuite] = []
-## The OpenXR interface, or null when there is none; tests pass their own.
-var xr_interface: XRInterface = null
-## Whether this is the Quest itself, where frame times count (#643); tests set it.
-var on_headset: bool = OS.get_name() == "Android"
-## Called once with the exit code; quits the game unless a test replaces it.
-var quit_callback: Callable = Callable()
+var xr_interface: XRInterface = null  # OpenXR, or null when there is none; tests pass their own.
+var on_headset: bool = OS.get_name() == "Android"  # Frame times count only there (#643).
+var quit_callback: Callable = Callable()  # Called with the exit code; quits unless a test sets it.
 ## Reads the hands for the controllers_bound check (#717); tests pass a fake.
 var controllers: AcceptanceControllersCheck = AcceptanceControllersCheck.live()
 ## Saves a step's screenshots (#718); tests pass their own image source.
@@ -40,8 +36,7 @@ var reports: Array[AcceptanceReport] = []
 var report_paths: Array[String] = []
 ## Every line this runner printed, so tests can read them.
 var messages: PackedStringArray = PackedStringArray()
-## Data file text by `res://` path, used in place of the file when a step
-## builds its level from a seed (`SeedLevel.load_level`); tests change one.
+## Data file text by `res://` path, used in place of the file for a seed step; tests change one.
 var seed_overrides: Dictionary = {}
 var finished: bool = false
 var exit_code: int = -1
@@ -60,6 +55,7 @@ var _level_problem: String = ""  # Why the step's level could not be flown, or "
 var _frames: AcceptanceFrameBudgetCheck = null
 var _comfort: AcceptanceComfortCheck = null
 var _view: AcceptanceViewFlatCheck = null
+var _flight: AcceptanceFlightTestCheck = null  # A flight_test_result step's test, or null.
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -72,8 +68,7 @@ static func requested_suite(user_args: PackedStringArray, intent_value: String) 
 	return asked if asked != "" else intent_value.strip_edges()
 
 
-## The one call `main.gd` makes. Returns the runner it added, or null when the
-## switch is off.
+## The one call `main.gd` makes. Returns the runner it added, or null when the switch is off.
 static func start_if_requested(scene: Node) -> AcceptanceRunner:
 	var runtime: Object = InstallerProbe.android_runtime()
 	var intent_value: String = InstallerProbe.intent_extra(runtime, INTENT_EXTRA) if runtime != null else ""
@@ -135,6 +130,8 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 		_frames.add(frame_seconds)
 	if _view != null:
 		_view.add(frame_seconds)
+	if _flight != null:
+		_flight.add_frame(frame_seconds)
 	if not _step_ready(step):
 		return
 	_record_step(step)
@@ -158,6 +155,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
 	_comfort = AcceptanceComfortCheck.for_step(step, main)
+	_flight = AcceptanceFlightTestCheck.for_step(step, main)
 	if step.replay_path == "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
@@ -190,7 +188,8 @@ func _step_ready(step: AcceptanceStep) -> bool:
 				_comfort.sample_main(main, ShipState.TICK_DT)
 			return false
 		main.set_process(true)
-	if (_frames != null and not _frames.done()) or (_view != null and not _view.done()):
+	if (_frames != null and not _frames.done()) or (_view != null and not _view.done()) \
+			or (_flight != null and not _flight.done()):
 		return false
 	if _waits_for_xr(step) and _xr_waited < XR_WAIT_FRAMES:
 		_xr_waited += 1
@@ -250,6 +249,8 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
 		AcceptanceStep.CHECK_VIEW_NOT_FLAT:
 			return AcceptanceViewFlatCheck.run(_xr_available(), on_headset, step, _view, measurements)
+		AcceptanceStep.CHECK_FLIGHT_TEST_RESULT:
+			return _flight.run(measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
