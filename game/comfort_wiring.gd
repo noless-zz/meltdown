@@ -14,7 +14,8 @@ extends RefCounted
 ## fields it means to change set, so a field added to `ShipInput` later (as
 ## `reset_to_start` and `fire_primary` were) cannot be dropped here (#99).
 
-## Number (1..4) of the active comfort preset; change it with `set_preset`.
+## Number (1..4, or `ComfortPresetFiles.CUSTOM_NUMBER`) of the active comfort
+## preset; change it with `set_preset`.
 var number: int = ComfortPresetFiles.START_NUMBER
 var preset: ComfortPreset = ComfortPresetFiles.load_number(number)
 ## Every frame's mapped input passes through this before the ship flies it.
@@ -45,10 +46,14 @@ var shake_offset: Transform3D = Transform3D.IDENTITY
 var view_guard: ViewGuard = ViewGuard.new()
 ## The `MELTDOWN_VIEW` diagnostic lines, off unless asked for (#651).
 var view_log: ViewLog = ViewLog.from_run()
+## Where the custom comfort file is read (#806); tests point it at a scratch file.
+var custom_path: String = ComfortCustom.DEFAULT_PATH
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
 var _mapping: ThumbstickMapping
+## The custom file, read once so a rejected file is logged once (#806).
+var _custom: ComfortCustom = null
 ## The preset switch acts once per press, not once per frame it is held.
 var _preset_button_held: bool = false
 ## Seconds on a steady clock; `read_label_button` times a click with it. Tests
@@ -72,11 +77,15 @@ func _init(p_input_source: LatestInputSource, p_mapping: ThumbstickMapping) -> v
 		hit_shake.preset = preset
 
 
-## Makes preset `p_number` (1..4) the active one with a fresh filter. Only
-## this player's input handling changes; the ship is not touched (CMF-6).
+## Makes preset `p_number` (1..4, or the custom mode, which needs an accepted
+## file) the active one with a fresh filter. Only this player's input handling
+## changes; the ship is not touched (CMF-6).
 func set_preset(p_number: int) -> void:
+	if p_number == ComfortPresetFiles.CUSTOM_NUMBER and not custom_available():
+		push_warning("Meltdown: custom comfort mode not available, keeping preset %d" % number)
+		p_number = number
 	number = p_number
-	preset = ComfortPresetFiles.load_number(p_number)
+	preset = preset_for(p_number)
 	filter = ComfortInputFilter.new(preset)
 	one_tick_pending = false
 	latest_tick_snapped = false
@@ -87,6 +96,36 @@ func set_preset(p_number: int) -> void:
 		hit_shake.preset = preset
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
 	view_log.event("preset=%d rebuilt=cockpit_frame,input_filter,hit_shake frame_point=unchanged" % p_number)
+
+
+## The preset numbered `p_number`; the custom file's for `CUSTOM_NUMBER`.
+func preset_for(p_number: int) -> ComfortPreset:
+	if p_number == ComfortPresetFiles.CUSTOM_NUMBER:
+		return custom().preset
+	return ComfortPresetFiles.load_number(p_number)
+
+
+## The custom comfort file at `custom_path`, read on first use and kept. A
+## rejected file is logged then by `ComfortCustom`, naming the field.
+func custom() -> ComfortCustom:
+	if _custom == null:
+		_custom = ComfortCustom.load_from(custom_path)
+	return _custom
+
+
+## True when the custom file exists and was accepted whole.
+func custom_available() -> bool:
+	return custom().preset != null and custom().error.is_empty()
+
+
+## The preset after the active one: 1 > 2 > 3 > 4 > Custom > 1 with an
+## accepted custom file, 1 > 2 > 3 > 4 > 1 without (CMF-1, #806).
+func next_number() -> int:
+	if number == ComfortPresetFiles.CUSTOM_NUMBER:
+		return 1
+	if number == ComfortPresetFiles.PATHS.size() and custom_available():
+		return ComfortPresetFiles.CUSTOM_NUMBER
+	return ComfortPresetFiles.next_number(number)
 
 
 ## Builds the active preset's cockpit frame under `rig`, the rig origin, not
@@ -121,7 +160,7 @@ func preset_button() -> String:
 func read_preset_button(buttons: Dictionary) -> void:
 	var pressed: bool = bool(buttons.get(preset_button(), false))
 	if pressed and not _preset_button_held:
-		set_preset(ComfortPresetFiles.next_number(number))
+		set_preset(next_number())
 	_preset_button_held = pressed
 
 

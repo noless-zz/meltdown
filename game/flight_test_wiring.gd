@@ -14,8 +14,9 @@ extends RefCounted
 
 ## How the run was started, which decides whether the test may run.
 enum Start {
-	## An acceptance run or `--comfort-preset=`: no test, the saved choice is
-	## neither read nor written, so a run never depends on the headset's history.
+	## An acceptance run, `--comfort-preset=` or the custom-mode launch switch
+	## (#806): no test, the saved choice is neither read nor written, so a run
+	## never depends on the headset's history.
 	OFF,
 	## A level or seed start: the saved preset, never the test.
 	SAVED,
@@ -53,9 +54,11 @@ var _result_left_s: float = 0.0
 
 
 ## How a run with user arguments `args`, acceptance suite `suite` and level
-## source `level_source` ("" for the tunnel) was started.
-static func start_for(args: PackedStringArray, suite: String, level_source: String) -> Start:
-	if suite != "":
+## source `level_source` ("" for the tunnel) was started; `launched_custom` when
+## `ComfortSwitch` started it in the custom comfort mode.
+static func start_for(args: PackedStringArray, suite: String, level_source: String,
+		launched_custom: bool = false) -> Start:
+	if suite != "" or launched_custom:
 		return Start.OFF
 	for arg: String in args:
 		if arg.begins_with(ComfortPresetFiles.ARG):
@@ -73,7 +76,9 @@ func attach(host: Node, comfort: ComfortWiring, level_source: String, rig: Node3
 	var intent: String = InstallerProbe.intent_extra(runtime, AcceptanceRunner.INTENT_EXTRA) if runtime != null else ""
 	var user_args: PackedStringArray = OS.get_cmdline_user_args()
 	var suite: String = AcceptanceRunner.requested_suite(user_args, intent)
-	begin(start_for(OS.get_cmdline_args() + user_args, suite, level_source), comfort,
+	# Only the launch switch can have chosen the custom mode before this runs.
+	var launched_custom: bool = comfort.number == ComfortPresetFiles.CUSTOM_NUMBER
+	begin(start_for(OS.get_cmdline_args() + user_args, suite, level_source, launched_custom), comfort,
 		Callable(host, "set_comfort_preset"), rig)
 
 
@@ -89,8 +94,11 @@ func begin(p_start: Start, comfort: ComfortWiring, apply_preset: Callable, rig: 
 	if start == Start.TUNNEL and choice.first_launch():
 		_begin_test(rig)
 		return
-	_apply(choice.preset())
-	_known_preset = choice.preset()
+	var number: int = choice.preset()
+	if number == ComfortPresetFiles.CUSTOM_NUMBER and not comfort.custom_available():
+		number = choice.custom_base()  # The custom file is gone or now rejected (#806).
+	_apply(number)
+	_known_preset = number
 
 
 ## True while the test is being flown or answered.
@@ -187,9 +195,12 @@ func _finish() -> void:
 	print("Meltdown: flight test %s, preset %d" % ["skipped" if test.skipped() else "done", number])
 
 
-## A preset switch after the test (CMF-4 "changeable any time").
+## A preset switch after the test (CMF-4 "changeable any time"); the custom
+## mode is saved with its file's base preset (#806).
 func _save(number: int) -> void:
-	if choice.set_preset(number):
+	var taken: bool = choice.set_custom(_comfort.custom().base) \
+		if number == ComfortPresetFiles.CUSTOM_NUMBER else choice.set_preset(number)
+	if taken:
 		choice.save_to(choice_path)
 	_known_preset = number
 

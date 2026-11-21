@@ -7,7 +7,8 @@ extends RefCounted
 ## JSON rather than `.tres`, because a resource file from user storage can carry
 ## a script. The file names only `ComfortPreset` fields, and a preset holds no
 ## speed, damage or timer, so a custom file cannot change the simulation
-## (CMF-6, ARC-3). Unwired: a settings menu (M8) will write the file.
+## (CMF-6, ARC-3). `ComfortWiring` offers it after preset 4 (#806); a settings
+## menu (M8) will write the file.
 ##
 ## The file is `{"base": 1..4, "display_name": "...", "<field>": <value>, ...}`.
 ## Enum fields take the value's name (`"SNAP"`), so reordering an enum cannot
@@ -24,6 +25,9 @@ var preset: ComfortPreset = null
 ## Why the file was not applied, naming the field; empty when it was, or when
 ## the file is simply missing.
 var error: String = ""
+## The file's base preset (1..4) when it was accepted, 0 otherwise; a saved
+## custom choice falls back to it when the file is gone (#806).
+var base: int = 0
 
 
 ## Reads `path`. A missing file gives no preset. A file that cannot be read, or
@@ -71,6 +75,7 @@ static func parse(text: String) -> ComfortCustom:
 		return _fallback(base, invalid)
 	var result: ComfortCustom = ComfortCustom.new()
 	result.preset = custom
+	result.base = int(data[FIELD_BASE])
 	return result
 
 
