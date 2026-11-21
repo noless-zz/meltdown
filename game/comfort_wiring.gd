@@ -46,12 +46,12 @@ var shake_offset: Transform3D = Transform3D.IDENTITY
 var view_guard: ViewGuard = ViewGuard.new()
 ## The `MELTDOWN_VIEW` diagnostic lines, off unless asked for (#651).
 var view_log: ViewLog = ViewLog.from_run()
-## Where the custom comfort file is read (#806); tests point it at a scratch file.
-var custom_path: String = ComfortCustom.DEFAULT_PATH
 
 var _input_source: LatestInputSource
 ## Read for which hand carries the preset button.
 var _mapping: ThumbstickMapping
+## Where the custom comfort file is read (#806); tests point it at a scratch file.
+var custom_path: String = ComfortCustom.DEFAULT_PATH
 ## The custom file, read once so a rejected file is logged once (#806).
 var _custom: ComfortCustom = null
 ## The preset switch acts once per press, not once per frame it is held.
