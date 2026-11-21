@@ -7,5 +7,9 @@
 	"turn_rate": 180.0,
 	"movement": "strafe",
 	"weapon": "robot_needle",
-	"salvage": "needle_gun"
+	"salvage": "needle_gun",
+	"components": [
+		{"id": "scrap_alloy", "chance": 0.4, "count": [1, 1]},
+		{"id": "cell_salts", "chance": 0.4, "count": [1, 1]}
+	]
 }

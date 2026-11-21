@@ -7,5 +7,10 @@
 	"turn_rate": 60.0,
 	"movement": "chase",
 	"weapon": "robot_slug",
-	"salvage": "slug_thrower"
+	"salvage": "slug_thrower",
+	"components": [
+		{"id": "scrap_alloy", "chance": 0.7, "count": [1, 3]},
+		{"id": "cell_salts", "chance": 0.4, "count": [1, 2]},
+		{"id": "circuit_shards", "chance": 0.1, "count": [1, 1]}
+	]
 }

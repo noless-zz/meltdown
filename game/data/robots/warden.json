@@ -7,5 +7,10 @@
 	"turn_rate": 45.0,
 	"movement": "hover",
 	"weapon": "robot_slug",
-	"salvage": "slug_thrower"
+	"salvage": "slug_thrower",
+	"components": [
+		{"id": "scrap_alloy", "chance": 0.8, "count": [2, 3]},
+		{"id": "cell_salts", "chance": 0.5, "count": [1, 2]},
+		{"id": "circuit_shards", "chance": 0.15, "count": [1, 1]}
+	]
 }
