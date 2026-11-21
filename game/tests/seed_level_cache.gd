@@ -13,10 +13,11 @@ extends RefCounted
 ## level still matches.
 
 ## The level `SeedLevel.level_of` builds: reactor, robots, debris (spheres,
-## doors, fires) and miners, as `--seed` flies it.
+## doors, cave-ins, fires) and miners, as `--seed` flies it.
 const SHIPPED: String = "shipped"
-## The shipped level without the `fires` section: spheres and doors only, as
-## the doors sweep and the fires sweep's level without fire build it (#462, #497).
+## The shipped level without the `fires` section: spheres, doors and cave-ins
+## (#514), as the doors sweep and the fires sweep's level without fire build it
+## (#462, #497).
 const WITHOUT_FIRES: String = "without_fires"
 const VARIANTS: Array[String] = [SHIPPED, WITHOUT_FIRES]
 

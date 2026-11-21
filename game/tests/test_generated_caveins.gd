@@ -11,6 +11,7 @@ extends RefCounted
 ## open. How many were placed, held and fell is printed.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 30000
@@ -178,18 +179,19 @@ func test_seeds_get_caveins_that_change_nothing_else_and_keep_the_escape() -> St
 	var plan: DebrisPlan = _plan(_file())
 	var bare_plan: DebrisPlan = _without_caveins()
 	var radius: float = SeedSweep.ship_radius()
-	var generators: Array[MineGenerator] = SeedSweep.shared_generators(0, SEEDS)
 	var started: int = Time.get_ticks_msec()
 	var placed: int = 0
 	var held: int = 0
 	var seeds_with: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = generators[level_seed]
-		var hash_before: int = generator.output_hash()
+		# The generator and the shipped level are shared with the other sweeps
+		# (#956); the level without cave-ins is this sweep's own.
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
 		var bare: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, bare_plan)
-		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
+		var level: LevelDef = SeedLevelCache.level(level_seed)
 		var caveins: Array[int] = []
-		var problem: String = _unchanged(bare, level, hash_before, generator.output_hash(), caveins)
+		var problem: String = _unchanged(bare, level, SeedLevelCache.generated_hash(level_seed),
+				generator.output_hash(), caveins)
 		if problem == "":
 			problem = _fit(generator, level, caveins, plan)
 		if problem == "" and not caveins.is_empty():
