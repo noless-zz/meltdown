@@ -9,7 +9,8 @@ extends Node3D
 ## `raise_m` above it in its plane, so it reads at the same distance. It only
 ## reads a `FlightTestSession` and never writes to it or to the simulation
 ## (ARC-3, CMF-6). Text only, no motion (CMF-3). The words live in
-## `res://xr/flight_test/panel.json` (`FlightTestPanelText`, ARC-4).
+## `res://xr/flight_test/panel.json` (`FlightTestPanelText`, ARC-4); the
+## answer line names each answer's button from the answers file (#764).
 
 const NODE_NAME: String = "FlightTestPanel"
 const MAIN_NAME: String = "FlightTestMain"
@@ -20,19 +21,28 @@ const ANSWERS_Y: float = -0.075
 
 ## Set when the text file was rejected and the built-in words are used; empty otherwise.
 var text_error: String = ""
+## Set when the answer line could not name the buttons and the plain
+## `answers` text is shown; names the field. Empty otherwise.
+var answer_line_error: String = ""
 
 var _text: Dictionary = FlightTestPanelText.FALLBACK
 var _main: Label3D
 var _detail: Label3D
 var _answers: Label3D
 var _preset_names: Dictionary[int, String] = {}
+var _buttons: Dictionary[String, String] = FlightTestAnswers.DEFAULTS.duplicate()
+var _answer_line: String = ""
 
 
-func _init(path: String = FlightTestPanelText.DEFAULT_FILE) -> void:
+## The wiring builds the panel without arguments, so it reads the shipped
+## answers file itself; `set_buttons` overrides that.
+func _init(path: String = FlightTestPanelText.DEFAULT_FILE,
+		answers_path: String = FlightTestAnswers.DEFAULT_FILE) -> void:
 	name = NODE_NAME
 	_main = _label(MAIN_NAME, 0.0, StatusPanel.LARGE_FONT / 2)
 	_detail = _label(DETAIL_NAME, DETAIL_Y, StatusPanel.SMALL_FONT)
 	_answers = _label(ANSWERS_NAME, ANSWERS_Y, StatusPanel.SMALL_FONT)
+	_buttons = FlightTestAnswers.load_file(answers_path).buttons
 	load_text(path)
 
 
@@ -43,7 +53,20 @@ func load_text(path: String = FlightTestPanelText.DEFAULT_FILE) -> String:
 	text_error = str(_text.get("error", ""))
 	if text_error != "":
 		push_warning("FlightTestPanel uses the built-in words; %s" % text_error)
+	_build_answer_line()
 	return text_error
+
+
+## Uses `buttons` (answer -> button, as `FlightTestAnswers.buttons`) for the
+## answer line.
+func set_buttons(buttons: Dictionary[String, String]) -> void:
+	_buttons = buttons.duplicate()
+	_build_answer_line()
+
+
+## The line shown while an answer is due.
+func answer_line() -> String:
+	return _answer_line
 
 
 ## The panel's transform under the rig origin: the status panel's, raised by
@@ -72,7 +95,7 @@ func show_session(session: FlightTestSession) -> void:
 	StatusPanelLabels.set_text(_main, instruction(segment.manoeuvre))
 	if session.awaiting_answer():
 		StatusPanelLabels.set_text(_detail, str(_text["question"]))
-		StatusPanelLabels.set_text(_answers, str(_text["answers"]))
+		StatusPanelLabels.set_text(_answers, _answer_line)
 		_answers.visible = true
 	else:
 		var seconds: int = ceili(session.seconds_left())
@@ -98,6 +121,17 @@ func preset_name(number: int) -> String:
 ## Text of the three lines and whether the answers line shows, for tests.
 func shown() -> Dictionary:
 	return {"main": _main.text, "detail": _detail.text, "answers": _answers.text if _answers.visible else ""}
+
+
+# A bad answer line falls back to the plain `answers` text, logged once per
+# change so a broken template does not flood the log.
+func _build_answer_line() -> void:
+	var built: Dictionary = FlightTestAnswerLine.build(_text.get("answer_line"), _buttons)
+	var error: String = str(built.get("error", ""))
+	_answer_line = str(built["line"]) if error == "" else str(_text["answers"])
+	if error != "" and error != answer_line_error:
+		push_warning("FlightTestPanel shows the plain answer line; %s" % error)
+	answer_line_error = error
 
 
 func _label(label_name: String, y: float, font_size: int) -> Label3D:
