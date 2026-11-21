@@ -1,0 +1,8 @@
+{
+	"id": "shield_capacitor",
+	"name": "Shield Capacitor",
+	"kind": "shield",
+	"stats": {
+		"max_shield": 1.2
+	}
+}
