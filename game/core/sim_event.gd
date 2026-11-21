@@ -77,6 +77,11 @@ enum Kind {
 	## every other event of the tick, SHIP_LOST_IN_MELTDOWN included, in ship
 	## order (`ExitRule`). `vector` is where the ship ended the tick.
 	SHIP_DESTROYED,
+	## A ship flew through a heap of components and took it (CRF-1). `ship` is
+	## that ship, `magnitude` the count taken, `component` the kind and `vector`
+	## where the heap lay. Reported after the projectile hits, in ship order and
+	## then heap order (`ComponentPickup`). Only with component rules set.
+	COMPONENT_COLLECTED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
@@ -89,6 +94,8 @@ var magnitude: float = 0.0
 var vector: Vector3 = Vector3.ZERO
 ## PART_SLOTTED only: a replaced weapon was dropped. False for every other kind.
 var dropped: bool = false
+## COMPONENT_COLLECTED only: the component kind id. Empty for every other kind.
+var component: String = ""
 
 
 func _init(
@@ -106,7 +113,7 @@ func _init(
 func equals(other: SimEvent) -> bool:
 	return (other != null and kind == other.kind and ship == other.ship
 		and magnitude == other.magnitude and vector == other.vector
-		and dropped == other.dropped)
+		and dropped == other.dropped and component == other.component)
 
 
 func _to_string() -> String:
