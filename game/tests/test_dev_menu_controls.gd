@@ -145,7 +145,7 @@ func test_a_switch_lets_go_of_a_held_grip_and_prints_the_line_from_the_menu() ->
 		return "the switch was refused: %s" % chosen.warnings
 	if chosen.gripped.holds("right") or chosen.gripped.holds("left"):
 		return "a grip was still held after the switch"
-	var expected: String = 'MELTDOWN_CONTROLS {"scheme":"thumbsticks","left_handed":true,"source":"menu"}'
+	var expected: String = 'MELTDOWN_CONTROLS {"scheme":"thumbsticks","left_handed":true,"invert_pitch":false,"source":"menu"}'
 	if chosen.lines.is_empty() or chosen.lines[chosen.lines.size() - 1] != expected:
 		return "lines %s, expected the last to be %s" % [chosen.lines, expected]
 	if chosen.switch_to("joystick", false) or chosen.scheme != ControlSchemeSwitch.THUMBSTICKS:

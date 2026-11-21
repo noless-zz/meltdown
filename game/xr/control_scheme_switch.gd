@@ -62,11 +62,13 @@ static func parse(user_args: PackedStringArray, intent: String) -> ControlScheme
 	return chosen
 
 
-## The start line; a change from the menu adds `"source":"menu"` (#778).
-static func format_line(in_use: String, left_handed: bool, source: String = "") -> String:
+## The start line; a change from the menu adds `"source":"menu"` (#778, #790).
+static func format_line(in_use: String, left_handed: bool, invert_pitch: bool = false,
+		source: String = "") -> String:
 	var tail: String = ',"source":"%s"' % source if source != "" else ""
-	return '%s{"scheme":"%s","left_handed":%s%s}' % [
-		LOG_PREFIX, in_use, "true" if left_handed else "false", tail]
+	return '%s{"scheme":"%s","left_handed":%s,"invert_pitch":%s%s}' % [
+		LOG_PREFIX, in_use, "true" if left_handed else "false",
+		"true" if invert_pitch else "false", tail]
 
 
 ## Flies `saved` (a scheme name, or "" for none) unless the launch switch chose one.
@@ -80,7 +82,7 @@ func use_saved(saved: String) -> void:
 ## never starts from a pose recorded before the switch. Prints the line again
 ## with the menu as its source. An unknown name changes nothing; returns
 ## whether `to` is now in use.
-func switch_to(to: String, left_handed: bool) -> bool:
+func switch_to(to: String, left_handed: bool, invert_pitch: bool = false) -> bool:
 	if not to in SCHEMES:
 		_warn("control scheme \"%s\" from the menu is not %s" % [to, " or ".join(SCHEMES)], scheme)
 		return false
@@ -88,8 +90,14 @@ func switch_to(to: String, left_handed: bool) -> bool:
 	gripped.release_all()
 	if models != null:
 		models.set_shown(is_gripped())
-	_log(format_line(scheme, left_handed, "menu"))
+	_log(format_line(scheme, left_handed, invert_pitch, "menu"))
 	return true
+
+
+## Prints the line again after the dev menu changed the hand or pitch
+## setting of `mapping` (#790).
+func announce_hands(mapping: ThumbstickMapping) -> void:
+	_log(format_line(scheme, mapping.left_handed, mapping.invert_pitch, "menu"))
 
 
 func is_gripped() -> bool:
@@ -110,7 +118,7 @@ func attach_models(rig: Node3D, p_models: GrippedModels = GrippedModels.new()) -
 ## One tick's input from one frame's values, through the chosen scheme.
 func map_values(mapping: ThumbstickMapping, values: Dictionary) -> ShipInput:
 	if lines.is_empty():
-		_log(format_line(scheme, mapping.left_handed))
+		_log(format_line(scheme, mapping.left_handed, mapping.invert_pitch))
 	var input: ShipInput
 	if is_gripped() and values.has(ControllerSampler.POSES):
 		input = gripped.map_values(values, mapping)
