@@ -4,7 +4,8 @@ extends RefCounted
 ## The controller side of the hit cue (#618; CMB-2, PLT-6): a short pulse on
 ## the hand on the side a shot came from (both for the front, top and bottom,
 ## which no single hand points at), and a lighter, distinct pulse on both
-## hands when a part goes into the hold (#600). The sides are the cockpit's
+## hands when a part goes into the hold (#600), and a pulse scaled by impact
+## speed on the hand on the side of a wall the ship bounced off (#828). The sides are the cockpit's
 ## left and right, so left-handed mode does not swap them.
 ##
 ## It is handed sides and never reads or writes `ShipState` or `Sim` (ARC-3,
@@ -47,18 +48,25 @@ static func hands_for(side: String) -> Array[String]:
 
 ## One hit from `side`. Pulses reach a controller only while `xr_running`.
 func hit(side: String, xr_running: bool) -> void:
-	_pulse(HapticsSpec.SHIP_HIT, hands_for(side), xr_running)
+	if spec != null:
+		_send(spec.pulse_for(HapticsSpec.SHIP_HIT), hands_for(side), xr_running)
 
 
 ## One part taken into the hold.
 func pickup(xr_running: bool) -> void:
-	_pulse(HapticsSpec.SALVAGE_PICKUP, ["left", "right"], xr_running)
+	if spec != null:
+		_send(spec.pulse_for(HapticsSpec.SALVAGE_PICKUP), ["left", "right"], xr_running)
 
 
-func _pulse(kind: String, hands: Array[String], xr_running: bool) -> void:
-	if spec == null:
-		return
-	var pulse: Dictionary = spec.pulse_for(kind)
+## One wall impact at `speed` metres per second on the wall on `side` (a
+## `HitFlash` side, read from the wall normal as a shot's direction is).
+## Impacts below the file's minimum speed pulse nothing.
+func wall(side: String, speed: float, xr_running: bool) -> void:
+	if spec != null:
+		_send(spec.wall_pulse(speed), hands_for(side), xr_running)
+
+
+func _send(pulse: Dictionary, hands: Array[String], xr_running: bool) -> void:
 	if pulse.is_empty():
 		return
 	for hand: String in hands:

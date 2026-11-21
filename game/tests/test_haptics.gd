@@ -9,7 +9,10 @@ const VALID: String = """{
 	"low_hull": {"amplitude": 0.9, "duration_s": 0.3, "frequency_hz": 0},
 	"shield_break": {"amplitude": 0.7, "duration_s": 0.06, "frequency_hz": 0},
 	"ship_hit": {"amplitude": 0.8, "duration_s": 0.1, "frequency_hz": 0},
-	"salvage_pickup": {"amplitude": 0.35, "duration_s": 0.04, "frequency_hz": 250}
+	"salvage_pickup": {"amplitude": 0.35, "duration_s": 0.04, "frequency_hz": 250},
+	"wall_impact": {"amplitude": 0.5, "duration_s": 0.06, "frequency_hz": 0},
+	"wall_impact_min_speed": 2,
+	"wall_impact_full_speed": 10
 }"""
 
 
@@ -56,7 +59,7 @@ func test_pulse_for_returns_the_entries_and_nothing_else() -> String:
 	var stop: Dictionary = spec.pulse_for(HapticsSpec.BOOST_STOP)
 	if stop != {"amplitude": 0.3, "duration_s": 0.05, "frequency_hz": 160.0}:
 		return "boost_stop gave %s" % stop
-	for other: String in ["", "fire_primary", "wall_impact", "boost"]:
+	for other: String in ["", "fire_primary", "wall_impact_min_speed", "boost"]:
 		if not spec.pulse_for(other).is_empty():
 			return "'%s' gave %s" % [other, spec.pulse_for(other)]
 	start["amplitude"] = 0.0

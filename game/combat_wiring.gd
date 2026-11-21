@@ -88,6 +88,8 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 ## Takes in the events of one session advance and `ship`, the local ship (0)
 ## after it, a session copy (#618). Every shot that hit it starts the flash on
 ## its side and pulses that side's hand; every part it picked up pulses both.
+## The strongest wall impact of the advance pulses the hand on that wall's side
+## (#828), so a corner hit reported twice is still one pulse.
 ## Call it after every advance, so a frame split for a snap loses no event.
 func feed_events(events: Array[SimEvent], ship: ShipState, xr_running: bool) -> void:
 	if hit_flash != null:
@@ -100,6 +102,15 @@ func feed_events(events: Array[SimEvent], ship: ShipState, xr_running: bool) -> 
 	for event: SimEvent in events:
 		if event.ship == 0 and event.kind == SimEvent.Kind.SALVAGE_COLLECTED:
 			hit_haptics.pickup(xr_running)
+	var strongest: SimEvent = null
+	for event: SimEvent in events:
+		if event.ship == 0 and event.kind == SimEvent.Kind.WALL_IMPACT \
+				and (strongest == null or event.magnitude > strongest.magnitude):
+			strongest = event
+	if strongest != null:
+		# The normal points back into the tunnel, as a shot from the wall would fly.
+		hit_haptics.wall(HitFlash.side_for(strongest.vector, ship.orientation),
+			strongest.magnitude, xr_running)
 
 
 ## Runs the hit flash by `delta` and shows its edge on the overlay.
