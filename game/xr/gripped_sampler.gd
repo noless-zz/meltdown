@@ -45,6 +45,16 @@ func holds(hand: String) -> bool:
 	return _grabs.has(hand)
 
 
+## Where `hand` grabbed its control, in the rig frame; identity when it holds nothing.
+func grab_point(hand: String) -> Transform3D:
+	return _grabs.get(hand, Transform3D.IDENTITY)
+
+
+## The hand whose pose flies the stick; the other holds the throttle.
+func stick_hand() -> String:
+	return "left" if mapping.left_handed else "right"
+
+
 ## Lets go of both controls, as if both grips were released.
 func release_all() -> void:
 	_grabs.clear()
@@ -80,16 +90,18 @@ func map_values(values: Dictionary, thumbsticks: ThumbstickMapping) -> ShipInput
 	var mapped_button: String = (GrippedStickMapping.AFTERBURNER_BUTTON_LEFT_HANDED
 		if mapping.left_handed else GrippedStickMapping.AFTERBURNER_BUTTON)
 	var input: ShipInput = mapping.map_controls(
-		_relative("left", poses), _relative("right", poses),
+		relative("left", poses), relative("right", poses),
 		1.0 if holds("left") else 0.0, 1.0 if holds("right") else 0.0,
 		{mapped_button: bool(buttons.get(afterburner_button(), false))})
-	var stick_hand: String = "left" if mapping.left_handed else "right"
-	input.fire_primary = float(values.get(stick_hand + "_trigger", 0.0)) \
+	input.fire_primary = float(values.get(stick_hand() + "_trigger", 0.0)) \
 		>= ThumbstickMapping.BUTTON_THRESHOLD
 	return input
 
 
-func _relative(hand: String, poses: Dictionary) -> Transform3D:
+## `hand`'s pose in `poses` relative to its grab point, as the mapping reads
+## it; identity while it holds nothing or is not tracked. The gripped models
+## (#789) show this same pose.
+func relative(hand: String, poses: Dictionary) -> Transform3D:
 	if not _grabs.has(hand) or not poses.has(hand):
 		return Transform3D.IDENTITY
 	return relative_pose(_grabs[hand], poses[hand])

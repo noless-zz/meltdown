@@ -14,6 +14,11 @@ extends RefCounted
 ## `ControlLabelSet` mirrors them for the left hand. Physical controls never
 ## swap, so the left-handed and paired layouts only change which text sits on
 ## which control, never where a line ends. View only (ARC-3).
+##
+## `gripped_rest` (#789, optional) says where the gripped scheme's stick and
+## throttle models rest beside each hand before it grips them: an offset from
+## the controller's origin, right hand, each axis within `GRIPPED_REST_RANGE_M`
+## so a typo cannot put a model out of reach. The left hand mirrors it.
 
 const DEFAULT_FILE: String = "res://xr/controller_anchors.json"
 ## Every component a profile's table must give, and the node names searched for.
@@ -22,6 +27,15 @@ const COMPONENTS: Array[String] = ["stick_click", "button_upper", "button_lower"
 ## where its click does.
 const SHARED_POINTS: Dictionary = {"stick_x": "stick_click", "stick_y": "stick_click"}
 const TOP_KEYS: Array[String] = ["runtime_default_profile", "node_names", "profiles"]
+const GRIPPED_REST_KEY: String = "gripped_rest"
+## The controls `gripped_rest` places, as `GrippedControlsModel.KINDS` names them.
+const GRIPPED_REST_CONTROLS: Array[String] = ["stick", "throttle"]
+const GRIPPED_REST_RANGE_M: float = 0.25
+## A little ahead of and below the hand, where a grip closes round it.
+const GRIPPED_REST_DEFAULT: Dictionary = {
+	"stick": Vector3(0.0, -0.04, -0.06),
+	"throttle": Vector3(0.0, -0.04, -0.06),
+}
 ## Where the points came from, as `ControllerModel.anchor_source` reports it.
 const SOURCE_GENERIC: String = "generic"
 const SOURCE_TABLE: String = "table"
@@ -35,6 +49,8 @@ var runtime_default_profile: String = ""
 var node_names: Dictionary = {}
 ## Profile -> (component -> Vector3), right hand.
 var profiles: Dictionary = {}
+## Control -> its rest offset from the right hand's origin (#789).
+var gripped_rest: Dictionary = GRIPPED_REST_DEFAULT.duplicate()
 ## Hand -> the anchor line last printed.
 var _logged: Dictionary = {}
 
@@ -52,7 +68,7 @@ static func parse_json(text: String) -> ControllerAnchors:
 
 static func parse_data(data: Dictionary) -> ControllerAnchors:
 	for key: Variant in data:
-		if not TOP_KEYS.has(str(key)):
+		if not TOP_KEYS.has(str(key)) and str(key) != GRIPPED_REST_KEY:
 			return _rejected("unknown key \"%s\"" % str(key))
 	for key: String in TOP_KEYS:
 		if not data.has(key):
@@ -88,7 +104,18 @@ static func parse_data(data: Dictionary) -> ControllerAnchors:
 		anchors.profiles[str(profile)] = points
 	if not anchors.profiles.has(anchors.runtime_default_profile):
 		return _rejected("runtime_default_profile \"%s\" has no table" % anchors.runtime_default_profile)
+	if data.has(GRIPPED_REST_KEY):
+		var problem: String = anchors._read_gripped_rest(data[GRIPPED_REST_KEY])
+		if problem != "":
+			return _rejected(problem)
 	return anchors
+
+
+## Where control `kind` rests beside `hand` ("left" or "right"), in the hand's
+## own space: the right hand's offset, mirrored for the left.
+func rest_offset(kind: String, hand: String) -> Vector3:
+	var offset: Vector3 = gripped_rest.get(kind, Vector3.ZERO)
+	return Vector3(-offset.x, offset.y, offset.z) if hand == "left" else offset
 
 
 static func load_file(path: String = DEFAULT_FILE) -> ControllerAnchors:
@@ -216,6 +243,25 @@ static func _collect(node: Node, relative_to: Node, into: Array) -> void:
 					var pose: Vector3 = skeleton.get_bone_global_pose(bone).origin
 					into.append([skeleton.get_bone_name(bone).to_lower(), xform * pose])
 		_collect(child, relative_to, into)
+
+
+func _read_gripped_rest(value: Variant) -> String:
+	if typeof(value) != TYPE_DICTIONARY:
+		return "\"%s\" must be an object" % GRIPPED_REST_KEY
+	var table: Dictionary = value
+	for control: Variant in table:
+		if not GRIPPED_REST_CONTROLS.has(str(control)):
+			return "%s has unknown control \"%s\"" % [GRIPPED_REST_KEY, str(control)]
+	for control: String in GRIPPED_REST_CONTROLS:
+		var point: Variant = table.get(control)
+		if typeof(point) != TYPE_ARRAY or (point as Array).size() != 3 or not _all_numbers(point):
+			return "%s \"%s\" must be three numbers" % [GRIPPED_REST_KEY, control]
+		for axis: Variant in point:
+			if absf(float(axis)) > GRIPPED_REST_RANGE_M:
+				return "%s \"%s\" is more than %.2f m from the hand" % [
+					GRIPPED_REST_KEY, control, GRIPPED_REST_RANGE_M]
+		gripped_rest[control] = Vector3(float(point[0]), float(point[1]), float(point[2]))
+	return ""
 
 
 static func _all_numbers(values: Array) -> bool:

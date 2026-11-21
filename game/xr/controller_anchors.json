@@ -1,5 +1,9 @@
 {
 	"runtime_default_profile": "/interaction_profiles/meta/touch_controller_plus",
+	"gripped_rest": {
+		"stick": [0.0, -0.04, -0.06],
+		"throttle": [0.0, -0.04, -0.06]
+	},
 	"node_names": {
 		"stick_click": ["b_thumbstick", "thumbstick", "joystick"],
 		"button_upper": ["b_button_b", "b_button_y", "button_b", "button_y", "b_button02"],
