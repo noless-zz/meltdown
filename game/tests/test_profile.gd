@@ -103,7 +103,7 @@ func test_bad_texts_give_an_empty_profile_and_a_message() -> String:
 			return "accepted %s" % text
 		if profile.too_new:
 			return "%s read as too new" % text
-		if not profile.banked.is_empty() or not profile.crafted.is_empty():
+		if not profile.banked.is_empty() or not profile.crafted.is_empty() or not profile.crew.is_empty():
 			return "%s left data in the rejected profile" % text
 	return ""
 
