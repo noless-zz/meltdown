@@ -19,6 +19,8 @@ extends RefCounted
 ## `preset_changes` (#777) lists `{"tick": <n>, "preset": <1..4>}` in rising
 ## tick order, each inside the replay: the preset changes mid-flight there
 ## (`AcceptancePresetChanges`), after starting on `preset`.
+## `pause_at_tick` and `pause_seconds` (#804) take the headset off at that tick
+## for that long, for the held_while_paused check (`AcceptancePauseCheck`).
 ## `loop_replay` (#788, default false) restarts the replay from its first tick
 ## each time it ends until those seconds pass; it needs frame_budget, not
 ## final_hash (`AcceptanceLoopReplay`).
@@ -31,7 +33,7 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	"measure_seconds", "max_over_budget_share", "budget_slack_ms", AcceptanceScreenshots.KEY_TICKS,
 	AcceptanceScreenshots.KEY_END,
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
-	AcceptancePresetChanges.KEY]
+	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -95,6 +97,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceFlightTestCheck.parse_step(data, field, step)
 	if problem == "":
 		problem = AcceptancePresetChanges.parse_step(data, field, step)
+	if problem == "":
+		problem = AcceptancePauseCheck.parse_step(data, field, step)
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

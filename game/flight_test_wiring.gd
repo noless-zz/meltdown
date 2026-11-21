@@ -128,6 +128,11 @@ func read_buttons(buttons: Dictionary, menu_held: bool) -> Dictionary:
 	return rest
 
 
+## True while `held` keeps the ship still; the swivel adds nothing then (#819).
+func holding() -> bool:
+	return running() and (test.awaiting_answer() or _hold_until_release)
+
+
 ## True while the menu hold skips the test rather than resetting the ship.
 func takes_menu_hold() -> bool:
 	return running()
@@ -136,7 +141,7 @@ func takes_menu_hold() -> bool:
 ## `input` as this frame should fly it: still (no thrust, turn or afterburner)
 ## while an answer is due or the answering button is still down.
 func held(input: ShipInput) -> ShipInput:
-	if not running() or not (test.awaiting_answer() or _hold_until_release):
+	if not holding():
 		return input
 	var still: ShipInput = ComfortInputFilter.copy_input(input)
 	still.thrust_q = Vector3i.ZERO

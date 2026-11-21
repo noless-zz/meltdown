@@ -19,6 +19,7 @@ var comfort: AcceptanceComfortCheck = null
 var view: AcceptanceViewFlatCheck = null
 var flight: AcceptanceFlightTestCheck = null
 var changes: AcceptancePresetChanges = null  # The step's mid-flight presets (#777), or null.
+var pause: AcceptancePauseCheck = null  # The step's solo pause (#804), or null.
 ## Script errors logged before the step started, set by the runner once the
 ## samplers above exist; no_script_errors counts the rest.
 var errors_at_start: int = 0
@@ -39,6 +40,7 @@ func begin_scene(step: AcceptanceStep, main: Node) -> void:
 	comfort = AcceptanceComfortCheck.for_step(step, main)
 	flight = AcceptanceFlightTestCheck.for_step(step, main)
 	changes = AcceptancePresetChanges.for_step(step)
+	pause = AcceptancePauseCheck.for_step(step)
 
 
 ## One rendered frame. The frame the step starts on is not a frame budget sample.
@@ -51,16 +53,22 @@ func add_frame(frame_seconds: float, step_was_running: bool) -> void:
 		flight.add_frame(frame_seconds)
 
 
-## Before the replay's `tick` flies: a preset change due then.
+## Before the frame that flies the replay's `tick`: a preset change or the
+## pause, or its end, due then.
 func before_tick(main: Node, tick: int) -> void:
 	if changes != null:
 		changes.apply(main, tick, comfort)
+	if pause != null:
+		pause.before_frame(main, tick)
 
 
-## After a replay tick flew: the view's rotation for comfort_motion.
+## After a replay frame: the view's rotation for comfort_motion, and what the
+## pause held.
 func after_tick(main: Node) -> void:
 	if comfort != null:
 		comfort.sample_main(main, ShipState.TICK_DT)
+	if pause != null:
+		pause.after_frame(main)
 
 
 ## True while a sampler still needs frames.
@@ -111,6 +119,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_FRAME_BUDGET: _frame_budget,
 		AcceptanceStep.CHECK_VIEW_NOT_FLAT: _view_not_flat,
 		AcceptanceStep.CHECK_FLIGHT_TEST_RESULT: _flight_test_result,
+		AcceptanceStep.CHECK_HELD_WHILE_PAUSED: _held_while_paused,
 	}
 
 
@@ -150,3 +159,7 @@ func _view_not_flat(step: AcceptanceStep, runner: AcceptanceRunner, measurements
 
 func _flight_test_result(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return flight.run(measurements)
+
+
+func _held_while_paused(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return pause.judge(measurements) if pause != null else [AcceptanceReport.RESULT_FAIL, "no pause flown"]

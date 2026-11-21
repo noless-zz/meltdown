@@ -139,7 +139,7 @@ func apply_controls(values: Dictionary) -> void:
 	destroyed.read_buttons(buttons)
 	reset_hold.press(ResetHold.is_held(values) and not flight_test.takes_menu_hold())  # Skips the test.
 	comfort.hand_input(flight_test.held(scheme.map_values(mapping, values)),
-		session.current_ship().orientation, reset_hold.reset_due())
+		session.current_ship().orientation, reset_hold.reset_due(), ShipHold.is_held(dev_menu, flight_test, session, destroyed))
 
 
 ## Runs the simulation for one frame and moves the rig to the ship; public so tests can drive frames.

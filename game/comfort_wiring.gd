@@ -208,8 +208,8 @@ func shared_click_hold() -> ClickHold:
 
 ## Hands this frame's mapped `input` to the session's input source.
 ## `orientation` is the ship's, read only, for the pitch limit and auto-level.
-## `reset_due` replaces the input with a still reset tick.
-func hand_input(input: ShipInput, orientation: Basis, reset_due: bool) -> void:
+## `reset_due` replaces the input with a still reset tick; `ship_held` stops the swivel (#819).
+func hand_input(input: ShipInput, orientation: Basis, reset_due: bool, ship_held: bool = false) -> void:
 	if one_tick_pending:
 		var held: ShipInput = _input_source.latest_input()
 		if held.reset_to_start:
@@ -219,7 +219,7 @@ func hand_input(input: ShipInput, orientation: Basis, reset_due: bool) -> void:
 		next.turn_q = held.turn_q
 		_input_source.set_input(next)
 		return
-	var filtered: ShipInput = filter.filter(swivel.added(input), orientation)
+	var filtered: ShipInput = filter.filter(swivel.added(input, ship_held), orientation)
 	var snapped: bool = filter.produced_snap and not reset_due
 	_roll_snap_pending = snapped and filter.produced_roll_snap
 	if reset_due:
