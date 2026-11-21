@@ -81,9 +81,14 @@ func clear(hologram: MapHologram) -> void:
 
 ## True from the tick the reactor dies until the run is escaped or lost.
 static func meltdown_running(session: LocalSession) -> bool:
+	return reactor_destroyed(session) and session.sim.outcome() == ExitRule.Outcome.RUNNING
+
+
+## True from the tick the reactor dies, read from a `SessionSnapshots` copy;
+## false without a reactor. `MapWiring` dims the reactor marker by it (#913).
+static func reactor_destroyed(session: LocalSession) -> bool:
 	var reactor: ReactorState = SessionSnapshots.reactor(session.sim.reactor)
-	return reactor != null and reactor.destroyed \
-		and session.sim.outcome() == ExitRule.Outcome.RUNNING
+	return reactor != null and reactor.destroyed
 
 
 ## How many debris entries have fallen; 0 without debris.

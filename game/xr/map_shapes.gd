@@ -45,3 +45,37 @@ static func ball(color: Color, radius: float, energy: float) -> SphereMesh:
 	sphere.rings = 4
 	sphere.material = glow(color, energy)
 	return sphere
+
+
+## Render priority of the reactor ball: above the see-through exit cube's 0, so
+## where the two overlap the ball is drawn last, over the cube (#913).
+const REACTOR_PRIORITY: int = 1
+
+
+## The exit marker: a cube of edge `2 * exit_radius_m`, as before #913, but
+## see-through with opacity `exit_alpha` and unshaded, so the lines and the
+## tunnel beside it show through and it never writes depth over them.
+static func exit_cube(look: Dictionary) -> BoxMesh:
+	var cube: BoxMesh = BoxMesh.new()
+	cube.size = Vector3.ONE * float(look["exit_radius_m"]) * 2.0
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var color: Color = look["exit_color"]
+	material.albedo_color = Color(color.r, color.g, color.b, float(look["exit_alpha"]))
+	cube.material = material
+	return cube
+
+
+## The reactor marker: `reactor_color`, or `reactor_dead_color` once it is
+## destroyed. It ignores depth and draws after the exit cube, so the exit never
+## hides it however close the two sit (#913).
+static func reactor_ball(look: Dictionary, destroyed: bool, energy: float) -> SphereMesh:
+	var color: Color = look["reactor_dead_color"] if destroyed else look["reactor_color"]
+	var sphere: SphereMesh = ball(color, float(look["reactor_radius_m"]), energy)
+	var material: StandardMaterial3D = sphere.material as StandardMaterial3D
+	material.no_depth_test = true
+	material.render_priority = REACTOR_PRIORITY
+	return sphere

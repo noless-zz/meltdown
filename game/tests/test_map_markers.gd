@@ -151,13 +151,16 @@ func test_the_marker_colours_differ_from_the_ship_marker() -> String:
 	for look: Dictionary in [shipped, MapLook.FALLBACK]:
 		var pairs: Array[Array] = [
 			["exit_color", "marker_color"], ["reactor_color", "marker_color"], ["exit_color", "reactor_color"],
+			["reactor_dead_color", "marker_color"], ["reactor_dead_color", "exit_color"],
 		]
 		for pair: Array in pairs:
 			if _distance(look[pair[0]], look[pair[1]]) < MIN_COLOR_DISTANCE:
 				return "%s %s is too close to %s %s" % [pair[0], look[pair[0]], pair[1], look[pair[1]]]
 	var map: MapHologram = MapHologram.new()
 	map.build(_level().union, [0])
-	var exit_glow: Color = ((map.get_node(MapHologram.EXIT_NAME) as MeshInstance3D).mesh.surface_get_material(0) as StandardMaterial3D).emission
+	# The exit is a see-through unshaded cube since #913: its colour is the albedo's.
+	var exit_albedo: Color = ((map.get_node(MapHologram.EXIT_NAME) as MeshInstance3D).mesh.surface_get_material(0) as StandardMaterial3D).albedo_color
+	var exit_glow: Color = Color(exit_albedo.r, exit_albedo.g, exit_albedo.b)
 	var reactor_glow: Color = ((map.get_node(MapHologram.REACTOR_NAME) as MeshInstance3D).mesh.surface_get_material(0) as StandardMaterial3D).emission
 	var look_now: Dictionary = map.look()
 	map.free()
