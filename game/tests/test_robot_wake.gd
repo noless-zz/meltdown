@@ -157,7 +157,9 @@ func test_the_wake_range_is_read_in_whole_millimetres() -> String:
 		return "8.00049 read as %s" % def.wake_range
 	if def.set_wake_range(8.0006) != "" or def.wake_range != 8.001:
 		return "8.0006 read as %s" % def.wake_range
-	var text: String = FileAccess.get_file_as_string(NEEDLER).replace("{", "{\"wake_range\": 12.3456, ")
+	# Only the outer object's brace: the file's drop table has braces of its own (#925).
+	var raw: String = FileAccess.get_file_as_string(NEEDLER)
+	var text: String = "{\"wake_range\": 12.3456, " + raw.substr(raw.find("{") + 1)
 	var parsed: RobotDef = RobotDef.parse_json(text)
 	if parsed.error != "" or parsed.wake_range != 12.346:
 		return "a file's 12.3456 read as %s (%s)" % [parsed.wake_range, parsed.error]
