@@ -21,10 +21,12 @@ static func add_fade_overlay(rig: Node3D) -> FadeOverlay:
 
 
 ## Adds a status panel under `rig`'s origin and returns it, or null without
-## a rig. `place` puts it at the head point each frame.
+## a rig. `place` puts it at the head point each frame, in the corner saved or
+## asked for with `--panel=` (#752).
 static func add_status_panel(rig: Node3D) -> StatusPanel:
 	if rig == null:
 		return null
+	PanelCorner.from_launch()
 	var panel: StatusPanel = StatusPanel.new()
 	rig.add_child(panel)
 	return panel

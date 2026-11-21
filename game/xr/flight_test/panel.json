@@ -11,5 +11,18 @@
 	"time_left": "{seconds} s",
 	"result": "Comfort preset: {preset}",
 	"change_hint": "Change it any time with X",
-	"raise_m": 0.12
+	"raise_m": 0.12,
+	"answer_line": {
+		"template": "{button} {answer}",
+		"separator": "     ",
+		"words": {"fine": "Fine", "uneasy": "Uneasy", "stop": "Stop"},
+		"buttons": {
+			"left_button_lower": "X",
+			"left_button_upper": "Y",
+			"right_button_lower": "A",
+			"right_button_upper": "B",
+			"left_stick_click": "Left stick",
+			"right_stick_click": "Right stick"
+		}
+	}
 }

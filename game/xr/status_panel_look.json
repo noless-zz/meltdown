@@ -9,5 +9,11 @@
 	"level_color": [0.5, 0.56, 0.6],
 	"level_tunnel_text": "Test tunnel",
 	"level_seed_text": "Seed {seed}",
-	"level_file_text": "{name}"
+	"level_file_text": "{name}",
+	"corners": {
+		"top_left": [-0.157, 0.124, -0.512],
+		"top_right": [0.157, 0.124, -0.512],
+		"bottom_left": [-0.157, -0.124, -0.512],
+		"bottom_right": [0.157, -0.124, -0.512]
+	}
 }

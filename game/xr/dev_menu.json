@@ -1,0 +1,12 @@
+{
+	"entries": [
+		{"kind": "corner", "label": "Panel corner"},
+		{"kind": "level", "label": "Level"},
+		{"kind": "restart", "label": "Restart level"},
+		{"kind": "close", "label": "Close"}
+	],
+	"corners": ["bottom_left", "bottom_right", "top_left", "top_right", "centre"],
+	"tunnel_text": "Test tunnel",
+	"seed_text": "Seed {seed}",
+	"random_text": "Random seed"
+}

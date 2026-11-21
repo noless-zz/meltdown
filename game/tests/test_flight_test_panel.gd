@@ -104,7 +104,7 @@ func test_the_panel_shows_each_stage_of_the_test() -> String:
 	session.advance(10.0)
 	panel.show_session(session)
 	var asking: Dictionary = panel.shown()
-	if result == "" and (asking["detail"] != text["question"] or asking["answers"] != text["answers"]):
+	if result == "" and (asking["detail"] != text["question"] or asking["answers"] != panel.answer_line()):
 		result = "an answer due shows %s" % [asking]
 	session.answer(PresetRecommender.STOP)
 	panel.show_session(session)
