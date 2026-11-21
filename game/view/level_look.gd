@@ -11,6 +11,10 @@ extends RefCounted
 ##      "edge_color": [r, g, b], "edge_energy": 0..1, "edge_width_m": 0.02..1,
 ##      "grid_spacing_m": 0.5..20, "grid_line_width_m": 0.01..0.5,
 ##      "grid_line_factor": 0..4,
+##      "plate_floor_m", "plate_wall_m", "plate_ceiling_m": 0.25..10,
+##      "plate_floor_aspect", "plate_wall_aspect", "plate_ceiling_aspect": 1..8,
+##      "plate_floor_stagger", "plate_wall_stagger", "plate_ceiling_stagger": 0..0.5,
+##      "plate_seam_m": 0.005..0.2, "plate_contrast": 0..0.25,
 ##      "fog_color": [r, g, b], "fog_density": 0..0.2,
 ##      "ambient_color": [r, g, b], "ambient_energy": 0..0.3}
 ##
@@ -21,6 +25,16 @@ extends RefCounted
 ##   the eye something to converge on; a flat colour has no depth cue. The
 ##   lines are the tint times `grid_line_factor`, so above 1 they catch the
 ##   headlight brighter than the panel between them.
+## - Under the grid every surface is plated (#660): panels `plate_<kind>_m`
+##   high and `plate_<kind>_aspect` times as long, each row shifted by
+##   `plate_<kind>_stagger` of a panel, with dark seams `plate_seam_m` wide.
+##   Floor, wall and ceiling get different panels, chosen in the shader from
+##   the face normal by the same rule as `surface_class`, so the kind of
+##   surface reads from the pattern as well as the tint. `plate_contrast` is
+##   how far a panel's tone strays and how dark a seam is; it is capped low so
+##   the pattern does not flicker or pull the eye on the gentle comfort
+##   presets 1 and 2, and the shader fades it out where panels get too small
+##   on screen to draw without shimmer.
 ## - Exponential fog in a near-black colour darkens far walls more than near
 ##   ones, the cheapest depth cue there is. It is worked out in the wall
 ##   shader, not the environment, so it costs only on the walls (see
@@ -42,6 +56,19 @@ const RANGES: Dictionary[String, Array] = {
 	"grid_spacing_m": [0.5, 20.0],
 	"grid_line_width_m": [0.01, 0.5],
 	"grid_line_factor": [0.0, 4.0],
+	"plate_floor_m": [0.25, 10.0],
+	"plate_wall_m": [0.25, 10.0],
+	"plate_ceiling_m": [0.25, 10.0],
+	"plate_floor_aspect": [1.0, 8.0],
+	"plate_wall_aspect": [1.0, 8.0],
+	"plate_ceiling_aspect": [1.0, 8.0],
+	# Half a panel is the largest shift that is not the same as a smaller one.
+	"plate_floor_stagger": [0.0, 0.5],
+	"plate_wall_stagger": [0.0, 0.5],
+	"plate_ceiling_stagger": [0.0, 0.5],
+	"plate_seam_m": [0.005, 0.2],
+	# A seam is darkened by twice this, so 0.25 is already half dark.
+	"plate_contrast": [0.0, 0.25],
 	# 0.2 per metre already hides a wall 15 m away; more would blind the pilot.
 	"fog_density": [0.0, 0.2],
 	"ambient_energy": [0.0, 0.3],
@@ -52,6 +79,13 @@ const CEILING: String = "ceiling"
 const WALL: String = "wall"
 ## Surface classes in the order `LevelView` draws them.
 const CLASSES: Array[String] = [FLOOR, CEILING, WALL]
+## Surface classes in the order the wall shader's per-kind vectors hold them.
+const SHADER_KINDS: Array[String] = [FLOOR, WALL, CEILING]
+## A face whose normal points up (or down) more than this is a floor (or a
+## ceiling): steeper than 45 degrees. The wall shader uses the same value.
+const FLOOR_MIN_UP: float = 0.7071
+## A seam may take at most this share of the smallest panel, so panels stay panels.
+const SEAM_MAX_SHARE: float = 0.25
 
 ## Look used when the file is missing or rejected; matches the shipped file.
 const FALLBACK: Dictionary = {
@@ -65,6 +99,17 @@ const FALLBACK: Dictionary = {
 	"grid_spacing_m": 2.0,
 	"grid_line_width_m": 0.06,
 	"grid_line_factor": 2.2,
+	"plate_floor_m": 1.0,
+	"plate_wall_m": 1.0,
+	"plate_ceiling_m": 0.5,
+	"plate_floor_aspect": 1.0,
+	"plate_wall_aspect": 2.0,
+	"plate_ceiling_aspect": 4.0,
+	"plate_floor_stagger": 0.0,
+	"plate_wall_stagger": 0.5,
+	"plate_ceiling_stagger": 0.0,
+	"plate_seam_m": 0.03,
+	"plate_contrast": 0.12,
 	"fog_color": Color(0.01, 0.012, 0.016),
 	"fog_density": 0.035,
 	"ambient_color": Color(0.25, 0.27, 0.3),
@@ -117,6 +162,11 @@ static func parse(text: String) -> Dictionary:
 		if float(value) < float(bounds[0]) or float(value) > float(bounds[1]):
 			return _rejected("\"%s\" is %s, must be within %s..%s" % [key, value, bounds[0], bounds[1]])
 		look[key] = float(value)
+	for kind: String in SHADER_KINDS:
+		var plate_key: String = "plate_%s_m" % kind
+		if float(look["plate_seam_m"]) > float(look[plate_key]) * SEAM_MAX_SHARE:
+			return _rejected("\"plate_seam_m\" is %s, must be at most %s of \"%s\" (%s)"
+					% [look["plate_seam_m"], SEAM_MAX_SHARE, plate_key, look[plate_key]])
 	return look
 
 
@@ -148,9 +198,9 @@ static func load_or_fallback(path: String = DEFAULT_FILE) -> Dictionary:
 ## 45 degrees is a wall.
 static func surface_class(normal: Vector3) -> String:
 	var unit: Vector3 = normal.normalized()
-	if unit.y > 0.7071:
+	if unit.y > FLOOR_MIN_UP:
 		return FLOOR
-	if unit.y < -0.7071:
+	if unit.y < -FLOOR_MIN_UP:
 		return CEILING
 	return WALL
 
@@ -160,8 +210,10 @@ static func tint_for(look: Dictionary, normal: Vector3) -> Color:
 	return look["%s_color" % surface_class(normal)]
 
 
-## A lit material in `tint` with `look`'s world-space grid and distance fog.
-## One per surface class; walls of every level share the shader.
+## A lit material in `tint` with `look`'s plating, world-space grid and
+## distance fog. One per surface class; walls of every level share the shader.
+## Every material carries the plating of all three kinds, since the shader
+## picks one per face from its normal.
 static func wall_material(look: Dictionary, tint: Color) -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = load(WALL_SHADER) as Shader
@@ -170,9 +222,24 @@ static func wall_material(look: Dictionary, tint: Color) -> ShaderMaterial:
 	material.set_shader_parameter("grid_spacing", float(look["grid_spacing_m"]))
 	material.set_shader_parameter("line_width", float(look["grid_line_width_m"]))
 	material.set_shader_parameter("line_factor", float(look["grid_line_factor"]))
+	material.set_shader_parameter("plate_size", plate_vector(look, "m"))
+	material.set_shader_parameter("plate_aspect", plate_vector(look, "aspect"))
+	material.set_shader_parameter("plate_stagger", plate_vector(look, "stagger"))
+	material.set_shader_parameter("seam_width", float(look["plate_seam_m"]))
+	material.set_shader_parameter("plate_contrast", float(look["plate_contrast"]))
+	material.set_shader_parameter("floor_min_up", FLOOR_MIN_UP)
 	material.set_shader_parameter("fog_color", look["fog_color"])
 	material.set_shader_parameter("fog_density", float(look["fog_density"]))
 	return material
+
+
+## One plating value per kind, in `SHADER_KINDS` order: `part` is "m",
+## "aspect" or "stagger".
+static func plate_vector(look: Dictionary, part: String) -> Vector3:
+	var values: Array[float] = []
+	for kind: String in SHADER_KINDS:
+		values.append(float(look["plate_%s_%s" % [kind, part]]))
+	return Vector3(values[0], values[1], values[2])
 
 
 ## The environment every level is drawn in: dark background in the fog's

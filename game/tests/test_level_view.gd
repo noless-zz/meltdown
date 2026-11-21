@@ -205,7 +205,11 @@ func test_a_bad_or_missing_look_falls_back_naming_the_field() -> String:
 			"edge_energy": 0.3, "edge_width_m": 0.1, "floor_color": [0.2, 0.2, 0.2],
 			"ceiling_color": [0.05, 0.05, 0.05], "grid_spacing_m": 2.0, "grid_line_width_m": 0.05,
 			"grid_line_factor": 2.0, "fog_color": [0.0, 0.0, 0.0], "fog_density": 0.03,
-			"ambient_color": [0.2, 0.2, 0.2], "ambient_energy": 0.1}
+			"ambient_color": [0.2, 0.2, 0.2], "ambient_energy": 0.1,
+			"plate_floor_m": 1.0, "plate_wall_m": 1.0, "plate_ceiling_m": 1.0,
+			"plate_floor_aspect": 1.0, "plate_wall_aspect": 2.0, "plate_ceiling_aspect": 3.0,
+			"plate_floor_stagger": 0.0, "plate_wall_stagger": 0.5, "plate_ceiling_stagger": 0.0,
+			"plate_seam_m": 0.02, "plate_contrast": 0.1}
 	if LevelView.parse_look(JSON.stringify(good)).has("error"):
 		return "a valid look was rejected: %s" % LevelView.parse_look(JSON.stringify(good))["error"]
 	var cases: Dictionary[String, Variant] = {

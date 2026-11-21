@@ -3,7 +3,9 @@ extends RefCounted
 ## The look of a mine's inside (#609, GFX-4, LGT-1, ARC-4): every key of the
 ## look file is required and a bad one is named, floor, ceiling and walls are
 ## tinted by the way they face, the environment is dark, walls fog with distance, and
-## the level view and the test tunnel both draw with it.
+## the level view and the test tunnel both draw with it. Plating (#660): every
+## value is in the file, seams cannot swallow panels, contrast stays low, and the
+## shader picks the face kind from the normal by the same rule as `surface_class`.
 
 const LOOK_FILE: String = "res://view/level_look.json"
 
@@ -52,7 +54,9 @@ func test_bad_values_are_named() -> String:
 	var cases: Dictionary[String, Variant] = {
 		"fog_density": 0.5, "ambient_energy": 1.0, "grid_spacing_m": 0.1, "grid_line_width_m": true,
 		"grid_line_factor": -1.0, "floor_color": [0.1, 0.1], "ceiling_color": [0.1, 1.5, 0.1],
-		"fog_color": "black", "edge_energy": 2.0,
+		"fog_color": "black", "edge_energy": 2.0, "plate_floor_m": 0.1, "plate_wall_aspect": 0.5,
+		"plate_ceiling_stagger": 0.75, "plate_seam_m": 0.001, "plate_contrast": 0.5,
+		"plate_floor_aspect": "wide", "plate_wall_m": false,
 	}
 	for key: String in cases:
 		var data: Dictionary = _valid()
@@ -168,3 +172,81 @@ func test_the_test_tunnel_uses_the_same_look() -> String:
 		result = "the tunnel's ambient light is not the level look's"
 	tunnel.free()
 	return result
+
+
+func test_a_seam_wider_than_a_quarter_panel_is_named() -> String:
+	var data: Dictionary = _valid()
+	data["plate_ceiling_m"] = 0.4
+	data["plate_seam_m"] = 0.15
+	var error: String = String(LevelLook.parse(JSON.stringify(data)).get("error", ""))
+	if not error.contains("plate_seam_m") or not error.contains("plate_ceiling_m"):
+		return "a seam of 0.15 m on 0.4 m ceiling panels gave \"%s\"" % error
+	data["plate_seam_m"] = 0.1
+	if LevelLook.parse(JSON.stringify(data)).has("error"):
+		return "a seam of exactly a quarter panel was rejected"
+	return ""
+
+
+func test_the_shipped_plating_tells_the_three_kinds_apart_gently() -> String:
+	var look: Dictionary = LevelLook.load_file(LOOK_FILE)
+	var seen: Array[Vector3] = []
+	for kind: String in LevelLook.SHADER_KINDS:
+		var shape: Vector3 = Vector3(float(look["plate_%s_m" % kind]),
+				float(look["plate_%s_aspect" % kind]), float(look["plate_%s_stagger" % kind]))
+		if seen.has(shape):
+			return "%s panels are the same shape as another kind's, so the pattern does not tell them apart" % kind
+		seen.append(shape)
+	# Gentle enough for comfort presets 1 and 2: a panel strays at most 10 % in
+	# tone either way and a seam is no more than a third darker.
+	if float(look["plate_contrast"]) > 0.15:
+		return "plate contrast %s is too strong for the gentle presets" % look["plate_contrast"]
+	return ""
+
+
+func test_face_kind_boundaries_including_sloped_faces() -> String:
+	var just_over: float = LevelLook.FLOOR_MIN_UP + 0.001
+	var just_under: float = LevelLook.FLOOR_MIN_UP - 0.001
+	var side: float = sqrt(1.0 - just_over * just_over)
+	var side_under: float = sqrt(1.0 - just_under * just_under)
+	var cases: Array = [
+		[Vector3(side, just_over, 0.0), LevelLook.FLOOR],
+		[Vector3(0.0, just_under, side_under), LevelLook.WALL],
+		[Vector3(-side, -just_over, 0.0), LevelLook.CEILING],
+		[Vector3(0.0, -just_under, -side_under), LevelLook.WALL],
+		# 30 degrees off level is a wall; 30 degrees off straight up is a floor.
+		[Vector3(cos(PI / 6.0), sin(PI / 6.0), 0.0), LevelLook.WALL],
+		[Vector3(0.0, cos(PI / 6.0), sin(PI / 6.0)), LevelLook.FLOOR],
+		[Vector3(0.0, -cos(PI / 6.0), sin(PI / 6.0)), LevelLook.CEILING],
+		# Length does not matter: a long normal is classed by its direction.
+		[Vector3(0.0, 10.0, 0.0), LevelLook.FLOOR],
+	]
+	for case: Array in cases:
+		if LevelLook.surface_class(case[0]) != case[1]:
+			return "a face pointing %s is a %s, expected %s" % [case[0], LevelLook.surface_class(case[0]), case[1]]
+	# 45 degrees exactly is where the rule turns; it must sit at sqrt(0.5).
+	if absf(LevelLook.FLOOR_MIN_UP - sqrt(0.5)) > 1e-4:
+		return "the floor threshold %s is not 45 degrees" % LevelLook.FLOOR_MIN_UP
+	return ""
+
+
+func test_wall_material_carries_the_plating_of_every_kind() -> String:
+	var look: Dictionary = LevelLook.FALLBACK
+	var material: ShaderMaterial = LevelLook.wall_material(look, look["wall_color"])
+	var expected: Dictionary = {
+		"plate_size": Vector3(look["plate_floor_m"], look["plate_wall_m"], look["plate_ceiling_m"]),
+		"plate_aspect": Vector3(look["plate_floor_aspect"], look["plate_wall_aspect"], look["plate_ceiling_aspect"]),
+		"plate_stagger": Vector3(look["plate_floor_stagger"], look["plate_wall_stagger"], look["plate_ceiling_stagger"]),
+		"seam_width": look["plate_seam_m"], "plate_contrast": look["plate_contrast"],
+		"floor_min_up": LevelLook.FLOOR_MIN_UP,
+	}
+	for parameter: String in expected:
+		var value: Variant = material.get_shader_parameter(parameter)
+		var same: bool = (value as Vector3).is_equal_approx(expected[parameter]) if value is Vector3 \
+				else is_equal_approx(float(value), float(expected[parameter]))
+		if not same:
+			return "%s is %s, expected %s" % [parameter, value, expected[parameter]]
+	var code: String = (load(LevelLook.WALL_SHADER) as Shader).code
+	for needle: String in ["floor_min_up", "plate_stagger", "fwidth(cell.x)", "on_seam"]:
+		if not code.contains(needle):
+			return "the wall shader does not use %s" % needle
+	return ""
