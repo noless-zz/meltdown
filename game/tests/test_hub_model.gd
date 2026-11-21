@@ -57,6 +57,7 @@ func test_pages_come_in_the_file_order_with_their_titles() -> String:
 		"pages": [{"id": "fit", "title": "F"}, {"id": "craft", "title": "C"},
 			{"id": "store", "title": "S"}, {"id": "crew", "title": "W"}],
 		"empty_crew": "none", "empty_store": "none",
+		"text": JSON.parse_string(FileAccess.get_file_as_string(HubConfig.CONFIG_PATH))["text"],
 	}))
 	if config.error != "" or config.pages != ["fit", "craft", "store", "crew"] or config.title("crew") != "W":
 		return "reordered file read as %s (%s)" % [config.pages, config.error]
@@ -221,6 +222,11 @@ func test_config_errors_name_the_key() -> String:
 		"\"pages[2].id\" must be one of": func(d: Dictionary) -> void: d["pages"][2]["id"] = "bar",
 		"\"pages[0].title\" must be a non-empty string": func(d: Dictionary) -> void: d["pages"][0]["title"] = " ",
 		"\"empty_crew\" must be a non-empty string": func(d: Dictionary) -> void: d["empty_crew"] = 3,
+		"missing key \"text\"": func(d: Dictionary) -> void: d.erase("text"),
+		"\"text.launch_row\" must be a non-empty string": func(d: Dictionary) -> void: d["text"].erase("launch_row"),
+		"\"text\" has unknown key \"shout\"": func(d: Dictionary) -> void: d["text"]["shout"] = "x",
+		"\"text.slot_names\" is missing \"utility\"": func(d: Dictionary) -> void: d["text"]["slot_names"].erase("utility"),
+		"\"text.stat_names.shield_max\" must be a non-empty string": func(d: Dictionary) -> void: d["text"]["stat_names"]["shield_max"] = "",
 	}
 	for expected: String in cases:
 		var data: Dictionary = good.duplicate(true)
