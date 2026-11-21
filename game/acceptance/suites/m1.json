@@ -121,6 +121,13 @@
 			"left_handed": true,
 			"checks": ["final_hash", "no_script_errors"],
 			"expected_hash": 1617769301
+		},
+		{
+			"id": "comfort_custom",
+			"replay": "res://acceptance/replays/m1_comfort_custom.replay",
+			"custom_file": "res://acceptance/comfort/m1_custom.json",
+			"checks": ["comfort_motion", "final_hash", "no_script_errors"],
+			"expected_hash": 1450670154
 		}
 	]
 }

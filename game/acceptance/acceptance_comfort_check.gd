@@ -16,7 +16,10 @@ extends RefCounted
 ## The limits are the active preset's own values (`ComfortPreset`, as
 ## `ComfortWiring` applies it), never copies: preset 1 fails on any smooth
 ## rotation, preset 2 on yaw or pitch faster than its caps, presets 3 and 4
-## only report. It reads the camera and the preset; it writes nothing.
+## only report. The custom mode (#836) is judged by its own values, not its
+## base preset's: no smooth rotation at all when the file turns every smooth
+## setting off, and otherwise its yaw and pitch caps wherever it sets them. It
+## reads the camera and the preset; it writes nothing.
 
 ## A frame turning the view by more than this, in degrees, is rotation the
 ## player sees (CMF-3); less is numerical noise.
@@ -26,6 +29,7 @@ const CAP_TOLERANCE: float = 0.05
 ## The preset numbers whose limits are checked; the others only report.
 const NO_SMOOTH_PRESET: int = 1
 const CAPPED_PRESET: int = 2
+const CUSTOM_PRESET: int = ComfortPresetFiles.CUSTOM_NUMBER
 ## Head turns beyond this, in degrees, are named in the result line, so a
 ## report read later shows the headset was worn and moved during the step.
 const HEAD_TURN_NOTE_DEG: float = 5.0
@@ -165,9 +169,9 @@ func snap_floor_deg() -> float:
 
 ## Why one smooth frame breaks the preset's limit, or "".
 func _frame_failure(angle: float, yaw: float, pitch: float) -> String:
-	if preset_number == NO_SMOOTH_PRESET:
+	if preset_number == NO_SMOOTH_PRESET or (preset_number == CUSTOM_PRESET and not preset.has_smooth_rotation()):
 		return "frame %d turned the view %.2f° smoothly (CMF-3 allows none)" % [frames, angle]
-	if preset_number != CAPPED_PRESET:
+	if preset_number != CAPPED_PRESET and preset_number != CUSTOM_PRESET:
 		return ""
 	var yaw_cap: float = preset.yaw_rate_cap_deg_per_s
 	if yaw_cap > ComfortPreset.NO_LIMIT and yaw > yaw_cap * (1.0 + CAP_TOLERANCE):

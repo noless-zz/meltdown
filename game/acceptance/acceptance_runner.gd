@@ -51,7 +51,7 @@ var _suite_index: int = 0
 var _step_index: int = 0
 var _step_started: bool = false
 var _source: ReplayInputSource = null
-var _level_problem: String = ""  # Why the step's level could not be flown, or "".
+var _level_problem: String = ""  # Why the step's level or custom comfort file could not be flown, or "".
 var _checks: AcceptanceChecks = null  # The step's samplers and check dispatch (#817).
 
 
@@ -143,8 +143,9 @@ func _start_step(step: AcceptanceStep) -> void:
 	screenshots.begin(suites[_suite_index].name, step)
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
+	_level_problem = AcceptanceCustomComfort.apply(main, step)  # #836.
 	_checks.begin_scene(step, main)
-	if step.replay_path == "":
+	if step.replay_path == "" or _level_problem != "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
 	# session it builds is replaced by the replay's below.
