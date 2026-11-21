@@ -110,29 +110,11 @@ func _refresh() -> void:
 		row += 1
 		var entry: Dictionary = model.spec.entries[index]
 		var text: String = str(entry["label"])
-		match str(entry["kind"]):
-			DevMenuSpec.KIND_CORNER:
-				text += ": < %s >" % model.corner()
-			DevMenuSpec.KIND_CONTROLS:
-				text += ": < %s >" % model.scheme()
-			DevMenuSpec.KIND_HANDS:
-				text += ": < %s >" % model.hands_text()
-			DevMenuSpec.KIND_PITCH:
-				text += ": < %s >" % model.pitch_text()
-			DevMenuSpec.KIND_COMFORT:
-				text += ": < %s >" % model.comfort_text()
-			DevMenuSpec.KIND_BREAK:
-				text += ": < %s >" % model.break_text()
-			DevMenuSpec.KIND_REFRESH:
-				text += ": < %s >" % model.refresh_text()
-			DevMenuSpec.KIND_SWIVEL:
-				text += ": < %s >" % model.swivel_text()
-			DevMenuSpec.KIND_FOVEATION:
-				text += ": < %s >" % model.foveation_text()
-			DevMenuSpec.KIND_LEVEL:
-				text += ": < %s >" % model.levels.text(model.spec)
-			DevMenuSpec.KIND_UPDATE:
-				text = model.update_text(text)
+		var entry_kind: String = str(entry["kind"])
+		if entry_kind == DevMenuSpec.KIND_UPDATE:
+			text = model.update_text(text)
+		elif model.value(entry_kind) != null:
+			text += ": < %s >" % model.value_text(entry_kind)
 		var chosen: bool = index == model.selected
 		var shown: String = "> %s" % text if chosen else text
 		if line.text != shown:
