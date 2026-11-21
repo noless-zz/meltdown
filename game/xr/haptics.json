@@ -4,5 +4,8 @@
 	"low_hull": { "amplitude": 0.9, "duration_s": 0.3, "frequency_hz": 0 },
 	"shield_break": { "amplitude": 0.7, "duration_s": 0.06, "frequency_hz": 0 },
 	"ship_hit": { "amplitude": 0.8, "duration_s": 0.1, "frequency_hz": 0 },
-	"salvage_pickup": { "amplitude": 0.35, "duration_s": 0.04, "frequency_hz": 250 }
+	"salvage_pickup": { "amplitude": 0.35, "duration_s": 0.04, "frequency_hz": 250 },
+	"wall_impact": { "amplitude": 0.5, "duration_s": 0.06, "frequency_hz": 0 },
+	"wall_impact_min_speed": 2,
+	"wall_impact_full_speed": 10
 }
