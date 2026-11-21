@@ -58,7 +58,7 @@ func test_record_when_asked() -> String:
 	if not RecordSwitch.asks_for(RECORD_SWITCH, STEP_ID):
 		return ""
 	# Never the door step's seed (#548): two steps on one seed cover one level.
-	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, false,
+	return SeedPick.record(STEP_ID, REPLAY_PATH, REPLAY_HEADER, SeedPick.NEED_DEBRIS,
 		SeedPick.seeds_of([DOOR_STEP_ID] as Array[String]))
 
 

@@ -93,13 +93,13 @@ func test_the_shipped_suite_round_trips() -> String:
 func test_the_door_step_needs_a_door_down() -> String:
 	var results: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 0),
 		SeedPick.Flown.of(30, true, 2, 1), SeedPick.Flown.of(4, false, 2, 1)]
-	var picked: Dictionary = SeedPick.pick(results, 1, 300, true)
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, SeedPick.NEED_DOOR)
 	if picked.get("seed") != 30:
 		return "picked %s, expected seed 30" % picked
 	if SeedPick.pick(results).get("seed") != 9:
 		return "without the door rule picked %s" % SeedPick.pick(results)
 	var rock_only: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 0)]
-	var none: Dictionary = SeedPick.pick(rock_only, 1, 300, true)
+	var none: Dictionary = SeedPick.pick(rock_only, 1, 300, SeedPick.NEED_DOOR)
 	if not str(none.get("error", "")).contains("blast door"):
 		return "no door gave %s" % none
 	return ""
@@ -111,14 +111,14 @@ func test_the_door_step_needs_a_door_down() -> String:
 func test_an_excluded_seed_is_skipped_for_the_next_valid_one() -> String:
 	var results: Array[SeedPick.Flown] = _results([[12, true, 2], [3, true, 0], [9, true, 1],
 		[5, false, 3], [30, true, 1]])
-	var picked: Dictionary = SeedPick.pick(results, 1, 300, false, [9] as Array[int])
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, SeedPick.NEED_DEBRIS, [9] as Array[int])
 	if picked.get("seed") != 12:
 		return "with 9 excluded picked %s, expected seed 12" % picked
-	if SeedPick.pick(results, 1, 300, false, [] as Array[int]) != SeedPick.pick(results):
-		return "excluding nothing picked %s" % SeedPick.pick(results, 1, 300, false, [] as Array[int])
-	if SeedPick.pick(results, 1, 300, false, [3, 5] as Array[int]).get("seed") != 9:
+	if SeedPick.pick(results, 1, 300, SeedPick.NEED_DEBRIS, [] as Array[int]) != SeedPick.pick(results):
+		return "excluding nothing picked %s" % SeedPick.pick(results, 1, 300, SeedPick.NEED_DEBRIS, [] as Array[int])
+	if SeedPick.pick(results, 1, 300, SeedPick.NEED_DEBRIS, [3, 5] as Array[int]).get("seed") != 9:
 		return "excluding seeds that do not qualify changed the pick"
-	var only_excluded: Dictionary = SeedPick.pick(_results([[9, true, 1]]), 1, 300, false, [9] as Array[int])
+	var only_excluded: Dictionary = SeedPick.pick(_results([[9, true, 1]]), 1, 300, SeedPick.NEED_DEBRIS, [9] as Array[int])
 	if not only_excluded.has("error"):
 		return "the only qualifying seed was excluded but %s was picked" % only_excluded
 	return ""
@@ -132,4 +132,20 @@ func test_the_generated_steps_fly_different_seeds() -> String:
 		return "expected two generated steps with seeds, found %s" % [seeds]
 	if seeds[0] == seeds[1]:
 		return "both generated steps fly seed %d" % seeds[0]
+	return ""
+
+
+## The fire step (#517) needs the bot to escape having been burnt: seed 9
+## escapes unburnt, 12 is burnt but lost, so 20 is picked; a burn alone is
+## enough, with no meltdown entry counted as fallen.
+func test_the_fire_step_needs_a_burn() -> String:
+	var results: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 1, 0),
+		SeedPick.Flown.of(12, false, 2, 0, 30), SeedPick.Flown.of(20, true, 0, 0, 4)]
+	var picked: Dictionary = SeedPick.pick(results, 1, 300, SeedPick.NEED_BURN)
+	if picked.get("seed") != 20:
+		return "picked %s, expected seed 20" % picked
+	var unburnt: Array[SeedPick.Flown] = [SeedPick.Flown.of(9, true, 1, 1, 0)]
+	var none: Dictionary = SeedPick.pick(unburnt, 1, 300, SeedPick.NEED_BURN)
+	if not str(none.get("error", "")).contains("burnt by fire"):
+		return "no burn gave %s" % none
 	return ""
