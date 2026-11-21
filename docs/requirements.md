@@ -15,7 +15,7 @@ into a generated mine:
    and the collapsing mine closes some passages and opens others.
 
 First release: solo and online co-op for 1-4 players; roguelike layer (salvage as the
-build, rescued miners as permanent progression, branching mine types); four comfort
+build, rescued miners and crafted upgrades as permanent progression, branching mine types); four comfort
 presets. Out of scope: competitive modes, more than 4 players, store publication, other
 headsets (see M9).
 
@@ -36,7 +36,7 @@ A run lasts 20-30 minutes and ends in escape or loss of the ship.
 | FLT-1 | Six-degrees-of-freedom flight: forward/back, strafe, up/down, pitch, yaw, roll; light inertia, no gravity. | M |
 | FLT-2 | Afterburner with a recharging energy pool. | M |
 | FLT-3 | Wall collisions bounce and deal minor damage, never stop the ship dead. | M |
-| CMB-1 | Two primary and two secondary weapon slots. A ship starts each run with the loadout named in its ship data file; every other weapon comes from salvage found during the run. | M |
+| CMB-1 | Two primary and two secondary weapon slots. A ship starts each run with the loadout named in its ship data file, changed only by what the player fitted at the hub (CRF-4); every other weapon comes from salvage found during the run. | M |
 | CMB-2 | Shields recharge from energy; hull damage is permanent for the run unless repaired with salvage. | M |
 | CMB-3 | At least 12 robot types at release, each with distinct movement, attack and salvage drop. | M |
 | CMB-4 | A boss guarding the reactor on every third level. | S |
@@ -47,14 +47,21 @@ A run lasts 20-30 minutes and ends in escape or loss of the ship.
 | RUN-4 | During meltdown the mine changes (cave-ins, failed blast doors, fire, debris). A route to the exit always exists. | M |
 | RUN-5 | The timer scales with the shortest escape path at the moment the reactor dies. | M |
 | RUN-6 | An alarm level rises with time and noise; robots seal doors, reroute and call reinforcements. | S |
-| RUN-7 | Losing the ship ends the run; salvage is lost, crew and unlocks are kept. | M |
+| RUN-7 | Losing the ship ends the run; salvage is lost, crew, unlocks and banked components (CRF-2) are kept. | M |
 | RUN-8 | A run can be suspended between levels and resumed later. | M |
 | RUN-9 | A daily seed gives every player the same mines. | C |
 | SLV-1 | Destroyed robots drop the weapon or part they used; the player pulls it into the cockpit and slots it by hand. | M |
 | SLV-2 | At least 30 parts at release across weapons, shields, engines and utilities. | M |
 | SLV-3 | Trapped miners can be rescued on most levels; each is lost if the player does not escape. | M |
+| CRF-1 | Destroyed robots also drop components, a small number of resource kinds collected by flying through them. Kinds and drop tables are data. | M |
+| CRF-2 | Components are banked each time the player escapes a level. Components picked up on a level the player does not escape are lost with the ship. | M |
+| CRF-3 | At the hub the player crafts upgrades from banked components: weapons, shields, hull, engines and utility modules. A crafted upgrade is permanent. | M |
+| CRF-4 | Before a run the player fits crafted upgrades to the ship at the hub: weapons into the weapon slots, modules into the utility slots (CRF-5). | M |
+| CRF-5 | A ship has utility slots, separate from the four weapon slots, for modules that are not weapons (for example an extended radar or a mine scanner). The number of slots is ship data. | M |
+| CRF-6 | Upgrades form a tech tree with separate branches (weapons, defence, engines, utility). An upgrade needs the one before it and a component cost. The tree is data. | S |
+| CRF-7 | Higher tiers need components that only deeper levels and riskier shafts drop, so progress in the tree follows progress in depth. | S |
 | CRW-1 | Rescued miners join the hub ship as crew with a role that unlocks a permanent benefit. | M |
-| CRW-2 | The hub is a small room where the player views crew, unlocks and statistics and launches runs. | S |
+| CRW-2 | The hub is a small room where the player views crew, unlocks and statistics, crafts and fits upgrades (CRF-3, CRF-4) and launches runs. | S |
 | CRW-3 | Permanent progression widens options and never trivialises early levels. | S |
 | GEN-1 | Levels are assembled from hand-authored room and tunnel modules joined at standard connectors, from one seed. | M |
 | GEN-2 | The same seed always produces the same level on every device. | M |
@@ -198,7 +205,7 @@ benchmark; human playtests.
 | G1 Flight and comfort | Comfort limit tests pass for all presets; on-device benchmark holds 90 Hz in an empty tunnel | 15 minutes at each preset |
 | G2 Combat | Bots beat a hand-built level against 6 robot types; replays stable | Shooting and being hit read clearly |
 | G3 Mine and escape | 10,000 seeds pass validators; bots escape 95% of cleared levels | Escape is tense and fair on three unseen seeds; map usable under pressure |
-| G4 Roguelike | Bots complete full runs; save and resume survive forced kills | Three runs feel different; a lost run still feels rewarded |
+| G4 Roguelike | Bots complete full runs; save and resume survive forced kills | Three runs feel different; a lost run still feels rewarded; a crafted upgrade is felt in the next run |
 | G5 Co-op | 30-minute soak at 150 ms and 2% loss, zero desyncs; hosting headset meets PRF-9 | Two headsets at home plus one remote finish a run with voice |
 | G6 Look, sound, speed | Stress scene meets PRF-1 to PRF-6 on device; screenshots approved | Quality accepted in the headset; a VR-sensitive tester finishes 10 minutes on preset 1 |
 | G7 Content complete | Bot completion rates per theme in band; no `needs-human` issues open | New player completes onboarding unaided |
@@ -206,13 +213,16 @@ benchmark; human playtests.
 
 ## 9. Milestones
 
+Milestones keep their numbers, but M6 is worked before M5 (decision record 0008): the
+order is M0 to M4, then M6, M5, M7, M8, M9. Gate G6 is closed before work on M5 starts.
+
 - **M0 Pipeline.** Repository, CI for three build targets, scheduled roles, first APK. Gate G0.
 - **M1 Flight and comfort.** Flight model, both control schemes, cockpit, four presets, test tunnel, on-device benchmark. Gate G1.
 - **M2 Combat.** Weapons, shields, damage, six robots, salvage pickup, two-client network smoke test. Gate G2.
 - **M3 Mine and escape.** One theme's module kit, generator, validators, reactor, meltdown, map. Gate G3.
-- **M4 Roguelike layer.** Multi-level runs, shaft choice, 30 parts, miners and crew, hub, profiles, suspend and resume. Gate G4.
-- **M5 Co-op.** Room codes, host and server modes, prediction, voice, pods, rejoin. Gate G5.
-- **M6 Look, sound, speed.** Materials, lighting, effects, audio, music, optimisation. Gate G6.
+- **M4 Roguelike layer.** Multi-level runs, shaft choice, 30 parts, components, crafting and tech tree, utility slots, miners and crew, hub, profiles, suspend and resume. Gate G4.
+- **M5 Co-op.** Worked after M6. Room codes, host and server modes, prediction, voice, pods, rejoin. Gate G5.
+- **M6 Look, sound, speed.** Worked before M5. Materials, lighting, effects, audio, music, optimisation. Gate G6.
 - **M7 Content and balance.** Remaining themes, 12 robots, bosses, onboarding, alarm tuning. Gate G7.
 - **M8 Release candidate.** Stability, settings, accessibility, signed build in both households. Gate G8.
 - **M9 Publishing.** Title (NAM-2), Meta store checks, hosted servers, invites, 8 players, matchmaking.
