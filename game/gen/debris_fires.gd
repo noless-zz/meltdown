@@ -7,11 +7,15 @@ extends RefCounted
 ## `fires` section of `data/gen/debris.json`:
 ##
 ##     "fires": {"count": [0, 2], "radius": [2, 3], "damage_per_second": 5,
-##               "after_seconds": [10, 50], "min_start_distance": 15,
+##               "after_fraction": [0.03, 0.12], "min_start_distance": 15,
 ##               "min_reactor_distance": 6, "min_robot_distance": 2}
 ##
-## `count`, `radius` and `after_seconds` are `[lowest, highest]` ranges like
-## the spheres'; `damage_per_second` is what each fire deals a ship inside it;
+## `count`, `radius` and `after_fraction` are `[lowest, highest]` ranges like
+## the spheres'. `after_fraction` (#620) is when a fire lights, as a fraction
+## of the level's own meltdown countdown (the countdown set the moment the
+## reactor dies, RUN-5), held in thousandths: fixed seconds lit most fires
+## after a short level's escape was over, so the window scales with the level
+## to stay fair. `damage_per_second` is what each fire deals a ship inside it;
 ## the three distances are metres of clear space between the fire's surface and
 ## the start point, the reactor's surface and each robot spawn's surface.
 ##
@@ -26,18 +30,20 @@ extends RefCounted
 ## both, so `output_hash`, the reactor, the robots and every solid entry are as
 ## they were without the section (ARC-2).
 
-const KEYS: Array[String] = ["count", "radius", "damage_per_second", "after_seconds",
+const KEYS: Array[String] = ["count", "radius", "damage_per_second", "after_fraction",
 		"min_start_distance", "min_reactor_distance", "min_robot_distance"]
 ## Draws of a box for one fire before the placing gives up on it.
 const TRIES: int = 32
+## `after_fraction` is held in thousandths of the countdown, so draws are exact (ARC-2).
+const FRACTION_SCALE: int = 1000
 
 var min_count: int = 0
 var max_count: int = 0
 var min_radius_mm: int = 1
 var max_radius_mm: int = 1
 var milli_dps: int = 1
-var min_after_ticks: int = 1
-var max_after_ticks: int = 1
+var min_after_permille: int = 1
+var max_after_permille: int = 1
 var min_start_distance_mm: int = 0
 var min_reactor_distance_mm: int = 0
 var min_robot_distance_mm: int = 0
@@ -76,10 +82,9 @@ static func read(value: Variant, into: Array[DebrisFires]) -> String:
 			"damage_per_second": data["damage_per_second"]}, damage)
 	if problem != "":
 		return "fires.%s" % problem
-	var ticks: Array[int] = []
-	problem = DebrisPlan._read_range(data["after_seconds"], "fires.after_seconds",
-		MeltdownDebris.TICKS_PER_SECOND, 1.0 / MeltdownDebris.TICKS_PER_SECOND,
-		DebrisPlan.MAX_AFTER_SECONDS, "seconds", ticks)
+	var fractions: Array[int] = []
+	problem = DebrisPlan._read_range(data["after_fraction"], "fires.after_fraction",
+		FRACTION_SCALE, 1.0 / FRACTION_SCALE, 1.0, "a fraction of the countdown", fractions)
 	if problem != "":
 		return problem
 	var distances: Array[int] = []
@@ -95,8 +100,8 @@ static func read(value: Variant, into: Array[DebrisFires]) -> String:
 	fires.min_radius_mm = radii[0]
 	fires.max_radius_mm = radii[1]
 	fires.milli_dps = damage[0]
-	fires.min_after_ticks = ticks[0]
-	fires.max_after_ticks = ticks[1]
+	fires.min_after_permille = fractions[0]
+	fires.max_after_permille = fractions[1]
 	fires.min_start_distance_mm = distances[0]
 	fires.min_reactor_distance_mm = distances[1]
 	fires.min_robot_distance_mm = distances[2]
@@ -105,15 +110,15 @@ static func read(value: Variant, into: Array[DebrisFires]) -> String:
 
 
 ## Appends this level's fires to `debris`, after its spheres and doors.
-## `robot_radii_mm` is each robot's radius in spawn order and `fall_limit` the
-## latest tick a fire may start on (`DebrisPlan.fall_limit_ticks`). Returns why
-## fewer fires than drawn were placed, or "".
+## `robot_radii_mm` is each robot's radius in spawn order, `countdown` the
+## level's meltdown countdown in ticks (`DebrisPlan.countdown_ticks`) and
+## `fall_limit` the latest tick a fire may start on
+## (`DebrisPlan.fall_limit_ticks`). Returns why fewer fires than drawn were
+## placed, or "".
 func place(generator: MineGenerator, level: LevelDef, debris: MeltdownDebris,
-		robot_radii_mm: Array[int], fall_limit: int) -> String:
+		robot_radii_mm: Array[int], countdown: int, fall_limit: int) -> String:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = hash([generator.output_hash(), "debris fires"])
-	var fall_rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	fall_rng.seed = hash([generator.output_hash(), "debris fires fall"])
 	var wanted: int = min_count + DebrisPlan._pick(rng, max_count - min_count + 1)
 	if wanted == 0:
 		return ""
@@ -127,7 +132,9 @@ func place(generator: MineGenerator, level: LevelDef, debris: MeltdownDebris,
 	var placed: int = 0
 	for count: int in wanted:
 		var radius: int = min_radius_mm + DebrisPlan._pick(rng, max_radius_mm - min_radius_mm + 1)
-		var ticks: int = min_after_ticks + DebrisPlan._pick(rng, max_after_ticks - min_after_ticks + 1)
+		# One draw, as the seconds were, so the boxes drawn after it are the same.
+		var permille: int = min_after_permille \
+				+ DebrisPlan._pick(rng, max_after_permille - min_after_permille + 1)
 		var spot: int = -1
 		for attempt: int in TRIES:
 			if free.is_empty():
@@ -142,7 +149,7 @@ func place(generator: MineGenerator, level: LevelDef, debris: MeltdownDebris,
 		debris.positions_mm.append(centre_mm(generator, box))
 		debris.radii_mm.append(radius)
 		debris.sizes_mm.append(Vector3i.ZERO)
-		debris.after_ticks.append(_within(ticks, fall_limit, fall_rng))
+		debris.after_ticks.append(after_ticks(permille, countdown, fall_limit))
 		debris.fire_milli_dps.append(milli_dps)
 		debris.skipped.append(false)
 		placed += 1
@@ -206,14 +213,11 @@ static func gap_squared(generator: MineGenerator, box: int, point: Vector3i) -> 
 	return outside.x * outside.x + outside.y * outside.y + outside.z * outside.z
 
 
-## `ticks`, or when it is past `limit` a fresh draw in `min_after_ticks..limit`,
-## as `DebrisPlan` does for spheres.
-func _within(ticks: int, limit: int, fall_rng: RandomNumberGenerator) -> int:
-	if ticks <= limit:
-		return ticks
-	if min_after_ticks >= limit:
-		return limit
-	return min_after_ticks + DebrisPlan._pick(fall_rng, limit - min_after_ticks + 1)
+## The tick a fire drawn at `permille` thousandths of a `countdown`-tick
+## countdown lights on: at least 1, and never past `fall_limit`, the latest
+## tick any meltdown debris may start on.
+static func after_ticks(permille: int, countdown: int, fall_limit: int) -> int:
+	return clampi(countdown * permille / FRACTION_SCALE, 1, maxi(1, fall_limit))
 
 
 static func _distance_squared(a: Vector3i, b: Vector3i) -> int:
