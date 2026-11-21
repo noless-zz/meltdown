@@ -16,6 +16,13 @@ extends RefCounted
 ##
 ## `position_m` is in the cockpit's space from the eye point (x right, y up,
 ## -z ahead). `tilt_deg` turns the panel's top away from the eye.
+##
+## `corners` may be left out (#752): the panel's centre for each of the four
+## corners of the view the owner can choose, in the same space, as
+## `{"top_left": [x, y, z], "top_right": ..., "bottom_left": ...,
+## "bottom_right": ...}`. A panel in a corner is turned to face the eye with
+## its rows level. `position_m` and `tilt_deg` stay the panel's place when no
+## corner is chosen (`PanelCorner.CENTRE`).
 
 const DEFAULT_FILE: String = "res://xr/status_panel_look.json"
 const COLOR_KEYS: Array[String] = ["escaped_color"]
@@ -34,6 +41,13 @@ const OPTIONAL_NUMBER_RANGES: Dictionary = {
 ## Colour and text keys a file may leave out; `FALLBACK` gives the value.
 const OPTIONAL_COLOR_KEYS: Array[String] = ["level_color"]
 const OPTIONAL_TEXT_KEYS: Array[String] = ["level_tunnel_text", "level_seed_text", "level_file_text"]
+## The four corners a `corners` value must name, and nothing else.
+const CORNER_NAMES: Array[String] = ["top_left", "top_right", "bottom_left", "bottom_right"]
+## A corner nearer the eye than this would fill the view and could not be
+## faced at the eye reliably.
+const MIN_CORNER_DISTANCE_M: float = 0.2
+## A corner must lie at least this far ahead (-z), so it can be faced at the eye.
+const AHEAD_M: float = 0.1
 ## The panel must stay inside the ship's 1 m collision sphere, so no wall can
 ## come between it and the eyes.
 const MAX_DISTANCE_M: float = 0.9
@@ -53,6 +67,14 @@ const FALLBACK: Dictionary = {
 	"level_tunnel_text": "Test tunnel",
 	"level_seed_text": "Seed {seed}",
 	"level_file_text": "{name}",
+	# About 17 degrees to the side and 13 up or down at 0.55 m, like the
+	# default's distance: every row stays within 40 degrees of straight ahead.
+	"corners": {
+		"top_left": Vector3(-0.157, 0.124, -0.512),
+		"top_right": Vector3(0.157, 0.124, -0.512),
+		"bottom_left": Vector3(-0.157, -0.124, -0.512),
+		"bottom_right": Vector3(0.157, -0.124, -0.512),
+	},
 }
 
 
@@ -89,7 +111,7 @@ static func parse(text: String) -> Dictionary:
 	var known: Array[String] = keys()
 	for key: Variant in data:
 		if typeof(key) != TYPE_STRING or not (known.has(key) or OPTIONAL_NUMBER_RANGES.has(key) \
-				or OPTIONAL_COLOR_KEYS.has(key) or OPTIONAL_TEXT_KEYS.has(key)):
+				or OPTIONAL_COLOR_KEYS.has(key) or OPTIONAL_TEXT_KEYS.has(key) or key == "corners"):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	for key: String in known:
 		if not data.has(key):
@@ -110,6 +132,11 @@ static func parse(text: String) -> Dictionary:
 		if at.length() > MAX_DISTANCE_M:
 			return {"error": "\"%s\" is %.2f m from the eye, more than %.2f" % [key, at.length(), MAX_DISTANCE_M]}
 		look[key] = at
+	if data.has("corners"):
+		var corners: Variant = _corners(data["corners"])
+		if corners is String:
+			return {"error": corners}
+		look["corners"] = corners
 	for key: String in OPTIONAL_TEXT_KEYS:
 		if data.has(key):
 			if typeof(data[key]) != TYPE_STRING or (data[key] as String).strip_edges() == "":
@@ -128,6 +155,45 @@ static func parse(text: String) -> Dictionary:
 			return {"error": "\"%s\" is %s, must be within %s..%s" % [key, value, range_.x, range_.y]}
 		look[key] = float(value)
 	return look
+
+
+## The panel's transform in the cockpit's space from the eye point, for
+## `corner` (one of `CORNER_NAMES`) or, for any other name, the look's own
+## `position_m` and `tilt_deg`: the place it had before corners (#752).
+static func placement(look: Dictionary, corner: String) -> Transform3D:
+	var corners: Dictionary = look.get("corners", {})
+	if corners.has(corner):
+		var at: Vector3 = corners[corner]
+		# -z away from the eye, so the panel's face (+z) looks back at it.
+		return Transform3D(Basis.looking_at(at, Vector3.UP), at)
+	var tilt: float = deg_to_rad(float(look["tilt_deg"]))
+	return Transform3D(Basis(Vector3.RIGHT, -tilt), look["position_m"] as Vector3)
+
+
+## The `corners` value as names to `Vector3`, or a message naming what is wrong.
+static func _corners(value: Variant) -> Variant:
+	if typeof(value) != TYPE_DICTIONARY:
+		return "\"corners\" must be an object"
+	var given: Dictionary = value
+	for corner_name: Variant in given:
+		if not CORNER_NAMES.has(str(corner_name)):
+			return "unknown corner \"%s\"" % str(corner_name)
+	var corners: Dictionary = {}
+	for corner_name: String in CORNER_NAMES:
+		var key: String = "corners.%s" % corner_name
+		if not given.has(corner_name):
+			return "missing corner \"%s\"" % corner_name
+		var problem: String = _triple_problem(key, given[corner_name], Vector2(-MAX_DISTANCE_M, MAX_DISTANCE_M))
+		if problem != "":
+			return problem
+		var at: Vector3 = Vector3(float(given[corner_name][0]), float(given[corner_name][1]), float(given[corner_name][2]))
+		if at.length() > MAX_DISTANCE_M or at.length() < MIN_CORNER_DISTANCE_M:
+			return "\"%s\" is %.2f m from the eye, must be %.2f..%.2f" % [
+				key, at.length(), MIN_CORNER_DISTANCE_M, MAX_DISTANCE_M]
+		if at.z > -AHEAD_M:
+			return "\"%s\" must lie at least %.2f m ahead of the eye" % [key, AHEAD_M]
+		corners[corner_name] = at
+	return corners
 
 
 ## Empty when `parts` is three numbers within `range_`, else what is wrong.

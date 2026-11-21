@@ -282,13 +282,10 @@ func hull_warning_shown() -> bool:
 
 ## The panel's transform under the rig origin. `cockpit` is where the ship's
 ## centre (the eye point) sits in the rig's tracked space, so the panel moves
-## with the ship and not with the head. Where it sits and its tilt toward the
-## eye come from the look file (#605).
+## with the ship and not with the head. Where it sits comes from the look file
+## (#605) and the corner the owner chose (#752, `PanelCorner.current`).
 static func rig_transform(cockpit: Transform3D) -> Transform3D:
-	var look: Dictionary = StatusPanelLook.shared()
-	var tilt: float = deg_to_rad(float(look["tilt_deg"]))
-	var local: Transform3D = Transform3D(Basis(Vector3.RIGHT, -tilt), look["position_m"] as Vector3)
-	return cockpit * local
+	return cockpit * StatusPanelLook.placement(StatusPanelLook.shared(), PanelCorner.current)
 
 
 ## Where a row at panel height `row_y` sits from the eye point, in the
