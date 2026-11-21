@@ -41,6 +41,9 @@ A run lasts 20-30 minutes and ends in escape or loss of the ship.
 | CMB-3 | At least 12 robot types at release, each with distinct movement, attack and salvage drop. | M |
 | CMB-4 | A boss guarding the reactor on every third level. | S |
 | CMB-5 | Flares and a headlight the player switches on and off. | M |
+| CMB-6 | Look-aim: the ship's guns aim along the pilot's head direction (the Quest 3 has no eye tracking) within a cone around the nose, following it at a gimbal turn rate. The aim direction is part of the player's input each tick, so the authoritative simulation fires along it and replays record it. Cone width and gimbal rate are data and are the same however the pilot has look-aim. | M |
+| CMB-7 | Aim assist: a shot bends towards a target within a small cone of where it is aimed. It is separate from look-aim and can be used alongside it; its cone is data. | S |
+| CMB-8 | Look-aim and aim assist are utility modules (CRF-5), crafted (CRF-3) and fitted (CRF-4) like any other module. Presets 1 and 2 have look-aim without a module, as the comfort table says. Changing preset, including mid-run, sets look-aim to the new preset's value unless a look-aim module is fitted, in which case it stays on. | M |
 | RUN-1 | A run is a chain of 3-5 levels; between levels the player picks one of two or three shafts with shown risks and rewards. | M |
 | RUN-2 | Each level ends by destroying its reactor, which starts a visible meltdown timer. | M |
 | RUN-3 | The exit is the entrance: the player escapes back through explored tunnels. | M |
@@ -80,6 +83,8 @@ Four presets; every setting individually adjustable; the game is completable at 
 | Acceleration feel | Softened | Softened | Full | Full, with inertia drift |
 | Hits | No cockpit shake | Light shake | Full shake | Full shake and spin |
 | Refresh rate | 90 Hz | 90 Hz | 90 Hz | 90 Hz, 120 Hz option |
+| Look-aim (CMB-6) | On, no module | Pilot's option, no module | Crafted module | Crafted module |
+| Aim assist (CMB-7) | Crafted module (open: a mode the pilot toggles to without a module) | Crafted module | Crafted module | Crafted module |
 
 | ID | Requirement | P |
 | --- | --- | --- |
@@ -88,7 +93,7 @@ Four presets; every setting individually adjustable; the game is completable at 
 | CMF-3 | Preset 1 never produces smooth rotation of the view, including impacts, cutscenes and death. | M |
 | CMF-4 | First launch runs a two-minute flight test that recommends a preset; changeable any time, including mid-run. | M |
 | CMF-5 | No level, robot or boss requires manual roll or fast rotation to beat. | M |
-| CMF-6 | Presets change how motion is shown, not balance: speed, damage and timers are identical for everyone. | M |
+| CMF-6 | Presets change how motion is shown, not balance: speed, damage and timers are identical for everyone. Look-aim without a module on presets 1 and 2 (CMB-8) keeps that parity: those presets limit how the ship turns, so without it the pilot could not aim, and it has the same cone and gimbal rate as the crafted module. | M |
 | CMF-7 | Swivel-chair mode: turning the body in a real chair turns the ship. | S |
 | CMF-8 | The view is never moved by anything other than the ship's simulated motion; menus, deaths and level changes use fades. | M |
 | CMF-9 | In co-op, comfort settings apply only to the player's own view. | M |
@@ -164,7 +169,7 @@ generator, network layer, presentation, XR and comfort layer, meta-game.
 | --- | --- | --- |
 | ARC-1 | The simulation core runs with no display, headset or audio device. | M |
 | ARC-2 | Same seed and inputs produce identical state hashes on desktop and Quest. | M |
-| ARC-3 | Comfort settings are applied only in the XR layer and cannot alter simulation state. | M |
+| ARC-3 | Comfort settings are applied only in the XR layer and cannot alter simulation state. A preset only decides whether look-aim is offered (CMB-8); the aim direction is player input to the simulation, never written by the XR layer. | M |
 | ARC-4 | Parts, weapons, robots and room modules are data files, addable without code changes. | M |
 | ARC-5 | All content and settings are text formats under version control; large binaries use Git LFS. | M |
 | ARC-6 | One command builds each target: Quest APK, desktop client, Linux server. | M |
