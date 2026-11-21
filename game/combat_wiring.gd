@@ -27,6 +27,8 @@ var hit_flash: HitFlash = load_hit_flash(HitFlash.DEFAULT_FILE)
 var hit_haptics: HitHaptics = HitHaptics.load_shipped()
 ## The edge strips under the rig's camera, once `attach` found one.
 var hit_overlay: HitFlashOverlay = null
+## Where the guns point while look-aim is on (#923), beside the bolts once `attach` has run.
+var aim_reticle: AimReticle = null
 
 
 ## Puts the projectile, robot and salvage views under `world`, the node whose space is
@@ -50,13 +52,17 @@ func attach(world: Node3D) -> void:
 	world.add_child(salvage_view)
 	salvage_ring = SalvageRing.new()
 	world.add_child(salvage_ring)
+	aim_reticle = AimReticle.new()
+	world.add_child(aim_reticle)
 
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
 ## `panel`, if given, shows the ship's shield, hull, weapon and the part in its
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
-func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0) -> void:
+## The aim reticle shows along the ship's gun direction while `look_aim` is on.
+func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0,
+		look_aim: bool = false) -> void:
 	show_hit_flash(delta)
 	if panel != null:
 		var ship: ShipState = session.current_ship()
@@ -76,6 +82,7 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 		session.current_ship(), session.interpolation_fraction)
 	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction,
 		[pose] as Array[Transform3D])
+	aim_reticle.show_aim(pose, session.current_ship().gun_direction, look_aim)
 	robot_view.show_robots(session.previous_robots(), session.current_robots(),
 		session.interpolation_fraction)
 	salvage_view.show_salvage(session.previous_salvage(), session.current_salvage(),

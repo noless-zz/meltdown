@@ -67,22 +67,35 @@ func test_a_preset_change_rebuilds_the_frame_in_the_same_place() -> String:
 	return message
 
 
-## Head motion is view only: the same frames flown with the head still and
-## with it turning end on the same simulation hash (ARC-3, MP-2).
+## Head motion is view only where look-aim is off (preset 3): the same frames
+## flown with the head still and with it turning end on the same simulation
+## hash (ARC-3, MP-2). Where look-aim is on (preset 2, the start preset) the
+## head is the guns' aim, which is player input (decision record 0010, #923):
+## the guns may turn, but the ship's pose and speed stay exactly the same.
 func test_turning_the_head_leaves_the_simulation_alone() -> String:
-	var hashes: Array[int] = []
-	for turning: bool in [false, true]:
-		var main: Node = Scene.seated_main()
-		main.call("attach_fade_overlay")
-		var values: Dictionary = ControllerSampler.idle_values()
-		values["left_stick"] = Vector2(0.0, 1.0)
-		for i: int in 60:
-			if turning:
-				Scene.camera(main).transform = Transform3D(Basis(Vector3.UP, 0.05 * i), Scene.SEATED_HEAD)
-			main.call("apply_controls", values)
-			main.call("advance_frame", Scene.FRAME)
-		hashes.append((main.get("session") as LocalSession).sim.state_hash())
-		main.free()
-	if hashes[0] != hashes[1]:
-		return "turning the head changed the simulation hash: %d against %d" % [hashes[0], hashes[1]]
+	for preset: int in [3, 2]:
+		var ships: Array[ShipState] = []
+		var hashes: Array[int] = []
+		for turning: bool in [false, true]:
+			var main: Node = Scene.seated_main()
+			main.call("set_comfort_preset", preset)
+			main.call("attach_fade_overlay")
+			var values: Dictionary = ControllerSampler.idle_values()
+			values["left_stick"] = Vector2(0.0, 1.0)
+			for i: int in 60:
+				if turning:
+					Scene.camera(main).transform = Transform3D(Basis(Vector3.UP, 0.05 * i), Scene.SEATED_HEAD)
+				main.call("apply_controls", values)
+				main.call("advance_frame", Scene.FRAME)
+			var session: LocalSession = main.get("session")
+			hashes.append(session.sim.state_hash())
+			ships.append(session.current_ship())
+			main.free()
+		if preset == 3 and hashes[0] != hashes[1]:
+			return "turning the head changed the simulation hash: %d against %d" % [hashes[0], hashes[1]]
+		if preset == 2 and (hashes[0] == hashes[1] or ships[1].gun_direction == LookAim.NOSE):
+			return "on preset 2 turning the head did not aim the guns"
+		if ships[0].position != ships[1].position or ships[0].orientation != ships[1].orientation \
+				or ships[0].velocity != ships[1].velocity:
+			return "on preset %d turning the head moved the ship" % preset
 	return ""

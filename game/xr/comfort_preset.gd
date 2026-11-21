@@ -93,6 +93,14 @@ enum CockpitKind { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL_
 ## Minutes of flying before the "take a break" prompt (CMF-10); 0 is off.
 @export var break_reminder_minutes: float = BREAK_REMINDER_UNSET
 
+@export_group("Aim")
+## Look-aim (CMB-6, CMB-8, decision record 0010): the guns aim where the head
+## looks, within the core's cone. On at preset 1, on by default at preset 2
+## (the pilot's option), off at 3 and 4 until a crafted module exists. Read by
+## `LookAimHead`; it changes only the aim the player asks for, never the cone,
+## the gimbal rate or the damage (CMF-6). The custom file cannot set it.
+@export var look_aim: bool = false
+
 @export_group("Swivel chair")
 ## Swivel-chair mode (CMF-7): turning the body in a real chair turns the ship.
 ## Off on every shipped preset; the custom file can switch it on. Read by
