@@ -19,7 +19,7 @@ const EVERY_CONTROL: Dictionary = {
 	"stick_click": "click: labels, hold: map",
 	"button_upper": "nose down / up",
 	"button_lower": "strafe left / right",
-	"menu": "reset (hold)",
+	"menu": "tap: menu, hold: reset",
 	"trigger": "up, boost",
 	"grip": "roll left, roll right",
 }

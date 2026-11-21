@@ -1,5 +1,6 @@
 {
 	"entries": [
+		{"kind": "update", "label": "Update to {version}"},
 		{"kind": "corner", "label": "Panel corner"},
 		{"kind": "level", "label": "Level"},
 		{"kind": "restart", "label": "Restart level"},
@@ -8,5 +9,6 @@
 	"corners": ["bottom_left", "bottom_right", "top_left", "top_right", "centre"],
 	"tunnel_text": "Test tunnel",
 	"seed_text": "Seed {seed}",
-	"random_text": "Random seed"
+	"random_text": "Random seed",
+	"cancel_update_text": "Cancel update to {version}"
 }

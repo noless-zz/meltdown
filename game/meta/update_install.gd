@@ -22,8 +22,8 @@ const STATUS_ASKED: String = "asked_permission"
 const STATUS_FAILED: String = "failed"
 
 const TEXT_STARTED: String = "Opening the installer..."
-const TEXT_ASK: String = "The headset will ask to allow installs from this app; then tap Menu"
-const TEXT_NOT_STARTED: String = "Installer did not start: %s. Tap Menu to retry"
+const TEXT_ASK: String = "The headset will ask to allow installs from this app; then choose Update in the menu"
+const TEXT_NOT_STARTED: String = "Installer did not start: %s. Choose Update in the menu to retry"
 const TEXT_UPDATED: String = "Updated from %s to %s"
 
 var bridge: UpdateInstallBridge

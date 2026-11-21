@@ -12,6 +12,11 @@ extends RefCounted
 ## notice names the old and new commits once. Nothing is installed unless the
 ## pilot chooses.
 ##
+## Since #763 the tap opens the dev menu (`DevMenuWiring`) instead: it calls
+## `step` each frame, and a waiting build is an entry in that menu
+## (`waiting_version`, `choose_waiting`). `press_menu` keeps the tap's old
+## meaning for the tests that drive it.
+##
 ## Debug builds on the headset only. A release or store build never makes
 ## the request, and a desktop debug run only with `ARG`, so CI and the tests
 ## never reach GitHub. Split from `main.gd` so it gains only a few lines.
@@ -100,8 +105,7 @@ func press_menu(held: bool, now: float = MenuTap.steady_seconds()) -> void:
 		tapped = false
 	if request == null:
 		return
-	if download != null and download.is_busy():
-		download.step()
+	step()
 	if not tapped:
 		return
 	if download != null and download.is_busy():
@@ -112,6 +116,41 @@ func press_menu(held: bool, now: float = MenuTap.steady_seconds()) -> void:
 		_install(install.pending_path)
 	else:
 		request.check_on_request()
+
+
+## Once per frame: steps a running download.
+func step() -> void:
+	if request != null and download_busy():
+		download.step()
+
+
+func download_busy() -> bool:
+	return download != null and download.is_busy()
+
+
+## The short commit of the newer build that waits for the pilot: offered by
+## a check (even once the offer has hidden), downloading, or waiting for the
+## installer. "" when none does, or when the check is not wired.
+func waiting_version() -> String:
+	if request == null or _offered.is_empty():
+		return ""
+	var release: BuildInfo = BuildInfo.new()
+	release.commit = str(_offered.get("commit", BuildInfo.UNKNOWN))
+	return release.short_commit()
+
+
+## The menu's update entry was chosen: cancels a running download, retries
+## an install that waits, and otherwise takes the offered build, as the tap
+## did before #763. Does nothing when no build waits.
+func choose_waiting() -> void:
+	if waiting_version() == "":
+		return
+	if download_busy():
+		download.cancel()
+	elif _install_waits():
+		_install(install.pending_path)
+	elif not notice.choose_update():
+		_on_update_chosen()  # The offer had hidden; the build still waits.
 
 
 func _on_finished(result: Dictionary, asked: bool) -> void:
