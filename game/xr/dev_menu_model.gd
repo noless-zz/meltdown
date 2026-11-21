@@ -10,7 +10,8 @@ extends RefCounted
 ## it is pressed, never while it is held.
 ##
 ## `press` returns what was confirmed, or "" when nothing was:
-## `corner:<name>`, `controls:<scheme>` (#778), `level:<source>` where the source is in the form
+## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
+## `pitch:<normal|inverted>` (#790), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick, `restart`, `update` or `close`.
 ## The update entry is skipped while `update_version` is empty. The menu
@@ -31,6 +32,11 @@ const ACTIONS: Array[String] = [UP, DOWN, LEFT, RIGHT, CONFIRM, SEED_DOWN, SEED_
 const SEED_STEPS: Dictionary = {SEED_DOWN: -1, SEED_UP: 1, SEED_DOWN_FAR: -10, SEED_UP_FAR: 10}
 const CORNER_PREFIX: String = "corner:"
 const CONTROLS_PREFIX: String = "controls:"
+const HANDS_PREFIX: String = "hands:"
+const PITCH_PREFIX: String = "pitch:"
+## The hand and pitch choices, in the order left / right steps through them.
+const HANDS: Array[String] = ["right", "left"]
+const PITCHES: Array[String] = ["normal", "inverted"]
 const LEVEL_PREFIX: String = "level:"
 const RANDOM: String = "random"
 const RESTART: String = "restart"
@@ -48,6 +54,9 @@ var spec: DevMenuSpec
 var selected: int = 0
 var corner_index: int = 0
 var scheme_index: int = 0
+## Indices into `HANDS` and `PITCHES`.
+var hand_index: int = 0
+var pitch_index: int = 0
 ## The level choices, in order: the tunnel, every level file, seed, random.
 ## A level file is its path; the others are the `CHOICE_` names.
 var level_choices: Array[String] = []
@@ -84,13 +93,16 @@ static func level_files() -> Array[String]:
 
 
 ## Shows what is in use when the menu opens: the first entry highlighted,
-## `corner`, the level `source` (as `LevelStart.source` holds it) and the
-## control `scheme` chosen.
-func open(corner: String, source: String, scheme: String = "") -> void:
+## `corner`, the level `source` (as `LevelStart.source` holds it), the
+## control `scheme` and the hand and pitch settings in use.
+func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
+		invert_pitch: bool = false) -> void:
 	selected = _step_shown(-1, 1)
 	_held = {}
 	corner_index = maxi(spec.corners.find(corner), 0)
 	scheme_index = maxi(spec.schemes.find(scheme), 0)
+	hand_index = 1 if left_handed else 0
+	pitch_index = 1 if invert_pitch else 0
 	level_index = 0
 	if source.begins_with(LevelSwitch.SEED_PREFIX):
 		level_index = level_choices.find(CHOICE_SEED)
@@ -142,6 +154,23 @@ func corner() -> String:
 
 func scheme() -> String:
 	return spec.schemes[scheme_index]
+
+
+func hands() -> String:
+	return HANDS[hand_index]
+
+
+func pitch() -> String:
+	return PITCHES[pitch_index]
+
+
+## The words the hands and pitch entries show for their choice.
+func hands_text() -> String:
+	return spec.left_handed_text if hands() == "left" else spec.right_handed_text
+
+
+func pitch_text() -> String:
+	return spec.inverted_pitch_text if pitch() == "inverted" else spec.normal_pitch_text
 
 
 func level_choice() -> String:
@@ -201,6 +230,10 @@ func _change(direction: int) -> void:
 		corner_index = posmod(corner_index + direction, spec.corners.size())
 	elif kind() == DevMenuSpec.KIND_CONTROLS:
 		scheme_index = posmod(scheme_index + direction, spec.schemes.size())
+	elif kind() == DevMenuSpec.KIND_HANDS:
+		hand_index = posmod(hand_index + direction, HANDS.size())
+	elif kind() == DevMenuSpec.KIND_PITCH:
+		pitch_index = posmod(pitch_index + direction, PITCHES.size())
 	elif kind() == DevMenuSpec.KIND_LEVEL:
 		level_index = posmod(level_index + direction, level_choices.size())
 
@@ -211,6 +244,10 @@ func _confirm() -> String:
 			return CORNER_PREFIX + corner()
 		DevMenuSpec.KIND_CONTROLS:
 			return CONTROLS_PREFIX + scheme()
+		DevMenuSpec.KIND_HANDS:
+			return HANDS_PREFIX + hands()
+		DevMenuSpec.KIND_PITCH:
+			return PITCH_PREFIX + pitch()
 		DevMenuSpec.KIND_LEVEL:
 			return LEVEL_PREFIX + level_source()
 		DevMenuSpec.KIND_RESTART:

@@ -4,7 +4,8 @@ extends RefCounted
 ## The in-headset development menu's data file, `res://xr/dev_menu.json`
 ## (#753, ARC-4): which entries it shows and in what order, the panel corners
 ## the corner entry offers, the control schemes the controls entry offers
-## (#778), and the words for the level choices.
+## (#778), and the words for the level choices and the hand and pitch
+## settings (#790).
 ##
 ##     {"entries": [{"kind": "corner", "label": "Panel corner"}, ...],
 ##      "corners": ["top_left", ...], "schemes": ["thumbsticks", "gripped"],
@@ -16,7 +17,9 @@ extends RefCounted
 ## only while a newer build waits; `{version}` in its label, and in
 ## `cancel_update_text` while that build downloads, names it. `schemes` is
 ## optional and defaults to every `ControlSchemeSwitch.SCHEMES`; each must be
-## one of them, at most once.
+## one of them, at most once. The `hands` and `pitch` entries (#790) show
+## `right_handed_text` / `left_handed_text` and `normal_pitch_text` /
+## `inverted_pitch_text`, each optional.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -25,9 +28,12 @@ const KIND_RESTART: String = "restart"
 const KIND_CLOSE: String = "close"
 const KIND_UPDATE: String = "update"
 const KIND_CONTROLS: String = "controls"
+const KIND_HANDS: String = "hands"
+const KIND_PITCH: String = "pitch"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
-	KIND_CONTROLS]
-const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text"]
+	KIND_CONTROLS, KIND_HANDS, KIND_PITCH]
+const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
+	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
@@ -35,6 +41,8 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_CLOSE: "Close",
 	KIND_UPDATE: "Update to {version}",
 	KIND_CONTROLS: "Controls",
+	KIND_HANDS: "Hands",
+	KIND_PITCH: "Pitch",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
@@ -47,6 +55,10 @@ var tunnel_text: String = "Test tunnel"
 var seed_text: String = "Seed {seed}"
 var random_text: String = "Random seed"
 var cancel_update_text: String = "Cancel update to {version}"
+var right_handed_text: String = "right-handed"
+var left_handed_text: String = "left-handed"
+var normal_pitch_text: String = "normal"
+var inverted_pitch_text: String = "inverted"
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 

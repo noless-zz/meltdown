@@ -3,6 +3,8 @@
 		{"kind": "update", "label": "Update to {version}"},
 		{"kind": "corner", "label": "Panel corner"},
 		{"kind": "controls", "label": "Controls"},
+		{"kind": "hands", "label": "Hands"},
+		{"kind": "pitch", "label": "Pitch"},
 		{"kind": "level", "label": "Level"},
 		{"kind": "restart", "label": "Restart level"},
 		{"kind": "close", "label": "Close"}
@@ -12,5 +14,9 @@
 	"tunnel_text": "Test tunnel",
 	"seed_text": "Seed {seed}",
 	"random_text": "Random seed",
-	"cancel_update_text": "Cancel update to {version}"
+	"cancel_update_text": "Cancel update to {version}",
+	"right_handed_text": "right-handed",
+	"left_handed_text": "left-handed",
+	"normal_pitch_text": "normal",
+	"inverted_pitch_text": "inverted"
 }

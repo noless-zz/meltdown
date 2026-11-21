@@ -23,7 +23,10 @@ extends RefCounted
 ## A Controls choice (#778) switches `ControlSchemeSwitch` for the rest of
 ## the session and saves it in `ControlsChoice`. The menu is open at that
 ## moment, so the ship is already on neutral input, and the switch lets go of
-## any grip the gripped scheme held.
+## any grip the gripped scheme held. A Hands or Pitch choice (#790) sets
+## `mapping`, the one both schemes fly through, for the rest of the session
+## and saves it in the same file; the labels, haptics and gripped models read
+## the mapping, so they follow at once.
 ##
 ## It sits beside `main.gd` because it restarts the `net/` session and reads
 ## the flight test and the end screens; `main.gd` gains only a few lines.
@@ -47,7 +50,7 @@ var menu: DevMenu = null
 var tap: MenuTap = MenuTap.new()
 ## Saves the chosen corner; tests point it at a temporary file.
 var corner_store: PanelCorner = PanelCorner.new()
-## Saves the chosen control scheme; tests point it at a temporary file.
+## Saves the chosen control scheme, hands and pitch; tests point it at a temporary file.
 var controls_store: ControlsChoice = ControlsChoice.new()
 ## The scheme the ship flies through and the mapping whose hand setting it
 ## prints; null in tests that do not switch schemes.
@@ -169,6 +172,9 @@ func apply(result: String) -> void:
 	if result.begins_with(DevMenuModel.CONTROLS_PREFIX):
 		_switch_controls(result.substr(DevMenuModel.CONTROLS_PREFIX.length()))
 		return
+	if result.begins_with(DevMenuModel.HANDS_PREFIX) or result.begins_with(DevMenuModel.PITCH_PREFIX):
+		_set_hands(result)
+		return
 	menu.close()
 	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
 		var source: String = result.substr(DevMenuModel.LEVEL_PREFIX.length())
@@ -187,15 +193,31 @@ func _toggle() -> void:
 		menu.close()
 	else:
 		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
-			scheme.scheme if scheme != null else "")
+			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
+			mapping != null and mapping.invert_pitch)
 
 
 ## Only called while the menu is open, so the ship is on neutral input now.
 func _switch_controls(to: String) -> void:
 	if scheme == null:
 		return
-	if scheme.switch_to(to, mapping != null and mapping.left_handed):
+	if scheme.switch_to(to, mapping != null and mapping.left_handed,
+			mapping != null and mapping.invert_pitch):
 		controls_store.save(to)
+
+
+## Only called while the menu is open: the ship is on neutral input, so the
+## flip never reaches a tick mid-push.
+func _set_hands(result: String) -> void:
+	if mapping == null:
+		return
+	if result.begins_with(DevMenuModel.HANDS_PREFIX):
+		mapping.left_handed = result == DevMenuModel.HANDS_PREFIX + "left"
+	else:
+		mapping.invert_pitch = result == DevMenuModel.PITCH_PREFIX + "inverted"
+	controls_store.save_hands(mapping.left_handed, mapping.invert_pitch)
+	if scheme != null:
+		scheme.announce_hands(mapping)
 
 
 func _start_restart(source: String) -> void:

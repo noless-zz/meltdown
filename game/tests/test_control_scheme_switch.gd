@@ -48,7 +48,7 @@ func test_the_scheme_is_printed_once_with_the_hand_setting() -> String:
 	mapping.left_handed = true
 	chosen.map_values(mapping, ControllerSampler.idle_values())
 	chosen.map_values(mapping, ControllerSampler.idle_values())
-	var expected: String = 'MELTDOWN_CONTROLS {"scheme":"gripped","left_handed":true}'
+	var expected: String = 'MELTDOWN_CONTROLS {"scheme":"gripped","left_handed":true,"invert_pitch":false}'
 	if chosen.lines != PackedStringArray([expected]):
 		return "lines %s, expected one %s" % [chosen.lines, expected]
 	return ""

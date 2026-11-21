@@ -16,7 +16,7 @@ var input_source: LatestInputSource = LatestInputSource.new()
 ## The test tunnel's session until `use_level` replaces it (`LevelStart.tunnel_session`).
 var session: LocalSession = LevelStart.tunnel_session(input_source)
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
-var mapping: ThumbstickMapping = ThumbstickMapping.new()
+var mapping: ThumbstickMapping = ControlsChoice.new().apply_hands(ThumbstickMapping.new())  # #790.
 var keyboard: KeyboardSampler = KeyboardSampler.new()
 var controllers: ControllerSampler = null  # Built from the rig's hands in `_ready`.
 var scheme: ControlSchemeSwitch = ControlSchemeSwitch.from_launch()  # --controls=gripped (#739).

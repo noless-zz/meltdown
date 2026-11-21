@@ -3,7 +3,7 @@ extends Node3D
 
 ## The in-headset development menu (#753, part 2 of #748): a small panel of
 ## text lines so the owner can choose the status panel's corner, the control
-## scheme (#778), what to fly, and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
+## scheme (#778), the hand and pitch settings (#790), what to fly, and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
 ## opens it on a tap of the left menu button and acts on what it returns.
 ##
 ## It is hung under the rig origin at the head point like `DestroyedScreen`,
@@ -53,9 +53,11 @@ func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
 	visible = false
 
 
-## Shows the menu with `corner`, the level `source` and the control `scheme` in use selected.
-func open(corner: String, source: String, scheme: String = "") -> void:
-	model.open(corner, source, scheme)
+## Shows the menu with `corner`, the level `source`, the control `scheme`
+## and the hand and pitch settings in use selected.
+func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
+		invert_pitch: bool = false) -> void:
+	model.open(corner, source, scheme, left_handed, invert_pitch)
 	visible = true
 	_refresh()
 
@@ -108,6 +110,10 @@ func _refresh() -> void:
 				text += ": < %s >" % model.corner()
 			DevMenuSpec.KIND_CONTROLS:
 				text += ": < %s >" % model.scheme()
+			DevMenuSpec.KIND_HANDS:
+				text += ": < %s >" % model.hands_text()
+			DevMenuSpec.KIND_PITCH:
+				text += ": < %s >" % model.pitch_text()
 			DevMenuSpec.KIND_LEVEL:
 				text += ": < %s >" % model.level_text()
 			DevMenuSpec.KIND_UPDATE:
