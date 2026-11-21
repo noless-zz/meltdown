@@ -15,6 +15,7 @@ const SAMPLE_RESULTS: Dictionary = {
 	DevMenuSpec.KIND_CONTROLS: DevMenuModel.CONTROLS_PREFIX + "gripped",
 	DevMenuSpec.KIND_HANDS: DevMenuModel.HANDS_PREFIX + "left",
 	DevMenuSpec.KIND_PITCH: DevMenuModel.PITCH_PREFIX + "inverted",
+	DevMenuSpec.KIND_FOVEATION: DevMenuModel.FOVEATION_PREFIX + "2:on",
 	DevMenuSpec.KIND_LEVEL: DevMenuModel.LEVEL_PREFIX + "seed:42",
 	DevMenuSpec.KIND_RESTART: DevMenuModel.RESTART,
 	DevMenuSpec.KIND_FLIGHT_TEST: DevMenuModel.FLIGHT_TEST,
@@ -71,7 +72,7 @@ func test_the_wiring_and_its_helpers_stay_under_the_size_guide() -> String:
 	for path: String in ["res://dev_menu_wiring.gd", "res://dev_menu_entry.gd", "res://dev_menu_corner.gd",
 			"res://dev_menu_controls.gd", "res://dev_menu_comfort.gd", "res://dev_menu_break.gd",
 			"res://dev_menu_refresh.gd", "res://dev_menu_swivel.gd", "res://dev_menu_update.gd",
-			"res://dev_menu_restart.gd"]:
+			"res://dev_menu_restart.gd", "res://dev_menu_foveation.gd"]:
 		var lines: int = FileAccess.get_file_as_string(path).split("\n").size() - 1
 		if lines >= 300:
 			return "%s has %d lines" % [path, lines]
