@@ -82,6 +82,12 @@ enum Kind {
 	## where the heap lay. Reported after the projectile hits, in ship order and
 	## then heap order (`ComponentPickup`). Only with component rules set.
 	COMPONENT_COLLECTED,
+	## A ship held near a trapped miner long enough and the miner boarded
+	## (SLV-3). `ship` is the lowest-index live ship in reach on that tick,
+	## `magnitude` the miner's index in `MinerRescue.trapped` as it was before
+	## this tick's rescues and `vector` where it waited. Reported after the
+	## component pickups, in miner order. Only with rescue rules set.
+	MINER_RESCUED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED
