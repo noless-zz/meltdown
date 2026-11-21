@@ -9,6 +9,7 @@ extends RefCounted
 ## `test_generated_debris.gd` runs on the same shipped data.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const SEED: int = 42
@@ -60,12 +61,12 @@ func test_every_seed_falls_within_the_countdown() -> String:
 	var fractions: Array[float] = []
 	var redrawn: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = inputs.generate(level_seed)
+		# The generator and the shipped level are shared with the other sweeps (#956).
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
 		var bare: LevelDef = generator.to_level_def(inputs.reactor_plan, radius, inputs.robot_plan)
-		var hash_before: int = generator.output_hash()
-		var level: LevelDef = generator.to_level_def(inputs.reactor_plan, radius, inputs.robot_plan,
-				shipped)
-		var problem: String = _unchanged(bare, level, hash_before, generator.output_hash())
+		var level: LevelDef = SeedLevelCache.level(level_seed)
+		var problem: String = _unchanged(bare, level, SeedLevelCache.generated_hash(level_seed),
+				generator.output_hash())
 		if problem == "" and level.debris != null:
 			var countdown: int = _countdown(level)
 			var cap: float = countdown * shipped.latest_fall_fraction

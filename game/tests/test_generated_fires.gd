@@ -11,6 +11,7 @@ extends RefCounted
 ## count of fires placed is printed.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 ## Twice #903's 15 s target, for the CI runner's run-to-run spread, so a
@@ -131,25 +132,28 @@ func test_the_same_seed_places_the_same_fires() -> String:
 
 func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String:
 	var validator: LevelValidator = SeedSweep.load_validator()
-	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
 	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
 	var plan: DebrisPlan = _plan(_file())
-	var solid: DebrisPlan = _solid_only()
 	var radius: float = SeedSweep.ship_radius()
-	# Every seed is generated once for all the sweeps that read it (#903); the
-	# generating is timed on its own, and the limit is on this sweep's checks.
-	var generating: int = Time.get_ticks_msec()
-	var generators: Array[MineGenerator] = SeedSweep.shared_generators(0, SEEDS)
+	# Every seed is generated and built once for all the sweeps that read it
+	# (#903, #956): the shipped level, and the same level without the fires
+	# section. Getting them is timed on its own, and the limit is on this
+	# sweep's checks.
+	var preparing: int = Time.get_ticks_msec()
+	var bares: Array[LevelDef] = []
+	var levels: Array[LevelDef] = []
+	for level_seed: int in SEEDS:
+		bares.append(SeedLevelCache.level(level_seed, SeedLevelCache.WITHOUT_FIRES))
+		levels.append(SeedLevelCache.level(level_seed))
 	var started: int = Time.get_ticks_msec()
-	var generated_ms: int = started - generating
 	var placed: int = 0
 	var seeds_with_fire: int = 0
 	for level_seed: int in SEEDS:
-		var generator: MineGenerator = generators[level_seed]
-		var hash_before: int = generator.output_hash()
-		var bare: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, solid)
-		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
-		var problem: String = _unchanged(bare, level, hash_before, generator.output_hash())
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
+		var bare: LevelDef = bares[level_seed]
+		var level: LevelDef = levels[level_seed]
+		var problem: String = _unchanged(bare, level, SeedLevelCache.generated_hash(level_seed),
+				generator.output_hash())
 		var fires: Array[int] = _fire_entries(level.debris)
 		if problem == "":
 			problem = _fires_fit(generator, level, fires, plan, robot_plan)
@@ -171,14 +175,19 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 			seeds_with_fire += 1
 			placed += fires.size()
 	var elapsed: int = Time.get_ticks_msec() - started
-	print("  fires over seeds 0..%d: %d placed on %d seeds in %d ms (generating, shared: %d ms)" % [
-			SEEDS - 1, placed, seeds_with_fire, elapsed, generated_ms])
+	var shared_ms: int = SeedLevelCache.generate_ms
+	for variant: String in SeedLevelCache.VARIANTS:
+		shared_ms += SeedLevelCache.build_ms[variant]
+	print("  fires over seeds 0..%d: %d placed on %d seeds in %d ms (waited %d ms for shared levels; all sweeps: generating %d ms, building %s ms)" % [
+			SEEDS - 1, placed, seeds_with_fire, elapsed, started - preparing,
+			SeedLevelCache.generate_ms, SeedLevelCache.build_ms])
 	if placed == 0:
 		return "no fire placed over seeds 0..%d" % (SEEDS - 1)
-	# The later sweeps read these generators instead of timing their own, so a
-	# slow generator still fails here (when this sweep was the one to generate).
-	if generated_ms > TIME_LIMIT_MS:
-		return "generating %d seeds took %d ms, limit %d" % [SEEDS, generated_ms, TIME_LIMIT_MS]
+	# The other sweeps read these generators and levels instead of timing their
+	# own, so a slow generator or level build still fails here, whichever sweep
+	# made them.
+	if shared_ms > TIME_LIMIT_MS:
+		return "generating and building the shared levels took %d ms, limit %d" % [shared_ms, TIME_LIMIT_MS]
 	return "" if elapsed <= TIME_LIMIT_MS else "%d seeds took %d ms, limit %d" % [SEEDS, elapsed, TIME_LIMIT_MS]
 
 
