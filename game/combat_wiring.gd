@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Joins the session's combat state to what the main scene shows (CMB-1,
 ## CMB-2, CMB-3, LGT-1, SLV-1): the projectiles, the robots (#228), the
-## floating salvage (#287), the shield and hull bars, the hold row (#316), and
+## floating salvage (#287), the component heaps and trapped miners (#1034), the shield and hull bars, the hold row (#316), and
 ## the weapon row and the pickup and slot messages (#605) on the status panel.
 ##
 ## It sits beside `main.gd`, like `ComfortWiring`, because it reads the `net/`
@@ -18,6 +18,10 @@ var robot_view: RobotView = null
 var salvage_view: SalvageView = null
 ## The rings that show when a part is within reach (#600), beside the parts.
 var salvage_ring: SalvageRing = null
+## The component heaps (#1034), beside the parts once `attach` has run.
+var component_view: ComponentView = null
+## The trapped miners and their rescue rings (#1034), beside the heaps.
+var miner_view: MinerView = null
 ## Says on the hold row what was just picked up or slotted (#605).
 var hold_messages: HoldMessages = HoldMessages.new()
 ## The hit cue on every preset (#618): which side and bar flash. Null when its
@@ -52,6 +56,10 @@ func attach(world: Node3D) -> void:
 	world.add_child(salvage_view)
 	salvage_ring = SalvageRing.new()
 	world.add_child(salvage_ring)
+	component_view = ComponentView.new()
+	world.add_child(component_view)
+	miner_view = MinerView.new()
+	world.add_child(miner_view)
 	aim_reticle = AimReticle.new()
 	world.add_child(aim_reticle)
 
@@ -90,6 +98,9 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	# The rules are fixed before the first tick; reading them writes nothing.
 	salvage_ring.show_rings(session.previous_salvage(), session.current_salvage(),
 		session.interpolation_fraction, session.current_ship(), session.sim.salvage_rules)
+	# Heaps and miners do not move; the views read the sim's lists and write nothing.
+	component_view.show_heaps(session.sim)
+	miner_view.show_miners(session.sim.rescue, session.current_ship())
 
 
 ## Takes in the events of one session advance and `ship`, the local ship (0)
