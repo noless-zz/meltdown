@@ -20,8 +20,7 @@ var mapping: ThumbstickMapping = ControlsChoice.new().apply_hands(LayoutMapping.
 var keyboard: KeyboardSampler = KeyboardSampler.new()
 var controllers: ControllerSampler = null  # Built from the rig's hands in `_ready`.
 var scheme: ControlSchemeSwitch = ControlSchemeSwitch.from_launch()  # --controls=gripped (#739).
-## The comfort preset, its filter and switch, and the one-tick bookkeeping.
-## It only changes the input this player sends, never ship state (CMF-6, ARC-3).
+## Comfort preset, filter, switch and one-tick bookkeeping: input only, never ship state (CMF-6, ARC-3).
 var comfort: ComfortWiring = ComfortWiring.new(input_source, mapping)
 
 var _session_begun: bool = false
@@ -37,8 +36,7 @@ var _resume_frame: bool = false  # Set when focus returns; the next frame may ru
 var status_panel: StatusPanel = null  # Under the rig, added by `attach_status_panel` (#146).
 var build_info: BuildInfo = BuildInfo.load_from(BuildInfo.DEFAULT_PATH)  # On the panel; unknown in an editor.
 var boost_haptics: BoostHaptics = BoostHaptics.new()  # Logs the afterburner, pulses the hand (#170).
-## The bolts, robots, shield and hull, shown from session copies (#189, #228, MP-2).
-var combat: CombatWiring = CombatWiring.new()
+var combat: CombatWiring = CombatWiring.new()  # Bolts, robots, shield, hull from session copies (#189, #228, MP-2).
 var map: MapWiring = MapWiring.new()  # Hologram map in the hand, filled in as the ship explores (#339).
 var meltdown: MeltdownWiring = MeltdownWiring.new()  # Reactor, countdown and outcome row (#359, RUN-2).
 ## When the slot label says to fly through a part to pick it up (#606, #600).
@@ -51,6 +49,7 @@ var destroyed: DestroyedWiring = DestroyedWiring.new()
 var level_start: LevelStart = LevelStart.new()
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
+var vignette: VignetteWiring = VignetteWiring.new()  # Comfort vignette from the shown motion, CMF-1 (#931).
 var dev_menu: DevMenuWiring = DevMenuWiring.new(scheme, mapping, comfort, break_prompt, refresh_rate, foveation)  # #763, #852, #871.
 
 
@@ -167,6 +166,7 @@ func advance_frame(delta_seconds: float) -> void:
 		fade_overlay.set_alpha(maxf(maxf(reset_hold.alpha, destroyed.fade_alpha()), dev_menu.alpha))
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)  # #146, #170.
 	place_rig()
+	vignette.update(comfort, session, delta_seconds, get_node_or_null("XRRig"))  # View only (ARC-3).
 	flight_test.update(delta_seconds, session.paused)
 	break_prompt.update(delta_seconds, BreakPromptWiring.is_flying(session, flight_test, destroyed), _xr_running)
 	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel, delta_seconds)
