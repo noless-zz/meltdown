@@ -3,8 +3,9 @@ extends Node3D
 
 ## The in-headset development menu (#753, part 2 of #748): a small panel of
 ## text lines so the owner can choose the status panel's corner, the control
-## scheme (#778), the hand and pitch settings (#790), the comfort preset (#805), what to
-## fly, and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
+## scheme (#778), the hand and pitch settings (#790), the comfort preset (#805),
+## the break reminder (#821), what to fly, and restart, without adb, and the
+## waiting update. `DevMenuWiring` (#763)
 ## opens it on a tap of the left menu button and acts on what it returns.
 ##
 ## It is hung under the rig origin at the head point like `DestroyedScreen`,
@@ -33,7 +34,7 @@ var _lines: Array[Label3D] = []
 
 ## A closed menu from `spec`, offering the level files at `level_paths`.
 func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
-		level_paths: Array[String] = DevMenuModel.level_files()) -> void:
+		level_paths: Array[String] = DevMenuLevels.files()) -> void:
 	name = NODE_NAME
 	model = DevMenuModel.new(spec, level_paths)
 	for index: int in spec.entries.size():
@@ -55,10 +56,12 @@ func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
 
 
 ## Shows the menu with `corner`, the level `source`, the control `scheme`,
-## the hand and pitch settings and the comfort preset in use selected.
+## the hand and pitch settings, the comfort preset and the break reminder's
+## on/off in use selected.
 func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
-		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER) -> void:
-	model.open(corner, source, scheme, left_handed, invert_pitch, comfort_number)
+		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER,
+		break_on: bool = true) -> void:
+	model.open(corner, source, scheme, left_handed, invert_pitch, comfort_number, break_on)
 	visible = true
 	_refresh()
 
@@ -117,8 +120,10 @@ func _refresh() -> void:
 				text += ": < %s >" % model.pitch_text()
 			DevMenuSpec.KIND_COMFORT:
 				text += ": < %s >" % model.comfort_text()
+			DevMenuSpec.KIND_BREAK:
+				text += ": < %s >" % model.break_text()
 			DevMenuSpec.KIND_LEVEL:
-				text += ": < %s >" % model.level_text()
+				text += ": < %s >" % model.levels.text(model.spec)
 			DevMenuSpec.KIND_UPDATE:
 				text = model.update_text(text)
 		var chosen: bool = index == model.selected

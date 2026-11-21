@@ -171,7 +171,7 @@ func test_choices_save_the_corner_and_restart_on_a_seed_or_the_same_source() -> 
 	PanelCorner.current = PanelCorner.CENTRE
 	# Level: step to the seed choice, then the right trigger up to 40 and B up to 42.
 	now = _select(wiring, DevMenuSpec.KIND_LEVEL, now + 0.5)
-	while wiring.menu.model.level_choice() != DevMenuModel.CHOICE_SEED:
+	while wiring.menu.model.levels.choice() != DevMenuLevels.CHOICE_SEED:
 		_press(wiring, right, now)
 		now += 0.1
 	var far: Dictionary = _values()

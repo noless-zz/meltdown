@@ -11,9 +11,11 @@ extends RefCounted
 ##
 ## `press` returns what was confirmed, or "" when nothing was:
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
-## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805), `level:<source>` where the source is in the form
+## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805),
+## `break:<on|off>` (#821), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
-## `seed:<n>`) or `random` for a fresh pick, `restart`, `update` or `close`.
+## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
+## `update` or `close`.
 ## The update entry is skipped while `update_version` is empty. The menu
 ## only returns these; it never reads or writes the simulation (MP-2, ARC-3).
 
@@ -35,20 +37,17 @@ const CONTROLS_PREFIX: String = "controls:"
 const HANDS_PREFIX: String = "hands:"
 const PITCH_PREFIX: String = "pitch:"
 const COMFORT_PREFIX: String = "comfort:"
+const BREAK_PREFIX: String = "break:"
+const BREAK_ON: String = "on"
+const BREAK_OFF: String = "off"
 ## The hand and pitch choices, in the order left / right steps through them.
 const HANDS: Array[String] = ["right", "left"]
 const PITCHES: Array[String] = ["normal", "inverted"]
 const LEVEL_PREFIX: String = "level:"
-const RANDOM: String = "random"
+const RANDOM: String = DevMenuLevels.RANDOM
 const RESTART: String = "restart"
 const CLOSE: String = "close"
 const UPDATE: String = "update"
-## The largest seed `LevelSwitch` accepts: `SEED_MAX_DIGITS` nines.
-const SEED_MAX: int = 999999999999999999
-## Level choices besides the level files.
-const CHOICE_TUNNEL: String = "tunnel"
-const CHOICE_SEED: String = "seed"
-const CHOICE_RANDOM: String = "random"
 
 var spec: DevMenuSpec
 ## Index of the highlighted entry in `spec.entries`.
@@ -63,11 +62,10 @@ var pitch_index: int = 0
 var preset_names: Array[String] = []
 ## Index into `preset_names`: the preset numbered `preset_index + 1`.
 var preset_index: int = 0
-## The level choices, in order: the tunnel, every level file, seed, random.
-## A level file is its path; the others are the `CHOICE_` names.
-var level_choices: Array[String] = []
-var level_index: int = 0
-var level_seed: int = 0
+## Whether the Break reminder entry shows On (#821, CMF-10).
+var break_on: bool = true
+## The Level entry's choices and seed.
+var levels: DevMenuLevels
 ## The waiting build the update entry names; "" hides the entry (#763).
 var update_version: String = ""
 ## True while that build downloads: the entry then cancels it.
@@ -79,34 +77,20 @@ var _held: Dictionary = {}
 ## A menu from `spec` offering the level files at `level_paths`.
 func _init(p_spec: DevMenuSpec, level_paths: Array[String]) -> void:
 	spec = p_spec
-	level_choices = [CHOICE_TUNNEL]
-	level_choices.append_array(level_paths)
-	level_choices.append_array([CHOICE_SEED, CHOICE_RANDOM])
+	levels = DevMenuLevels.new(level_paths)
 	for number: int in range(1, ComfortPresetFiles.PATHS.size() + 1):
 		var preset: ComfortPreset = ComfortPresetFiles.load_number(number)
 		preset_names.append(preset.display_name if preset != null else str(number))
 
 
-## Every level file in `LevelSwitch.LEVEL_DIR` that `LevelSwitch.path_for`
-## accepts, sorted: the ones `--level=<name>` can fly.
-static func level_files() -> Array[String]:
-	var paths: Array[String] = []
-	for file: String in DirAccess.get_files_at(LevelSwitch.LEVEL_DIR):
-		if not file.ends_with(LevelSwitch.LEVEL_SUFFIX):
-			continue
-		var path: String = LevelSwitch.path_for(file.trim_suffix(LevelSwitch.LEVEL_SUFFIX))
-		if path != "":
-			paths.append(path)
-	paths.sort()
-	return paths
-
-
 ## Shows what is in use when the menu opens: the first entry highlighted,
 ## `corner`, the level `source` (as `LevelStart.source` holds it), the
-## control `scheme`, the hand and pitch settings and the comfort preset
-## `comfort_number` (1..4) in use; another number shows the first preset.
+## control `scheme`, the hand and pitch settings, the comfort preset
+## `comfort_number` (1..4; another number shows the first preset) and whether
+## the break reminder is on, all as in use.
 func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
-		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER) -> void:
+		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER,
+		p_break_on: bool = true) -> void:
 	selected = _step_shown(-1, 1)
 	_held = {}
 	corner_index = maxi(spec.corners.find(corner), 0)
@@ -114,12 +98,8 @@ func open(corner: String, source: String, scheme: String = "", left_handed: bool
 	hand_index = 1 if left_handed else 0
 	pitch_index = 1 if invert_pitch else 0
 	preset_index = comfort_number - 1 if comfort_number >= 1 and comfort_number <= preset_names.size() else 0
-	level_index = 0
-	if source.begins_with(LevelSwitch.SEED_PREFIX):
-		level_index = level_choices.find(CHOICE_SEED)
-		level_seed = maxi(LevelSwitch.seed_from(source.substr(LevelSwitch.SEED_PREFIX.length())), 0)
-	elif level_choices.has(source):
-		level_index = level_choices.find(source)
+	break_on = p_break_on
+	levels.open(source)
 
 
 ## One frame of input: `held` maps action names to whether they are held.
@@ -193,40 +173,9 @@ func pitch_text() -> String:
 	return spec.inverted_pitch_text if pitch() == "inverted" else spec.normal_pitch_text
 
 
-func level_choice() -> String:
-	return level_choices[level_index]
-
-
-## The level source the level entry would confirm: see `press`.
-func level_source() -> String:
-	match level_choice():
-		CHOICE_TUNNEL:
-			return ""
-		CHOICE_SEED:
-			return LevelSwitch.SEED_PREFIX + str(level_seed)
-		CHOICE_RANDOM:
-			return RANDOM
-	return level_choice()
-
-
-## Steps the seed by `amount`, kept within 0..`SEED_MAX`.
-func step_seed(amount: int) -> void:
-	if amount < 0:
-		level_seed = maxi(level_seed + amount, 0)
-	else:
-		level_seed = SEED_MAX if level_seed > SEED_MAX - amount else level_seed + amount
-
-
-## The words the level entry shows for its choice.
-func level_text() -> String:
-	match level_choice():
-		CHOICE_TUNNEL:
-			return spec.tunnel_text
-		CHOICE_SEED:
-			return spec.seed_text.replace("{seed}", str(level_seed))
-		CHOICE_RANDOM:
-			return spec.random_text
-	return level_choice().get_file().trim_suffix(LevelSwitch.LEVEL_SUFFIX).to_upper()
+## The words the Break reminder entry shows: the file's On or Off text.
+func break_text() -> String:
+	return spec.break_on_text if break_on else spec.break_off_text
 
 
 func _act(action: String) -> String:
@@ -240,8 +189,8 @@ func _act(action: String) -> String:
 		CONFIRM:
 			return _confirm()
 		_:
-			if kind() == DevMenuSpec.KIND_LEVEL and level_choice() == CHOICE_SEED:
-				step_seed(SEED_STEPS[action])
+			if kind() == DevMenuSpec.KIND_LEVEL and levels.choice() == DevMenuLevels.CHOICE_SEED:
+				levels.step_seed(SEED_STEPS[action])
 	return ""
 
 
@@ -256,8 +205,10 @@ func _change(direction: int) -> void:
 		pitch_index = posmod(pitch_index + direction, PITCHES.size())
 	elif kind() == DevMenuSpec.KIND_COMFORT:
 		preset_index = posmod(preset_index + direction, preset_names.size())
+	elif kind() == DevMenuSpec.KIND_BREAK:
+		break_on = not break_on  # Two choices, so either direction flips it.
 	elif kind() == DevMenuSpec.KIND_LEVEL:
-		level_index = posmod(level_index + direction, level_choices.size())
+		levels.step(direction)
 
 
 func _confirm() -> String:
@@ -272,8 +223,10 @@ func _confirm() -> String:
 			return PITCH_PREFIX + pitch()
 		DevMenuSpec.KIND_COMFORT:
 			return COMFORT_PREFIX + str(comfort_number())
+		DevMenuSpec.KIND_BREAK:
+			return BREAK_PREFIX + (BREAK_ON if break_on else BREAK_OFF)
 		DevMenuSpec.KIND_LEVEL:
-			return LEVEL_PREFIX + level_source()
+			return LEVEL_PREFIX + levels.source()
 		DevMenuSpec.KIND_RESTART:
 			return RESTART
 		DevMenuSpec.KIND_UPDATE:

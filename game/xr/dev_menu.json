@@ -3,6 +3,7 @@
 		{"kind": "update", "label": "Update to {version}"},
 		{"kind": "corner", "label": "Panel corner"},
 		{"kind": "comfort", "label": "Comfort"},
+		{"kind": "break", "label": "Break reminder"},
 		{"kind": "controls", "label": "Controls"},
 		{"kind": "hands", "label": "Hands"},
 		{"kind": "pitch", "label": "Pitch"},
@@ -19,5 +20,7 @@
 	"right_handed_text": "right-handed",
 	"left_handed_text": "left-handed",
 	"normal_pitch_text": "normal",
-	"inverted_pitch_text": "inverted"
+	"inverted_pitch_text": "inverted",
+	"break_on_text": "On",
+	"break_off_text": "Off"
 }
