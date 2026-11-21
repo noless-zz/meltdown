@@ -228,7 +228,12 @@ func _run(overrides: Dictionary) -> AcceptanceRunner:
 	runner.quit_callback = _on_quit
 	runner.seed_overrides = overrides
 	var scene: PackedScene = load("res://main.tscn") as PackedScene
-	runner.setup(scene.instantiate(), suites, null)
+	# Built and readied as on the headset, so the cockpit that `escape_cue`
+	# reads is there (#885).
+	var main: Node = scene.instantiate()
+	main.get_node("XRRig").call("build")
+	main.call("_ready")
+	runner.setup(main, suites, null)
 	var frames: int = 0
 	while not runner.finished and frames < FRAME_LIMIT:
 		runner.process_frame()
