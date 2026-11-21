@@ -2,8 +2,8 @@ extends RefCounted
 
 ## Swivel-chair yaw (CMF-7, CMF-3, ARC-3): off by default, nothing inside the
 ## dead zone, a growing value of the right sign past it up to the cap, a
-## recentre resets the reference, preset 1 still turns only by snaps, and a
-## bad data file is reported naming the field.
+## recentre resets the reference, preset 1 still turns only by snaps, and the
+## settings come from the comfort preset, a bad one reported naming the field.
 
 ## One headset frame at 90 Hz.
 const FRAME_S: float = 1.0 / 90.0
@@ -16,18 +16,42 @@ func _valid_data() -> Dictionary:
 	}
 
 
+## A swivel built from a copy of preset 2 with the swivel rows from `data`,
+## whose keys drop the preset fields' `swivel_` prefix.
 func _swivel(data: Dictionary = _valid_data()) -> SwivelYaw:
-	return SwivelYaw.parse_json(JSON.stringify(data))
+	return SwivelYaw.from_preset(_preset(data))
 
 
-func test_shipped_file_loads_and_is_off() -> String:
-	var swivel: SwivelYaw = SwivelYaw.load_file()
+func _preset(data: Dictionary) -> ComfortPreset:
+	var preset: ComfortPreset = ComfortPresetFiles.load_number(2).duplicate() as ComfortPreset
+	for key: String in data:
+		preset.set("swivel_" + key, data[key])
+	return preset
+
+
+func test_shipped_presets_are_off() -> String:
+	for number: int in [1, 2, 3, 4]:
+		var swivel: SwivelYaw = SwivelYaw.from_preset(ComfortPresetFiles.load_number(number))
+		if swivel.error != "":
+			return "preset %d rejected: %s" % [number, swivel.error]
+		if swivel.enabled:
+			return "swivel must be off on preset %d" % number
+		if swivel.update(deg_to_rad(120.0), FRAME_S) != 0.0:
+			return "off swivel on preset %d gave input" % number
+	return ""
+
+
+func test_takes_every_setting_from_the_preset() -> String:
+	var swivel: SwivelYaw = _swivel({
+		"enabled": true, "dead_zone_deg": 20.0, "gain_per_deg": 0.05,
+		"max_input": 0.6, "follow_deg_per_s": 12.0,
+	})
 	if swivel.error != "":
-		return "shipped file rejected: %s" % swivel.error
-	if swivel.enabled:
-		return "swivel must be off by default"
-	if swivel.update(deg_to_rad(120.0), FRAME_S) != 0.0:
-		return "off swivel gave input"
+		return "valid preset rejected: %s" % swivel.error
+	var got: Array = [swivel.enabled, swivel.dead_zone_deg, swivel.gain_per_deg,
+		swivel.max_input, swivel.follow_deg_per_s]
+	if got != [true, 20.0, 0.05, 0.6, 12.0]:
+		return "settings read as %s" % str(got)
 	return ""
 
 
@@ -150,33 +174,34 @@ func test_preset_two_cap_holds() -> String:
 	return ""
 
 
-func test_bad_file_names_the_field() -> String:
+func test_bad_preset_names_the_field_and_stays_off() -> String:
 	var cases: Array = [
-		["enabled", "yes"],
 		["dead_zone_deg", -1.0],
 		["gain_per_deg", 2.0],
-		["max_input", true],
+		["max_input", 1.5],
 		["follow_deg_per_s", 500.0],
+		["dead_zone_deg", NAN],
 	]
 	for entry: Array in cases:
 		var data: Dictionary = _valid_data()
 		data[entry[0]] = entry[1]
 		var swivel: SwivelYaw = _swivel(data)
-		if swivel.error.find("\"%s\"" % entry[0]) < 0:
+		if swivel.error.find("swivel_%s" % entry[0]) < 0:
 			return "%s = %s: error \"%s\" does not name the field" % [entry[0], entry[1], swivel.error]
 		if swivel.enabled:
-			return "%s = %s: a rejected file left swivel on" % [entry[0], entry[1]]
-	for key: String in _valid_data():
-		var missing: Dictionary = _valid_data()
-		missing.erase(key)
-		if _swivel(missing).error.find("\"%s\"" % key) < 0:
-			return "missing %s not reported by name" % key
-	var extra: Dictionary = _valid_data()
-	extra["turbo"] = 1
-	if _swivel(extra).error.find("\"turbo\"") < 0:
-		return "unknown key not reported by name"
-	if SwivelYaw.load_file("res://xr/no_such_swivel.json").error == "":
-		return "missing file accepted"
+			return "%s = %s: a rejected preset left swivel on" % [entry[0], entry[1]]
+	var missing: SwivelYaw = SwivelYaw.from_preset(null)
+	if missing.error == "" or missing.enabled:
+		return "a missing preset was accepted"
+	return ""
+
+
+func test_no_swivel_data_file_is_left() -> String:
+	if FileAccess.file_exists("res://xr/swivel.json"):
+		return "res://xr/swivel.json still exists; the preset holds the swivel settings"
+	var source: String = FileAccess.get_file_as_string("res://xr/swivel_yaw.gd")
+	if source.contains(".json"):
+		return "swivel_yaw.gd still reads a data file"
 	return ""
 
 

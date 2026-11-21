@@ -1,7 +1,0 @@
-{
-	"enabled": false,
-	"dead_zone_deg": 30,
-	"gain_per_deg": 0.03,
-	"max_input": 1.0,
-	"follow_deg_per_s": 5
-}

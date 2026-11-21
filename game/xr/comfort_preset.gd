@@ -93,6 +93,29 @@ enum CockpitKind { SOLID_SMALL_WINDOWS, SOLID_WIDE_CANOPY, OPEN_CANOPY, MINIMAL_
 ## Minutes of flying before the "take a break" prompt (CMF-10); 0 is off.
 @export var break_reminder_minutes: float = BREAK_REMINDER_UNSET
 
+@export_group("Swivel chair")
+## Swivel-chair mode (CMF-7): turning the body in a real chair turns the ship.
+## Off on every shipped preset; the custom file can switch it on. Read by
+## `SwivelYaw`. The tuning below is a guess for a headset session.
+@export var swivel_enabled: bool = false
+## Head yaw either side of forward that turns nothing, degrees.
+@export_range(0.0, 90.0) var swivel_dead_zone_deg: float = 30.0
+## Stick yaw per degree past the dead zone.
+@export_range(0.0, 1.0) var swivel_gain_per_deg: float = 0.03
+## Largest stick yaw the swivel may give.
+@export_range(0.0, 1.0) var swivel_max_input: float = 1.0
+## How fast forward follows the body, degrees per second; 0 never follows.
+@export_range(0.0, 180.0) var swivel_follow_deg_per_s: float = 5.0
+
+## Allowed range of each swivel number, inclusive: [minimum, maximum]. Keep in
+## step with the `@export_range` hints above, which the custom file checks.
+const SWIVEL_RANGES: Dictionary[String, Array] = {
+	"swivel_dead_zone_deg": [0.0, 90.0],
+	"swivel_gain_per_deg": [0.0, 1.0],
+	"swivel_max_input": [0.0, 1.0],
+	"swivel_follow_deg_per_s": [0.0, 180.0],
+}
+
 
 ## Empty when the preset's values can be used; otherwise names the bad field.
 ## Only fields with a rule of their own are checked; the rest are typed.
@@ -100,6 +123,12 @@ func validation_error() -> String:
 	if not is_finite(break_reminder_minutes) or break_reminder_minutes < 0.0:
 		return "break_reminder_minutes is %s, must be a number of at least 0" \
 			% str(break_reminder_minutes)
+	for field: String in SWIVEL_RANGES:
+		var value: float = get(field)
+		var low: float = SWIVEL_RANGES[field][0]
+		var high: float = SWIVEL_RANGES[field][1]
+		if not is_finite(value) or value < low or value > high:
+			return "%s is %s, must be within %s..%s" % [field, str(value), low, high]
 	return ""
 
 

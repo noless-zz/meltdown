@@ -17,12 +17,10 @@ extends RefCounted
 ## recentre puts the reference back on the head at once.
 ##
 ## Kept apart from look-aim (#678), which also reads the head direction but
-## for aiming, not turning. The tuning values are guesses for a headset
-## session and live in `res://xr/swivel.json` so the owner can change them.
+## for aiming, not turning. The switch and tuning are rows of the comfort
+## preset (#779), so the custom comfort file can turn the mode on (CMF-1).
 
-const DEFAULT_FILE: String = "res://xr/swivel.json"
-
-## Off unless the file says otherwise.
+## Off unless the preset says otherwise.
 var enabled: bool = false
 ## Head yaw either side of the reference that gives nothing, degrees, 0..90.
 var dead_zone_deg: float = 30.0
@@ -34,69 +32,29 @@ var max_input: float = 1.0
 ## 0 never follows.
 var follow_deg_per_s: float = 5.0
 
-## Every number key of the data file, named like the field it sets. The file
-## also holds the bool `enabled`.
-const NUMBER_KEYS: Array[String] = [
-	"dead_zone_deg", "gain_per_deg", "max_input", "follow_deg_per_s",
-]
-
-## Allowed range of each number key, inclusive: [minimum, maximum]. Keep these
-## in step with the ranges written on the fields above.
-const RANGES: Dictionary[String, Array] = {
-	"dead_zone_deg": [0.0, 90.0],
-	"gain_per_deg": [0.0, 1.0],
-	"max_input": [0.0, 1.0],
-	"follow_deg_per_s": [0.0, 180.0],
-}
-
-## Set when the text was rejected; empty otherwise.
+## Set when the preset was rejected; empty otherwise.
 var error: String = ""
 ## Head yaw that counts as facing forward, radians about +Y.
 var reference_rad: float = 0.0
 
 
-## Parses the text of a swivel data file: one JSON object holding `enabled` as
-## a bool and every key of `NUMBER_KEYS` as a number in its range, and nothing
-## else. On failure the returned swivel has `error` set, naming the field, and
-## default values, so it stays off.
-static func parse_json(text: String) -> SwivelYaw:
-	var json: JSON = JSON.new()
-	if json.parse(text) != OK:
-		return _rejected("invalid JSON at line %d: %s" % [json.get_error_line(), json.get_error_message()])
-	if typeof(json.data) != TYPE_DICTIONARY:
-		return _rejected("top level must be a JSON object")
-	var data: Dictionary = json.data
-	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or (key != "enabled" and not NUMBER_KEYS.has(key)):
-			return _rejected("unknown key \"%s\"" % str(key))
-	if not data.has("enabled"):
-		return _rejected("missing key \"enabled\"")
-	if typeof(data["enabled"]) != TYPE_BOOL:
-		return _rejected("key \"enabled\" must be true or false")
+## Takes the swivel settings of `preset`. A missing preset, or one that fails
+## `ComfortPreset.validation_error()`, gives a swivel that stays off with
+## `error` naming the reason.
+static func from_preset(preset: ComfortPreset) -> SwivelYaw:
 	var swivel: SwivelYaw = SwivelYaw.new()
-	swivel.enabled = bool(data["enabled"])
-	for key: String in NUMBER_KEYS:
-		if not data.has(key):
-			return _rejected("missing key \"%s\"" % key)
-		var value: Variant = data[key]
-		# A bool must not pass as 0 or 1.
-		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
-			return _rejected("key \"%s\" must be a number" % key)
-		var low: float = RANGES[key][0]
-		var high: float = RANGES[key][1]
-		if float(value) < low or float(value) > high:
-			return _rejected("key \"%s\" is %s, must be within %s..%s" % [key, value, low, high])
-		swivel.set(key, float(value))
-	return swivel
-
-
-## Reads and parses the file at `path`. A missing file is rejected like bad text.
-static func load_file(path: String = DEFAULT_FILE) -> SwivelYaw:
-	if not FileAccess.file_exists(path):
-		return _rejected("file %s not found" % path)
-	var swivel: SwivelYaw = parse_json(FileAccess.get_file_as_string(path))
-	if swivel.error != "":
-		swivel.error = "%s: %s" % [path, swivel.error]
+	if preset == null:
+		swivel.error = "no comfort preset"
+		return swivel
+	var invalid: String = preset.validation_error()
+	if not invalid.is_empty():
+		swivel.error = invalid
+		return swivel
+	swivel.enabled = preset.swivel_enabled
+	swivel.dead_zone_deg = preset.swivel_dead_zone_deg
+	swivel.gain_per_deg = preset.swivel_gain_per_deg
+	swivel.max_input = preset.swivel_max_input
+	swivel.follow_deg_per_s = preset.swivel_follow_deg_per_s
 	return swivel
 
 
@@ -138,8 +96,3 @@ static func added_to(input: ShipInput, stick_yaw: float) -> ShipInput:
 	out.turn_q = Vector3i(out.turn_q.x, clampi(out.turn_q.y + extra, -full, full), out.turn_q.z)
 	return out
 
-
-static func _rejected(message: String) -> SwivelYaw:
-	var swivel: SwivelYaw = SwivelYaw.new()
-	swivel.error = message
-	return swivel
