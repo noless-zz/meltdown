@@ -19,6 +19,9 @@ const FIELD_BASE: String = "base"
 const FIELD_NAME: String = "display_name"
 const DEFAULT_NAME: String = "Custom"
 const LOG_PREFIX: String = "Meltdown: custom comfort"
+## Preset fields the custom file may not set. Look-aim stays off in custom mode,
+## as at presets 3 and 4, until the owner decides (decision record 0010).
+const NOT_SETTABLE: Array[String] = ["look_aim"]
 
 ## The preset to use, or null when there is no custom file.
 var preset: ComfortPreset = null
@@ -76,6 +79,7 @@ static func parse(text: String) -> ComfortCustom:
 	# A duplicate, so the shipped preset that later loads share is never changed.
 	var custom: ComfortPreset = base.duplicate() as ComfortPreset
 	custom.display_name = DEFAULT_NAME
+	custom.look_aim = false
 	var fields: Dictionary = settable_fields()
 	for key: Variant in data.keys():
 		var field: String = str(key)
@@ -103,7 +107,8 @@ static func settable_fields() -> Dictionary:
 	var fields: Dictionary = {}
 	for property: Dictionary in ComfortPreset.new().get_property_list():
 		var usage: int = property["usage"]
-		if usage & PROPERTY_USAGE_SCRIPT_VARIABLE and usage & PROPERTY_USAGE_EDITOR:
+		if usage & PROPERTY_USAGE_SCRIPT_VARIABLE and usage & PROPERTY_USAGE_EDITOR \
+				and not NOT_SETTABLE.has(property["name"]):
 			fields[property["name"]] = property
 	return fields
 

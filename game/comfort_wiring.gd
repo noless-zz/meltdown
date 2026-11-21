@@ -46,6 +46,8 @@ var view_log: ViewLog = ViewLog.from_run()
 ## Swivel-chair yaw (CMF-7, #791): added to the input before `filter` when the
 ## active preset switches it on; `set_preset` hands it each new preset.
 var swivel: SwivelWiring = SwivelWiring.new()
+## Look-aim (CMB-6, #923): the head's forward becomes the input's aim while the preset says so.
+var look_aim: LookAimHead = LookAimHead.new()
 ## The dev menu's Swivel chair choice (#853), a `SwivelChoice` UNSET, OFF or ON.
 var swivel_choice: int = SwivelChoice.UNSET
 
@@ -80,6 +82,7 @@ func _init(p_input_source: LatestInputSource, p_mapping: ThumbstickMapping) -> v
 	if hit_shake != null:
 		hit_shake.preset = preset
 	swivel.set_preset(preset)
+	look_aim.set_preset(preset)
 
 
 ## Makes preset `p_number` (1..4, or the custom mode, which needs an accepted
@@ -101,6 +104,7 @@ func set_preset(p_number: int) -> void:
 	if hit_shake != null:
 		hit_shake.preset = preset
 	swivel.set_preset(preset)
+	look_aim.set_preset(preset)
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
 	view_log.event("preset=%d rebuilt=cockpit_frame,input_filter,hit_shake frame_point=unchanged" % p_number)
 
@@ -151,6 +155,7 @@ func next_number() -> int:
 func attach_cockpit_frame(rig: Node3D, recentre: HeadRecentre = null) -> void:
 	if recentre != null:
 		swivel.attach(rig, recentre)
+		look_aim.attach(rig, recentre)
 	if cockpit_frame != null:
 		return
 	cockpit_frame = CockpitFrame.new(cockpit_spec())
@@ -220,6 +225,7 @@ func shared_click_hold() -> ClickHold:
 ## `orientation` is the ship's, read only, for the pitch limit and auto-level.
 ## `reset_due` replaces the input with a still reset tick; `ship_held` stops the swivel (#819).
 func hand_input(input: ShipInput, orientation: Basis, reset_due: bool, ship_held: bool = false) -> void:
+	input = look_aim.aimed(input)  # The head's aim, or the nose (#923).
 	if one_tick_pending:
 		var held: ShipInput = _input_source.latest_input()
 		if held.reset_to_start:

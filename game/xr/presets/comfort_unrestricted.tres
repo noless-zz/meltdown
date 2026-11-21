@@ -26,6 +26,7 @@ hit_spin = true
 refresh_rate_hz = 90
 allow_120_hz = true
 break_reminder_minutes = 0.0
+look_aim = false
 swivel_enabled = false
 swivel_dead_zone_deg = 30.0
 swivel_gain_per_deg = 0.03
