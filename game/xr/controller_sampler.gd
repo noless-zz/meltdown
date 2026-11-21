@@ -20,6 +20,11 @@ extends RefCounted
 ## `left_grip`, `right_grip` (float 0..1) and `buttons` (button name from
 ## `ThumbstickMapping.BUTTONS`, or `MENU_BUTTON`, -> bool). No mapping binds
 ## `MENU_BUTTON`; `ResetHold` reads it.
+##
+## A sampler given a third callable, `pose.call(hand: String) -> Transform3D`
+## (the hand's pose in the rig's frame), also fills `POSES` with one pose per
+## tracked hand; the gripped scheme reads it (#739). Without it the key is
+## absent, as from `KeyboardSampler`.
 
 const HANDS: Array[String] = ["left", "right"]
 ## OpenXR button action -> the position name `ThumbstickMapping` uses. A/X is
@@ -35,14 +40,18 @@ const BUTTON_ACTIONS: Dictionary[String, String] = {
 ## reaches the app, so only the left hand is read.
 const MENU_ACTION: String = "menu_button"
 const MENU_BUTTON: String = "left_menu"
+## Values key: hand name -> Transform3D, present only with a pose callable.
+const POSES: String = "poses"
 
 var tracking: Callable
 var read: Callable
+var pose: Callable
 
 
-func _init(p_tracking: Callable, p_read: Callable) -> void:
+func _init(p_tracking: Callable, p_read: Callable, p_pose: Callable = Callable()) -> void:
 	tracking = p_tracking
 	read = p_read
+	pose = p_pose
 
 
 ## A sampler that reads the given rig controllers.
@@ -61,7 +70,10 @@ static func for_controllers(left: XRController3D, right: XRController3D) -> Cont
 		if action == "trigger" or action == "grip":
 			return controller.get_float(action)
 		return controller.is_button_pressed(action)
-	return ControllerSampler.new(is_tracking, read_action)
+	var read_pose: Callable = func(hand: String) -> Transform3D:
+		var controller: XRController3D = pick.call(hand)
+		return controller.transform if controller != null else Transform3D.IDENTITY
+	return ControllerSampler.new(is_tracking, read_action, read_pose)
 
 
 ## Values with every stick centred, every trigger and grip released and no
@@ -88,9 +100,12 @@ static func map_values(mapping: ThumbstickMapping, values: Dictionary) -> ShipIn
 func sample() -> Dictionary:
 	var values: Dictionary = idle_values()
 	var buttons: Dictionary = {}
+	var poses: Dictionary = {}
 	for hand: String in HANDS:
 		if not bool(tracking.call(hand)):
 			continue
+		if pose.is_valid():
+			poses[hand] = pose.call(hand)
 		values[hand + "_stick"] = _vector(hand, "primary")
 		values[hand + "_trigger"] = _float(hand, "trigger")
 		values[hand + "_grip"] = _float(hand, "grip")
@@ -100,6 +115,8 @@ func sample() -> Dictionary:
 		if hand == "left" and _pressed(hand, MENU_ACTION):
 			buttons[MENU_BUTTON] = true
 	values["buttons"] = buttons
+	if pose.is_valid():
+		values[POSES] = poses
 	return values
 
 
