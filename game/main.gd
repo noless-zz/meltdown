@@ -75,8 +75,8 @@ func _ready() -> void:
 	var args: PackedStringArray = OS.get_cmdline_args() + OS.get_cmdline_user_args()
 	set_comfort_preset(ComfortPresetFiles.number_from_args(args))
 	_smoke_probe = XrSmokeProbe.new(XrSmokeProbe.frames_from_args(OS.get_cmdline_user_args()))
-	# One mapping, so a remap or left-handed mode reaches the control labels too (#110).
-	$XRRig.mapping = mapping
+	$XRRig.mapping = mapping  # One mapping: a remap or left-handed mode reaches the labels (#110).
+	scheme.attach_models($XRRig)  # The gripped stick and throttle in the hands (#789).
 	boost_haptics.left_controller = get_node_or_null("XRRig/LeftHand") as XRController3D
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(

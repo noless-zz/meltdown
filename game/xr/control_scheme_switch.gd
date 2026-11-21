@@ -29,6 +29,8 @@ var scheme: String = THUMBSTICKS
 ## Whether an argument or intent extra named a valid scheme; it then beats the saved one.
 var from_switch: bool = false
 var gripped: GrippedSampler = GrippedSampler.new()
+## The stick and throttle shown in the hands (#789); null until `attach_models`.
+var models: GrippedModels = null
 ## Every warning and log line printed, so tests can read them.
 var warnings: PackedStringArray = PackedStringArray()
 var lines: PackedStringArray = PackedStringArray()
@@ -84,6 +86,8 @@ func switch_to(to: String, left_handed: bool) -> bool:
 		return false
 	scheme = to
 	gripped.release_all()
+	if models != null:
+		models.set_shown(is_gripped())
 	_log(format_line(scheme, left_handed, "menu"))
 	return true
 
@@ -92,13 +96,29 @@ func is_gripped() -> bool:
 	return scheme == GRIPPED
 
 
+## Hangs the gripped stick and throttle models under `rig`, the frame the
+## sampled poses are in. View only: `map_values` updates them from the same
+## grab points it flies from (#789).
+func attach_models(rig: Node3D, p_models: GrippedModels = GrippedModels.new()) -> void:
+	if models != null:
+		return
+	models = p_models
+	models.attach(rig)
+	models.set_shown(is_gripped())
+
+
 ## One tick's input from one frame's values, through the chosen scheme.
 func map_values(mapping: ThumbstickMapping, values: Dictionary) -> ShipInput:
 	if lines.is_empty():
 		_log(format_line(scheme, mapping.left_handed))
+	var input: ShipInput
 	if is_gripped() and values.has(ControllerSampler.POSES):
-		return gripped.map_values(values, mapping)
-	return ControllerSampler.map_values(mapping, values)
+		input = gripped.map_values(values, mapping)
+	else:
+		input = ControllerSampler.map_values(mapping, values)
+	if models != null:
+		models.update(is_gripped(), gripped, values, mapping.left_handed)
+	return input
 
 
 func _log(line: String) -> void:
