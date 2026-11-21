@@ -100,8 +100,11 @@ static func parse_weapon_line(replay: Replay, line: String,
 ## robot's type, optional ones included (a wake range only when set), and its
 ## "weapon" key the resolved weapon's values, or null for an unarmed robot
 ## (version 9).
-static func robot_text(spawn: RobotSpawn) -> String:
+## With `drops`, the robot type's drop table goes in too (`ReplayRulesLine`).
+static func robot_text(spawn: RobotSpawn, drops: bool = false) -> String:
 	var def_data: Dictionary = {}
+	if drops and not spawn.def.components.is_empty():
+		def_data[RobotDef.COMPONENTS_KEY] = ReplayRulesLine.drop_table(spawn.def)
 	for key: String in RobotDef.KEYS + RobotDef.OPTIONAL_KEYS:
 		# An unset wake range is left out, so lines for robots without one
 		# read exactly as before (#301).

@@ -34,7 +34,8 @@ extends RefCounted
 ## (`AcceptanceRefresh120`).
 ## `run` (#989) flies a run's first level in place of `seed` or `level`, and
 ## `expected_next_level_hash` goes with the run_advances or shaft_choice check
-## (`AcceptanceRunStep`, `AcceptanceShaftChoiceCheck`).
+## (`AcceptanceRunStep`, `AcceptanceShaftChoiceCheck`). `expected_banked`
+## goes with the components_bank check (`AcceptanceComponentsBankCheck`, #1028).
 ##
 ## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -47,7 +48,7 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS,
 	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED,
 	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY, AcceptanceRunStep.KEY_RUN,
-	AcceptanceRunStep.KEY_NEXT_HASH]
+	AcceptanceRunStep.KEY_NEXT_HASH, AcceptanceComponentsBankCheck.KEY]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -97,7 +98,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 				or check == AcceptanceStep.CHECK_HIT_VIEW_MOTION or check == AcceptanceStep.CHECK_ESCAPE_SCREEN
 				or check == AcceptanceStep.CHECK_MAP_ROUTE or check == AcceptanceStep.CHECK_ESCAPE_CUE
 				or check == AcceptanceStep.CHECK_MAP_MARKERS or check == AcceptanceStep.CHECK_VIGNETTE
-				or check == AcceptanceStep.CHECK_RUN_ADVANCES or check == AcceptanceStep.CHECK_SHAFT_CHOICE) \
+				or check == AcceptanceStep.CHECK_RUN_ADVANCES or check == AcceptanceStep.CHECK_SHAFT_CHOICE
+				or check == AcceptanceStep.CHECK_COMPONENTS_BANK) \
 				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)
@@ -125,6 +127,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceRefresh120.parse_step(data, field, step)
 	if problem == "":
 		problem = AcceptanceRunStep.parse_step(data, field, step)  # #989.
+	if problem == "":
+		problem = AcceptanceComponentsBankCheck.parse_step(data, field, step)  # #1028.
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

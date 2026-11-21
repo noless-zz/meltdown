@@ -37,13 +37,31 @@ static func tunnel_session(input: ShipInputSource) -> LocalSession:
 ## The session for the level file or seed at `path`, from the level's start
 ## with its robots, with the level drawn under `world` where the tunnel was;
 ## null, drawing nothing, for "" or a rejected file.
-static func level_session(world: Node3D, path: String, input: ShipInputSource) -> LocalSession:
+## `rules`, when given, turns component drops and miner rescue on (#1028).
+static func level_session(world: Node3D, path: String, input: ShipInputSource,
+		rules: RunLevelRules = null) -> LocalSession:
 	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
 	if level == null:
 		return null
 	var session: LocalSession = LocalSession.for_level(level, 0, input, LocalSession.load_tuning(SHIP_TUNING_PATH))
+	if rules != null:
+		rules.install(session, level)
 	LevelSwitch.show_level(world, level)
 	return session
+
+
+## `level_session` for `path`, with drops and rescue on when `path` is the
+## level the run flies now (#1028): a level flown alone keeps them off.
+func session_for(world: Node3D, path: String, input: ShipInputSource) -> LocalSession:
+	return level_session(world, path, input, run_rules(path))
+
+
+## The rules a session for `path` gets: the data files' when the run flies
+## `path` now and has `RunWiring.level_rules` on, otherwise null.
+func run_rules(path: String) -> RunLevelRules:
+	if run == null or not run.active() or not run.level_rules or path != run.level_source():
+		return null
+	return RunLevelRules.load_files()
 
 
 ## Takes what the launch asks to fly (`LevelSwitch.requested_path`). A run,
@@ -70,7 +88,7 @@ func fresh_session(world: Node3D, input: ShipInputSource, ended: LocalSession = 
 			run.stop()
 		elif RunWiring.ends_level(ended.sim.outcome(), ended.current_ship().hull):
 			source = run.after_session(ended)
-	var session: LocalSession = level_session(world, source, input)
+	var session: LocalSession = session_for(world, source, input)
 	if session != null:
 		return session
 	LevelSwitch.show_tunnel(world, TUNNEL_OFFSET)

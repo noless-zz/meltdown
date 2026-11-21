@@ -30,8 +30,15 @@ static func fly_seed(main: Node, level_seed: int, replay: Replay, source: Replay
 	if level == null:
 		return "seed %d: the level was rejected; the log says why" % level_seed
 	LevelSwitch.show_level(main as Node3D, level)
-	main.set("session", LocalSession.for_level(level, replay.run_seed, source,
-		LocalSession.load_tuning(SHIP_FILE)))
+	var session: LocalSession = LocalSession.for_level(level, replay.run_seed, source,
+		LocalSession.load_tuning(SHIP_FILE))
+	# A run step that checks drops flies its level as `--run` does (#1028).
+	var level_start: LevelStart = main.get("level_start") as LevelStart
+	var rules: RunLevelRules = level_start.run_rules(LevelSwitch.SEED_PREFIX + str(level_seed)) \
+		if level_start != null else null
+	if rules != null:
+		rules.install(session, level)
+	main.set("session", session)
 	return ""
 
 

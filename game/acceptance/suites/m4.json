@@ -18,6 +18,15 @@
 			"checks": ["outcome", "no_script_errors", "shaft_choice"],
 			"expected_outcome": "ESCAPED",
 			"expected_next_level_hash": 1431193924
+		},
+		{
+			"id": "components_bank",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"checks": ["final_hash", "outcome", "no_script_errors", "components_bank"],
+			"expected_hash": 2628837371,
+			"expected_outcome": "ESCAPED",
+			"expected_banked": {"cell_salts": 1}
 		}
 	]
 }

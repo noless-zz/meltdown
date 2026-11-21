@@ -68,7 +68,8 @@ func test_text_round_trip_is_exact() -> String:
 
 func test_header_has_version_and_seed_then_one_line_per_tick() -> String:
 	var lines: PackedStringArray = _record(42, 1).to_text().strip_edges().split("\n")
-	if lines[0] != "meltdown-replay %d" % Replay.FORMAT_VERSION:
+	# Without run-level rules a replay is written as version 17 (#1028).
+	if lines[0] != "meltdown-replay %d" % ReplayRulesLine.PLAIN_VERSION:
 		return "first line is '%s'" % lines[0]
 	if lines[1] != "seed 42":
 		return "second line is '%s'" % lines[1]

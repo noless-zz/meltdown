@@ -48,6 +48,9 @@ extends RefCounted
 ##                              optional (version 16): `ReplaySalvageLine`
 ##     aim {"cone_degrees":35.0,...}
 ##                              optional (version 17): `ReplayAimLine`
+##     components {"pickup_reach":2.5}
+##     rescue {"hold_seconds":2.0,"miners":[...],...}
+##                              optional (version 18): `ReplayRulesLine`
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1 0
 ##                              one line per tick: thrust x y z, turn x y z,
@@ -58,13 +61,14 @@ extends RefCounted
 ##                              further ships follow after " | "
 ##
 ## Older versions lack some columns and lines; `ReplayHeader` lists which.
-## Files are always written as the current version.
+## Files are written as the current version, except that a replay without
+## version 18's lines is written as 17 (`ReplayRulesLine.format_version`).
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 17
+const FORMAT_VERSION: int = 18
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -104,6 +108,11 @@ var parts: Dictionary[String, WeaponDef] = {}
 var salvage_rules: SalvageRules = null
 ## Look-aim cone and gimbal rate (CMB-6), or null for the defaults.
 var look_aim: LookAim = null
+## Component drops, and miner rescue with its trapped `miners` in millimetres,
+## on a run level (#1028), or null when off.
+var component_rules: ComponentPickup = null
+var rescue_rules: MinerRescue = null
+var miners: Array[Vector3i] = []
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.
@@ -152,6 +161,7 @@ func run() -> Sim:
 	if salvage_rules != null:
 		sim.set_salvage_rules(salvage_rules)
 	ReplayAimLine.apply(self, sim)
+	ReplayRulesLine.apply(self, sim)
 	for index: int in frames.size():
 		var inputs: Array[ShipInput] = []
 		inputs.assign(frames[index])
@@ -231,7 +241,7 @@ func walls() -> BoxUnion:
 
 func to_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
-	lines.append("%s %d" % [FORMAT_NAME, FORMAT_VERSION])
+	lines.append("%s %d" % [FORMAT_NAME, ReplayRulesLine.format_version(self)])
 	lines.append("seed %d" % run_seed)
 	lines.append("ships %d" % ship_count)
 	if expected_hash != NO_HASH:
@@ -248,11 +258,12 @@ func to_text() -> String:
 	if loadout != null:
 		lines.append_array(ReplayLines.weapon_lines(loadout))
 	for spawn: RobotSpawn in robots:
-		lines.append(ReplayLines.robot_text(spawn))
+		lines.append(ReplayLines.robot_text(spawn, component_rules != null))
 	lines.append_array(ReplayPartLines.part_lines(parts))
 	if salvage_rules != null:
 		lines.append(ReplaySalvageLine.text(salvage_rules))
 	lines.append_array(ReplayAimLine.lines(self))
+	lines.append_array(ReplayRulesLine.lines(self))
 	lines.append("inputs")
 	for frame: Array in frames:
 		lines.append(ReplayLines.tick_text(frame))

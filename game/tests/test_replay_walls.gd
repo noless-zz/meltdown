@@ -134,7 +134,7 @@ func test_a_one_box_replay_reads_as_before() -> String:
 	if sim == null or sim.state_hash() != old_way.state_hash():
 		return "one-box replay runs differently from a sim built from bounds()"
 	var lines: PackedStringArray = replay.to_text().split("\n")
-	if lines[0] != "meltdown-replay %d" % Replay.FORMAT_VERSION or lines[3] != "box -5000 -4000 -40000 5000 4000 1":
+	if lines[0] != "meltdown-replay %d" % ReplayRulesLine.PLAIN_VERSION or lines[3] != "box -5000 -4000 -40000 5000 4000 1":
 		return "rewritten text:\n" + replay.to_text()
 	return ""
 
