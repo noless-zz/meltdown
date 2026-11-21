@@ -18,6 +18,8 @@ const ROWS: Dictionary = {
 	"hits": {"hit_shake": 0.9, "hit_spin": true},
 	"refresh rate": {"refresh_rate_hz": 72, "allow_120_hz": true},
 	"breaks": {"break_reminder_minutes": 45.0},
+	"swivel chair": {"swivel_enabled": true, "swivel_dead_zone_deg": 20.0, "swivel_gain_per_deg": 0.05,
+		"swivel_max_input": 0.7, "swivel_follow_deg_per_s": 10.0},
 }
 const FIELDS_SEEN: Array[String] = ["display_name"]
 
@@ -113,6 +115,9 @@ func test_bad_fields_are_rejected_by_name_and_the_base_kept() -> String:
 		{"field": "vignette_strength", "value": 1.5},
 		{"field": "hit_shake", "value": -0.1},
 		{"field": "break_reminder_minutes", "value": -5.0},
+		{"field": "swivel_dead_zone_deg", "value": -5.0},
+		{"field": "swivel_follow_deg_per_s", "value": 500.0},
+		{"field": "swivel_enabled", "value": "yes"},
 	]
 	var base: ComfortPreset = ComfortPresetFiles.load_number(3)
 	for case: Dictionary in cases:
@@ -121,6 +126,25 @@ func test_bad_fields_are_rejected_by_name_and_the_base_kept() -> String:
 			return "%s = %s: error \"%s\" does not name the field" % [case["field"], case["value"], result.error]
 		if result.preset != base:
 			return "%s = %s: the base preset was not used unchanged" % [case["field"], case["value"]]
+	return ""
+
+
+func test_swivel_can_be_switched_on_over_preset_two() -> String:
+	# CMF-7 is a row of the custom mode (#779): only the switch changes.
+	var result: ComfortCustom = parse({"base": 2, "swivel_enabled": true})
+	if not result.error.is_empty():
+		return "swivel_enabled rejected: %s" % result.error
+	if not result.preset.swivel_enabled:
+		return "swivel_enabled is still off"
+	var base: ComfortPreset = ComfortPresetFiles.load_number(2)
+	for field: String in ComfortCustom.settable_fields():
+		if field == "display_name" or field == "swivel_enabled":
+			continue
+		if result.preset.get(field) != base.get(field):
+			return "%s is %s, preset 2 has %s" % [field, result.preset.get(field), base.get(field)]
+	var swivel: SwivelYaw = SwivelYaw.from_preset(result.preset)
+	if not swivel.enabled or swivel.error != "":
+		return "SwivelYaw from the custom preset is off: %s" % swivel.error
 	return ""
 
 
