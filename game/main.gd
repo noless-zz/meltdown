@@ -18,8 +18,8 @@ var session: LocalSession = LevelStart.tunnel_session(input_source)
 ## Controller and keyboard values both fly through this one mapping (PLT-5).
 var mapping: ThumbstickMapping = ThumbstickMapping.new()
 var keyboard: KeyboardSampler = KeyboardSampler.new()
-## Built from the rig's hands in `_ready`; null until then.
-var controllers: ControllerSampler = null
+var controllers: ControllerSampler = null  # Built from the rig's hands in `_ready`.
+var scheme: ControlSchemeSwitch = ControlSchemeSwitch.from_launch()  # --controls=gripped (#739).
 ## The comfort preset, its filter and switch, and the one-tick bookkeeping.
 ## It only changes the input this player sends, never ship state (CMF-6, ARC-3).
 var comfort: ComfortWiring = ComfortWiring.new(input_source, mapping)
@@ -138,7 +138,7 @@ func apply_controls(values: Dictionary) -> void:
 	destroyed.read_buttons(buttons)
 	reset_hold.press(ResetHold.is_held(values) and not flight_test.takes_menu_hold())  # Skips the test.
 	update.press_menu(ResetHold.is_held(values))  # A tap shorter than the reset hold.
-	comfort.hand_input(flight_test.held(ControllerSampler.map_values(mapping, values)),
+	comfort.hand_input(flight_test.held(scheme.map_values(mapping, values)),
 		session.current_ship().orientation, reset_hold.reset_due())
 
 

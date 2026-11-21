@@ -115,3 +115,18 @@ key", and for the preset button: "swap and make X comfort preset".
 
 Headset check: down on Y and up on B feel symmetrical; X changes the preset and is hard to
 press by accident.
+
+## Gripped-stick scheme (#739), proposed until the owner's headset check
+
+`--controls=gripped` (or the intent extra `meltdown_controls`) flies the gripped virtual
+stick and throttle; the thumbsticks stay the default. The scheme's buttons:
+
+- The afterburner moves from X to the throttle hand's **upper** face button, **Y** (B in
+  left-handed mode), because X is now the comfort preset button (amendment above). The
+  upper button is free in this scheme since lift comes from moving the throttle. It is named
+  once, as `GrippedSampler.AFTERBURNER_BUTTON`.
+- Fire stays on the stick hand's trigger; the left menu hold still resets, X still changes
+  the preset and the left stick click still toggles the labels.
+
+This is the Planner's choice for the owner to overrule. Headset check: Y boosts, X still
+changes the preset, and boost on Y feels right with the left hand on the throttle.
