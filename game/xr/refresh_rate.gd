@@ -10,6 +10,10 @@ extends RefCounted
 ## `display_refresh_rate` read back 90.0 while the display ran at 72. It is
 ## taken from the runtime's `refresh_rate_changed` event, or, when no event
 ## comes (the rate did not change), read back `READ_BACK_FRAMES` later.
+##
+## The pilot's 120 Hz option (`RefreshChoice`, #838) is loaded here when the
+## session begins, so `main.gd` is not touched: with it on, a preset that
+## allows 120 Hz asks for 120, and every other preset asks for its own rate.
 
 const LOG_PREFIX: String = "Meltdown: refresh rate"
 ## Rates above this need a preset with `allow_120_hz` (CMF-1).
@@ -29,6 +33,9 @@ var offered: Array[float] = []
 var in_use_hz: float = UNKNOWN
 ## Every line logged, so tests can read them.
 var lines: PackedStringArray = PackedStringArray()
+## The pilot's 120 Hz option; loaded from the launch when the session begins
+## unless a test set it first.
+var choice: RefreshChoice = null
 
 ## The OpenXR interface, or a test's stand-in with the same members; null
 ## until the session begins.
@@ -46,10 +53,11 @@ static func target_hz(preset: ComfortPreset) -> float:
 	return target
 
 
-## The offered rate to ask for: the preset's rate if offered, otherwise the
-## highest offered below it; UNKNOWN when nothing offered is at or below it.
-static func choose(offered_rates: Array, preset: ComfortPreset) -> float:
-	var target: float = target_hz(preset)
+## The offered rate to ask for: the wanted rate (the preset's own, or 120 Hz
+## when `high` and the preset allows it) if offered, otherwise the highest
+## offered below it; UNKNOWN when nothing offered is at or below it.
+static func choose(offered_rates: Array, preset: ComfortPreset, high: bool = false) -> float:
+	var target: float = RefreshChoice.HIGH_HZ if high and preset.allow_120_hz else target_hz(preset)
 	var best: float = UNKNOWN
 	for value: Variant in offered_rates:
 		var rate: float = float(value)
@@ -63,6 +71,9 @@ static func choose(offered_rates: Array, preset: ComfortPreset) -> float:
 ## Called when the XR session begins with the OpenXR interface.
 func begin(runtime: Object, preset: ComfortPreset) -> void:
 	_runtime = runtime
+	if choice == null:
+		choice = RefreshChoice.from_launch()
+	print(choice.describe())  # Apart from `lines`, which holds rates read back.
 	if runtime.has_signal("refresh_rate_changed") \
 			and not runtime.is_connected("refresh_rate_changed", on_runtime_changed):
 		runtime.connect("refresh_rate_changed", on_runtime_changed)
@@ -76,7 +87,7 @@ func apply(preset: ComfortPreset) -> void:
 	offered.clear()
 	for value: Variant in _runtime.call("get_available_display_refresh_rates"):
 		offered.append(float(value))
-	requested_hz = choose(offered, preset)
+	requested_hz = choose(offered, preset, choice != null and choice.on)
 	if requested_hz != UNKNOWN:
 		_runtime.set("display_refresh_rate", requested_hz)
 	_frames_left = READ_BACK_FRAMES

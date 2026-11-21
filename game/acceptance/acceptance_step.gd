@@ -80,11 +80,16 @@ const CHECK_FLIGHT_TEST_RESULT: String = "flight_test_result"
 ## not turning and alive (#776, FLT-1, CMF-8; `AcceptanceResetCheck`). Needs a
 ## replay that sends `reset_to_start`.
 const CHECK_AT_START: String = "at_start"
+## No simulation tick, state hash change or camera movement while the step's
+## solo pause holds, and the replay resumes on the next tick with no input
+## skipped (#804, PLT-7, CMF-8; `AcceptancePauseCheck`). Needs `pause_at_tick`.
+const CHECK_HELD_WHILE_PAUSED: String = "held_while_paused"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
-	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START]
+	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
+	CHECK_HELD_WHILE_PAUSED]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -98,6 +103,7 @@ const MAX_PRESET: int = 4
 const NO_HASH: int = -1
 const NO_OUTCOME: int = -1
 const NO_SEED: int = -1
+const NO_PAUSE: int = -1
 
 ## Unique within its suite; names the step in the report.
 var id: String = ""
@@ -151,6 +157,10 @@ var expected_preset: int = NO_PRESET
 ## (`AcceptancePresetChanges`). Ticks rise; both lists are empty for none.
 var preset_change_ticks: Array[int] = []
 var preset_change_presets: Array[int] = []
+## The solo pause (#804, `AcceptancePauseCheck`): the tick the headset comes
+## off before, or NO_PAUSE, and how long it stays off.
+var pause_at_tick: int = NO_PAUSE
+var pause_seconds: float = 0.0
 
 
 func has_check(check: String) -> bool:
