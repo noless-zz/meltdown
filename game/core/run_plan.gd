@@ -65,6 +65,23 @@ func depth(index: int) -> int:
 	return index + 1
 
 
+## Shafts offered after the level at `index` (RUN-1, #927): 2 or 3 kinds of
+## `shafts`, drawn from that level's seed, so from the run seed and the index.
+## None after the last level or for an index outside the plan.
+func offer_after(index: int, shafts: ShaftOffer) -> Array[String]:
+	if index < 0 or index + 1 >= level_count():
+		return []
+	return shafts.draw(level_seed(index))
+
+
+## Generator seed of the level at `index` (1 or more) when it is reached through
+## the shaft `kind`; -1 for index 0, an index outside the plan or an unknown kind.
+func level_seed_through(index: int, shafts: ShaftOffer, kind: String) -> int:
+	if index < 1 or index >= level_count():
+		return -1
+	return shafts.seed_for(level_seed(index), kind)
+
+
 func plan_hash() -> int:
 	return hash([run_seed, level_seeds])
 
