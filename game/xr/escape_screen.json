@@ -1,0 +1,18 @@
+{
+	"fade_seconds": 1.0,
+	"hold_seconds": 3.0,
+	"line_text": "ESCAPED",
+	"time_text": "{time} left",
+	"prompt_xr": "Press A to fly again",
+	"prompt_flat": "Press Enter to fly again",
+	"line_color": [0.35, 1.0, 0.45],
+	"time_color": [0.85, 0.95, 1.0],
+	"prompt_color": [0.85, 0.95, 1.0],
+	"line_position_m": [0.0, 0.1, -1.5],
+	"time_position_m": [0.0, -0.01, -1.5],
+	"prompt_position_m": [0.0, -0.11, -1.5],
+	"line_font_size": 96,
+	"time_font_size": 64,
+	"prompt_font_size": 48,
+	"pixel_size": 0.001
+}
