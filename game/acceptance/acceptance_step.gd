@@ -139,6 +139,11 @@ var screenshot_at_end: bool = false
 ## and the preset the test must end on.
 var flight_test_answers: Array[String] = []
 var expected_preset: int = NO_PRESET
+## Comfort presets switched to while the replay flies (#777, CMF-4): at
+## `preset_change_ticks[i]` the runner changes to `preset_change_presets[i]`
+## (`AcceptancePresetChanges`). Ticks rise; both lists are empty for none.
+var preset_change_ticks: Array[int] = []
+var preset_change_presets: Array[int] = []
 
 
 func has_check(check: String) -> bool:

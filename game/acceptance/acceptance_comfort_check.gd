@@ -30,8 +30,11 @@ const CAPPED_PRESET: int = 2
 ## report read later shows the headset was worn and moved during the step.
 const HEAD_TURN_NOTE_DEG: float = 5.0
 
+## The preset in force now; a step's `preset_changes` (#777) change it mid-flight.
 var preset_number: int = 0
 var preset: ComfortPreset = null
+## Every preset the step flew under, in order, starting with the first.
+var preset_numbers: Array[int] = []
 ## Frames measured, frames that turned smoothly, frames that jumped at once.
 var frames: int = 0
 var smooth_rotation_frames: int = 0
@@ -57,6 +60,17 @@ var _has_previous: bool = false
 func _init(p_preset_number: int, p_preset: ComfortPreset) -> void:
 	preset_number = p_preset_number
 	preset = p_preset
+	preset_numbers.append(p_preset_number)
+
+
+## The player switched to preset `p_preset_number` mid-flight (CMF-4): the
+## frames from the next sample on are judged against its limits, including the
+## frame of the change itself, so a view that swings as the preset changes
+## fails on preset 1.
+func change_preset(p_preset_number: int, p_preset: ComfortPreset) -> void:
+	preset_number = p_preset_number
+	preset = p_preset
+	preset_numbers.append(p_preset_number)
 
 
 ## A check for `step` reading `main`'s active preset, or null when the step
@@ -166,7 +180,9 @@ func _frame_failure(angle: float, yaw: float, pitch: float) -> String:
 
 ## [result, message] once the replay has flown, adding the measurements.
 func run(measurements: Dictionary) -> Array:
-	measurements["comfort_preset"] = preset_number
+	measurements["comfort_preset"] = preset_numbers[0]
+	if preset_numbers.size() > 1:
+		measurements["comfort_presets"] = preset_numbers.duplicate()
 	measurements["max_yaw_deg_s"] = max_yaw_deg_s
 	measurements["max_pitch_deg_s"] = max_pitch_deg_s
 	measurements["max_roll_deg_s"] = max_roll_deg_s
@@ -179,10 +195,18 @@ func run(measurements: Dictionary) -> Array:
 		return [AcceptanceReport.RESULT_FAIL, "the scene has no comfort preset to read"]
 	if frames == 0:
 		return [AcceptanceReport.RESULT_FAIL, "no frame of the view was measured"]
-	var summary: String = "preset %d, %d frames: yaw %.1f°/s, pitch %.1f°/s, roll %.1f°/s at most; %d smooth, %d jumps" % [
-		preset_number, frames, max_yaw_deg_s, max_pitch_deg_s, max_roll_deg_s, smooth_rotation_frames, snap_frames]
+	var summary: String = "preset %s, %d frames: yaw %.1f°/s, pitch %.1f°/s, roll %.1f°/s at most; %d smooth, %d jumps" % [
+		_presets_text(), frames, max_yaw_deg_s, max_pitch_deg_s, max_roll_deg_s, smooth_rotation_frames, snap_frames]
 	if head_turn_deg > HEAD_TURN_NOTE_DEG:
 		summary += "; the head turned up to %.0f° (%.0f°/s at most), not counted" % [head_turn_deg, max_head_deg_s]
 	if first_failure != "":
 		return [AcceptanceReport.RESULT_FAIL, "%s; %s" % [first_failure, summary]]
 	return [AcceptanceReport.RESULT_PASS, summary]
+
+
+## "4" for one preset, "4→1→3→2" when the step changed it.
+func _presets_text() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for number: int in preset_numbers:
+		parts.append(str(number))
+	return "→".join(parts)

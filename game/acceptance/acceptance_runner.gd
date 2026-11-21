@@ -56,6 +56,7 @@ var _frames: AcceptanceFrameBudgetCheck = null
 var _comfort: AcceptanceComfortCheck = null
 var _view: AcceptanceViewFlatCheck = null
 var _flight: AcceptanceFlightTestCheck = null  # A flight_test_result step's test, or null.
+var _changes: AcceptancePresetChanges = null  # The step's mid-flight presets (#777), or null.
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -156,6 +157,7 @@ func _start_step(step: AcceptanceStep) -> void:
 		main.call("set_comfort_preset", step.preset)
 	_comfort = AcceptanceComfortCheck.for_step(step, main)
 	_flight = AcceptanceFlightTestCheck.for_step(step, main)
+	_changes = AcceptancePresetChanges.for_step(step)
 	if step.replay_path == "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
@@ -183,6 +185,8 @@ func _step_ready(step: AcceptanceStep) -> bool:
 		var session: LocalSession = main.get("session")
 		screenshots.take(session.sim.tick, _source.tick_count())
 		if session.sim.tick < _source.tick_count():
+			if _changes != null:
+				_changes.apply(main, session.sim.tick, _comfort)
 			main.call("advance_frame", ShipState.TICK_DT)
 			if _comfort != null:
 				_comfort.sample_main(main, ShipState.TICK_DT)
