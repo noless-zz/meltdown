@@ -84,12 +84,16 @@ const CHECK_AT_START: String = "at_start"
 ## solo pause holds, and the replay resumes on the next tick with no input
 ## skipped (#804, PLT-7, CMF-8; `AcceptancePauseCheck`). Needs `pause_at_tick`.
 const CHECK_HELD_WHILE_PAUSED: String = "held_while_paused"
+## The view's hit shake and spin, sampled each rendered frame while the replay
+## flies, match the active preset's `hit_shake` and `hit_spin` (#849, CMF-1;
+## `AcceptanceHitMotionCheck`). Needs a replay to sample.
+const CHECK_HIT_VIEW_MOTION: String = "hit_view_motion"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
-	CHECK_HELD_WHILE_PAUSED]
+	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,

@@ -20,6 +20,7 @@ var view: AcceptanceViewFlatCheck = null
 var flight: AcceptanceFlightTestCheck = null
 var changes: AcceptancePresetChanges = null  # The step's mid-flight presets (#777), or null.
 var pause: AcceptancePauseCheck = null  # The step's solo pause (#804), or null.
+var hit_motion: AcceptanceHitMotionCheck = null  # The step's hit shake and spin (#849), or null.
 ## Script errors logged before the step started, set by the runner once the
 ## samplers above exist; no_script_errors counts the rest.
 var errors_at_start: int = 0
@@ -41,6 +42,7 @@ func begin_scene(step: AcceptanceStep, main: Node) -> void:
 	flight = AcceptanceFlightTestCheck.for_step(step, main)
 	changes = AcceptancePresetChanges.for_step(step)
 	pause = AcceptancePauseCheck.for_step(step)
+	hit_motion = AcceptanceHitMotionCheck.for_step(step)
 
 
 ## One rendered frame. The frame the step starts on is not a frame budget sample.
@@ -62,11 +64,13 @@ func before_tick(main: Node, tick: int) -> void:
 		pause.before_frame(main, tick)
 
 
-## After a replay frame: the view's rotation for comfort_motion, and what the
-## pause held.
+## After a replay frame: the view's rotation for comfort_motion, its hit
+## motion for hit_view_motion, and what the pause held.
 func after_tick(main: Node) -> void:
 	if comfort != null:
 		comfort.sample_main(main, ShipState.TICK_DT)
+	if hit_motion != null:
+		hit_motion.sample_main(main)
 	if pause != null:
 		pause.after_frame(main)
 
@@ -120,6 +124,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_VIEW_NOT_FLAT: _view_not_flat,
 		AcceptanceStep.CHECK_FLIGHT_TEST_RESULT: _flight_test_result,
 		AcceptanceStep.CHECK_HELD_WHILE_PAUSED: _held_while_paused,
+		AcceptanceStep.CHECK_HIT_VIEW_MOTION: _hit_view_motion,
 	}
 
 
@@ -163,3 +168,7 @@ func _flight_test_result(_step: AcceptanceStep, _runner: AcceptanceRunner, measu
 
 func _held_while_paused(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return pause.judge(measurements) if pause != null else [AcceptanceReport.RESULT_FAIL, "no pause flown"]
+
+
+func _hit_view_motion(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return hit_motion.run(measurements) if hit_motion != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
