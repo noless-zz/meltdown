@@ -3,16 +3,20 @@ extends RefCounted
 
 ## The in-headset development menu's data file, `res://xr/dev_menu.json`
 ## (#753, ARC-4): which entries it shows and in what order, the panel corners
-## the corner entry offers, and the words for the level choices.
+## the corner entry offers, the control schemes the controls entry offers
+## (#778), and the words for the level choices.
 ##
 ##     {"entries": [{"kind": "corner", "label": "Panel corner"}, ...],
-##      "corners": ["top_left", ...], "tunnel_text": "Test tunnel",
+##      "corners": ["top_left", ...], "schemes": ["thumbsticks", "gripped"],
+##      "tunnel_text": "Test tunnel",
 ##      "seed_text": "Seed {seed}", "random_text": "Random seed"}
 ##
 ## `kind` is one of `KINDS`, each at most once. A missing or rejected file
 ## gives `fallback()`: the built-in entries. The `update` entry (#763) shows
 ## only while a newer build waits; `{version}` in its label, and in
-## `cancel_update_text` while that build downloads, names it.
+## `cancel_update_text` while that build downloads, names it. `schemes` is
+## optional and defaults to every `ControlSchemeSwitch.SCHEMES`; each must be
+## one of them, at most once.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -20,7 +24,9 @@ const KIND_LEVEL: String = "level"
 const KIND_RESTART: String = "restart"
 const KIND_CLOSE: String = "close"
 const KIND_UPDATE: String = "update"
-const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE]
+const KIND_CONTROLS: String = "controls"
+const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
+	KIND_CONTROLS]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
@@ -28,6 +34,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_RESTART: "Restart level",
 	KIND_CLOSE: "Close",
 	KIND_UPDATE: "Update to {version}",
+	KIND_CONTROLS: "Controls",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
@@ -35,6 +42,7 @@ const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
 ## Each entry as `{"kind": ..., "label": ...}`, top to bottom.
 var entries: Array[Dictionary] = []
 var corners: Array[String] = []
+var schemes: Array[String] = ControlSchemeSwitch.SCHEMES.duplicate()
 var tunnel_text: String = "Test tunnel"
 var seed_text: String = "Seed {seed}"
 var random_text: String = "Random seed"
@@ -76,12 +84,14 @@ static func parse(text: String) -> DevMenuSpec:
 		return spec
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if not (["entries", "corners"] + TEXT_KEYS).has(str(key)):
+		if not (["entries", "corners", "schemes"] + TEXT_KEYS).has(str(key)):
 			spec.error = "unknown key \"%s\"" % str(key)
 			return spec
 	spec.error = spec._read_entries(data.get("entries"))
 	if spec.error == "":
 		spec.error = spec._read_corners(data.get("corners"))
+	if spec.error == "" and data.has("schemes"):
+		spec.error = spec._read_schemes(data["schemes"])
 	for key: String in TEXT_KEYS:
 		if spec.error == "" and data.has(key):
 			if typeof(data[key]) != TYPE_STRING or (data[key] as String).strip_edges() == "":
@@ -123,4 +133,18 @@ func _read_corners(value: Variant) -> String:
 			if not NAME_CHARACTERS.contains(character):
 				return "corner \"%s\" is not a name" % corner
 		corners.append(corner)
+	return ""
+
+
+func _read_schemes(value: Variant) -> String:
+	if typeof(value) != TYPE_ARRAY or (value as Array).is_empty():
+		return "\"schemes\" must be a non-empty list"
+	schemes = []
+	for item: Variant in value:
+		var scheme: String = str(item)
+		if typeof(item) != TYPE_STRING or not ControlSchemeSwitch.SCHEMES.has(scheme) \
+				or schemes.has(scheme):
+			return "scheme %s is not one of %s or given twice" % [
+				str(item), ", ".join(ControlSchemeSwitch.SCHEMES)]
+		schemes.append(scheme)
 	return ""

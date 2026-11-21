@@ -2,8 +2,8 @@ class_name DevMenu
 extends Node3D
 
 ## The in-headset development menu (#753, part 2 of #748): a small panel of
-## text lines so the owner can choose the status panel's corner, what to fly,
-## and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
+## text lines so the owner can choose the status panel's corner, the control
+## scheme (#778), what to fly, and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
 ## opens it on a tap of the left menu button and acts on what it returns.
 ##
 ## It is hung under the rig origin at the head point like `DestroyedScreen`,
@@ -53,9 +53,9 @@ func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
 	visible = false
 
 
-## Shows the menu with `corner` and the level `source` in use selected.
-func open(corner: String, source: String) -> void:
-	model.open(corner, source)
+## Shows the menu with `corner`, the level `source` and the control `scheme` in use selected.
+func open(corner: String, source: String, scheme: String = "") -> void:
+	model.open(corner, source, scheme)
 	visible = true
 	_refresh()
 
@@ -106,6 +106,8 @@ func _refresh() -> void:
 		match str(entry["kind"]):
 			DevMenuSpec.KIND_CORNER:
 				text += ": < %s >" % model.corner()
+			DevMenuSpec.KIND_CONTROLS:
+				text += ": < %s >" % model.scheme()
 			DevMenuSpec.KIND_LEVEL:
 				text += ": < %s >" % model.level_text()
 			DevMenuSpec.KIND_UPDATE:

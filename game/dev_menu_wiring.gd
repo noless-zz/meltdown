@@ -20,6 +20,11 @@ extends RefCounted
 ## A newer build that waits is an entry in the menu, and choosing it does
 ## what the tap did before (`UpdateWiring.choose_waiting`).
 ##
+## A Controls choice (#778) switches `ControlSchemeSwitch` for the rest of
+## the session and saves it in `ControlsChoice`. The menu is open at that
+## moment, so the ship is already on neutral input, and the switch lets go of
+## any grip the gripped scheme held.
+##
 ## It sits beside `main.gd` because it restarts the `net/` session and reads
 ## the flight test and the end screens; `main.gd` gains only a few lines.
 
@@ -42,6 +47,12 @@ var menu: DevMenu = null
 var tap: MenuTap = MenuTap.new()
 ## Saves the chosen corner; tests point it at a temporary file.
 var corner_store: PanelCorner = PanelCorner.new()
+## Saves the chosen control scheme; tests point it at a temporary file.
+var controls_store: ControlsChoice = ControlsChoice.new()
+## The scheme the ship flies through and the mapping whose hand setting it
+## prints; null in tests that do not switch schemes.
+var scheme: ControlSchemeSwitch = null
+var mapping: ThumbstickMapping = null
 ## Picks the seed for `random` (`LevelSwitch.random_seed` when not set);
 ## tests inject one so they are not flaky.
 var pick_seed: Callable = Callable()
@@ -57,6 +68,11 @@ var _destroyed: DestroyedWiring = null
 var _pending: Variant = null
 ## When the current fade phase began on the steady clock; < 0 when no fade runs.
 var _fade_from: float = -1.0
+
+
+func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null) -> void:
+	scheme = p_scheme
+	mapping = p_mapping
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -141,14 +157,17 @@ static func neutral(values: Dictionary) -> Dictionary:
 	return idle
 
 
-## Acts on a result of `DevMenuModel.press`. A corner is saved and the menu
-## stays open so the panel can be seen to move; a level, restart or update
-## closes it.
+## Acts on a result of `DevMenuModel.press`. A corner or control scheme is
+## saved and the menu stays open so the change can be seen; a level, restart
+## or update closes it.
 func apply(result: String) -> void:
 	if result == "":
 		return
 	if result.begins_with(DevMenuModel.CORNER_PREFIX):
 		corner_store.choose(result.substr(DevMenuModel.CORNER_PREFIX.length()))
+		return
+	if result.begins_with(DevMenuModel.CONTROLS_PREFIX):
+		_switch_controls(result.substr(DevMenuModel.CONTROLS_PREFIX.length()))
 		return
 	menu.close()
 	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
@@ -167,7 +186,16 @@ func _toggle() -> void:
 	if is_open():
 		menu.close()
 	else:
-		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "")
+		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
+			scheme.scheme if scheme != null else "")
+
+
+## Only called while the menu is open, so the ship is on neutral input now.
+func _switch_controls(to: String) -> void:
+	if scheme == null:
+		return
+	if scheme.switch_to(to, mapping != null and mapping.left_handed):
+		controls_store.save(to)
 
 
 func _start_restart(source: String) -> void:
