@@ -9,7 +9,9 @@ extends RefCounted
 ##     components {"pickup_reach":2.5}
 ##     rescue {"hold_seconds":2.0,"miners":[[2000,-20000,-60000]],"rescue_reach":4.0}
 ##
-## `components` is `ComponentPickup`'s data file. With it, every robot line
+## `components` is `ComponentPickup`'s data file, plus, for a level reached
+## through a shaft (#1000), "tier_weights" and "kind_tiers" (each component
+## kind's tier by id) only when the rules are weighted. With it, every robot line
 ## carries its type's drop table under "components" too, so the replay drops
 ## exactly what the live run dropped. `rescue` is `MinerRescue`'s data file
 ## plus "miners", the trapped miners in whole millimetres, in level order.
@@ -24,6 +26,8 @@ const VERSION: int = 18
 ## The version a replay without them is written as.
 const PLAIN_VERSION: int = ReplayLines.AIM_VERSION
 const MINERS_KEY: String = "miners"
+const WEIGHTS_KEY: String = "tier_weights"
+const TIERS_KEY: String = "kind_tiers"
 
 
 ## The format version `replay.to_text()` writes.
@@ -34,8 +38,12 @@ static func format_version(replay: Replay) -> int:
 static func lines(replay: Replay) -> PackedStringArray:
 	var out: PackedStringArray = PackedStringArray()
 	if replay.component_rules != null:
-		out.append("components " + JSON.stringify({"pickup_reach": replay.component_rules.pickup_reach},
-			"", true, true))
+		var rules: ComponentPickup = replay.component_rules
+		var data: Dictionary = {"pickup_reach": rules.pickup_reach}
+		if not rules.tier_weights.is_empty():
+			data[WEIGHTS_KEY] = rules.tier_weights
+			data[TIERS_KEY] = rules.kind_tiers
+		out.append("components " + JSON.stringify(data, "", true, true))
 	if replay.rescue_rules != null:
 		var miners: Array = []
 		for miner: Vector3i in replay.miners:
@@ -68,9 +76,25 @@ static func parse_components(replay: Replay, json_text: String,
 	var problem: String = _check_line("components", seen, version)
 	if problem != "":
 		return problem
-	var rules: ComponentPickup = ComponentPickup.parse_json(json_text)
+	var json: JSON = JSON.new()
+	if json.parse(json_text) != OK or typeof(json.data) != TYPE_DICTIONARY:
+		return "components: must be one JSON object"
+	var data: Dictionary = json.data
+	var weights: Variant = data.get(WEIGHTS_KEY, null)
+	var tiers: Variant = data.get(TIERS_KEY, null)
+	if (weights == null) != (tiers == null):
+		return "components: \"%s\" and \"%s\" come together" % [WEIGHTS_KEY, TIERS_KEY]
+	data.erase(WEIGHTS_KEY)
+	data.erase(TIERS_KEY)
+	var rules: ComponentPickup = ComponentPickup.parse_json(JSON.stringify(data, "", true, true))
 	if rules.error != "":
 		return "components: " + rules.error
+	if weights != null:
+		if typeof(weights) != TYPE_ARRAY or typeof(tiers) != TYPE_DICTIONARY:
+			return "components: \"%s\" must be a list and \"%s\" an object" % [WEIGHTS_KEY, TIERS_KEY]
+		problem = rules.set_tier_weights(weights, tiers)
+		if problem != "":
+			return "components: " + problem
 	replay.component_rules = rules
 	return ""
 
