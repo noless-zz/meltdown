@@ -29,6 +29,8 @@ extends RefCounted
 ## `controls` (#818) flies a file of raw controller values through the scene's
 ## mapping in place of the replay's inputs, left-handed when `left_handed` is
 ## true (`AcceptanceControlsScript`).
+## `run` and `expected_next_level_hash` (#989) fly a run's first level and
+## check the restart flies its second (`AcceptanceRunStep`).
 ## `refresh_120` (#851) turns the pilot's 120 Hz option on for the step only,
 ## with a numbered preset and a refresh_rate or frame_budget check
 ## (`AcceptanceRefresh120`).
@@ -43,7 +45,8 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
 	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS,
 	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED,
-	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY]
+	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY, AcceptanceRunStep.KEY_RUN,
+	AcceptanceRunStep.KEY_NEXT_LEVEL_HASH]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -92,7 +95,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		if (AcceptanceStep.REPLAY_CHECKS.has(check) or check == AcceptanceStep.CHECK_COMFORT_MOTION
 				or check == AcceptanceStep.CHECK_HIT_VIEW_MOTION or check == AcceptanceStep.CHECK_ESCAPE_SCREEN
 				or check == AcceptanceStep.CHECK_MAP_ROUTE or check == AcceptanceStep.CHECK_ESCAPE_CUE
-				or check == AcceptanceStep.CHECK_MAP_MARKERS or check == AcceptanceStep.CHECK_VIGNETTE) \
+				or check == AcceptanceStep.CHECK_MAP_MARKERS or check == AcceptanceStep.CHECK_VIGNETTE
+				or check == AcceptanceStep.CHECK_RUN_ADVANCES) \
 				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)
@@ -118,6 +122,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceCustomComfort.parse_step(data, field, step)
 	if problem == "":
 		problem = AcceptanceRefresh120.parse_step(data, field, step)
+	if problem == "":
+		problem = AcceptanceRunStep.parse_step(data, field, step)
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

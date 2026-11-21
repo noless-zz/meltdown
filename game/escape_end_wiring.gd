@@ -17,6 +17,9 @@ var look: Dictionary = EscapeScreenLook.load_file()
 var sequence: DestroyedSequence = DestroyedSequence.new(EscapeScreenLook.times(look))
 ## Under the rig origin once `attach` has run, null before.
 var screen: EscapeScreen = null
+## Set by `RunWiring` while the level flown is a run's last (#989): the line
+## then says the run is won.
+var run_won: bool = false
 
 
 ## Hangs the screen under `rig`. Calling it again adds nothing.
@@ -37,6 +40,7 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 		restart_held)
 	if screen != null:
 		screen.transform = head_point
+		screen.set_line(look["run_won_text"] if run_won else look["line_text"])
 		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), seconds_left(session), xr_running)
 	return due
 

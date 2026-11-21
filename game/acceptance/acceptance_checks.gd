@@ -156,6 +156,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_ESCAPE_CUE: _escape_cue,
 		AcceptanceStep.CHECK_MAP_MARKERS: _map_markers,
 		AcceptanceStep.CHECK_VIGNETTE: _vignette,
+		AcceptanceStep.CHECK_RUN_ADVANCES: AcceptanceRunStep.run_advances,
 	}
 
 

@@ -47,6 +47,7 @@ var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headse
 ## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
 var destroyed: DestroyedWiring = DestroyedWiring.new()
 var level_start: LevelStart = LevelStart.new()
+var run: RunWiring = RunWiring.new(ProfileStore.new())  # --run=<n> flies a run of levels (#989).
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
 var vignette: VignetteWiring = VignetteWiring.new()  # Comfort vignette from the shown motion, CMF-1 (#931).
@@ -80,7 +81,7 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	level_start.source = LevelSwitch.requested_path()  # Only with --level=<name> (#291) or --seed=<n> (#382).
+	level_start.source = run.begin(LevelSwitch.requested_path(), destroyed.escape)  # --level, --seed or --run.
 	if not use_level(level_start.source): level_start.source = ""  # The tunnel flies; the panel says so (#747).
 	place_tunnel()
 	attach_cockpit_frame()
@@ -193,19 +194,19 @@ func _end_one_tick_if_flown() -> void:
 		head_recentre.request()
 
 
-## Flies the level file at `path` in place of the test tunnel (#291): a new
-## session in the level's walls, from its start, with its robots, and the
-## level drawn where the tunnel was. Call it before the first frame. Returns
-## false, leaving the tunnel and its session, for "" or a rejected file.
+## Flies the level file at `path` in place of the test tunnel (#291): a new session in the
+## level's walls, from its start, with its robots, and the level drawn where the tunnel was.
+## Call it before the first frame. Returns false, leaving the tunnel, for "" or a rejected file.
 func use_level(path: String) -> bool:
 	var fresh: LocalSession = LevelStart.level_session(self, path, input_source)
 	session = fresh if fresh != null else session
 	return fresh != null
 
 
-## Flies the level again from its start (#616) through the launch's loading path (MP-2).
+## Flies the level again (#616), or a run's next level (#989), through the launch's loading path (MP-2).
 func restart_level() -> void:
 	var paused: bool = session.paused
+	level_start.source = run.on_end(session.sim.outcome(), session.sim.collected.duplicate(), level_start.source)
 	session = level_start.fresh_session(self, input_source)
 	session.paused = paused
 	meltdown.attach(self, session)
@@ -250,11 +251,10 @@ func update_status_panel(delta_seconds: float) -> void:
 			comfort.preset.display_name, refresh_rate.beside(build_info.describe()), delta_seconds, level_start.source)
 
 
-## Puts the rig at the ship's pose for this frame, offset so the head sits at
-## the ship's centre. The headset camera and controllers are tracked relative
-## to the rig, so they ride along. A requested recentre takes the head pose here.
-## The hit shake goes on after the pose, in the cockpit's own frame. The
-## cockpit frame and panel follow the head point, so a recentre moves both.
+## Puts the rig at the ship's pose for this frame, offset so the head sits at the ship's centre.
+## The headset camera and controllers are tracked relative to the rig, so they ride along. A
+## requested recentre takes the head pose here. The hit shake goes on after the pose, in the
+## cockpit's own frame. The cockpit frame and panel follow the head point, so a recentre moves both.
 func place_rig() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig == null:

@@ -23,7 +23,7 @@ const TIME_MARK: String = "{time}"
 
 const COLOR_KEYS: Array[String] = ["line_color", "time_color", "prompt_color"]
 const POSITION_KEYS: Array[String] = ["line_position_m", "time_position_m", "prompt_position_m"]
-const TEXT_KEYS: Array[String] = ["line_text", "time_text", "prompt_xr", "prompt_flat"]
+const TEXT_KEYS: Array[String] = ["line_text", "run_won_text", "time_text", "prompt_xr", "prompt_flat"]
 ## Inclusive ranges of the number keys. The two times share the destroyed
 ## screen's ranges (`DestroyedSequence.RANGES`), as they drive the same sequence.
 const RANGES: Dictionary[String, Array] = {
@@ -43,6 +43,8 @@ const FALLBACK: Dictionary = {
 	"fade_seconds": 1.0,
 	"hold_seconds": 3.0,
 	"line_text": "ESCAPED",
+	## In place of `line_text` when the escape was a run's last level (#989).
+	"run_won_text": "RUN WON",
 	"time_text": "{time} left",
 	"prompt_xr": "Press A to fly again",
 	"prompt_flat": "Press Enter to fly again",

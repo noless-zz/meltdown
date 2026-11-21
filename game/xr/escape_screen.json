@@ -2,6 +2,7 @@
 	"fade_seconds": 1.0,
 	"hold_seconds": 3.0,
 	"line_text": "ESCAPED",
+	"run_won_text": "RUN WON",
 	"time_text": "{time} left",
 	"prompt_xr": "Press A to fly again",
 	"prompt_flat": "Press Enter to fly again",

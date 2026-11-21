@@ -49,6 +49,13 @@ func show_state(line: bool, prompt: bool, seconds_left: float, xr_running: bool)
 		_prompt.text = wanted
 
 
+## Puts `text` on the line: the look's `line_text`, or `run_won_text` after a
+## run's last level (#989).
+func set_line(text: String) -> void:
+	if _line.text != text:
+		_line.text = text
+
+
 func line_visible() -> bool:
 	return visible and _line.visible
 

@@ -22,6 +22,10 @@ extends RefCounted
 ## 25-minute soak is too long for the nightly headset run and is dispatched by
 ## hand instead (#812).
 ##
+## A step with `run` instead of `level` or `seed` flies a run's first level and,
+## with the `run_advances` check, the level change to its second
+## (`AcceptanceRunStep`, #989).
+##
 ## Each step's fields are read and checked by `AcceptanceStepParser` (#817).
 ## Unknown keys, unknown checks and bad values are rejected with the field
 ## named, like `ShipTuning`: a mistyped key would otherwise switch a check off

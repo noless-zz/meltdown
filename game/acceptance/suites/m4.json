@@ -1,0 +1,14 @@
+{
+	"name": "m4",
+	"steps": [
+		{
+			"id": "run_advances",
+			"run": 12345,
+			"replay": "res://acceptance/replays/bot_run_advances.replay",
+			"checks": ["final_hash", "outcome", "escape_screen", "run_advances"],
+			"expected_hash": 2084410374,
+			"expected_next_level_hash": 40789778,
+			"expected_outcome": "ESCAPED"
+		}
+	]
+}

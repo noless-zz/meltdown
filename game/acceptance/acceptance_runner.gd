@@ -5,10 +5,9 @@ extends Node
 ## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
 ## is set, so a normal start never sees it.
 ##
-## Each step sets its comfort preset, switches to its level (#334) or builds its seed's
-## level (#460), flies its replay through the scene's `advance_frame` (one tick per frame,
-## replay inputs in place of the controllers), takes its screenshots (#718), runs its checks
-## and records them in an `AcceptanceReport` in `user://acceptance/` and the log. Exit 0 if all pass.
+## Each step sets its preset, switches to its level (#334) or builds its seed's or run's level (#460,
+## #989), flies its replay through the scene's `advance_frame` (one tick per frame, replay inputs in place of
+## the controllers), takes screenshots (#718), runs and reports its checks (`AcceptanceReport`). Exit 0 if all pass.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
 const ARG_PREFIX: String = "--acceptance="
@@ -157,10 +156,11 @@ func _start_step(step: AcceptanceStep) -> void:
 	if replay.error != "" or replay.ship_count != 1:
 		return  # `replay_problem` reports it when the step is recorded.
 	_source = AcceptanceControlsScript.source_for(step, replay, main)  # Its inputs, or scripted controls (#818).
-	if step.level_seed == AcceptanceStep.NO_SEED:
+	var level_seed: int = AcceptanceRunStep.level_seed(main, step)
+	if level_seed == AcceptanceStep.NO_SEED and step.run_seed == AcceptanceStep.NO_SEED:
 		main.set("session", _source.new_session())
 	else:
-		_level_problem = AcceptanceStepLevel.fly_seed(main, step.level_seed, replay, _source, seed_overrides)
+		_level_problem = AcceptanceRunStep.fly(main, step, level_seed, replay, _source, seed_overrides)
 		if _level_problem != "":
 			_source.finish()
 			_source = null

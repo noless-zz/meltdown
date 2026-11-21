@@ -110,13 +110,17 @@ const CHECK_MAP_MARKERS: String = "map_markers"
 ## `vignette_trigger` and never exceeds its `vignette_strength`; preset 4 shows
 ## none (#850, CMF-1, CMF-2; `AcceptanceVignetteCheck`). Needs a replay to sample.
 const CHECK_VIGNETTE: String = "vignette"
+## After a run step's replay escapes the run's first level, the restart press
+## flies the run's second level with `expected_next_level_hash` (#989, RUN-1;
+## `AcceptanceRunStep`). Needs a replay and `run`.
+const CHECK_RUN_ADVANCES: String = "run_advances"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
-	CHECK_MAP_MARKERS, CHECK_VIGNETTE]
+	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -145,6 +149,10 @@ var level: String = ""
 ## `--seed=<n>` builds it, so the replay holds only inputs and a change to the
 ## generator, robot or debris data shows up as a changed flight.
 var level_seed: int = NO_SEED
+## Run whose first level the replay flies (#989; `AcceptanceRunStep`), or NO_SEED.
+var run_seed: int = NO_SEED
+## Level hash of the run's second level, for the run_advances check, or NO_HASH.
+var expected_next_level_hash: int = NO_HASH
 ## Comfort preset to fly under, or NO_PRESET.
 var preset: int = NO_PRESET
 ## Names from KNOWN_CHECKS, in the order the suite lists them.
