@@ -18,6 +18,10 @@ extends RefCounted
 ##
 ## An instance holds the parsed inputs (`load_inputs`), so the sweep reads the
 ## files once for thousands of seeds.
+##
+## `robot_scale` (#991, RUN-1) scales the robot count range through
+## `RobotPlan.scaled`, so a riskier shaft can give a busier level. `--seed`
+## and the sweep keep the default 1.0, which gives the same levels as before.
 
 ## Modules per level, as the validator sweep builds them.
 const MODULE_COUNT: int = 10
@@ -81,7 +85,8 @@ static func load_inputs(validator_text: String = "", overrides: Dictionary = {})
 ## caller keeps the test tunnel. The exit radius comes from `defaults_path`,
 ## like a level file's that leaves it out (ARC-4).
 static func load_level(level_seed: int, defaults_path: String = LevelSwitch.DEFAULTS_FILE,
-		validator_text: String = "", overrides: Dictionary = {}) -> LevelDef:
+		validator_text: String = "", overrides: Dictionary = {},
+		robot_scale: float = 1.0) -> LevelDef:
 	var defaults: LevelDefaults = LevelSwitch.load_defaults(defaults_path)
 	if defaults == null:
 		return _rejected(level_seed, ["level defaults %s rejected" % defaults_path])
@@ -89,7 +94,7 @@ static func load_level(level_seed: int, defaults_path: String = LevelSwitch.DEFA
 	if inputs.error != "":
 		return _rejected(level_seed, [inputs.error])
 	var generator: MineGenerator = inputs.generate(level_seed)
-	var level: LevelDef = inputs.level_of(generator)
+	var level: LevelDef = inputs.level_of(generator, robot_scale)
 	if level.error != "":
 		return _rejected(level_seed, ["level: %s" % level.error])
 	level.exit_radius_mm = defaults.exit_radius_mm
@@ -107,9 +112,17 @@ func generate(level_seed: int, module_count: int = MODULE_COUNT) -> MineGenerato
 
 
 ## The generated level with its reactor, robots, debris and miners, not yet
-## validated.
-func level_of(generator: MineGenerator) -> LevelDef:
-	return generator.to_level_def(reactor_plan, tuning.radius, robot_plan, debris_plan, miner_plan)
+## validated, with the robot count range scaled by `robot_scale`. A bad scale
+## gives a level whose `error` says so.
+func level_of(generator: MineGenerator, robot_scale: float = 1.0) -> LevelDef:
+	var robots: RobotPlan = robot_plan
+	if robot_scale != 1.0:
+		robots = robot_plan.scaled(robot_scale, generator.placements.size())
+		if robots.error != "":
+			var rejected: LevelDef = LevelDef.new()
+			rejected.error = robots.error
+			return rejected
+	return generator.to_level_def(reactor_plan, tuning.radius, robots, debris_plan, miner_plan)
 
 
 ## `LevelValidator`'s messages for a level `level_of` built from `generator`,
