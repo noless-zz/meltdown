@@ -71,6 +71,13 @@
 			"checks": ["flight_test_result", "no_script_errors"],
 			"flight_test_answers": ["fine", "fine", "uneasy", "fine", "fine", "stop"],
 			"expected_preset": 2
+		},
+		{
+			"id": "reset_to_start",
+			"replay": "res://acceptance/replays/m1_reset.replay",
+			"checks": ["at_start", "final_hash", "no_script_errors"],
+			"expected_hash": 2554828705,
+			"screenshot_at_end": true
 		}
 	]
 }
