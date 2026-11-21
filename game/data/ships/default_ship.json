@@ -16,8 +16,10 @@
 	"max_shield": 50.0,
 	"shield_recharge": 5.0,
 	"shield_energy_cost": 1.0,
+	"utility_slots": 2,
 	"loadout": {
 		"primary": ["pulse_cannon", ""],
-		"secondary": ["", ""]
+		"secondary": ["", ""],
+		"utility": []
 	}
 }
