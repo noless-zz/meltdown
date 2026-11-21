@@ -48,6 +48,13 @@ static func load_path(path: String) -> ComfortPreset:
 	return preset
 
 
+## The custom comfort mode (CMF-1) from the JSON file at `path`, or null when
+## there is none. A bad field is reported naming it, and the base preset is used
+## unchanged; see `ComfortCustom`.
+static func load_custom(path: String = ComfortCustom.DEFAULT_PATH) -> ComfortPreset:
+	return ComfortCustom.load_from(path).preset
+
+
 ## 1 > 2 > 3 > 4 > 1.
 static func next_number(number: int) -> int:
 	return number % PATHS.size() + 1
