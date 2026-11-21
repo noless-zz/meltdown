@@ -1,0 +1,15 @@
+{
+	"id": "mine_scanner",
+	"name": "Mine Scanner",
+	"branch": "utility",
+	"kind": "module",
+	"tier": 2,
+	"requires": [
+		"wide_radar"
+	],
+	"cost": {
+		"cell_salts": 2,
+		"circuit_shards": 2
+	},
+	"grants": "mine_scanner"
+}

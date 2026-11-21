@@ -1,0 +1,15 @@
+{
+	"id": "glass_core_shield",
+	"name": "Glass Core Shield",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 3,
+	"requires": [
+		"lattice_shield"
+	],
+	"cost": {
+		"circuit_shards": 2,
+		"core_glass": 2
+	},
+	"grants": "glass_core_shield"
+}

@@ -1,0 +1,13 @@
+{
+	"id": "look_aim",
+	"name": "Look-Aim Gimbal",
+	"branch": "utility",
+	"kind": "module",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 2,
+		"cell_salts": 2
+	},
+	"grants": "look_aim"
+}

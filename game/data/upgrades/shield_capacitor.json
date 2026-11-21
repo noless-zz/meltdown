@@ -1,0 +1,12 @@
+{
+	"id": "shield_capacitor",
+	"name": "Shield Capacitor",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"cell_salts": 4
+	},
+	"grants": "shield_capacitor"
+}

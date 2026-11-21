@@ -1,0 +1,12 @@
+{
+	"id": "layered_plating",
+	"name": "Layered Plating",
+	"branch": "defence",
+	"kind": "hull",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 5
+	},
+	"grants": "layered_plating"
+}

@@ -1,0 +1,12 @@
+{
+	"id": "wide_radar",
+	"name": "Wide Radar",
+	"branch": "utility",
+	"kind": "module",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"cell_salts": 3
+	},
+	"grants": "wide_radar"
+}
