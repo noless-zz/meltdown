@@ -8,6 +8,9 @@ extends RefCounted
 ## It sits beside `main.gd`, like `CombatWiring`, because it reads the `net/`
 ## session, which `xr/` may not depend on. It reads copies of the ship only;
 ## a restart is answered to `main.gd`, which loads the level again (MP-2).
+##
+## It also runs the escape's end screen (`EscapeEndWiring`, #751) on the same
+## restart button, so `main.gd` restarts after either end without growing.
 
 ## The A button, on the right Touch controller in either hand mode.
 const RESTART_BUTTON: String = "right_button_lower"
@@ -20,6 +23,7 @@ var sequence: DestroyedSequence = DestroyedSequence.load_file()
 var haptics: DefenceHaptics = DefenceHaptics.load_shipped()
 ## Under the rig origin once `attach` has run, null before.
 var screen: DestroyedScreen = null
+var escape: EscapeEndWiring = EscapeEndWiring.new()
 
 var _restart_held: bool = false
 
@@ -29,6 +33,7 @@ var _restart_held: bool = false
 func attach(rig: Node3D, left: XRController3D, right: XRController3D) -> void:
 	haptics.left_controller = left
 	haptics.right_controller = right
+	escape.attach(rig)
 	if screen != null or rig == null:
 		return
 	screen = DestroyedScreen.new()
@@ -43,8 +48,8 @@ func read_buttons(buttons: Dictionary) -> void:
 
 ## Once per frame after the ticks. Runs the warnings and the sequence from a
 ## copy of the local ship, holding the sequence still while the session is
-## paused, and puts the screen at the head point. Returns true on the frame
-## the level should restart.
+## paused, and puts the screen at the head point; then the escape's end
+## screen. Returns true on the frame the level should restart.
 func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 		xr_running: bool) -> bool:
 	var ship: ShipState = session.current_ship()
@@ -57,9 +62,11 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 	if screen != null:
 		screen.transform = RigViews.head_point(recentre)
 		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), xr_running)
-	return due
+	var escape_due: bool = escape.update(session, delta_seconds, _restart_held, RigViews.head_point(recentre),
+		xr_running)
+	return due or escape_due
 
 
-## The fade's opacity this frame from the sequence, 0..1.
+## The fade's opacity this frame from either end screen, 0..1.
 func fade_alpha() -> float:
-	return sequence.fade_alpha()
+	return maxf(sequence.fade_alpha(), escape.fade_alpha())

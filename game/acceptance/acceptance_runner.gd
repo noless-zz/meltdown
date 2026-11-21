@@ -238,14 +238,15 @@ func _run_check(check: String, step: AcceptanceStep, measurements: Dictionary) -
 		AcceptanceStep.CHECK_COMFORT_MOTION:
 			return _comfort.run(measurements) if _comfort != null else [AcceptanceReport.RESULT_FAIL, "not sampled"]
 		AcceptanceStep.CHECK_XR_SESSION:
-			return AcceptanceXrSessionCheck.run(_xr_available(), _xr_begun, _xr_waited, XR_WAIT_FRAMES,
-				step.required, measurements)
+			return AcceptanceXrSessionCheck.run(_xr_available(), _xr_begun, _xr_waited, XR_WAIT_FRAMES, step.required, measurements)
 		AcceptanceStep.CHECK_NO_SCRIPT_ERRORS:
 			return _errors.judge(_errors_at_step_start, measurements)
 		AcceptanceStep.CHECK_CONTROLLERS_BOUND:
 			return controllers.run(_xr_available(), step.required, measurements)
 		AcceptanceStep.CHECK_REFRESH_RATE:
 			return AcceptanceRefreshCheck.run(main, _xr_available(), step.required, measurements)
+		AcceptanceStep.CHECK_ESCAPE_SCREEN:
+			return AcceptanceEscapeScreenCheck.run(main, _source != null, measurements)
 		AcceptanceStep.CHECK_FRAME_BUDGET:
 			return AcceptanceFrameBudgetCheck.run(main, _xr_available(), on_headset, step, _frames, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
