@@ -50,3 +50,10 @@ static func seconds_left(session: LocalSession) -> float:
 ## The fade's opacity this frame from the sequence, 0..1.
 func fade_alpha() -> float:
 	return sequence.fade_alpha()
+
+
+## Back to flying with the end screen down and no fade (#917); see `DestroyedWiring.reset`.
+func reset() -> void:
+	sequence = DestroyedSequence.new(EscapeScreenLook.times(look))
+	if screen != null:
+		screen.visible = false

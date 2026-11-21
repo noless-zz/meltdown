@@ -141,6 +141,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	_checks.errors_at_start = errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
 	screenshots.begin(suites[_suite_index].name, step)
+	AcceptanceStepLevel.clear_end_screens(main)  # Before any screenshot or frame of the step (#917).
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
 	_level_problem = AcceptanceCustomComfort.apply(main, step)  # #836.

@@ -70,3 +70,15 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 ## The fade's opacity this frame from either end screen, 0..1.
 func fade_alpha() -> float:
 	return maxf(sequence.fade_alpha(), escape.fade_alpha())
+
+
+## Back to flying with neither end screen up and no fade (#917): what a
+## restart leaves once its fade-in is over, reached at once. The acceptance
+## runner calls it before each step, because a step swaps the session without
+## the restart press that would otherwise take a screen down.
+func reset() -> void:
+	sequence = DestroyedSequence.new({"fade_seconds": sequence.fade_seconds, "hold_seconds": sequence.hold_seconds})
+	haptics.reset()  # As on the restart frame, so the next low hull warns again.
+	if screen != null:
+		screen.visible = false
+	escape.reset()
