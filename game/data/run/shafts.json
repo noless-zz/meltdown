@@ -1,0 +1,25 @@
+{
+	"offer_min": 2,
+	"offer_max": 3,
+	"seed_salt": 2246822519,
+	"shafts": [
+		{
+			"kind": "steady",
+			"label": "Service lift: quiet, lean pickings",
+			"risk": {"robot_count": 1.0, "alarm": 1.0},
+			"reward": {"tier_weights": [6, 3, 1]}
+		},
+		{
+			"kind": "deep",
+			"label": "Long drop: more robots, richer seams",
+			"risk": {"robot_count": 1.3, "alarm": 1.1},
+			"reward": {"tier_weights": [3, 4, 3]}
+		},
+		{
+			"kind": "hot",
+			"label": "Vent shaft: fast alarm, rare finds",
+			"risk": {"robot_count": 1.1, "alarm": 1.5},
+			"reward": {"tier_weights": [2, 3, 5]}
+		}
+	]
+}
