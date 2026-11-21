@@ -57,11 +57,12 @@ func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
 
 ## Shows the menu with `corner`, the level `source`, the control `scheme`,
 ## the hand and pitch settings, the comfort preset and the break reminder's
-## on/off in use selected.
+## on/off in use selected; `custom_base` > 0 offers the custom comfort mode (#837).
 func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
 		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER,
-		break_on: bool = true) -> void:
-	model.open(corner, source, scheme, left_handed, invert_pitch, comfort_number, break_on)
+		break_on: bool = true, custom_base: int = 0) -> void:
+	model.open(corner, source, scheme, left_handed, invert_pitch, comfort_number, break_on,
+		custom_base)
 	visible = true
 	_refresh()
 

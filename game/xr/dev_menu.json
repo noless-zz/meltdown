@@ -22,5 +22,6 @@
 	"normal_pitch_text": "normal",
 	"inverted_pitch_text": "inverted",
 	"break_on_text": "On",
-	"break_off_text": "Off"
+	"break_off_text": "Off",
+	"custom_text": "Custom (base {base})"
 }
