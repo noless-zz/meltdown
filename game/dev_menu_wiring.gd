@@ -42,6 +42,7 @@ extends RefCounted
 ## a showing prompt; the entry opens on the reminder's state, so a launch
 ## switch shows. Only the view's prompt changes, never the simulation (CMF-6).
 ## A Refresh choice (#852) goes through `DevMenuRefresh`.
+## A Swivel chair choice (#853) goes through `DevMenuSwivel`.
 ##
 ## A Flight test choice (#839, CMF-4) restarts the test tunnel behind the same
 ## fade and runs the first-launch test again there (`FlightTestWiring.run_again`).
@@ -79,6 +80,8 @@ var comfort: ComfortWiring = null
 var break_prompt: BreakPromptWiring = null
 ## The Refresh entry's 120 Hz option; null in tests without a refresh rate.
 var refresh: DevMenuRefresh = null
+## The Swivel chair entry; applies the saved choice to `comfort` when made.
+var swivel: DevMenuSwivel = null
 ## Picks the seed for `random` (`LevelSwitch.random_seed` when not set);
 ## tests inject one so they are not flaky.
 var pick_seed: Callable = Callable()
@@ -106,6 +109,8 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 	mapping = p_mapping
 	comfort = p_comfort
 	break_prompt = p_break_prompt
+	swivel = DevMenuSwivel.new(p_comfort)
+	swivel.start()
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -162,6 +167,7 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		return values
 	if refresh != null:
 		menu.model.refresh_allowed = refresh.allowed()  # Follows a Comfort choice.
+	swivel.follow(menu.model)  # Follows a Comfort choice into or out of the custom mode.
 	apply(menu.update(actions(values)))
 	return neutral(values)
 
@@ -221,6 +227,9 @@ func apply(result: String) -> void:
 		if refresh != null:
 			refresh.choose(result)
 		return
+	if result.begins_with(DevMenuModel.SWIVEL_PREFIX):
+		swivel.choose(result)
+		return
 	menu.close()
 	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
 		var source: String = result.substr(DevMenuModel.LEVEL_PREFIX.length())
@@ -243,6 +252,7 @@ func _toggle() -> void:
 	else:
 		if refresh != null:
 			refresh.show_on(menu.model)
+		swivel.show_on(menu.model)
 		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
 			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
 			mapping != null and mapping.invert_pitch, _comfort_shown(), _break_shown(),

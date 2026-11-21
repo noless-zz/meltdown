@@ -4,8 +4,8 @@ extends Node3D
 ## The in-headset development menu (#753, part 2 of #748): a small panel of
 ## text lines so the owner can choose the status panel's corner, the control
 ## scheme (#778), the hand and pitch settings (#790), the comfort preset (#805),
-## the break reminder (#821), the 120 Hz option (#852), what to fly, and restart, without adb, and the
-## waiting update. `DevMenuWiring` (#763)
+## the break reminder (#821), the 120 Hz option (#852), the swivel chair (#853),
+## what to fly, and restart, without adb, and the waiting update. `DevMenuWiring` (#763)
 ## opens it on a tap of the left menu button and acts on what it returns.
 ##
 ## It is hung under the rig origin at the head point like `DestroyedScreen`,
@@ -125,6 +125,8 @@ func _refresh() -> void:
 				text += ": < %s >" % model.break_text()
 			DevMenuSpec.KIND_REFRESH:
 				text += ": < %s >" % model.refresh_text()
+			DevMenuSpec.KIND_SWIVEL:
+				text += ": < %s >" % model.swivel_text()
 			DevMenuSpec.KIND_LEVEL:
 				text += ": < %s >" % model.levels.text(model.spec)
 			DevMenuSpec.KIND_UPDATE:
