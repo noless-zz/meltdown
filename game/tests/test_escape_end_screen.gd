@@ -41,8 +41,8 @@ func _check_shown(rig: Node3D) -> String:
 	var wiring: EscapeEndWiring = EscapeEndWiring.new()
 	wiring.attach(rig)
 	wiring.attach(rig)
-	if rig.get_child_count() != 1 or wiring.screen.get_parent() != rig:
-		return "attach did not hang one screen under the rig"
+	if rig.get_child_count() != 2 or wiring.screen.get_parent() != rig or wiring.choice.panel.get_parent() != rig:
+		return "attach did not hang one screen and one shaft panel (#990) under the rig"
 	var session: LocalSession = _g2_session()
 	_run(wiring, session, 0.5, false)
 	if session.sim.outcome() != ExitRule.Outcome.RUNNING or wiring.screen.line_visible() \

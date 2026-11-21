@@ -136,6 +136,11 @@ func _on_quit(code: int) -> void:
 func _run() -> AcceptanceRunner:
 	_quit_codes.clear()
 	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
+	var kept: Array[AcceptanceStep] = []
+	for found: AcceptanceStep in suite.steps:
+		if found.id == STEP_ID:
+			kept.append(found)
+	suite.steps = kept  # The step alone; `test_m4_shaft_step.gd` flies shaft_choice (#990).
 	var suites: Array[AcceptanceSuite] = [suite]
 	var runner: AcceptanceRunner = AcceptanceRunner.new()
 	runner.quit_callback = _on_quit

@@ -158,6 +158,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_MAP_MARKERS: _map_markers,
 		AcceptanceStep.CHECK_VIGNETTE: _vignette,
 		AcceptanceStep.CHECK_RUN_ADVANCES: _run_advances,
+		AcceptanceStep.CHECK_SHAFT_CHOICE: _shaft_choice,
 	}
 
 
@@ -226,3 +227,7 @@ func _vignette(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: D
 
 func _run_advances(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return AcceptanceRunStep.run(step, runner.main, runner.flown(), measurements)
+
+
+func _shaft_choice(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return AcceptanceShaftChoiceCheck.run(step, runner.main, runner.flown(), measurements)

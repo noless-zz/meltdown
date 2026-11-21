@@ -129,7 +129,7 @@ func sample_controls() -> Dictionary:
 ## Maps raw values through the comfort filter to the input every tick flies
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
-	values = dev_menu.read(values)  # Open, the menu takes the controls; the ship gets neutral input.
+	values = destroyed.escape.read(dev_menu.read(values))  # An open menu or shaft panel takes the controls.
 	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
 	comfort.read_preset_button(buttons)
 	if comfort.read_label_button(buttons):

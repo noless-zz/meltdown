@@ -114,13 +114,18 @@ const CHECK_VIGNETTE: String = "vignette"
 ## once the escape's restart press is made (#989, RUN-1; `AcceptanceRunStep`).
 ## Must be the step's last check.
 const CHECK_RUN_ADVANCES: String = "run_advances"
+## The run step's escape screen press opens the shaft panel, scripted input
+## picks its second shaft, and the next level is `RunPlan.level_seed_through`
+## that shaft with the pinned level hash (#990, RUN-1;
+## `AcceptanceShaftChoiceCheck`). Must be the step's last check.
+const CHECK_SHAFT_CHOICE: String = "shaft_choice"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
-	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES]
+	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -152,7 +157,7 @@ var level_seed: int = NO_SEED
 ## Run seed of a run step (#989, `AcceptanceRunStep`), or NO_SEED. A run
 ## step's `level_seed` is the run's first level.
 var run_seed: int = NO_SEED
-## Level hash the run's second level must have, for the run_advances check.
+## Level hash the run's second level must have, for the run_advances or shaft_choice check.
 var expected_next_level_hash: int = NO_HASH
 ## Comfort preset to fly under, or NO_PRESET.
 var preset: int = NO_PRESET

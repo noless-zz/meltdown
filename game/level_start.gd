@@ -63,10 +63,10 @@ func choose(p_source: String, profiles: ProfileStore = null) -> RunWiring:
 ## drawn again in place of any level drawn before (#795). With a run, `ended`
 ## (the session the restart replaces) moves it on first (#989): an escape or a
 ## lost ship flies the run's next level or a new run. A `source` the dev menu
-## changed leaves the run.
+## changed leaves the run; one the shaft panel's escape moved on does not.
 func fresh_session(world: Node3D, input: ShipInputSource, ended: LocalSession = null) -> LocalSession:
 	if run != null and run.active() and ended != null:
-		if source != run.level_source():
+		if source != run.level_source() and not run.escape_taken:  # A shaft choice moved it on (#990).
 			run.stop()
 		elif RunWiring.ends_level(ended.sim.outcome(), ended.current_ship().hull):
 			source = run.after_session(ended)
