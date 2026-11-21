@@ -4,17 +4,22 @@ extends RefCounted
 ## A run suspended between levels (#949, RUN-8): enough to start the next level
 ## of the same run on resume. Plain values only, so it does not depend on the
 ## run chain's own state class; this class is the data and its JSON text, and
-## `RunSaveStore` puts it on disk.
+## `RunSaveStore` puts it on disk; `RunResume` converts to and from a run.
 
 ## The newest layout this build understands. A file with a higher number came
 ## from a newer build and is never read or deleted by `take` (see RunSaveStore).
-const VERSION: int = 1
+## Version 2 added `chosen` (#1029); a version-1 file has no shafts chosen.
+const VERSION: int = 2
 const KEY_VERSION: String = "version"
 const KEY_RUN_SEED: String = "run_seed"
 const KEY_NEXT_LEVEL: String = "next_level"
 const KEY_SHIP: String = "ship"
 const KEY_LOADOUT: String = "loadout"
-const KEYS: Array[String] = [KEY_VERSION, KEY_RUN_SEED, KEY_NEXT_LEVEL, KEY_SHIP, KEY_LOADOUT]
+const KEY_CHOSEN: String = "chosen"
+## Every key of a version-1 file.
+const KEYS_V1: Array[String] = [KEY_VERSION, KEY_RUN_SEED, KEY_NEXT_LEVEL, KEY_SHIP, KEY_LOADOUT]
+## Every key of a file of the current version.
+const KEYS: Array[String] = [KEY_VERSION, KEY_RUN_SEED, KEY_NEXT_LEVEL, KEY_SHIP, KEY_LOADOUT, KEY_CHOSEN]
 
 var version: int = VERSION
 ## The seed the whole run's levels come from (GEN-2).
@@ -26,6 +31,9 @@ var ship: String = ""
 ## Weapon slots to part ids, in the ship data file's shape:
 ## `{"primary": ["pulse_cannon", ""], "secondary": ["", ""]}`.
 var loadout: Dictionary = {}
+## The shaft kinds chosen so far, in order: the first is the shaft into depth 2
+## (RUN-1, #1029). Empty for a run without choices and for a version-1 file.
+var chosen: Array[String] = []
 ## Set when `parse_json` rejected the text; the save is then empty.
 var error: String = ""
 ## True when the text was rejected only because its version is newer than ours.
@@ -45,6 +53,11 @@ func check() -> String:
 	var read: ShipLoadout = ShipLoadout.from_data(loadout)
 	if read.error != "":
 		return "key \"%s\": %s" % [KEY_LOADOUT, read.error]
+	if version < 2 and not chosen.is_empty():
+		return "key \"%s\" needs version 2 or later" % KEY_CHOSEN
+	for kind: String in chosen:
+		if kind.is_empty():
+			return "key \"%s\" has an empty shaft kind" % KEY_CHOSEN
 	return ""
 
 
@@ -58,6 +71,8 @@ func to_json() -> String:
 		KEY_SHIP: ship,
 		KEY_LOADOUT: loadout.duplicate(true),
 	}
+	if version >= 2:
+		data[KEY_CHOSEN] = chosen.duplicate()
 	return JSON.stringify(data, "\t", true) + "\n"
 
 
@@ -83,10 +98,11 @@ static func parse_json(text: String) -> RunSave:
 		return newer
 	if file_version < 1:
 		return _rejected("key \"%s\" is %d, must be at least 1" % [KEY_VERSION, file_version])
+	var keys: Array[String] = KEYS if file_version >= 2 else KEYS_V1
 	for key: Variant in data:
-		if not KEYS.has(str(key)):
+		if not keys.has(str(key)):
 			return _rejected("unknown key \"%s\"" % str(key))
-	for key: String in KEYS:
+	for key: String in keys:
 		if not data.has(key):
 			return _rejected("missing key \"%s\"" % key)
 	if typeof(data[KEY_RUN_SEED]) != TYPE_STRING or not _exact_int_text(data[KEY_RUN_SEED]):
@@ -97,8 +113,17 @@ static func parse_json(text: String) -> RunSave:
 		return _rejected("key \"%s\" must be a string" % KEY_SHIP)
 	if typeof(data[KEY_LOADOUT]) != TYPE_DICTIONARY:
 		return _rejected("key \"%s\" must be an object" % KEY_LOADOUT)
+	var read_chosen: Array[String] = []
+	if file_version >= 2:
+		if typeof(data[KEY_CHOSEN]) != TYPE_ARRAY:
+			return _rejected("key \"%s\" must be an array of shaft kinds" % KEY_CHOSEN)
+		for entry: Variant in data[KEY_CHOSEN]:
+			if typeof(entry) != TYPE_STRING:
+				return _rejected("key \"%s\" has %s, must hold only strings" % [KEY_CHOSEN, JSON.stringify(entry)])
+			read_chosen.append(String(entry))
 	var run: RunSave = RunSave.new()
 	run.version = file_version
+	run.chosen = read_chosen
 	run.run_seed = String(data[KEY_RUN_SEED]).to_int()
 	run.next_level = int(data[KEY_NEXT_LEVEL])
 	run.ship = data[KEY_SHIP]

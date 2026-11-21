@@ -159,6 +159,55 @@ func can_suspend() -> bool:
 	return not is_over() and level_index > 0 and carried.is_empty()
 
 
+## The shafts chosen so far, in order from the one into depth 2, for a save
+## (RUN-8, #1029). It stops at the first level without a choice: the current
+## level while its choice is due, or every level of a run resumed from a save
+## that kept no choices, which then stays a run without recorded choices.
+func chosen_so_far() -> Array[String]:
+	var kinds: Array[String] = []
+	for index: int in range(1, mini(level_index + 1, chosen.size())):
+		if chosen[index] == "":
+			break
+		kinds.append(chosen[index])
+	return kinds
+
+
+## A run rebuilt from a save (RUN-8, #1029): it stands at depth `next_level`
+## with `p_chosen` as the shafts into depths 2, 3, ... in order, so its current
+## level, seed, shaft, risk and reward equal those of a run that got there by
+## `advance` and `choose`. `p_chosen` holds either one shaft per level before
+## the current one (its choice still due) or one more (chosen into it); an
+## empty list is a run without recorded choices. Nothing carried or banked is
+## restored: a save is only made with nothing carried, and what was banked is
+## already in the profile. A refusal returns a state at the first level with
+## `error` naming the reason.
+static func resumed(p_plan: RunPlan, p_shafts: ShaftOffer, p_components: ComponentList,
+		next_level: int, p_chosen: Array[String]) -> RunState:
+	var state: RunState = RunState.new(p_plan, p_shafts, p_components)
+	var count: int = p_plan.level_count()
+	if next_level < 1 or next_level > count:
+		state.error = "next level %d is outside the plan's levels 1 to %d" % [next_level, count]
+		return state
+	var index: int = next_level - 1
+	if not p_chosen.is_empty():
+		if p_shafts == null:
+			state.error = "%d shafts were chosen in a run without a shaft offer" % p_chosen.size()
+			return state
+		if p_chosen.size() != index and p_chosen.size() != index - 1:
+			state.error = "%d shafts chosen do not fit depth %d: it takes %d, or %d before its choice" % [
+				p_chosen.size(), next_level, index, index - 1]
+			return state
+	for i: int in p_chosen.size():
+		var offered: Array[String] = p_plan.offer_after(i, p_shafts)
+		if not offered.has(p_chosen[i]):
+			state.error = "shaft \"%s\" into depth %d was not in the offer %s" % [p_chosen[i], i + 2, offered]
+			return state
+	for i: int in p_chosen.size():
+		state.chosen[i + 1] = p_chosen[i]
+	state.level_index = index
+	return state
+
+
 ## Called when the ship is destroyed: the run ends lost and the current level's
 ## carry is dropped; nothing is banked, and what earlier escapes banked stays
 ## (RUN-7). Returns false, changing nothing, once the run is over.
