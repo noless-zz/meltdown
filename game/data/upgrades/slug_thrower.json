@@ -1,0 +1,12 @@
+{
+	"id": "slug_thrower",
+	"name": "Slug Thrower",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 4
+	},
+	"grants": "slug_thrower"
+}

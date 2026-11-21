@@ -1,0 +1,15 @@
+{
+	"id": "vectored_thrusters",
+	"name": "Vectored Thrusters",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 2,
+	"requires": [
+		"tuned_thrusters"
+	],
+	"cost": {
+		"scrap_alloy": 3,
+		"circuit_shards": 3
+	},
+	"grants": "vectored_thrusters"
+}

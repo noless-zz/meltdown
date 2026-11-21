@@ -1,0 +1,15 @@
+{
+	"id": "arc_lance",
+	"name": "Arc Lance",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 2,
+	"requires": [
+		"needle_gun"
+	],
+	"cost": {
+		"cell_salts": 3,
+		"circuit_shards": 3
+	},
+	"grants": "arc_lance"
+}

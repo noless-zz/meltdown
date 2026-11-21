@@ -1,0 +1,13 @@
+{
+	"id": "needle_gun",
+	"name": "Needle Gun",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 3,
+		"cell_salts": 2
+	},
+	"grants": "needle_gun"
+}

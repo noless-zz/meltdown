@@ -1,0 +1,13 @@
+{
+	"id": "tuned_thrusters",
+	"name": "Tuned Thrusters",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 3,
+		"cell_salts": 2
+	},
+	"grants": "tuned_thrusters"
+}

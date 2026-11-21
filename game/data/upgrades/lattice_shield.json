@@ -1,0 +1,15 @@
+{
+	"id": "lattice_shield",
+	"name": "Lattice Shield",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 2,
+	"requires": [
+		"shield_capacitor"
+	],
+	"cost": {
+		"cell_salts": 2,
+		"circuit_shards": 3
+	},
+	"grants": "lattice_shield"
+}
