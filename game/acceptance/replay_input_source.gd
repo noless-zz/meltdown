@@ -4,14 +4,18 @@ extends ShipInputSource
 ## Hands a one-ship replay's recorded inputs to a running session, one per
 ## tick, in place of the controllers (DEV-6, #165). Indexed by the tick the
 ## session asks for, so a dropped or doubled frame cannot shift the inputs.
+## A looping source (#788, PRF-3) starts again from the replay's first input
+## each time the ticks pass its end, so a short flight can fill a long soak.
 
 var _replay: Replay
+var _looping: bool = false
 ## Ticks asked for beyond the end of the replay; each flew no input.
 var overrun_ticks: int = 0
 
 
-func _init(replay: Replay) -> void:
+func _init(replay: Replay, looping: bool = false) -> void:
 	_replay = replay
+	_looping = looping
 
 
 ## A fresh session fed by this source, from the replay's own seed, walls,
@@ -52,6 +56,8 @@ func tick_count() -> int:
 
 
 func next_input(tick: int) -> ShipInput:
+	if _looping and tick >= 0 and not _replay.frames.is_empty():
+		tick = tick % _replay.frames.size()
 	if tick < 0 or tick >= _replay.frames.size():
 		overrun_ticks += 1
 		return ShipInput.new()

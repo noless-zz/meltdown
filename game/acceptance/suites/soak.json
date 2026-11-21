@@ -1,0 +1,15 @@
+{
+	"name": "soak",
+	"steps": [
+		{
+			"id": "frame_budget_25min",
+			"replay": "res://acceptance/replays/frame_budget_flight.replay",
+			"loop_replay": true,
+			"checks": ["frame_budget", "no_script_errors"],
+			"settle_seconds": 5.0,
+			"measure_seconds": 1500.0,
+			"max_over_budget_share": 0.01,
+			"budget_slack_ms": 1.0
+		}
+	]
+}

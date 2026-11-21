@@ -24,8 +24,9 @@ const REQUIRED_HZ: float = 90.0
 ## The suite keys only a frame_budget step may list, and must list all of.
 const STEP_KEYS: Array[String] = ["settle_seconds", "measure_seconds", "max_over_budget_share",
 	"budget_slack_ms"]
-## Longer than this is a mistyped suite, not a benchmark.
-const MAX_SECONDS: float = 600.0
+## Longer than this is a mistyped suite, not a benchmark. Room for the
+## 25-minute soak PRF-3 names (#788) and its settling.
+const MAX_SECONDS: float = 1800.0
 ## Above this the slack would hide a missed frame (half a 90 Hz frame time).
 const MAX_SLACK_MS: float = 5.5
 
