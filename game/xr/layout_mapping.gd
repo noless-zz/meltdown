@@ -12,15 +12,23 @@ extends RefCounted
 ## bindings load with the default dead zone and its own warning.
 
 
-## The mapping for `path`, falling back to the built-in layout when the file
-## is missing or rejected. Hands and pitch are applied by the caller.
-static func load_file(path: String = ThumbstickMapping.DEFAULT_LAYOUT_FILE) -> ThumbstickMapping:
-	var mapping: ThumbstickMapping = ThumbstickMapping.from_file(path)
+## The file the game flies when `load_file` is given no path. A test points it
+## at a scratch layout to prove the main scene reads the file rather than the
+## built-in layout, which the shipped file equals (#901), and puts it back.
+static var path: String = ThumbstickMapping.DEFAULT_LAYOUT_FILE
+
+
+## The mapping for `file_path`, or for `path` when none is given, falling back
+## to the built-in layout when the file is missing or rejected. Hands and pitch
+## are applied by the caller.
+static func load_file(file_path: String = "") -> ThumbstickMapping:
+	var used: String = file_path if file_path != "" else path
+	var mapping: ThumbstickMapping = ThumbstickMapping.from_file(used)
 	if mapping.error != "":
-		push_warning(fallback_warning(path, mapping.error))
+		push_warning(fallback_warning(used, mapping.error))
 	return mapping
 
 
-## The one warning logged when `path` could not be used.
-static func fallback_warning(path: String, error: String) -> String:
-	return "Meltdown: thumbstick layout %s not used, flying the built-in layout: %s" % [path, error]
+## The one warning logged when `file_path` could not be used.
+static func fallback_warning(file_path: String, error: String) -> String:
+	return "Meltdown: thumbstick layout %s not used, flying the built-in layout: %s" % [file_path, error]

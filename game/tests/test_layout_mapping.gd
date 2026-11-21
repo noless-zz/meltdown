@@ -50,6 +50,33 @@ func test_main_scene_flies_the_file() -> String:
 	return ""
 
 
+## The shipped file equals the built-in layout, so only a scratch file that
+## differs from it shows the main scene reads the file (#901). With `main.gd`
+## back on `ThumbstickMapping.new()` this test fails.
+func test_main_scene_flies_a_scratch_file() -> String:
+	_write_scratch(_default_with_dead_zone("0.25"))
+	LayoutMapping.path = SCRATCH
+	var scene: PackedScene = load("res://main.tscn") as PackedScene
+	var main: Node = scene.instantiate()
+	var mapping: ThumbstickMapping = main.get("mapping")
+	main.free()
+	LayoutMapping.path = ThumbstickMapping.DEFAULT_LAYOUT_FILE
+	_cleanup()
+	if mapping.error != "" or mapping.warning != "":
+		return "scratch layout: error \"%s\" warning \"%s\"" % [mapping.error, mapping.warning]
+	if mapping.stick_dead_zone != 0.25:
+		return "main scene dead zone %s, want the scratch file's 0.25" % mapping.stick_dead_zone
+	if _yaw_at(mapping, 0.2) != 0.0:
+		return "0.2 yaw deflection turns the main scene's ship with a 0.25 dead zone"
+	return ""
+
+
+func test_path_defaults_to_the_shipped_file() -> String:
+	if LayoutMapping.path != ThumbstickMapping.DEFAULT_LAYOUT_FILE:
+		return "LayoutMapping.path is %s, not the shipped file" % LayoutMapping.path
+	return ""
+
+
 func test_shipped_file_flies_as_the_built_in_layout() -> String:
 	var mapping: ThumbstickMapping = LayoutMapping.load_file()
 	if mapping.layout != ThumbstickMapping.default_layout():
