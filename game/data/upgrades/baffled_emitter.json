@@ -1,0 +1,15 @@
+{
+	"id": "baffled_emitter",
+	"name": "Baffled Emitter",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 2,
+	"requires": [
+		"shield_capacitor"
+	],
+	"cost": {
+		"cell_salts": 3,
+		"circuit_shards": 2
+	},
+	"grants": "baffled_emitter"
+}

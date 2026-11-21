@@ -1,0 +1,15 @@
+{
+	"id": "torsion_drive",
+	"name": "Torsion Drive",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 3,
+	"requires": [
+		"vectored_thrusters"
+	],
+	"cost": {
+		"circuit_shards": 2,
+		"core_glass": 2
+	},
+	"grants": "torsion_drive"
+}

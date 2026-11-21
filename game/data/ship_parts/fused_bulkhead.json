@@ -1,0 +1,9 @@
+{
+	"id": "fused_bulkhead",
+	"name": "Fused Bulkhead",
+	"kind": "hull",
+	"stats": {
+		"max_hull": 1.4,
+		"wall_damage_per_speed": 0.8
+	}
+}

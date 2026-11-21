@@ -1,0 +1,9 @@
+{
+	"id": "baffled_emitter",
+	"name": "Baffled Emitter",
+	"kind": "shield",
+	"stats": {
+		"max_shield": 1.1,
+		"shield_energy_cost": 0.85
+	}
+}
