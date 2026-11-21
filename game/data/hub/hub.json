@@ -1,0 +1,10 @@
+{
+	"pages": [
+		{"id": "crew", "title": "Crew Quarters"},
+		{"id": "store", "title": "Parts Locker"},
+		{"id": "craft", "title": "Workbench"},
+		{"id": "fit", "title": "Fitting Bay"}
+	],
+	"empty_crew": "Nobody aboard yet. Bring trapped miners home to sign them on.",
+	"empty_store": "The locker is bare. Escape a mine with components to fill it."
+}
