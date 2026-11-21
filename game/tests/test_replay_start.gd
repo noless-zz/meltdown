@@ -75,7 +75,7 @@ func test_without_the_line_the_hash_is_unchanged() -> String:
 	var plain: Sim = recorded[1]
 	var now: Sim = Replay.from_text(replay.to_text()).run()
 	var older: Sim = Replay.from_text(replay.to_text().replace(
-		"meltdown-replay %d" % Replay.FORMAT_VERSION, "meltdown-replay 13")).run()
+		"meltdown-replay %d" % ReplayRulesLine.PLAIN_VERSION, "meltdown-replay 13")).run()
 	if now.state_hash() != plain.state_hash() or older.state_hash() != plain.state_hash():
 		return "hashes %d and %d, a plain sim %d" % [now.state_hash(), older.state_hash(),
 			plain.state_hash()]
