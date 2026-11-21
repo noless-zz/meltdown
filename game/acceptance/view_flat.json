@@ -1,0 +1,7 @@
+{
+	"sample_interval_seconds": 2.0,
+	"sample_size": 64,
+	"colour_levels": 16,
+	"flat_luminance_stddev_below": 0.02,
+	"flat_colours_below": 12
+}
