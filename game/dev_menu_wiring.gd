@@ -33,8 +33,9 @@ extends RefCounted
 ## as they do for the button, and `FlightTestWiring` saves it in `ComfortChoice`
 ## on the next frame as it saves a button change. It changes only this player's
 ## view and input handling, never the ship (CMF-6). The entry opens on the
-## active preset, so it follows a button change; in the custom mode (#806) it
-## opens on the custom file's base preset.
+## active preset, so it follows a button change. With an accepted custom file
+## (#806) it also steps to the custom mode, and opens on it while it is active
+## (#837); without one it offers 1 to 4 only.
 ##
 ## A Break reminder choice (#821, CMF-10) goes through
 ## `BreakPromptWiring.set_enabled`, which saves it in `BreakChoice` and hides
@@ -221,6 +222,7 @@ func _toggle() -> void:
 	if is_open():
 		menu.close()
 	else:
+		menu.model.set_custom_base(comfort.custom().base if comfort != null and comfort.custom_available() else 0)
 		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
 			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
 			mapping != null and mapping.invert_pitch, _comfort_shown(), _break_shown())
@@ -231,14 +233,9 @@ func _break_shown() -> bool:
 	return break_prompt == null or break_prompt.reminder == null or break_prompt.reminder.is_enabled()
 
 
-## The preset the Comfort entry opens on: the active one, or the custom
-## file's base preset in the custom mode.
+## The preset the Comfort entry opens on: the active one, the custom mode included.
 func _comfort_shown() -> int:
-	if comfort == null:
-		return ComfortPresetFiles.START_NUMBER
-	if comfort.number == ComfortPresetFiles.CUSTOM_NUMBER:
-		return comfort.custom().base
-	return comfort.number
+	return comfort.number if comfort != null else ComfortPresetFiles.START_NUMBER
 
 
 ## Only called while the menu is open, so the ship is on neutral input now.

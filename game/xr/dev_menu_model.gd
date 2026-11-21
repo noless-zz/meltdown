@@ -11,7 +11,8 @@ extends RefCounted
 ##
 ## `press` returns what was confirmed, or "" when nothing was:
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
-## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805),
+## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805) or
+## `comfort:<ComfortPresetFiles.CUSTOM_NUMBER>` for the custom mode (#837),
 ## `break:<on|off>` (#821), `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
@@ -60,8 +61,12 @@ var pitch_index: int = 0
 ## The comfort presets the comfort entry steps through, 1 to 4 in order (#805):
 ## each preset file's `display_name`, or its number when the file is rejected.
 var preset_names: Array[String] = []
-## Index into `preset_names`: the preset numbered `preset_index + 1`.
+## Index into `preset_names`: the preset numbered `preset_index + 1`; one past
+## the end is the custom mode, offered only while `custom_base` is set.
 var preset_index: int = 0
+## The accepted custom comfort file's base preset (1..4), or 0 when there is
+## none and the comfort entry steps 1 to 4 only (#837). See `set_custom_base`.
+var custom_base: int = 0
 ## Whether the Break reminder entry shows On (#821, CMF-10).
 var break_on: bool = true
 ## The Level entry's choices and seed.
@@ -98,6 +103,8 @@ func open(corner: String, source: String, scheme: String = "", left_handed: bool
 	hand_index = 1 if left_handed else 0
 	pitch_index = 1 if invert_pitch else 0
 	preset_index = comfort_number - 1 if comfort_number >= 1 and comfort_number <= preset_names.size() else 0
+	if comfort_number == ComfortPresetFiles.CUSTOM_NUMBER and custom_base > 0:
+		preset_index = preset_names.size()
 	break_on = p_break_on
 	levels.open(source)
 
@@ -155,12 +162,24 @@ func pitch() -> String:
 	return PITCHES[pitch_index]
 
 
-## The comfort preset number the comfort entry shows, 1..4, and its name.
+## Offers the custom mode on the comfort entry with base preset `base`
+## (1..4), or stops offering it with 0. Set before `open`, so the entry can
+## open on it.
+func set_custom_base(base: int) -> void:
+	custom_base = base
+	if preset_index >= _comfort_count():
+		preset_index = 0
+
+
+## The comfort preset number the comfort entry shows, 1..4 or
+## `ComfortPresetFiles.CUSTOM_NUMBER`, and its name.
 func comfort_number() -> int:
-	return preset_index + 1
+	return ComfortPresetFiles.CUSTOM_NUMBER if preset_index == preset_names.size() else preset_index + 1
 
 
 func comfort_text() -> String:
+	if preset_index == preset_names.size():
+		return spec.custom_comfort_text.replace("{base}", str(custom_base))
 	return preset_names[preset_index]
 
 
@@ -204,7 +223,7 @@ func _change(direction: int) -> void:
 	elif kind() == DevMenuSpec.KIND_PITCH:
 		pitch_index = posmod(pitch_index + direction, PITCHES.size())
 	elif kind() == DevMenuSpec.KIND_COMFORT:
-		preset_index = posmod(preset_index + direction, preset_names.size())
+		preset_index = posmod(preset_index + direction, _comfort_count())
 	elif kind() == DevMenuSpec.KIND_BREAK:
 		break_on = not break_on  # Two choices, so either direction flips it.
 	elif kind() == DevMenuSpec.KIND_LEVEL:
@@ -232,6 +251,12 @@ func _confirm() -> String:
 		DevMenuSpec.KIND_UPDATE:
 			return UPDATE
 	return CLOSE
+
+
+## How many places the comfort entry steps through: the presets, and the
+## custom mode while it is offered.
+func _comfort_count() -> int:
+	return preset_names.size() + (1 if custom_base > 0 else 0)
 
 
 ## The next shown entry from `from` in `direction`, wrapping; `from` itself
