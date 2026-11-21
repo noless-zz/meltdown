@@ -1,23 +1,38 @@
 class_name Profile
 extends RefCounted
 
-## The save that outlives a run (#928): components banked on escape (CRF-2) and,
-## later, crafted upgrades (CRF-3). Lost runs keep it (RUN-7). This class is only
-## the data and its JSON text; `ProfileStore` puts it on disk.
+## The save that outlives a run (#928): components banked on escape (CRF-2),
+## crafted upgrades (CRF-3) and rescued crew (CRW-1, #1010). Lost runs keep it
+## (RUN-7). This class is only the data and its JSON text; `ProfileStore` puts
+## it on disk.
 
 ## The newest profile layout this build understands. A file with a higher number
 ## came from a newer build and is never read or overwritten (see ProfileStore).
-const VERSION: int = 1
+## Version 2 added `crew`. It is optional when reading, so a version 1 file still
+## loads; the number was raised because a version 1 build refuses unknown keys,
+## and without the bump it would call a file with crew unreadable and then save
+## an empty profile over it. With the bump it sees a newer file and leaves it be.
+const VERSION: int = 2
 const KEY_VERSION: String = "version"
 const KEY_BANKED: String = "banked"
 const KEY_CRAFTED: String = "crafted"
+const KEY_CREW: String = "crew"
+## Keys every file must have; `crew` may be missing (older files).
 const KEYS: Array[String] = [KEY_VERSION, KEY_BANKED, KEY_CRAFTED]
+const OPTIONAL_KEYS: Array[String] = [KEY_CREW]
+const CREW_ID: String = "id"
+const CREW_ROLE: String = "role"
+const CREW_KEYS: Array[String] = [CREW_ID, CREW_ROLE]
 
 var version: int = VERSION
 ## Component id to count; only counts above zero are kept.
 var banked: Dictionary[String, int] = {}
 ## Upgrade ids, in the order they were crafted. Nothing fills it yet.
 var crafted: Array[String] = []
+## Crew members in the order they joined, each `{"id": String, "role": String}`.
+## Ids are unique. Whether each role exists is a question for `CrewRoles`, which
+## this class does not read; `CrewRoster.check` asks it.
+var crew: Array[Dictionary] = []
 ## Set when `parse_json` rejected the text; the profile is then empty.
 var error: String = ""
 ## True when the text was rejected only because its version is newer than ours.
@@ -64,6 +79,7 @@ func to_json() -> String:
 		KEY_VERSION: version,
 		KEY_BANKED: banked.duplicate(),
 		KEY_CRAFTED: crafted.duplicate(),
+		KEY_CREW: crew.duplicate(true),
 	}
 	return JSON.stringify(data, "\t", true) + "\n"
 
@@ -90,7 +106,7 @@ static func parse_json(text: String) -> Profile:
 	if file_version < 1:
 		return _rejected("key \"%s\" is %d, must be at least 1" % [KEY_VERSION, file_version])
 	for key: Variant in data:
-		if not KEYS.has(str(key)):
+		if not KEYS.has(str(key)) and not OPTIONAL_KEYS.has(str(key)):
 			return _rejected("unknown key \"%s\"" % str(key))
 	for key: String in KEYS:
 		if not data.has(key):
@@ -104,9 +120,52 @@ static func parse_json(text: String) -> Profile:
 		if typeof(item) != TYPE_STRING or String(item).is_empty():
 			return _rejected("key \"%s\" must be a list of upgrade ids" % KEY_CRAFTED)
 		profile.crafted.append(String(item))
-	profile.version = file_version
+	if data.has(KEY_CREW):
+		var crew_error: String = _read_crew(data[KEY_CREW], profile)
+		if crew_error != "":
+			return _rejected(crew_error)
+	# Whatever version the file had, it is written back in the current layout.
+	profile.version = VERSION
 	profile.bank(data[KEY_BANKED])
 	return profile
+
+
+## Error naming the first bad crew entry, or "" when every entry is an object
+## with exactly a non-empty string `id` and `role` and no id repeats.
+static func crew_error(entries: Array) -> String:
+	var seen: Dictionary[String, bool] = {}
+	for i: int in entries.size():
+		var entry: Variant = entries[i]
+		var label: String = "crew entry %d" % (i + 1)
+		if typeof(entry) != TYPE_DICTIONARY:
+			return "%s must be an object with \"%s\" and \"%s\"" % [label, CREW_ID, CREW_ROLE]
+		var member: Dictionary = entry
+		if member.has(CREW_ID) and typeof(member[CREW_ID]) == TYPE_STRING and not String(member[CREW_ID]).is_empty():
+			label = "crew entry %d (\"%s\")" % [i + 1, member[CREW_ID]]
+		for key: Variant in member:
+			if not CREW_KEYS.has(str(key)):
+				return "%s has unknown key \"%s\"" % [label, str(key)]
+		for key: String in CREW_KEYS:
+			if not member.has(key) or typeof(member[key]) != TYPE_STRING or String(member[key]).is_empty():
+				return "%s: key \"%s\" must be a non-empty string" % [label, key]
+		var id: String = member[CREW_ID]
+		if seen.has(id):
+			return "%s repeats an id used by an earlier entry" % label
+		seen[id] = true
+	return ""
+
+
+static func _read_crew(value: Variant, profile: Profile) -> String:
+	if typeof(value) != TYPE_ARRAY:
+		return "key \"%s\" must be a list of crew entries" % KEY_CREW
+	var entries: Array = value
+	var message: String = crew_error(entries)
+	if message != "":
+		return "key \"%s\": %s" % [KEY_CREW, message]
+	for entry: Variant in entries:
+		var member: Dictionary = entry
+		profile.crew.append({CREW_ID: String(member[CREW_ID]), CREW_ROLE: String(member[CREW_ROLE])})
+	return ""
 
 
 static func _valid_counts(counts: Dictionary) -> bool:
