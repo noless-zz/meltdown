@@ -6,7 +6,7 @@ extends RefCounted
 ## and writes no simulation state (MP-2). Its `ShipInput` goes through the same
 ## comfort filter as the thumbsticks' (ARC-3); that happens in the caller.
 ##
-## Pulling a grip past `GrippedStickMapping.GRIP_HOLD_THRESHOLD` records the
+## Pulling a grip past the mapping's hold threshold (`GrippedFeelSpec`) records the
 ## hand's pose as its grab point; each frame the hand's pose relative to that
 ## point goes to `GrippedStickMapping`, and letting go forgets the point, so
 ## the control reads as centred. A hand whose pose is missing (not tracked)
@@ -70,7 +70,7 @@ func update_grabs(values: Dictionary) -> void:
 	var poses: Dictionary = values.get(ControllerSampler.POSES, {})
 	for hand: String in ControllerSampler.HANDS:
 		var grip: float = float(values.get(hand + "_grip", 0.0))
-		if grip >= GrippedStickMapping.GRIP_HOLD_THRESHOLD and poses.has(hand):
+		if mapping.holds_grip(grip) and poses.has(hand):
 			if not _grabs.has(hand):
 				_grabs[hand] = poses[hand]
 		else:

@@ -37,24 +37,21 @@ extends RefCounted
 ## hand the throttle, and the afterburner moves to the right hand's lower face
 ## button (A).
 
-## A grip pulled at least this far holds the control. Half way, as for the
-## buttons of `ThumbstickMapping`.
-const GRIP_HOLD_THRESHOLD: float = 0.5
-
-## Stick tilt, ahead/back and left/right, in radians. A wrist rests a few
-## degrees off its grab angle without meaning to, so that gives exactly zero.
-const STICK_TILT_DEAD_ZONE_RAD: float = deg_to_rad(4.0)
-## Tilt that gives full pitch or roll. Small enough to reach without bending
-## the wrist uncomfortably, large enough for fine control near the centre.
-const STICK_TILT_FULL_RAD: float = deg_to_rad(30.0)
-## Twist about the stick's own axis, in radians. A wrist twists less easily
-## than it tilts, so the twist range is narrower.
-const STICK_TWIST_DEAD_ZONE_RAD: float = deg_to_rad(5.0)
-const STICK_TWIST_FULL_RAD: float = deg_to_rad(25.0)
-
+## The built-in feel values, used when `gripped_default.json` is rejected.
+## The game flies with `feel`, read from that file, which ships the same
+## numbers (#854); these stay for the cockpit models that size themselves
+## to the built-in travel.
+## A grip pulled at least this far holds the control.
+const GRIP_HOLD_THRESHOLD: float = GrippedFeelSpec.DEFAULT_GRIP_HOLD_THRESHOLD
+## Stick tilt, ahead/back and left/right, in radians: dead zone and full.
+const STICK_TILT_DEAD_ZONE_RAD: float = deg_to_rad(GrippedFeelSpec.DEFAULT_STICK_TILT_DEAD_ZONE_DEG)
+const STICK_TILT_FULL_RAD: float = deg_to_rad(GrippedFeelSpec.DEFAULT_STICK_TILT_FULL_DEG)
+## Twist about the stick's own axis, in radians: dead zone and full.
+const STICK_TWIST_DEAD_ZONE_RAD: float = deg_to_rad(GrippedFeelSpec.DEFAULT_STICK_TWIST_DEAD_ZONE_DEG)
+const STICK_TWIST_FULL_RAD: float = deg_to_rad(GrippedFeelSpec.DEFAULT_STICK_TWIST_FULL_DEG)
 ## Throttle travel from the grab point along each axis, in metres.
-const THROTTLE_DEAD_ZONE_M: float = 0.02
-const THROTTLE_FULL_M: float = 0.10
+const THROTTLE_DEAD_ZONE_M: float = GrippedFeelSpec.DEFAULT_THROTTLE_DEAD_ZONE_M
+const THROTTLE_FULL_M: float = GrippedFeelSpec.DEFAULT_THROTTLE_FULL_M
 
 const MAX_PITCH_RATE: float = ThumbstickMapping.MAX_PITCH_RATE
 const MAX_YAW_RATE: float = ThumbstickMapping.MAX_YAW_RATE
@@ -71,6 +68,8 @@ const AFTERBURNER_BUTTON_LEFT_HANDED: String = "right_button_lower"
 
 var left_handed: bool = false
 var invert_pitch: bool = false
+## The feel values the mapping uses; the shipped file unless a caller swaps it.
+var feel: GrippedFeelSpec = GrippedFeelSpec.shipped()
 
 
 ## Scales a signed reading so that the dead zone gives exactly zero and the
@@ -111,21 +110,23 @@ func axes(left_pose: Transform3D, right_pose: Transform3D,
 	var result: Dictionary = {}
 	for name: String in AXES:
 		result[name] = 0.0
-	if _held(stick_grip):
+	if holds_grip(stick_grip):
 		var angles: Vector3 = stick_angles(stick_pose.basis)
 		var ahead: float = apply_dead_zone(
-			angles.z, STICK_TILT_DEAD_ZONE_RAD, STICK_TILT_FULL_RAD)
+			angles.z, feel.stick_tilt_dead_zone_rad, feel.stick_tilt_full_rad)
 		# Stick ahead is nose down, as on an aircraft.
 		result["pitch"] = ahead if invert_pitch else -ahead
 		result["roll"] = apply_dead_zone(
-			angles.x, STICK_TILT_DEAD_ZONE_RAD, STICK_TILT_FULL_RAD)
+			angles.x, feel.stick_tilt_dead_zone_rad, feel.stick_tilt_full_rad)
 		result["yaw"] = apply_dead_zone(
-			angles.y, STICK_TWIST_DEAD_ZONE_RAD, STICK_TWIST_FULL_RAD)
-	if _held(throttle_grip):
+			angles.y, feel.stick_twist_dead_zone_rad, feel.stick_twist_full_rad)
+	if holds_grip(throttle_grip):
 		var offset: Vector3 = throttle_pose.origin
-		result["strafe"] = apply_dead_zone(offset.x, THROTTLE_DEAD_ZONE_M, THROTTLE_FULL_M)
-		result["lift"] = apply_dead_zone(offset.y, THROTTLE_DEAD_ZONE_M, THROTTLE_FULL_M)
-		result["forward"] = apply_dead_zone(-offset.z, THROTTLE_DEAD_ZONE_M, THROTTLE_FULL_M)
+		var dead_zone: float = feel.throttle_dead_zone_m
+		var full: float = feel.throttle_full_m
+		result["strafe"] = apply_dead_zone(offset.x, dead_zone, full)
+		result["lift"] = apply_dead_zone(offset.y, dead_zone, full)
+		result["forward"] = apply_dead_zone(-offset.z, dead_zone, full)
 	return result
 
 
@@ -135,7 +136,7 @@ func axes(left_pose: Transform3D, right_pose: Transform3D,
 func afterburner(left_grip: float, right_grip: float, buttons: Dictionary = {}) -> bool:
 	var throttle_grip: float = right_grip if left_handed else left_grip
 	var button: String = AFTERBURNER_BUTTON_LEFT_HANDED if left_handed else AFTERBURNER_BUTTON
-	return _held(throttle_grip) and bool(buttons.get(button, false))
+	return holds_grip(throttle_grip) and bool(buttons.get(button, false))
 
 
 ## Maps one frame of hand poses, grips (0..1) and buttons to the input for
@@ -154,5 +155,6 @@ func map_controls(left_pose: Transform3D, right_pose: Transform3D,
 	return ShipInput.from_floats(thrust, turn, afterburner(left_grip, right_grip, buttons))
 
 
-static func _held(grip: float) -> bool:
-	return grip >= GRIP_HOLD_THRESHOLD
+## True when `grip` is pulled far enough to hold a control.
+func holds_grip(grip: float) -> bool:
+	return grip >= feel.grip_hold_threshold
