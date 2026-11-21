@@ -76,6 +76,9 @@ var secondary_slots: Array[WeaponDef] = [null, null]
 ## again (`PartSlotting`). Not hashed: the id is fixed by the replay's weapon
 ## lines and hold, and the weapon's values are already in the hash.
 var primary_ids: Array[String] = ["", ""]
+## Utility slots (CRF-5): module id of each, "" when empty. Separate from the
+## weapon slots; their count comes from the ship file through `ShipLoadout`.
+var utility_slots: Array[String] = []
 ## Index into `primary_slots` of the weapon `fire_primary` uses.
 var selected_primary: int = 0
 ## Ticks until the selected primary may fire again; 0 means ready.
@@ -254,6 +257,11 @@ func state_hash() -> int:
 	# Joins only off the nose, so runs that never aimed keep their hashes.
 	if gun_direction != LookAim.NOSE:
 		parts.append(["gun", gun_direction])
+	# Joins only once a module is fitted, so empty utility slots keep every
+	# replay's hash (#929).
+	var modules: Array[String] = utility_slots.filter(func(id: String) -> bool: return id != "")
+	if not modules.is_empty():
+		parts.append(["utility", utility_slots.duplicate()])
 	# Joins only once something is held, so earlier replays keep their hashes.
 	if not hold.is_empty():
 		parts.append(["hold", hold.duplicate()])

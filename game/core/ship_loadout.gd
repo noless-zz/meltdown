@@ -16,7 +16,12 @@ extends RefCounted
 ##
 ## Data file shape, each list at most `SLOTS_PER_KIND` long, "" for an empty slot:
 ##
-##     "loadout": {"primary": ["pulse_cannon", ""], "secondary": ["", ""]}
+##     "loadout": {"primary": ["pulse_cannon", ""], "secondary": ["", ""], "utility": []}
+##
+## `utility` lists the modules in the ship's utility slots, which are not
+## weapons (CRF-5); look-aim and aim assist become such modules (CMB-8,
+## decision record 0010). The slot count comes from the ship file's
+## `utility_slots` key, so `ShipTuning` checks the list against it.
 
 ## Slots of each kind, as in `ShipState`.
 const SLOTS_PER_KIND: int = 2
@@ -24,6 +29,12 @@ const SLOTS_PER_KIND: int = 2
 const KINDS: Array[String] = ["primary", "secondary"]
 ## Longest weapon id, as for `RobotDef` ids.
 const ID_MAX_LENGTH: int = 64
+## Key of the utility module list inside `loadout`. Not one of `KINDS`: those
+## are weapon slots, which replays write on weapon lines.
+const UTILITY_KEY: String = "utility"
+## Utility module kinds core knows. None yet (#929), so every module id is
+## rejected until the first kind is added here.
+const UTILITY_MODULE_KINDS: Array[String] = []
 
 ## Weapon id of each slot, "" when empty.
 var primary_ids: Array[String] = ["", ""]
@@ -31,6 +42,10 @@ var secondary_ids: Array[String] = ["", ""]
 ## Weapon of each slot once resolved, null when empty or not yet resolved.
 var primary_weapons: Array[WeaponDef] = [null, null]
 var secondary_weapons: Array[WeaponDef] = [null, null]
+## How many utility slots the ship has, set by `ShipTuning` from the ship file.
+var utility_slots: int = 0
+## Module id of each filled utility slot, in slot order.
+var utility_ids: Array[String] = []
 ## Set by `from_data` when the entry was rejected; empty otherwise.
 var error: String = ""
 
@@ -43,9 +58,13 @@ static func from_data(data: Variant) -> ShipLoadout:
 		return _failed("\"loadout\" must be an object")
 	var entry: Dictionary = data
 	for key: Variant in entry:
-		if typeof(key) != TYPE_STRING or not KINDS.has(key):
+		if typeof(key) != TYPE_STRING or not (KINDS.has(key) or key == UTILITY_KEY):
 			return _failed("unknown key \"loadout.%s\"" % str(key))
 	var loadout: ShipLoadout = ShipLoadout.new()
+	if entry.has(UTILITY_KEY):
+		var problem: String = loadout._read_utility(entry[UTILITY_KEY])
+		if problem != "":
+			return _failed(problem)
 	for kind: String in KINDS:
 		if not entry.has(kind):
 			continue
@@ -77,6 +96,34 @@ static func check_id(field: String, id: String) -> String:
 		var c: int = id.unicode_at(i)
 		if not ((c >= 97 and c <= 122) or (c >= 48 and c <= 57) or c == 95):
 			return "\"%s\" is \"%s\", must use only a-z, 0-9 and _" % [field, id]
+	return ""
+
+
+## Fills `utility_ids` from the value of `loadout.utility`; returns a problem
+## naming the field, or "".
+func _read_utility(value: Variant) -> String:
+	if typeof(value) != TYPE_ARRAY:
+		return "\"loadout.%s\" must be a list" % UTILITY_KEY
+	var ids: Array = value
+	for slot: int in ids.size():
+		var field: String = "loadout.%s[%d]" % [UTILITY_KEY, slot]
+		if typeof(ids[slot]) != TYPE_STRING:
+			return "\"%s\" must be a string" % field
+		var id: String = ids[slot]
+		var message: String = check_id(field, id)
+		if message != "":
+			return message
+		if not UTILITY_MODULE_KINDS.has(id):
+			return "\"%s\" names module \"%s\", which is not a known utility module" % [field, id]
+		utility_ids.append(id)
+	return ""
+
+
+## Empty when the utility modules fit in `utility_slots`; otherwise names the key.
+func check_utility_count() -> String:
+	if utility_ids.size() > utility_slots:
+		return "\"loadout.%s\" has %d modules, more than the %d of \"utility_slots\"" % [
+			UTILITY_KEY, utility_ids.size(), utility_slots]
 	return ""
 
 
@@ -141,8 +188,12 @@ func is_armed() -> bool:
 	return false
 
 
-## Puts the resolved weapons in `ship`'s slots, emptying the rest.
+## Puts the resolved weapons in `ship`'s slots, emptying the rest, and gives
+## it `utility_slots` utility slots holding the modules in order.
 func equip(ship: ShipState) -> void:
+	ship.utility_slots.clear()
+	for slot: int in utility_slots:
+		ship.utility_slots.append(utility_ids[slot] if slot < utility_ids.size() else "")
 	ship.primary_slots.assign(primary_weapons)
 	for slot: int in SLOTS_PER_KIND:
 		ship.primary_ids[slot] = primary_ids[slot] if primary_weapons[slot] != null else ""

@@ -69,6 +69,14 @@ var loadout: ShipLoadout = ShipLoadout.new()
 ## Key of the loadout entry in the data file.
 const LOADOUT_KEY: String = "loadout"
 
+## Utility slots, separate from the weapon slots, 0..`UTILITY_SLOTS_MAX`
+## (CRF-5). Optional in the data file, like `loadout`: without the key the
+## ship has none. A whole number, so not one of `KEYS`, and not on a replay's
+## tuning line: empty slots never reach the state hash.
+var utility_slots: int = 0
+const UTILITY_SLOTS_KEY: String = "utility_slots"
+const UTILITY_SLOTS_MAX: int = 4
+
 ## Every number key of the data file, in the order the file lists them. Each
 ## one is a field of this class and of `ShipState` with the same name.
 const KEYS: Array[String] = [
@@ -107,7 +115,7 @@ var error: String = ""
 
 
 ## Parses the text of a ship data file: one JSON object holding every key in
-## `KEYS` as a number, optionally a `loadout` entry, and nothing else. A missing key is an error rather
+## `KEYS` as a number, optionally `loadout` and `utility_slots`, and nothing else. A missing key is an error rather
 ## than a silent default, so a typo in the file cannot leave a value
 ## untuned without anyone noticing. Each value must lie in its range in
 ## `RANGES`, so a data file cannot put the simulation into a nonsense state.
@@ -123,13 +131,27 @@ static func parse_json(text: String) -> ShipTuning:
 		return tuning
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == LOADOUT_KEY):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == LOADOUT_KEY or key == UTILITY_SLOTS_KEY):
 			return _defaults_with_error("unknown key \"%s\"" % str(key))
 	if data.has(LOADOUT_KEY):
 		var loadout: ShipLoadout = ShipLoadout.from_data(data[LOADOUT_KEY])
 		if loadout.error != "":
 			return _defaults_with_error(loadout.error)
 		tuning.loadout = loadout
+	if data.has(UTILITY_SLOTS_KEY):
+		var slots: Variant = data[UTILITY_SLOTS_KEY]
+		var whole: bool = (typeof(slots) == TYPE_INT
+			or (typeof(slots) == TYPE_FLOAT and is_finite(slots) and float(slots) == floorf(slots)))
+		if not whole:
+			return _defaults_with_error("key \"%s\" must be a whole number" % UTILITY_SLOTS_KEY)
+		if slots < 0 or slots > UTILITY_SLOTS_MAX:
+			return _defaults_with_error("key \"%s\" is %s, must be 0 to %d" % [
+				UTILITY_SLOTS_KEY, slots, UTILITY_SLOTS_MAX])
+		tuning.utility_slots = int(slots)
+	tuning.loadout.utility_slots = tuning.utility_slots
+	var count_problem: String = tuning.loadout.check_utility_count()
+	if count_problem != "":
+		return _defaults_with_error(count_problem)
 	for key: String in KEYS:
 		if not data.has(key):
 			return _defaults_with_error("missing key \"%s\"" % key)
