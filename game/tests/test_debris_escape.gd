@@ -43,10 +43,13 @@ const SLOW_MARGIN: float = 0.1
 ## The shipped margin: 48 s, enough for the long way too.
 const SHIPPED_MARGIN: float = 0.8
 const SEEDS: int = 1000
-## A margin under the generated levels' worst escape with debris fallen (about
-## 52% of the countdown over seeds 0..999) but over their worst clear escape
-## (about 35%), so some levels must lose entries and every one can.
-const SQUEEZED_MARGIN: float = 0.4
+## A margin under the generated levels' worst escape with debris fallen but
+## over their worst clear escape, so some levels must lose entries and every
+## one can. Since #912 put the reactor far from the start, escapes are longer
+## and the window is narrow: the worst clear escape in seeds 0..299 is 34.1% of
+## its countdown (seed 83), and at 0.36 one seed still loses an entry, at 0.38
+## none does.
+const SQUEEZED_MARGIN: float = 0.35
 const SQUEEZED_SEEDS: int = 300
 const TIME_LIMIT_MS: int = 90000
 ## Generated levels whose held entries are compared with the guard's.

@@ -13,9 +13,11 @@ const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const SAME_SEEDS: int = 200
 ## Door count and checksum (`_checksum`) of seeds 0..199 with the shipped file,
-## fires and `loop_weight` left out, from `main` before #515 (d1512b0).
+## fires and `loop_weight` left out, from `main` before #515 (d1512b0). Taken
+## again for #912, which moves the reactor away from the start, so the escape
+## route the doors are placed on moves with it; the doors were not changed.
 const BEFORE_DOORS: int = 210
-const BEFORE_CHECKSUM: int = -295352834
+const BEFORE_CHECKSUM: int = -727600254
 ## Most of the doors the guard may hold at the shipped weight, out of 100.
 const MOST_HELD_PERCENT: int = 20
 ## Fewest doors placed at the shipped weight, out of 100 at weight 1.

@@ -1,16 +1,18 @@
 extends RefCounted
 
-## The generator places the reactor (#356, GEN-1, GEN-2, RUN-2, ARC-4): over
-## 1,000 seeds every 10-module level has a reactor in the module furthest from
-## the first in joins, inside a box with the reactor's radius and a ship's
-## diameter clear; the same seed puts it in the same place; a level too short
+## The generator places the reactor (#356, #912, GEN-1, GEN-2, RUN-2, ARC-4):
+## over 1,000 seeds every 10-module level has a reactor in the module
+## `ReactorFar` picks (the far module with the longest escape path; its own
+## tests are in `test_reactor_far.gd`), inside a box of that module with the
+## reactor's radius and a ship's diameter clear; the same seed puts it in the same place; a level too short
 ## gets none and a note; and the data file is checked key by key.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const REACTOR_FILE: String = "res://data/gen/reactor.json"
 const SEEDS: int = 1000
 const TIME_LIMIT_MS: int = 15000
-const VALID: Dictionary = {"radius": 2.5, "hull": 400, "meltdown_seconds": 90, "min_hops": 2}
+const VALID: Dictionary = {"radius": 2.5, "hull": 400, "meltdown_seconds": 90, "min_hops": 2,
+		"min_escape_fraction": 0.6}
 
 
 func _plan() -> ReactorPlan:
@@ -45,7 +47,7 @@ func test_data_file_reads() -> String:
 func test_data_file_is_rejected_naming_the_bad_key() -> String:
 	var cases: Array = [
 		["radius", -1, "radius"], ["hull", "lots", "hull"], ["meltdown_seconds", 0, "meltdown_seconds"],
-		["min_hops", 0, "min_hops"], ["min_hops", 2.5, "min_hops"], ["position", [0, 0, 0], "position"],
+		["min_hops", 1, "min_hops"], ["min_hops", 2.5, "min_hops"], ["position", [0, 0, 0], "position"],
 		["exit_radius", 4, "exit_radius"], ["colour", "red", "colour"],
 	]
 	for case: Array in cases:
@@ -65,7 +67,7 @@ func test_data_file_is_rejected_naming_the_bad_key() -> String:
 	return ""
 
 
-func test_thousand_seeds_get_a_clear_reactor_in_the_furthest_module() -> String:
+func test_thousand_seeds_get_a_clear_reactor_in_the_far_module() -> String:
 	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var plan: ReactorPlan = _plan()
 	var ship_radius: float = SeedSweep.ship_radius()
@@ -85,20 +87,12 @@ func test_thousand_seeds_get_a_clear_reactor_in_the_furthest_module() -> String:
 func _check(generator: MineGenerator, level: LevelDef, plan: ReactorPlan, ship_radius: float) -> String:
 	if level.reactor == null:
 		return "no reactor: %s" % generator.reactor_note
-	# Joins counted by walking up the parents, independently of the generator.
-	var furthest: int = -1
-	var most: int = -1
-	for index: int in generator.placements.size():
-		var joins: int = 0
-		var at: int = index
-		while generator.placements[at].parent >= 0:
-			at = generator.placements[at].parent
-			joins += 1
-		if joins >= most:
-			most = joins
-			furthest = index
+	# Since #912 the reactor goes by escape path from the start, not by joins
+	# from the first module.
+	var found: ReactorFar = ReactorFar.survey(level, plan.reactor.radius_mm, ship_radius, plan.min_hops)
+	var furthest: int = found.modules[found.best()]
 	if generator.reactor_placement != furthest:
-		return "reactor in module %d, furthest is %d (%d joins)" % [generator.reactor_placement, furthest, most]
+		return "reactor in module %d, the far module is %d" % [generator.reactor_placement, furthest]
 	var placement: ModulePlacement = generator.placements[furthest]
 	var clear: float = level.reactor.radius() + 2.0 * ship_radius
 	var held: bool = false
@@ -135,13 +129,14 @@ func test_without_a_plan_there_is_no_reactor() -> String:
 
 func test_two_module_chain_below_min_hops_gets_no_reactor_and_a_note() -> String:
 	var plan: ReactorPlan = ReactorPlan.parse_json(JSON.stringify(
-			{"radius": 2.5, "hull": 400, "meltdown_seconds": 90, "min_hops": 2}))
+			{"radius": 2.5, "hull": 400, "meltdown_seconds": 90, "min_hops": 2,
+			"min_escape_fraction": 0.6}))
 	var generator: MineGenerator = MineGenerator.generate(3, _straight(), 2)
 	if generator.placements.size() != 2:
 		return "%d modules placed" % generator.placements.size()
 	var level: LevelDef = generator.to_level_def(plan, 1.0)
 	if level.reactor != null:
-		return "reactor placed one join from the first module"
+		return "reactor placed one join from the start's module"
 	if not generator.reactor_note.contains("below 2"):
 		return "note is \"%s\"" % generator.reactor_note
 	return "" if generator.reactor_placement == -1 else "reactor_placement is %d" % generator.reactor_placement
@@ -150,7 +145,8 @@ func test_two_module_chain_below_min_hops_gets_no_reactor_and_a_note() -> String
 func test_box_too_small_gets_no_reactor_and_a_note() -> String:
 	# A 10 m tunnel holds 2.5 m plus a 2 m ship diameter (4.5 m) but not 4 m plus 2 m.
 	var plan: ReactorPlan = ReactorPlan.parse_json(JSON.stringify(
-			{"radius": 4, "hull": 400, "meltdown_seconds": 90, "min_hops": 1}))
+			{"radius": 4, "hull": 400, "meltdown_seconds": 90, "min_hops": 2,
+			"min_escape_fraction": 0.6}))
 	var generator: MineGenerator = MineGenerator.generate(3, _straight(), 3)
 	var level: LevelDef = generator.to_level_def(plan, 1.0)
 	if level.reactor != null:
