@@ -49,7 +49,12 @@ func test_kind_is_read_from_the_entry() -> String:
 	var kinds: Array[String] = []
 	for index: int in debris.size():
 		kinds.append(DebrisKinds.kind_of(debris, index))
-	return "" if kinds == ["rocks", "doors", "fires"] else "kinds read as %s" % [kinds]
+	if kinds != ["rocks", "doors", "fires"]:
+		return "kinds read as %s" % [kinds]
+	# A box mid-way along a straight tunnel is a cave-in (#514).
+	var caveins: Array[Vector3i] = [Vector3i.ZERO]
+	return "" if DebrisKinds.kind_of(debris, 1, caveins) == "caveins" \
+			else "a box at a tunnel's middle read as %s" % DebrisKinds.kind_of(debris, 1, caveins)
 
 
 func test_seeds_0_to_49_per_kind_sums_equal_the_totals() -> String:
@@ -84,7 +89,8 @@ func test_a_plan_with_no_doors_prints_doors_0() -> String:
 
 func test_a_kind_with_nothing_placed_prints_0() -> String:
 	var part: String = DebrisKinds.summary_part(DebrisKinds.empty())
-	var expected: String = ", rocks 0, rocks_held 0, doors 0, doors_held 0, fires 0, fires_held 0"
+	var expected: String = ", rocks 0, rocks_held 0, doors 0, doors_held 0, fires 0, fires_held 0," \
+			+ " caveins 0, caveins_held 0"
 	return "" if part == expected else "got \"%s\"" % part
 
 
@@ -99,5 +105,6 @@ func test_the_old_fields_stay_put() -> String:
 			"by_check": {"reactor": 0, "debris_route": 1}})
 	var expected: String = "level validator: 3 seeds, 2 passed, 1 failed, 0 stopped short, 12 ms," \
 			+ " debris 7, debris_held 2, rocks 5, rocks_held 2, doors 0, doors_held 0," \
-			+ " fires 2, fires_held 0; failing seeds by check: reactor 0, debris_route 1"
+			+ " fires 2, fires_held 0, caveins 0, caveins_held 0; failing seeds by check: reactor 0," \
+			+ " debris_route 1"
 	return "" if line == expected else "got \"%s\"" % line

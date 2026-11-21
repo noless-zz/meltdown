@@ -1,7 +1,7 @@
 class_name DebrisPlanFile
 extends RefCounted
 
-## Reads `data/gen/debris.json` into a `DebrisPlan` (#398, #462), split out of
+## Reads `data/gen/debris.json` into a `DebrisPlan` (#398, #462, #497, #514), split out of
 ## `DebrisPlan` so the placing there stays one readable file as it grows (#493).
 ## The keys, their ranges and the messages are described there.
 
@@ -12,7 +12,7 @@ static func read(plan: DebrisPlan, data: Dictionary) -> String:
 	var unknown: Array[String] = []
 	for key: Variant in data:
 		if not DebrisPlan.KEYS.has(key) and key != DebrisPlan.DOORS_KEY \
-				and key != DebrisPlan.FIRES_KEY:
+				and key != DebrisPlan.FIRES_KEY and key != DebrisPlan.CAVEINS_KEY:
 			unknown.append("\"%s\"" % str(key))
 	if not unknown.is_empty():
 		return "unknown key %s" % ", ".join(unknown)
@@ -71,4 +71,10 @@ static func read(plan: DebrisPlan, data: Dictionary) -> String:
 		if problem_fires != "":
 			return problem_fires
 		plan.fires = read_fires[0]
+	if data.has(DebrisPlan.CAVEINS_KEY):
+		var read_caveins: Array[DebrisCaveins] = []
+		var problem_caveins: String = DebrisCaveins.read(data[DebrisPlan.CAVEINS_KEY], read_caveins)
+		if problem_caveins != "":
+			return problem_caveins
+		plan.caveins = read_caveins[0]
 	return ""

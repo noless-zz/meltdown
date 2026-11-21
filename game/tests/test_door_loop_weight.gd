@@ -24,9 +24,12 @@ const MOST_HELD_PERCENT: int = 20
 const LEAST_PLACED_PERCENT: int = 90
 
 
+## The shipped file without its fires and cave-ins (#514), whose boxes would
+## count as doors here.
 func _file() -> Dictionary:
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DEBRIS_FILE))
 	data.erase(DebrisPlan.FIRES_KEY)
+	data.erase(DebrisPlan.CAVEINS_KEY)
 	return data
 
 

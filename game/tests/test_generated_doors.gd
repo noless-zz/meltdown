@@ -18,11 +18,12 @@ const DOORS: Dictionary = {"count": [1, 2], "thickness": 0.5, "after_seconds": [
 		"min_start_distance": 15, "min_reactor_distance": 6, "min_robot_distance": 2}
 
 
-## The shipped file without its fires (#497), which come after the doors and
-## have their own test.
+## The shipped file without its fires (#497) and cave-ins (#514), which come
+## after the doors and have their own tests.
 func _file() -> Dictionary:
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DEBRIS_FILE))
 	data.erase(DebrisPlan.FIRES_KEY)
+	data.erase(DebrisPlan.CAVEINS_KEY)
 	return data
 
 
@@ -117,7 +118,7 @@ func test_seeds_get_doors_across_openings_that_never_close_the_escape() -> Strin
 		var level: LevelDef = SeedLevelCache.level(level_seed, SeedLevelCache.WITHOUT_FIRES)
 		var problem: String = _unchanged(bare, level, SeedLevelCache.generated_hash(level_seed),
 				generator.output_hash())
-		var doors: Array[int] = _door_entries(level.debris)
+		var doors: Array[int] = _door_entries(generator, level.debris)
 		if problem == "":
 			problem = _covers_openings(generator, level.debris, doors, plan.doors)
 		if problem == "":
@@ -168,12 +169,17 @@ func test_the_start_modules_openings_get_no_door() -> String:
 	return ""
 
 
-func _door_entries(debris: MeltdownDebris) -> Array[int]:
+## The box entries that are not cave-ins (#514): a level shared with other
+## sweeps may carry them, and they have their own test.
+func _door_entries(generator: MineGenerator, debris: MeltdownDebris) -> Array[int]:
 	var found: Array[int] = []
 	if debris == null:
 		return found
+	var caveins: Array[Vector3i] = []
+	for placement: int in DebrisCaveins.tunnels(generator):
+		caveins.append(DebrisCaveins.centre_mm(generator, placement))
 	for index: int in debris.size():
-		if debris.is_box(index):
+		if debris.is_box(index) and not caveins.has(debris.positions_mm[index]):
 			found.append(index)
 	return found
 

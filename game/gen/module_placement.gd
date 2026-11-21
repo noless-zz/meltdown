@@ -23,6 +23,11 @@ var first_box: int = 0
 var end_box: int = 0
 ## The doorway box spanning the joined opening, or -1 for the first module.
 var door_box: int = -1
+## Every connector of the module as placed, joined or still open, in the
+## module's own order, so later stages can tell a module's shape without its
+## `ModuleDef` (#514: cave-ins go only in straight tunnels). Not part of
+## `output_hash`, which the fields above already fix.
+var connectors: Array[ModuleConnector] = []
 
 
 func _init(p_module_id: String = "", p_turn: int = 0, p_offset_mm: Vector3i = Vector3i.ZERO) -> void:
