@@ -151,10 +151,9 @@ func set_ship_orientation(orientation: Basis) -> void:
 ## Marks the exit (the entrance, RUN-3) and the reactor at level-space copies of
 ## their positions, fitted like the lines; the reactor shows only while `reactor_known`,
 ## in the look's dead colour once `reactor_destroyed` (#913).
-func set_markers(exit_position: Vector3, reactor_position: Vector3, reactor_known: bool,
-		reactor_destroyed: bool = false) -> void:
-	_exit_at = exit_position
-	_reactor_at = reactor_position
+func set_markers(exit_at: Vector3, reactor_at: Vector3, reactor_known: bool, reactor_destroyed: bool = false) -> void:
+	_exit_at = exit_at
+	_reactor_at = reactor_at
 	_reactor_known = reactor_known
 	if reactor_destroyed != _reactor_destroyed:
 		_reactor_destroyed = reactor_destroyed
