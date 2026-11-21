@@ -220,15 +220,20 @@ func lose_target_ticks() -> int:
 ## Hash of the values, so a replay can record which robot data it ran with.
 ## The wake range joins only when set, and the time to drop a target only when
 ## it is not the default, so robots without them keep their hashes. The drop
-## table stays out until the simulation drops components, so adding tables to
-## the shipped robots changes no replay or suite hash.
-func values_hash() -> int:
+## table joins only with `with_components`, which the simulation asks for only
+## once it drops components (`ComponentPickup`), so adding tables to the
+## shipped robots changes no replay or suite hash.
+func values_hash(with_components: bool = false) -> int:
 	var values: Array = [id, hull, radius, max_speed, acceleration, turn_rate, movement, weapon,
 		salvage, standoff_radii, strafe_min_distance, strafe_max_distance, strafe_radial_gain]
 	if has_wake_range():
 		values.append_array(["wake_range", wake_range])
 	if lose_target_seconds != LOSE_TARGET_DEFAULT_SECONDS:
 		values.append_array(["lose_target_seconds", lose_target_seconds])
+	if with_components:
+		values.append("components")
+		for drop: ComponentDrop in components:
+			values.append_array([drop.id, drop.chance, drop.count_min, drop.count_max])
 	return hash(values)
 
 

@@ -41,6 +41,14 @@ var robots: Array[RobotState] = []
 ## takes one (`SalvagePickup`). Part of the hash while there are any. They do
 ## not expire in M2.
 var salvage: Array[SalvageItem] = []
+## Component drops (CRF-1), all hashed only while `component_rules` is set
+## (see `set_component_rules`; null means nothing drops): heaps in drop order
+## until a ship flies through one, counts taken by kind id, and each robot's
+## spawn number, which salts its drop roll (`ComponentPickup`).
+var components: Array[ComponentItem] = []
+var collected: Dictionary[String, int] = {}
+var component_rules: ComponentPickup = null
+var robot_serials: Dictionary = {}
 ## The level's reactor (RUN-2), or null. Set before the first tick by
 ## `set_reactor`. Part of the hash only when there is one.
 var reactor: ReactorState = null
@@ -127,8 +135,10 @@ func step(inputs: Array[ShipInput]) -> bool:
 		ProjectileHits.fire(self, i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
+	ComponentPickup.collect(self, from)
 	RobotTick.advance(self)
 	SalvagePickup.drift(self, slot_drops)
+	ComponentPickup.drop(self)
 	RobotTick.remove_destroyed(self, _killers)
 	ExitRule.apply(self, last_events, live_before)
 	_stepping = false
@@ -151,6 +161,7 @@ func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis,
 	# Even spawn indices circle one way, odd the other, so a pair of
 	# strafers spread around the ship instead of chasing each other's tail.
 	robot.strafe_direction = 1 if robots.size() % 2 == 0 else -1
+	robot_serials[robot] = robot_serials.size()
 	robots.append(robot)
 	return robots.size() - 1
 
@@ -231,6 +242,12 @@ func set_salvage_rules(rules: SalvageRules) -> String:
 		return "the salvage rules are not resolved"
 	salvage_rules = rules
 	return ""
+
+
+## Switches component drops on with `rules` (`ComponentPickup`, CRF-1). Only
+## before the first tick, like the salvage rules. Returns "" or the problem.
+func set_component_rules(rules: ComponentPickup) -> String:
+	return ComponentPickup.install(self, rules, tick != 0 or _stepping)
 
 
 ## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6). Only before the

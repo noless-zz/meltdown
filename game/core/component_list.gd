@@ -7,6 +7,9 @@ extends RefCounted
 ## file; nothing here names one.
 
 const COMPONENTS_DIR: String = "res://data/components"
+## The pickup rules (`ComponentPickup`) share the folder but are not a kind, so
+## `parse` skips a text of this name.
+const RULES_FILE: String = "pickup.json"
 
 ## Every kind, sorted by id so the order never depends on how the caller
 ## collected the files.
@@ -26,6 +29,8 @@ static func parse(texts: Dictionary) -> ComponentList:
 	var first_file: Dictionary[String, String] = {}
 	for file: Variant in files:
 		var name: String = str(file)
+		if name == RULES_FILE:
+			continue
 		if typeof(texts[file]) != TYPE_STRING:
 			return _failed("%s: text must be a string" % name)
 		var kind: ComponentDef = ComponentDef.parse_json(texts[file])
