@@ -34,7 +34,8 @@ func _run(suites: Array[AcceptanceSuite]) -> AcceptanceRunner:
 	while not runner.finished and frames < FRAME_LIMIT:
 		# The flight test step (#762) is timed by the scene's own frames, which
 		# `main._process` runs in the game; out of a tree they are run here.
-		var flight: AcceptanceFlightTestCheck = runner.get("_flight")
+		var checks: AcceptanceChecks = runner.get("_checks")
+		var flight: AcceptanceFlightTestCheck = checks.flight if checks != null else null
 		if flight != null and not flight.done():
 			runner.main.call("apply_controls", {})
 			runner.main.call("advance_frame", FLIGHT_FRAME_SECONDS)
