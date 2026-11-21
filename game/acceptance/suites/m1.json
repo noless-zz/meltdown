@@ -67,6 +67,18 @@
 			"expected_hash": 319791679
 		},
 		{
+			"id": "preset_change_mid_flight",
+			"replay": "res://acceptance/replays/m1_flight_axes.replay",
+			"preset": 4,
+			"preset_changes": [
+				{"tick": 1712, "preset": 1},
+				{"tick": 1900, "preset": 3},
+				{"tick": 2030, "preset": 2}
+			],
+			"checks": ["final_hash", "comfort_motion", "no_script_errors"],
+			"expected_hash": 3139276631
+		},
+		{
 			"id": "first_launch_flight_test",
 			"checks": ["flight_test_result", "no_script_errors"],
 			"flight_test_answers": ["fine", "fine", "uneasy", "fine", "fine", "stop"],
