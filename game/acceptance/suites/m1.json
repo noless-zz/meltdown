@@ -90,6 +90,13 @@
 			"checks": ["at_start", "final_hash", "no_script_errors"],
 			"expected_hash": 2554828705,
 			"screenshot_at_end": true
+		},
+		{
+			"id": "comfort_preset_1_destroyed",
+			"replay": "res://acceptance/replays/ship_destroyed_test_tunnel.replay",
+			"preset": 1,
+			"checks": ["comfort_motion", "final_hash", "no_script_errors"],
+			"expected_hash": 3298909347
 		}
 	]
 }
