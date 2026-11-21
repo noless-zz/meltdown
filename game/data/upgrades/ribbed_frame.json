@@ -1,0 +1,15 @@
+{
+	"id": "ribbed_frame",
+	"name": "Ribbed Frame",
+	"branch": "defence",
+	"kind": "hull",
+	"tier": 2,
+	"requires": [
+		"layered_plating"
+	],
+	"cost": {
+		"scrap_alloy": 4,
+		"circuit_shards": 2
+	},
+	"grants": "ribbed_frame"
+}

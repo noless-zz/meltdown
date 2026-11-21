@@ -1,0 +1,9 @@
+{
+	"id": "swept_intakes",
+	"name": "Swept Intakes",
+	"kind": "engine",
+	"stats": {
+		"afterburner_max_speed": 1.15,
+		"afterburner_drain": 0.9
+	}
+}

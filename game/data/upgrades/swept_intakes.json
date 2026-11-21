@@ -1,0 +1,15 @@
+{
+	"id": "swept_intakes",
+	"name": "Swept Intakes",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 2,
+	"requires": [
+		"tuned_thrusters"
+	],
+	"cost": {
+		"scrap_alloy": 2,
+		"circuit_shards": 3
+	},
+	"grants": "swept_intakes"
+}

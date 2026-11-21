@@ -1,0 +1,10 @@
+{
+	"id": "torsion_drive",
+	"name": "Torsion Drive",
+	"kind": "engine",
+	"stats": {
+		"max_speed": 1.2,
+		"acceleration": 1.2,
+		"afterburner_drain": 1.1
+	}
+}
