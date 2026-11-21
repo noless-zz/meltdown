@@ -8,7 +8,8 @@ extends RefCounted
 ## did (#516), whether any robot fired at the ship from behind a wall
 ## (#615), whether a destroyed ship stayed still and silent (#601), whether
 ## wall hits bounced the ship rather than stopping it (#686), and whether a
-## reset brought the ship back to its start (#776). Kept apart from
+## reset brought the ship back to its start (#776), and whether fire burnt
+## the ship (#517, `FireBurnCheck`). Kept apart from
 ## `AcceptanceRunner`, which drives the frames, so that file stays short. Each
 ## check only reads the session.
 
@@ -51,6 +52,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return AcceptanceBoostCheck.run(session.replay, LocalSession.load_tuning(LevelStart.SHIP_TUNING_PATH), measurements)
 		AcceptanceStep.CHECK_AT_START:
 			return AcceptanceResetCheck.run(session.replay, measurements)
+		AcceptanceStep.CHECK_FIRE_BURNED:
+			return FireBurnCheck.run(step.id, session, measurements)
 	return [AcceptanceReport.RESULT_FAIL, "unknown check"]
 
 
