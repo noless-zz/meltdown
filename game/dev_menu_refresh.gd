@@ -1,9 +1,9 @@
 class_name DevMenuRefresh
-extends RefCounted
+extends DevMenuEntry
 
 ## The dev menu's Refresh entry (#852, PRF-1, CMF-1, CMF-4): what it shows
-## and what choosing a value does. Kept apart from `DevMenuWiring`, which is
-## near its size limit.
+## and what choosing a value does. One of `DevMenuWiring`'s entry helpers
+## (`DevMenuEntry`, #892).
 ##
 ## Choosing saves the value through `RefreshChoice.save`, the file read at
 ## start, and sets the session's choice so `RefreshRate.apply` asks for the
@@ -24,6 +24,7 @@ var path: String = RefreshChoice.DEFAULT_PATH
 
 
 func _init(p_rate: RefreshRate, p_comfort: ComfortWiring) -> void:
+	super([DevMenuSpec.KIND_REFRESH], [DevMenuModel.REFRESH_PREFIX])
 	rate = p_rate
 	comfort = p_comfort
 
@@ -44,6 +45,11 @@ func allowed() -> bool:
 ## Shows the option in use and the preset's note on `model`.
 func show_on(model: DevMenuModel) -> void:
 	model.set_refresh(choice().on, allowed())
+
+
+## Once a frame while the menu is open: the note follows a Comfort choice.
+func follow(model: DevMenuModel) -> void:
+	model.refresh_allowed = allowed()
 
 
 ## Applies a `refresh:<90|120>` result: saves it and asks for the rate now.
