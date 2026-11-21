@@ -1,0 +1,5 @@
+{
+	"lag_m_per_m_per_s": 0.002,
+	"settle_s": 0.5,
+	"max_offset_m": 0.04
+}

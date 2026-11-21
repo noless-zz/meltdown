@@ -34,9 +34,10 @@ var cockpit_frame: CockpitFrame = null
 ## The "Hits" row of the active preset (#169); its `preset` follows
 ## `set_preset`. Null when the data file was rejected: the shake stays off.
 var hit_shake: HitShake = load_hit_shake(HitShake.DEFAULT_FILE)
-## The shake's offset for this frame, in the cockpit's frame; the identity
-## when nothing shows. `advance_hit_shake` sets it, the rig applies it.
+## The shake's offset for this frame joined to preset 4's inertia `drift` (#840), in the
+## cockpit's frame; the identity when nothing shows. `advance_hit_shake` sets it, the rig applies it.
 var shake_offset: Transform3D = Transform3D.IDENTITY
+var drift: DriftWiring = DriftWiring.new()
 ## Keeps the window in front of the eyes (#651); `RigViews.place_guarded`
 ## feeds it each frame and places the frame and panel where it says.
 var view_guard: ViewGuard = ViewGuard.new()
@@ -264,8 +265,7 @@ func end_one_tick_if_flown(ticks: int) -> bool:
 	return false
 
 
-## Reads the hit-shake file at `path`. A rejected file is printed once, here,
-## and gives null, so no shake shows rather than one with guessed values.
+## Reads the hit-shake file at `path`; a rejected file is printed once and gives null (no shake).
 static func load_hit_shake(path: String) -> HitShake:
 	var shake: HitShake = HitShake.load_file(path)
 	if shake.error != "":
@@ -274,16 +274,16 @@ static func load_hit_shake(path: String) -> HitShake:
 	return shake
 
 
-## Hands the shake the events of the ticks just run, for ship `ship` whose
-## orientation is `ship_basis`. Read only: the events and basis are copies.
+## Hands the shake the events of the ticks just run for ship `ship` (orientation `ship_basis`, copies).
 func feed_hit_shake(events: Array[SimEvent], ship: int, ship_basis: Basis) -> void:
 	if hit_shake != null:
 		hit_shake.feed(events, ship, ship_basis)
 
 
-## Moves the shake on by one frame of `delta` seconds and keeps its offset.
+## Moves the shake and the drift on by one frame of `delta` seconds and keeps their offset.
 func advance_hit_shake(delta: float) -> void:
-	shake_offset = hit_shake.advance(delta) if hit_shake != null else Transform3D.IDENTITY
+	var shake: Transform3D = hit_shake.advance(delta) if hit_shake != null else Transform3D.IDENTITY
+	shake_offset = drift.advance(preset, delta) * shake
 
 
 ## The ship's pose `fraction` of the way from `previous` to `current`:

@@ -61,6 +61,7 @@ static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel:
 		camera: Node3D, ship: ShipState, xr_running: bool) -> void:
 	show_swivel(panel, comfort)
 	show_custom(panel, comfort)
+	comfort.drift.see(ship)  # Copies only; the next frame's drift follows it (#840).
 	var frame: CockpitFrame = comfort.cockpit_frame
 	if camera == null or frame == null or frame.spec == null:
 		place(recentre, frame, panel)
