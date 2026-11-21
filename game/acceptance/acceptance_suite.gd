@@ -26,6 +26,9 @@ extends RefCounted
 ## goes with `final_hash`, and pins the level a seed builds. The
 ## `frame_budget` check needs `settle_seconds`, `measure_seconds`,
 ## `max_over_budget_share` and `budget_slack_ms` (`AcceptanceFrameBudgetCheck`).
+## `loop_replay` (#788, default false) restarts the replay from its first tick
+## each time it ends until those seconds pass; it needs frame_budget, not
+## final_hash (`AcceptanceLoopReplay`).
 ## `screenshot_at_ticks` and `screenshot_at_end` save screenshots while the
 ## replay flies (`AcceptanceScreenshots`). `view_not_flat` needs `view_seconds`.
 ## `preset_changes` (#777) lists `{"tick": <n>, "preset": <1..4>}` in rising
@@ -43,7 +46,8 @@ const ALL: String = "all"
 
 const SUITE_KEYS: Array[String] = ["name", "steps"]
 const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
-	"level", "expected_outcome", "seed", "expected_level_hash", "settle_seconds", "measure_seconds",
+	"level", "expected_outcome", "seed", "expected_level_hash", AcceptanceLoopReplay.KEY,
+	"settle_seconds", "measure_seconds",
 	"max_over_budget_share", "budget_slack_ms", AcceptanceScreenshots.KEY_TICKS, AcceptanceScreenshots.KEY_END,
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
 	AcceptancePresetChanges.KEY]
@@ -181,6 +185,8 @@ static func _parse_step(raw: Variant, field: String, step: AcceptanceStep) -> St
 		problem = _parse_expected_level_hash(data, field, step)
 	if problem == "":
 		problem = AcceptanceFrameBudgetCheck.parse_step(data, field, step)
+	if problem == "":
+		problem = AcceptanceLoopReplay.parse_step(data, field, step)
 	if problem == "":
 		problem = AcceptanceScreenshots.parse_step(data, field, step)
 	if problem == "":

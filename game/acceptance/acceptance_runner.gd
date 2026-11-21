@@ -168,7 +168,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	var replay: Replay = Replay.load_file(step.replay_path)
 	if replay.error != "" or replay.ship_count != 1:
 		return  # `replay_problem` reports it when the step is recorded.
-	_source = ReplayInputSource.new(replay)
+	_source = ReplayInputSource.new(replay, step.loop_replay)
 	if step.level_seed == AcceptanceStep.NO_SEED:
 		main.set("session", _source.new_session())
 	else:
@@ -184,7 +184,7 @@ func _step_ready(step: AcceptanceStep) -> bool:
 	if _source != null:
 		var session: LocalSession = main.get("session")
 		screenshots.take(session.sim.tick, _source.tick_count())
-		if session.sim.tick < _source.tick_count():
+		if session.sim.tick < _source.tick_count() or AcceptanceLoopReplay.keeps_flying(step, _frames):
 			if _changes != null:
 				_changes.apply(main, session.sim.tick, _comfort)
 			main.call("advance_frame", ShipState.TICK_DT)

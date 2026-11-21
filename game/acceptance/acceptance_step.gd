@@ -133,6 +133,9 @@ var settle_seconds: float = 0.0
 var measure_seconds: float = 0.0
 var max_over_budget_share: float = 0.0
 var budget_slack_ms: float = 0.0
+## The replay starts again from its first tick each time it ends, until the
+## frame_budget check's seconds have passed (#788, `AcceptanceLoopReplay`).
+var loop_replay: bool = false
 ## For the view_not_flat check: seconds the eye image is sampled.
 var view_seconds: float = 0.0
 ## Ticks into the replay at which the runner saves a screenshot, and whether
