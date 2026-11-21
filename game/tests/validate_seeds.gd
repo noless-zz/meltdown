@@ -1,8 +1,9 @@
 extends SceneTree
 
 ## Runs the generator and the level validator over a range of seeds and prints
-## one summary line (#317, #357, GEN-3) with the failing seeds per check, for a
-## nightly job with 10,000 seeds:
+## one summary line (#317, #357, GEN-3) with the failing seeds per check and how
+## far the reactors are from the entrance (#924), for a nightly job with 10,000
+## seeds:
 ##
 ##     godot --headless --path game -s res://tests/validate_seeds.gd -- --seeds=10000
 ##
