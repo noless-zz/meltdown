@@ -10,7 +10,7 @@ extends RefCounted
 ##      "body_color": [r, g, b], "title_text": s, "flown_text": s,
 ##      "dismiss_xr": s, "dismiss_flat": s, "off_text": s}
 ##
-## `enabled` holds the player's switch until a settings menu exists (M8).
+## `enabled` is the default until the player chooses (`BreakChoice`, #820).
 ## `position_m` is in the cockpit's space from the eye point (x right, y up,
 ## -z ahead), like the status panel's. `flown_text` must hold `{minutes}`.
 
@@ -47,7 +47,7 @@ const FALLBACK: Dictionary = {
 	"flown_text": "You have flown for {minutes} minutes.",
 	"dismiss_xr": "Tap the menu button to dismiss",
 	"dismiss_flat": "Tap Backspace to dismiss",
-	"off_text": "These reminders can be switched off.",
+	"off_text": "Reminders can be switched off in the menu.",
 }
 
 

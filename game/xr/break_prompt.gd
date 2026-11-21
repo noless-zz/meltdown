@@ -11,8 +11,9 @@ extends Node3D
 ## handed, so the simulation runs on unchanged while it shows (CMF-6, ARC-3).
 ## Hang it under the rig origin at the head point, like the status panel.
 ##
-## Text, sizes, colours, placement and the player's on/off choice live in
-## `res://xr/break_prompt.json` (ARC-4); see `BreakPromptLook`.
+## Text, sizes, colours, placement and the default on/off setting live in
+## `res://xr/break_prompt.json` (ARC-4); see `BreakPromptLook`. The player's
+## own choice is `BreakChoice`'s (#820).
 
 const NODE_NAME: String = "BreakPrompt"
 const TITLE_NAME: String = "Title"
@@ -47,8 +48,8 @@ func _init(look: Dictionary = {}) -> void:
 	visible = false
 
 
-## Sets `reminder`'s switch from the file's `enabled` value, the player's
-## choice until a settings menu exists (M8). Call once when the reminder is made.
+## Sets `reminder`'s switch from the file's `enabled` value alone, ignoring
+## the player's saved choice; `BreakPromptWiring` applies that (#820).
 func apply_setting(reminder: BreakReminder) -> void:
 	reminder.set_enabled(enabled_by_default())
 

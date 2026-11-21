@@ -16,16 +16,22 @@ extends RefCounted
 ## Null until `attach` has run.
 var reminder: BreakReminder = null
 var prompt: BreakPrompt = null
+## The player's on/off choice, kept between starts (#820); tests point it at
+## a scratch file before `attach`.
+var choice: BreakChoice = BreakChoice.new()
 
 var _comfort: ComfortWiring = null
 ## The preset the reminder was last given, so every change reaches it.
 var _preset: ComfortPreset = null
 ## The prompt's place relative to the head point, from its data file.
 var _local: Transform3D = Transform3D.IDENTITY
+## The last frame's `xr_running`, for the dismiss line `set_enabled` may show.
+var _xr_running: bool = true
 
 
-## Makes the session's reminder from `comfort`'s active preset, applies the
-## data file's on/off setting, hangs the prompt under `rig` (none in some
+## Makes the session's reminder from `comfort`'s active preset, switches it
+## on or off (the launch switch, else the saved choice, else the data file's
+## `enabled`; see `BreakChoice`), hangs the prompt under `rig` (none in some
 ## tests) and, given `update`, asks it to offer each menu tap here first.
 ## `look` is a parsed break prompt file; empty reads the shipped one.
 ## Calling it again adds nothing.
@@ -37,7 +43,8 @@ func attach(rig: Node3D, comfort: ComfortWiring, update: UpdateWiring = null, lo
 	reminder = BreakReminder.new(_preset)
 	prompt = BreakPrompt.new(look)
 	_local = prompt.transform
-	prompt.apply_setting(reminder)
+	reminder.set_enabled(choice.for_launch(prompt.enabled_by_default(), OS.get_cmdline_user_args(),
+		FoveationSwitch.intent_value(BreakChoice.INTENT_EXTRA)))
 	if rig != null:
 		rig.add_child(prompt)
 	if update != null:
@@ -58,6 +65,7 @@ static func is_flying(session: LocalSession, flight_test: FlightTestWiring, dest
 func update(delta_seconds: float, flying: bool, xr_running: bool) -> void:
 	if reminder == null:
 		return
+	_xr_running = xr_running
 	if _comfort.preset != _preset:
 		_preset = _comfort.preset
 		reminder.set_preset(_preset)
@@ -65,6 +73,17 @@ func update(delta_seconds: float, flying: bool, xr_running: bool) -> void:
 	var frame: CockpitFrame = _comfort.cockpit_frame
 	prompt.transform = (frame.transform if frame != null else Transform3D.IDENTITY) * _local
 	prompt.show_if(reminder, xr_running)
+
+
+## The player's switch (CMF-10, #820), for the dev menu: turns the reminder
+## on or off, saves the choice, and hides a showing prompt at once. On again,
+## the count starts afresh, so the prompt waits a whole interval.
+func set_enabled(enabled: bool) -> void:
+	if reminder == null:
+		return
+	reminder.set_enabled(enabled)
+	choice.save(enabled)
+	prompt.show_if(reminder, _xr_running)
 
 
 ## A menu tap landed. Dismisses a shown prompt, which starts the next interval,
