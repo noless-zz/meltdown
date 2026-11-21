@@ -1,0 +1,10 @@
+{
+	"color": [0.55, 0.6, 0.65],
+	"alpha": 0.6,
+	"dimmed_alpha": 0.25,
+	"stick_length_m": 0.12,
+	"stick_radius_m": 0.008,
+	"knob_radius_m": 0.02,
+	"throttle_base_m": 0.06,
+	"throttle_handle_m": 0.035
+}
