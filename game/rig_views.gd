@@ -59,6 +59,7 @@ static func place_at(at: Transform3D, frame: CockpitFrame, panel: StatusPanel) -
 ## its hull only. Without a camera or a frame it places as `place` does.
 static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel: StatusPanel,
 		camera: Node3D, ship: ShipState, xr_running: bool) -> void:
+	show_swivel(panel, comfort)
 	var frame: CockpitFrame = comfort.cockpit_frame
 	if camera == null or frame == null or frame.spec == null:
 		place(recentre, frame, panel)
@@ -71,6 +72,14 @@ static func place_guarded(recentre: HeadRecentre, comfort: ComfortWiring, panel:
 	if comfort.view_log.enabled:
 		comfort.view_log.sample(now_s, ViewLog.values(comfort.view_guard, camera.transform,
 			comfort.shake_offset, comfort.number, ship.hull, tracked, now_s))
+
+
+## Tells `panel` whether `comfort`'s active preset has swivel-chair mode on
+## (#792). Called from `place_guarded`, the one per-frame call that sees both
+## the comfort wiring and the panel; it reads the preset only (ARC-3).
+static func show_swivel(panel: StatusPanel, comfort: ComfortWiring) -> void:
+	if panel != null:
+		panel.preset_row.show_swivel(comfort.preset != null and comfort.preset.swivel_enabled)
 
 
 ## Hands `panel` this frame's values from `ship`, a copy of the latest ship
