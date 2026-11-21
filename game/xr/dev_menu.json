@@ -2,6 +2,7 @@
 	"entries": [
 		{"kind": "update", "label": "Update to {version}"},
 		{"kind": "corner", "label": "Panel corner"},
+		{"kind": "comfort", "label": "Comfort"},
 		{"kind": "controls", "label": "Controls"},
 		{"kind": "hands", "label": "Hands"},
 		{"kind": "pitch", "label": "Pitch"},

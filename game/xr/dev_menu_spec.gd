@@ -19,7 +19,8 @@ extends RefCounted
 ## optional and defaults to every `ControlSchemeSwitch.SCHEMES`; each must be
 ## one of them, at most once. The `hands` and `pitch` entries (#790) show
 ## `right_handed_text` / `left_handed_text` and `normal_pitch_text` /
-## `inverted_pitch_text`, each optional.
+## `inverted_pitch_text`, each optional. The `comfort` entry (#805) shows
+## each comfort preset's own `display_name`, from the preset files.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -30,8 +31,9 @@ const KIND_UPDATE: String = "update"
 const KIND_CONTROLS: String = "controls"
 const KIND_HANDS: String = "hands"
 const KIND_PITCH: String = "pitch"
+const KIND_COMFORT: String = "comfort"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
-	KIND_CONTROLS, KIND_HANDS, KIND_PITCH]
+	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text"]
 const BUILT_IN_LABELS: Dictionary = {
@@ -43,6 +45,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_CONTROLS: "Controls",
 	KIND_HANDS: "Hands",
 	KIND_PITCH: "Pitch",
+	KIND_COMFORT: "Comfort",
 }
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
