@@ -26,8 +26,8 @@ func test_first_level_needs_no_choice() -> String:
 
 func test_choice_sets_seed_and_modifiers() -> String:
 	var state: RunState = _state(12345)
-	state.advance()
-	if not state.needs_choice() or state.advance():
+	_advanced(state)
+	if not state.needs_choice() or _advanced(state):
 		return "escaping did not wait for a shaft choice"
 	var offered: Array[String] = state.offer()
 	if offered != state.plan.offer_after(0, state.shafts):
@@ -56,7 +56,7 @@ func test_different_choices_give_different_next_levels() -> String:
 		var offered: Array[String] = _state(run_seed).plan.offer_after(0, _state(run_seed).shafts)
 		for kind: String in offered:
 			var state: RunState = _state(run_seed)
-			state.advance()
+			_advanced(state)
 			state.choose(kind)
 			if seeds.has(state.current_level_seed()):
 				return "run seed %d: two shafts lead to seed %d" % [run_seed, state.current_level_seed()]
@@ -68,20 +68,26 @@ func test_a_run_with_choices_still_wins() -> String:
 	var state: RunState = _state(12345)
 	var hashes: Dictionary = {state.state_hash(): true}
 	for index: int in range(1, state.plan.level_count()):
-		if not state.advance() or not state.choose(state.offer()[0]):
+		if not _advanced(state) or not state.choose(state.offer()[0]):
 			return "could not reach level %d" % index
 		if hashes.has(state.state_hash()):
 			return "level %d repeats a state hash" % index
 		hashes[state.state_hash()] = true
-	if not state.advance() or not state.won or state.needs_choice():
+	if not _advanced(state) or not state.won or state.needs_choice():
 		return "escaping the last level did not win"
 	return ""
 
 
 func test_a_run_without_shafts_needs_no_choice() -> String:
 	var state: RunState = RunState.new(RunPlan.build(12345, FileAccess.get_file_as_string(RUN)))
-	if not state.advance() or state.needs_choice() or not state.advance():
+	if not _advanced(state) or state.needs_choice() or not _advanced(state):
 		return "a run without shafts waited for a choice"
 	if state.current_level_seed() != state.plan.level_seed(2):
 		return "a run without shafts changed the level seed"
 	return ""
+
+
+## True when the escape was taken; `advance` now returns the counts to bank.
+func _advanced(state: RunState) -> bool:
+	state.advance()
+	return state.error == ""
