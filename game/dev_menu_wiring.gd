@@ -36,6 +36,11 @@ extends RefCounted
 ## active preset, so it follows a button change; in the custom mode (#806) it
 ## opens on the custom file's base preset.
 ##
+## A Break reminder choice (#821, CMF-10) goes through
+## `BreakPromptWiring.set_enabled`, which saves it in `BreakChoice` and hides
+## a showing prompt; the entry opens on the reminder's state, so a launch
+## switch shows. Only the view's prompt changes, never the simulation (CMF-6).
+##
 ## It sits beside `main.gd` because it restarts the `net/` session and reads
 ## the flight test and the end screens; `main.gd` gains only a few lines.
 
@@ -66,6 +71,8 @@ var scheme: ControlSchemeSwitch = null
 var mapping: ThumbstickMapping = null
 ## The comfort preset the Comfort entry shows and sets; null in tests without one.
 var comfort: ComfortWiring = null
+## The break prompt the Break reminder entry shows and switches; null in tests without one.
+var break_prompt: BreakPromptWiring = null
 ## Picks the seed for `random` (`LevelSwitch.random_seed` when not set);
 ## tests inject one so they are not flaky.
 var pick_seed: Callable = Callable()
@@ -84,10 +91,11 @@ var _fade_from: float = -1.0
 
 
 func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
-		p_comfort: ComfortWiring = null) -> void:
+		p_comfort: ComfortWiring = null, p_break_prompt: BreakPromptWiring = null) -> void:
 	scheme = p_scheme
 	mapping = p_mapping
 	comfort = p_comfort
+	break_prompt = p_break_prompt
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -173,8 +181,8 @@ static func neutral(values: Dictionary) -> Dictionary:
 
 
 ## Acts on a result of `DevMenuModel.press`. A corner, control scheme, hand,
-## pitch or comfort choice is applied and the menu stays open so the change can
-## be seen; a level, restart or update closes it.
+## pitch, comfort or break reminder choice is applied and the menu stays open
+## so the change can be seen; a level, restart or update closes it.
 func apply(result: String) -> void:
 	if result == "":
 		return
@@ -191,6 +199,10 @@ func apply(result: String) -> void:
 		var number: int = int(result.substr(DevMenuModel.COMFORT_PREFIX.length()))
 		if comfort != null and comfort.number != number:
 			comfort.set_preset(number)
+		return
+	if result.begins_with(DevMenuModel.BREAK_PREFIX):
+		if break_prompt != null:
+			break_prompt.set_enabled(result == DevMenuModel.BREAK_PREFIX + DevMenuModel.BREAK_ON)
 		return
 	menu.close()
 	if result.begins_with(DevMenuModel.LEVEL_PREFIX):
@@ -211,7 +223,12 @@ func _toggle() -> void:
 	else:
 		menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
 			scheme.scheme if scheme != null else "", mapping != null and mapping.left_handed,
-			mapping != null and mapping.invert_pitch, _comfort_shown())
+			mapping != null and mapping.invert_pitch, _comfort_shown(), _break_shown())
+
+
+## Whether the Break reminder entry opens on On: the reminder's own state.
+func _break_shown() -> bool:
+	return break_prompt == null or break_prompt.reminder == null or break_prompt.reminder.is_enabled()
 
 
 ## The preset the Comfort entry opens on: the active one, or the custom
