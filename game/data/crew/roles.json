@@ -1,0 +1,28 @@
+{
+	"roles": [
+		{
+			"id": "surveyor",
+			"name": "Surveyor",
+			"weight": 30,
+			"benefit": {"stat": "map_reveal", "amount": 1}
+		},
+		{
+			"id": "shield_tech",
+			"name": "Shield Technician",
+			"weight": 25,
+			"benefit": {"stat": "shield_max", "amount": 5}
+		},
+		{
+			"id": "cargo_rigger",
+			"name": "Cargo Rigger",
+			"weight": 25,
+			"benefit": {"stat": "salvage_slots", "amount": 1}
+		},
+		{
+			"id": "reactor_hand",
+			"name": "Reactor Hand",
+			"weight": 20,
+			"benefit": {"stat": "meltdown_seconds", "amount": 5}
+		}
+	]
+}
