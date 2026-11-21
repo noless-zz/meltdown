@@ -76,16 +76,20 @@ const CHECK_AFTERBURNER: String = "afterburner"
 ## `expected_preset` with the ship held while each answer was due (#762, CMF-4;
 ## `AcceptanceFlightTestCheck`). Flies no replay.
 const CHECK_FLIGHT_TEST_RESULT: String = "flight_test_result"
+## Ship 0 ends at the level's start pose within 1 mm and 0.1 degree, at rest,
+## not turning and alive (#776, FLT-1, CMF-8; `AcceptanceResetCheck`). Needs a
+## replay that sends `reset_to_start`.
+const CHECK_AT_START: String = "at_start"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
-	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT]
+	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
 	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS,
-	CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD, CHECK_WALL_BOUNCED, CHECK_AFTERBURNER]
+	CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD, CHECK_WALL_BOUNCED, CHECK_AFTERBURNER, CHECK_AT_START]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
