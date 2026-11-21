@@ -113,7 +113,9 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 	rng.seed = hash([generator.output_hash(), "debris"])
 	var wanted: int = min_count + _pick(rng, max_count - min_count + 1)
 	var robot_radii: Array[int] = robot_radii_mm(level, robot_plan)
-	var limit: int = fall_limit_ticks(level)
+	# The countdown takes an escape path search; one serves both its uses (#919).
+	var countdown: int = countdown_ticks(level)
+	var limit: int = _fall_limit(countdown)
 	var fall_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	fall_rng.seed = hash([generator.output_hash(), "debris fall"])
 	var debris: MeltdownDebris = MeltdownDebris.new()
@@ -165,7 +167,7 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 	# lengthen the escape, and the solid entries stay those a plan without fire
 	# keeps (#497).
 	var fire_note: String = "" if fires == null \
-			else fires.place(generator, level, debris, robot_radii, countdown_ticks(level), limit)
+			else fires.place(generator, level, debris, robot_radii, countdown, limit)
 	if fire_note != "":
 		notes.append(fire_note)
 	generator.debris_note = "; ".join(notes)
@@ -175,7 +177,12 @@ func place(generator: MineGenerator, level: LevelDef, ship_radius: float,
 ## The latest tick after the reactor dies an entry of `level` may fall on:
 ## `latest_fall_fraction` of its countdown, at least 1.
 func fall_limit_ticks(level: LevelDef) -> int:
-	return maxi(1, floori(countdown_ticks(level) * latest_fall_fraction))
+	return _fall_limit(countdown_ticks(level))
+
+
+## `fall_limit_ticks` for a level whose countdown is `countdown` ticks.
+func _fall_limit(countdown: int) -> int:
+	return maxi(1, floori(countdown * latest_fall_fraction))
 
 
 ## The meltdown countdown `level` gets when its reactor dies (RUN-5): the one
