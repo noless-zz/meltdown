@@ -66,7 +66,7 @@ func attach(world: Node3D) -> void:
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
-## `panel`, if given, shows the ship's shield, hull, weapon slots and the part in its
+## `panel`, if given, shows the ship's gauges (#1216), weapon slots and the part in its
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
 ## The aim reticle shows along the ship's gun direction on every preset
 ## (#1211), so `_look_aim` no longer changes anything; `main.gd` still passes it.
@@ -75,7 +75,8 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	show_hit_flash(delta)
 	if panel != null:
 		var ship: ShipState = session.current_ship()
-		show_defence(panel, ship)
+		# The one snapshot of the gauges this frame (#1216); the reactor is a copy.
+		panel.show_gauges(ShipGauges.take(ship, SessionSnapshots.reactor(session.sim.reactor)))
 		if hit_flash != null:
 			panel.flash_bar(false, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.SHIELD))
 			panel.flash_bar(true, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.HULL))
@@ -150,14 +151,6 @@ static func load_hit_flash(path: String) -> HitFlash:
 		print("Meltdown: hit flash off: %s" % flash.error)
 		return null
 	return flash
-
-
-## Hands `panel` the shield and hull of `ship`, a session copy, as fractions
-## of their maximums; a maximum of zero shows an empty bar.
-static func show_defence(panel: StatusPanel, ship: ShipState) -> void:
-	var shield: float = ship.shield / ship.max_shield if ship.max_shield > 0.0 else 0.0
-	var hull: float = ship.hull / ship.max_hull if ship.max_hull > 0.0 else 0.0
-	panel.show_defence(shield, hull)
 
 
 ## The part `ship`, a session copy, would slot next: the first id in its hold,

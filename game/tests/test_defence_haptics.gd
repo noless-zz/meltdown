@@ -101,11 +101,11 @@ func test_the_mark_is_the_status_panel_look_value() -> String:
 func test_the_hull_bar_turns_red_at_the_mark() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var fill: MeshInstance3D = panel.get_node(StatusPanel.HULL_BAR_NAME)
-	panel.show_defence(1.0, 0.5)
+	panel.show_gauges(ShipGauges.of(0.5, 1.0, 1.0))
 	var above: Color = (fill.material_override as StandardMaterial3D).albedo_color
-	panel.show_defence(1.0, 0.25)
+	panel.show_gauges(ShipGauges.of(0.25, 1.0, 1.0))
 	var at: Color = (fill.material_override as StandardMaterial3D).albedo_color
-	panel.show_defence(1.0, 0.9)
+	panel.show_gauges(ShipGauges.of(0.9, 1.0, 1.0))
 	var back: Color = (fill.material_override as StandardMaterial3D).albedo_color
 	panel.free()
 	if above != StatusPanel.HULL_COLOR or back != StatusPanel.HULL_COLOR:

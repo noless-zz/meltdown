@@ -48,8 +48,8 @@ func attach(world: Node3D, session: LocalSession, route: MapRouteWiring = null) 
 
 
 ## Once per frame, after the ticks: places the reactor view from a copy of the
-## session's reactor, and hands `panel`, if given, the countdown (hidden unless
-## the reactor is destroyed) and the outcome (hidden while running).
+## session's reactor, and hands `panel`, if given, the outcome (hidden while
+## running). The countdown reaches the panel in `ShipGauges` (#1216).
 func update(session: LocalSession, panel: StatusPanel) -> void:
 	if session == null:
 		return
@@ -59,7 +59,6 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 		reactor_view.frozen = session.paused
 	_follow_debris(SessionSnapshots.debris(session.sim.debris), session.sim.tick)
 	if panel != null:
-		panel.show_meltdown(seconds_left(reactor) if reactor != null and reactor.destroyed else -1.0)
 		panel.show_outcome(session.sim.outcome())
 	escape.update(session, panel)
 

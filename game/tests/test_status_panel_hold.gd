@@ -105,8 +105,8 @@ func test_the_hold_row_sits_clear_of_the_shield_and_hull_rows() -> String:
 
 func test_show_hold_leaves_the_other_rows_alone() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(2, "Guided", 12.0, 0.5, "", "abc")
-	panel.show_defence(0.6, 0.3)
+	panel.show_values(2, "Guided", 12.0, "", "abc")
+	panel.show_gauges(ShipGauges.of(0.3, 0.6, 0.5))
 	var before: Dictionary = panel.texts()
 	panel.show_hold("Twin Laser")
 	var after: Dictionary = panel.texts()

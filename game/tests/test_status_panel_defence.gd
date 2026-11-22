@@ -11,9 +11,9 @@ static func _priority(panel: StatusPanel, node_name: String) -> int:
 	return (panel.get_node(node_name) as MeshInstance3D).material_override.render_priority
 
 
-func test_the_bars_start_full_before_show_defence() -> String:
+func test_the_bars_start_full_before_the_first_gauges() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(2, "Guided", 0.0, 0.5, "", "")
+	panel.show_values(2, "Guided", 0.0, "", "")
 	var shield: float = panel.shield_bar_scale()
 	var hull: float = panel.hull_bar_scale()
 	var warning: bool = panel.hull_warning_shown()
@@ -27,7 +27,7 @@ func test_the_bars_start_full_before_show_defence() -> String:
 
 func test_fractions_set_the_bar_scales() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_defence(0.6, 0.3)
+	panel.show_gauges(ShipGauges.of(0.3, 0.6, 1.0))
 	var shield: float = panel.shield_bar_scale()
 	var hull: float = panel.hull_bar_scale()
 	var energy: float = panel.energy_bar_scale()
@@ -37,7 +37,7 @@ func test_fractions_set_the_bar_scales() -> String:
 	if not is_equal_approx(hull, 0.3):
 		return "hull 0.3 drew a bar of %.3f" % hull
 	if not is_equal_approx(energy, 1.0):
-		return "show_defence moved the energy bar to %.3f" % energy
+		return "show_gauges moved the energy bar to %.3f" % energy
 	return ""
 
 
@@ -49,11 +49,11 @@ func test_out_of_range_values_clamp() -> String:
 		Vector4(NAN, INF, 0.0, 0.0),
 	]
 	for c: Vector4 in cases:
-		panel.show_defence(c.x, c.y)
+		panel.show_gauges(ShipGauges.of(c.y, c.x, 1.0))
 		if not is_equal_approx(panel.shield_bar_scale(), c.z) or not is_equal_approx(panel.hull_bar_scale(), c.w):
 			var got: Vector2 = Vector2(panel.shield_bar_scale(), panel.hull_bar_scale())
 			panel.free()
-			return "show_defence(%s, %s) drew %s, expected (%s, %s)" % [c.x, c.y, got, c.z, c.w]
+			return "shield %s, hull %s drew %s, expected (%s, %s)" % [c.x, c.y, got, c.z, c.w]
 	panel.free()
 	return ""
 
@@ -62,7 +62,7 @@ func test_an_empty_bar_keeps_its_left_end() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var full: MeshInstance3D = panel.get_node(StatusPanel.HULL_BAR_NAME) as MeshInstance3D
 	var left_full: float = full.position.x - PanelBar.WIDTH * full.scale.x * 0.5
-	panel.show_defence(0.25, 0.25)
+	panel.show_gauges(ShipGauges.of(0.25, 0.25, 1.0))
 	var left_quarter: float = full.position.x - PanelBar.WIDTH * full.scale.x * 0.5
 	panel.free()
 	if not is_equal_approx(left_full, left_quarter):
@@ -76,15 +76,15 @@ func test_the_hull_warning_appears_at_25_percent_and_not_above() -> String:
 	var expected: Dictionary = {1.0: false, 0.26: false, threshold + 0.001: false,
 		threshold: true, 0.1: true, 0.0: true, -1.0: true}
 	for hull: float in expected:
-		panel.show_defence(1.0, hull)
+		panel.show_gauges(ShipGauges.of(hull, 1.0, 1.0))
 		var label: Label3D = panel.get_node(StatusPanel.HULL_LABEL_NAME) as Label3D
 		var colour_ok: bool = label.modulate == (StatusPanel.HULL_WARNING_COLOR if expected[hull] else StatusPanel.TEXT_COLOR)
 		if panel.hull_warning_shown() != expected[hull] or not colour_ok:
 			panel.free()
 			return "hull %.3f: warning %s, expected %s" % [hull, not expected[hull], expected[hull]]
 	# The warning goes again once the hull is back above the threshold.
-	panel.show_defence(1.0, 0.1)
-	panel.show_defence(1.0, 0.8)
+	panel.show_gauges(ShipGauges.of(0.1, 1.0, 1.0))
+	panel.show_gauges(ShipGauges.of(0.8, 1.0, 1.0))
 	var cleared: bool = not panel.hull_warning_shown()
 	panel.free()
 	if not cleared:

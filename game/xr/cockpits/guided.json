@@ -28,5 +28,6 @@
 	"guard_after_s": 3,
 	"guard_distance_m": 0.45,
 	"interior_color": [0.3, 0.33, 0.38],
-	"structure_color": [0.44, 0.47, 0.52]
+	"structure_color": [0.44, 0.47, 0.52],
+	"instruments": []
 }

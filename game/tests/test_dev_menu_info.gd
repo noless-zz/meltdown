@@ -12,7 +12,7 @@ static func _rig() -> Node3D:
 	var rig: Node3D = Node3D.new()
 	var panel: StatusPanel = StatusPanel.new()
 	rig.add_child(panel)
-	panel.show_values(3, "Pilot", 19.6, 0.5, StatusPanel.BOOST_ON, BUILD)
+	panel.show_values(3, "Pilot", 19.6, StatusPanel.BOOST_ON, BUILD)
 	panel.show_level("31", "")
 	var menu: DevMenu = DevMenu.new()
 	rig.add_child(menu)
@@ -51,7 +51,7 @@ func test_each_moved_line_is_on_the_info_page_as_the_panel_showed_it() -> String
 func test_the_info_page_follows_the_values_while_the_menu_is_open() -> String:
 	var rig: Node3D = _rig()
 	var panel: StatusPanel = _panel(rig)
-	panel.show_values(3, "Pilot", 4.2, 0.5, "", BUILD)
+	panel.show_values(3, "Pilot", 4.2, "", BUILD)
 	panel.show_level("", "")
 	_info(rig).refresh()
 	var shown: Array[String] = _info(rig).texts()

@@ -108,7 +108,6 @@ static func show_ship(panel: StatusPanel, ship: ShipState, preset_number: int,
 		boost = StatusPanel.BOOST_ON
 	elif ship.afterburner_locked:
 		boost = StatusPanel.BOOST_RECHARGING
-	var energy_fraction: float = ship.energy / ship.max_energy if ship.max_energy > 0.0 else 0.0
-	panel.show_values(preset_number, preset_name, ship.velocity.length(),
-		energy_fraction, boost, build)
+	# Energy reaches the panel with hull and shield in `ShipGauges` (#1216).
+	panel.show_values(preset_number, preset_name, ship.velocity.length(), boost, build)
 	panel.advance(delta_seconds)

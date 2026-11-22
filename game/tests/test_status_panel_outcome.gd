@@ -143,10 +143,9 @@ func test_the_row_does_not_overlap_the_others() -> String:
 
 func test_show_outcome_leaves_the_other_rows_alone() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(2, "Guided", 12.0, 0.5, "", "abc")
-	panel.show_defence(0.6, 0.3)
+	panel.show_values(2, "Guided", 12.0, "", "abc")
 	panel.show_hold("Twin Laser")
-	panel.show_meltdown(12.0)
+	panel.show_gauges(ShipGauges.of(0.3, 0.6, 0.5, 12.0))
 	var before: Dictionary = panel.texts()
 	var visible_before: Array[bool] = [panel.meltdown_visible(), panel.large_preset_visible()]
 	for outcome: int in [ESCAPED, LOST, RUNNING]:

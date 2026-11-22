@@ -57,7 +57,7 @@ func test_every_panel_node_belongs_to_one_row() -> String:
 
 func test_hidden_rows_stay_undrawn_when_they_show_themselves() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(2, "Cruise", 12.0, 0.5, StatusPanel.BOOST_ON, "abc1234")
+	panel.show_values(2, "Cruise", 12.0, StatusPanel.BOOST_ON, "abc1234")
 	var large_up: bool = panel.large_preset_visible()
 	var large_drawn: bool = StatusPanelRowList.drawn(panel, "preset_large")
 	panel.advance(StatusPanel.PRESET_LARGE_SECONDS + 0.1)
@@ -76,7 +76,7 @@ func test_hidden_rows_stay_undrawn_when_they_show_themselves() -> String:
 func test_the_countdown_still_appears_when_the_meltdown_starts() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var before: bool = panel.meltdown_visible()
-	panel.show_meltdown(90.0)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, 90.0))
 	var after: bool = panel.meltdown_visible()
 	var drawn: bool = StatusPanelRowList.drawn(panel, "meltdown")
 	var text: String = panel.texts()[StatusPanel.MELTDOWN_NAME]
