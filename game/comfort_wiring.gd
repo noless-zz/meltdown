@@ -1,10 +1,11 @@
 class_name ComfortWiring
-extends RefCounted
+extends ComfortButtons
 
 ## Joins this player's comfort preset to the input the session flies (CMF-1,
 ## CMF-3, CMF-6, ARC-3): the active preset and its filter, the development
 ## preset switch, and the bookkeeping that makes a snap or a reset fly in
-## exactly one tick.
+## exactly one tick. The preset and label buttons' press and hold come from
+## `ComfortButtons`, the hit shake from `HitShakeWiring` (#1157).
 ##
 ## It sits beside `main.gd`, not in `xr/`, because it writes the `net/` input
 ## source; it never writes `ShipState` or `Sim` (ARC-3, MP-2). Every input it
@@ -31,13 +32,17 @@ var latest_tick_snapped: bool = false
 ## it (#478). `set_preset` rebuilds this one node, never two or none (CMF-1,
 ## #160). It only reads the preset (ARC-3).
 var cockpit_frame: CockpitFrame = null
-## The "Hits" row of the active preset (#169); its `preset` follows
-## `set_preset`. Null when the data file was rejected: the shake stays off.
-var hit_shake: HitShake = load_hit_shake(HitShake.DEFAULT_FILE)
-## The shake's offset for this frame joined to preset 4's inertia `drift` (#840), in the
-## cockpit's frame; the identity when nothing shows. `advance_hit_shake` sets it, the rig applies it.
-var shake_offset: Transform3D = Transform3D.IDENTITY
-var drift: DriftWiring = DriftWiring.new()
+## Hit shake and preset 4's drift joined into one view offset (#169, #840, #1157).
+var shaking: HitShakeWiring = HitShakeWiring.new()
+var hit_shake: HitShake:
+	get: return shaking.hit_shake
+	set(value): shaking.hit_shake = value
+## This frame's shake and drift offset; `advance_hit_shake` sets it, the rig applies it.
+var shake_offset: Transform3D:
+	get: return shaking.offset
+var drift: DriftWiring:
+	get: return shaking.drift
+	set(value): shaking.drift = value
 ## Keeps the window in front of the eyes (#651); `RigViews.place_guarded`
 ## feeds it each frame and places the frame and panel where it says.
 var view_guard: ViewGuard = ViewGuard.new()
@@ -52,35 +57,21 @@ var look_aim: LookAimHead = LookAimHead.new()
 var swivel_choice: int = SwivelChoice.UNSET
 
 var _input_source: LatestInputSource
-## Read for which hand carries the preset button.
-var _mapping: ThumbstickMapping
 ## Where the custom comfort file is read (#806); tests point it at a scratch file.
 var custom_path: String = ComfortCustom.DEFAULT_PATH
 ## The custom file, read once so a rejected file is logged once (#806).
 var _custom: ComfortCustom = null
 ## Rejections of the custom file, for the status panel's preset row (#807).
 var custom_notice: ComfortCustomNotice = ComfortCustomNotice.new()
-## The preset switch acts once per press, not once per frame it is held.
-var _preset_button_held: bool = false
-## Seconds on a steady clock; `read_label_button` times a click with it. Tests
-## replace it so a hold can be timed without waiting.
-var clock: Callable = ClickHold.steady_seconds
-## Click or hold of the label button, fed by `read_label_button` with `clock`
-## each frame. The map reads it too while the label button also shows the map
-## (`shared_click_hold`), so both answers come from one timer (#335).
-var click_hold: ClickHold = ClickHold.new()
-## The label toggle, likewise, flips once per click.
-var _label_button_held: bool = false
 ## True while the pending one-tick input is a snap whose roll came from the
 ## auto-level, so that roll is not flown again before the next sample.
 var _roll_snap_pending: bool = false
 
 
 func _init(p_input_source: LatestInputSource, p_mapping: ThumbstickMapping) -> void:
+	super(p_mapping)
 	_input_source = p_input_source
-	_mapping = p_mapping
-	if hit_shake != null:
-		hit_shake.preset = preset
+	shaking.set_preset(preset)
 	swivel.set_preset(preset)
 	look_aim.set_preset(preset)
 
@@ -101,8 +92,7 @@ func set_preset(p_number: int) -> void:
 	_roll_snap_pending = false
 	if cockpit_frame != null:
 		cockpit_frame.set_spec(cockpit_spec())
-	if hit_shake != null:
-		hit_shake.preset = preset
+	shaking.set_preset(preset)
 	swivel.set_preset(preset)
 	look_aim.set_preset(preset)
 	print("Meltdown: comfort preset %d %s" % [p_number, preset.display_name])
@@ -180,54 +170,13 @@ func cockpit_spec() -> CockpitSpec:
 	return spec
 
 
-## The development preset switch: the lower face button of the hand that does
-## not turn (X, or A when left-handed; #613). Read here rather than bound in
-## the layout, since it is not a flight control and a settings menu replaces it.
-func preset_button() -> String:
-	return _mapping.preset_button()
-
-
-## Next preset as the button goes down; from 4 a rejected custom file is reported (#807).
+## Next preset as the preset button goes down (`ComfortButtons`); from 4 a
+## rejected custom file is reported (#807).
 func read_preset_button(buttons: Dictionary) -> void:
-	var pressed: bool = bool(buttons.get(preset_button(), false))
-	if pressed and not _preset_button_held:
+	if preset_pressed(buttons):
 		if number == ComfortPresetFiles.PATHS.size():
 			custom_notice.refused(custom())
 		set_preset(next_number())
-	_preset_button_held = pressed
-
-
-## The control-label toggle: the stick click of the hand that does not turn
-## (left, or right when left-handed), as decision record 0004 places it. Read
-## here like the preset button; it never reaches `ShipInput` (ARC-3).
-func label_button() -> String:
-	return _mapping.label_button()
-
-
-## True on the one frame a press should flip the labels. When the label button
-## also toggles the map (`show_map`), that is the frame a hold reaches
-## `MapHologram.HOLD_SECONDS`, as `click_hold` decides, since a click toggles
-## the map (#914); otherwise the frame the button goes down. Call once per
-## frame, before the map reads `shared_click_hold`.
-func read_label_button(buttons: Dictionary) -> bool:
-	var pressed: bool = bool(buttons.get(label_button(), false))
-	var went_down: bool = pressed and not _label_button_held
-	_label_button_held = pressed
-	if not label_button_shows_map():
-		return went_down
-	click_hold.feed(pressed, float(clock.call()))
-	return click_hold.long_hold_started()
-
-
-## True while `show_map` is bound to the label button.
-func label_button_shows_map() -> bool:
-	return _mapping.physical_controls("show_map").has(label_button())
-
-
-## The `ClickHold` the map must read while it shares the label button, null
-## when `show_map` is on another control and the map toggles on its own press.
-func shared_click_hold() -> ClickHold:
-	return click_hold if label_button_shows_map() else null
 
 
 ## Hands this frame's mapped `input` to the session's input source.
@@ -289,36 +238,20 @@ func end_one_tick_if_flown(ticks: int) -> bool:
 	return false
 
 
-## Reads the hit-shake file at `path`; a rejected file is printed once and gives null (no shake).
+## The hit-shake group lives in `HitShakeWiring` (#1157); these keep the names
+## `main.gd`, the rig and the tests use.
 static func load_hit_shake(path: String) -> HitShake:
-	var shake: HitShake = HitShake.load_file(path)
-	if shake.error != "":
-		print("Meltdown: hit shake off: %s" % shake.error)
-		return null
-	return shake
+	return HitShakeWiring.load_hit_shake(path)
 
 
-## Hands the shake the events of the ticks just run for ship `ship` (orientation `ship_basis`, copies).
 func feed_hit_shake(events: Array[SimEvent], ship: int, ship_basis: Basis) -> void:
-	if hit_shake != null:
-		hit_shake.feed(events, ship, ship_basis)
+	shaking.feed(events, ship, ship_basis)
 
 
-## Moves the shake and the drift on by one frame of `delta` seconds and keeps their offset.
 func advance_hit_shake(delta: float) -> void:
-	var shake: Transform3D = hit_shake.advance(delta) if hit_shake != null else Transform3D.IDENTITY
-	shake_offset = drift.advance(preset, delta) * shake
+	shaking.advance(preset, delta)
 
 
-## The ship's pose `fraction` of the way from `previous` to `current`:
-## position lerped, rotation slerped. Frames fall between ticks, so showing
-## either tick's pose alone would judder at 72 or 90 Hz against a 60 Hz sim.
-## With `snapped` (the latest tick was a snap) the rotation is shown at once:
-## slerping it would show a snap as smooth rotation (CMF-3).
 static func interpolated_pose(previous: ShipState, current: ShipState, fraction: float,
 		snapped: bool = false) -> Transform3D:
-	var weight: float = clampf(fraction, 0.0, 1.0)
-	var from_rotation: Quaternion = previous.orientation.orthonormalized().get_rotation_quaternion()
-	var to_rotation: Quaternion = current.orientation.orthonormalized().get_rotation_quaternion()
-	var rotation: Quaternion = to_rotation if snapped else from_rotation.slerp(to_rotation, weight)
-	return Transform3D(Basis(rotation), previous.position.lerp(current.position, weight))
+	return HitShakeWiring.interpolated_pose(previous, current, fraction, snapped)
