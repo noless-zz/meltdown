@@ -1,0 +1,13 @@
+{
+	"mark_text": "> ",
+	"title_color": [0.85, 0.95, 1.0],
+	"text_color": [0.6, 0.7, 0.8],
+	"selected_color": [1.0, 0.85, 0.3],
+	"reason_color": [1.0, 0.45, 0.35],
+	"title_position_m": [0.0, 0.3, -1.2],
+	"line_step_m": 0.07,
+	"title_font_size": 64,
+	"line_font_size": 44,
+	"reason_font_size": 40,
+	"pixel_size": 0.0008
+}
