@@ -6,6 +6,10 @@ name: Nightly seeds
 # G3's other automated half, "bots escape 95% of cleared levels", is re-measured
 # here too (#461): the bot flies 1,000 seeds with robots and debris, split over
 # shards that run beside the validator job, and the rate job adds them up.
+# Gate G4's "bots complete full runs" is measured here too (#1174): the bot
+# flies whole runs of seeds 1 to bot_runs with the plain ship and the maxed ship,
+# and the run rate job reports the completion rates. The owner set no bar for
+# them yet, so that job never fails on a rate.
 
 on:
   schedule:
@@ -21,6 +25,10 @@ on:
         description: Number of seeds for the bot escape sweep, starting at seed 1
         required: false
         default: '1000'
+      bot_runs:
+        description: Number of run seeds for the bot run sweep, starting at seed 1
+        required: false
+        default: '100'
 
 permissions:
   contents: read
@@ -35,6 +43,9 @@ env:
   BOT_SEEDS: ${{ inputs.bot_seeds || '1000' }}
   # Keep in step with the bot-escape matrix below.
   BOT_SHARDS: 8
+  BOT_RUNS: ${{ inputs.bot_runs || '100' }}
+  # Keep in step with the bot-runs matrix below.
+  RUN_SHARDS: 8
 
 jobs:
   seeds:
@@ -212,6 +223,130 @@ jobs:
             echo '```'
             for file in "${files[@]}"; do
               echo "$(basename "$file"): $(grep '^MELTDOWN_BOT_ESCAPE ' "$file" || echo 'no summary line')"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  bot-runs:
+    # A run seed flies 3 to 5 levels, and each shard flies its seeds twice (plain
+    # ship, then the maxed ship from the #1091 fixtures), so 100 run seeds do not
+    # fit one job; eight shards of 13 run beside the other nightly jobs.
+    name: Bot run sweep, shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the rate script
+        run: tools/test_bot_run_rate.sh
+
+      - name: Pick this shard's run seeds
+        id: range
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          read -r first count <<< "$(tools/bot_escape_rate.sh range "$BOT_RUNS" "$RUN_SHARDS" "$SHARD")"
+          echo "first=$first" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "shard $SHARD flies $count run seeds from seed $first"
+
+      - name: Download Godot
+        if: steps.range.outputs.count != '0'
+        run: |
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        if: steps.range.outputs.count != '0'
+        run: godot --headless --path game --import
+
+      - name: Fly the runs
+        if: steps.range.outputs.count != '0'
+        env:
+          FIRST: ${{ steps.range.outputs.first }}
+          COUNT: ${{ steps.range.outputs.count }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          # The sweep exits 0 whatever the rate, and 1 only when a run seed
+          # failed to build or the summary could not be printed: that fails the
+          # shard. The output is uploaded either way so the rate job can say so.
+          status=0
+          start=$SECONDS
+          godot --headless --path game -s res://tests/bot_run_sweep.gd -- \
+            --runs="$COUNT" --first="$FIRST" \
+            --profile=res://tests/fixtures/maxed_profile.json \
+            --fitting=res://tests/fixtures/maxed_fitting.json > "runs-$SHARD.txt" || status=$?
+          cat "runs-$SHARD.txt"
+          echo "sweep exit code $status after $((SECONDS - start)) s"
+          exit "$status"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.range.outputs.count != '0' }}
+        with:
+          name: bot-runs-shard-${{ matrix.shard }}
+          path: runs-${{ matrix.shard }}.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  bot-run-rate:
+    name: Bot run completion rates on every shard
+    runs-on: ubuntu-latest
+    needs: bot-runs
+    # Runs when a shard failed too, so the summary says so; not when cancelled.
+    if: ${{ !cancelled() }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bot-runs-shard-*
+          path: shards
+          merge-multiple: true
+
+      - name: Add up the shards
+        env:
+          SHARDS_RESULT: ${{ needs.bot-runs.result }}
+        run: |
+          status=0
+          shopt -s nullglob
+          files=(shards/runs-*.txt)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no shard output: the shard jobs ended with '$SHARDS_RESULT'" > rate.txt
+            status=1
+          else
+            tools/bot_run_rate.sh combine "$BOT_RUNS" "${files[@]}" > rate.txt 2>&1 || status=$?
+          fi
+          if [ "$SHARDS_RESULT" != "success" ] && [ "$status" -eq 0 ]; then
+            echo "a shard job ended with '$SHARDS_RESULT'" >> rate.txt
+            status=1
+          fi
+          cat rate.txt
+          {
+            echo "## Bot run sweep on $BOT_RUNS run seeds, plain and maxed ship"
+            echo
+            echo "Gate G4: bots complete full runs. No bar is set; the rates are reported, never judged."
+            echo
+            echo '```'
+            cat rate.txt
+            echo '```'
+            echo
+            echo "### Shard ship lines"
+            echo
+            echo '```'
+            for file in "${files[@]}"; do
+              if grep -q '^MELTDOWN_BOT_SHIP ' "$file"; then
+                grep '^MELTDOWN_BOT_SHIP ' "$file" | sed "s|^|$(basename "$file"): |"
+              else
+                echo "$(basename "$file"): no ship lines"
+              fi
             done
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
