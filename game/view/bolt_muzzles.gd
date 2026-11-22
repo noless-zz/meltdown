@@ -2,8 +2,9 @@ class_name BoltMuzzles
 extends RefCounted
 
 ## Where a ship's bolts are drawn from (#602, CMB-1): two muzzles, low left and
-## low right ahead of the eye, used in turn. The simulation fires every shot
-## from the ship's centre, which is where the pilot's eye sits, so a bolt drawn
+## low right ahead of the eye, one per primary slot: slot 1 is the right gun
+## and slot 2 the left (decision record 0011, #1261). The simulation fires
+## every shot from the ship's centre, which is where the pilot's eye sits, so a bolt drawn
 ## there flies out of the pilot's head. The view instead starts it at a muzzle
 ## and closes the gap evenly over the first `converge_m` of flight, after
 ## which the drawn bolt is on the simulated line, where it hits.
@@ -18,9 +19,6 @@ var drop_m: float = 0.25
 var forward_m: float = 0.6
 ## Metres of flight over which a bolt closes onto the simulated line.
 var converge_m: float = 4.0
-
-## The muzzle each ship fires its next bolt from: 0 left, 1 right; by ship.
-var _next: Dictionary[int, int] = {}
 
 
 ## Takes the muzzle keys of a parsed `ProjectileLook`.
@@ -38,12 +36,10 @@ func point(index: int) -> Vector3:
 	return Vector3(side, -drop_m, -forward_m)
 
 
-## The muzzle ship `ship` fires from now, in its own axes; the next call for
-## that ship gives the other one.
-func take(ship: int) -> Vector3:
-	var muzzle: int = _next.get(ship, 0)
-	_next[ship] = 1 - muzzle
-	return point(muzzle)
+## The muzzle of primary slot `slot` (0 is slot 1) in the ship's own axes:
+## slot 1 the right gun, slot 2 the left.
+func for_slot(slot: int) -> Vector3:
+	return point(1 if slot % 2 == 0 else 0)
 
 
 ## How much of its muzzle offset a bolt still carries after flying `flown_m`:

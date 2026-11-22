@@ -28,7 +28,6 @@ static func _ship() -> ShipState:
 	var ship: ShipState = ShipState.new()
 	ShipTuning.parse_json(FileAccess.get_file_as_string(SHIP_FILE)).apply_to(ship)
 	ship.primary_slots[0] = WeaponDef.parse_json(FileAccess.get_file_as_string(PULSE_CANNON))
-	ship.selected_primary = 0
 	return ship
 
 
@@ -39,8 +38,8 @@ static func seconds_to_empty(ship: ShipState, boost: bool) -> float:
 	var thrust: Vector3 = Vector3.FORWARD if boost else Vector3.ZERO
 	for tick: int in TICK_LIMIT:
 		ship.step(thrust, Vector3.ZERO, boost)
-		var due: bool = ship.fire_cooldown <= 1
-		if ship.fire_primary(true) == null and due:
+		var due: bool = ship.fire_cooldowns[0] <= 1
+		if ship.fire_primary(true).is_empty() and due:
 			return float(tick + 1) * ShipState.TICK_DT
 	return INF
 

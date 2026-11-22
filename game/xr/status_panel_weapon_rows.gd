@@ -2,29 +2,29 @@ class_name StatusPanelWeaponRows
 extends RefCounted
 
 ## The status panel's weapon rows (#1210, SLV-1, CMB-1, PLT-2): one row per
-## primary slot, "1 Pulse Cannon" or "2 empty", with a mark before the slot
-## that fires. The owner slotted a gun into the empty second slot and could
+## primary slot, "1 Pulse Cannon" or "2 empty", with a mark before each slot
+## that fires: every filled one, as the primary trigger fires them all (#1261). The owner slotted a gun into the empty second slot and could
 ## not find it on a panel that showed only the firing slot; every slot now has
 ## its row, so a part shows the moment it is slotted.
 ##
 ## How many rows there are comes from the ship's slot list each frame, not a
 ## constant: a ship with more slots gets more rows, and the panel moves the
 ## rows below them down (`place_all`). Presentation only: it is
-## handed names and an index and writes nothing back (ARC-3, MP-2).
+## handed names and writes nothing back (ARC-3, MP-2).
 
 ## The first row keeps the name the single weapon row had, so the row list
 ## (`StatusPanelRowList`) and the corner and order checks still find it.
 const FIRST_NAME: String = "Weapon"
 ## Rows after the first are "Weapon2", "Weapon3", ...
 const NAME_FORMAT: String = "Weapon%d"
-## The firing slot's row starts with this mark; the others with the same width
+## A firing slot's row starts with this mark; the others with the same width
 ## of space, so the slot numbers line up.
 const FIRE_MARK: String = "> "
 const IDLE_MARK: String = "   "
 ## Slot number, then the weapon's name or `EMPTY`.
 const ROW_FORMAT: String = "%s%d %s"
 const EMPTY: String = "empty"
-## Slots that do not fire are dimmer than the one that does, so the mark is
+## Slots that do not fire are dimmer than those that do, so the mark is
 ## read by brightness too, not only by the small glyph.
 const IDLE_COLOR: Color = Color(0.55, 0.62, 0.66)
 ## Rows under the weapon rows, by how many rows below the last one they sit.
@@ -41,15 +41,15 @@ var _panel: Node3D
 
 
 ## Adds the rows under `panel`, the first at `at`: until the first ship
-## arrives, as many empty slots as a new ship has, the first marked, so an
-## unwired panel already says what it will show.
+## arrives, as many empty slots as a new ship has, so an unwired panel
+## already says what it will show.
 func _init(panel: Node3D, at: Vector3) -> void:
 	_panel = panel
 	labels.append(StatusPanelLabels.make(panel, FIRST_NAME, at, StatusPanel.SMALL_FONT))
 	var empty: Array[String] = []
 	empty.resize(ShipState.new().primary_slots.size())
 	empty.fill("")
-	show_slots(empty, 0)
+	show_slots(empty)
 
 
 ## The row's name for slot `slot` (0-based).
@@ -64,11 +64,11 @@ static func row_text(slot: int, weapon_name: String, fires: bool) -> String:
 
 
 ## Shows one row per entry of `names` (a slot's weapon name, "" when empty)
-## with the mark on `selected`. Rows are added when the ship has more slots
+## with the mark on every filled slot, as every filled slot fires. Rows are added when the ship has more slots
 ## and hidden when it has fewer. Returns whether the number of rows changed,
 ## so the panel can move the rows below. Safe to call every frame: a label is
 ## rebuilt only when its text changes.
-func show_slots(names: Array[String], selected: int) -> bool:
+func show_slots(names: Array[String]) -> bool:
 	var count: int = maxi(names.size(), 1)
 	var changed: bool = count != shown_count()
 	while labels.size() < count:
@@ -81,7 +81,7 @@ func show_slots(names: Array[String], selected: int) -> bool:
 		if slot >= count:
 			continue
 		var weapon: String = names[slot] if slot < names.size() else ""
-		var fires: bool = slot == selected
+		var fires: bool = not weapon.is_empty()
 		if StatusPanelLabels.set_text(labels[slot], row_text(slot, weapon, fires)):
 			text_changes += 1
 		labels[slot].modulate = StatusPanel.TEXT_COLOR if fires else IDLE_COLOR

@@ -98,8 +98,8 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 ## Draws one bolt per projectile, `alpha` (0..1) of the way from the previous
 ## tick to the current one; one fired this tick, not yet moved, is drawn where
 ## it is. Never writes to `projectiles` (MP-2). `ship_poses[i]`, when given, is
-## ship `i`'s pose (eye at its origin): its bolts start at its muzzles, left and
-## right in turn, and close onto the simulated line within `converge_m` (#602).
+## ship `i`'s pose (eye at its origin): its bolts start at the muzzle of the
+## slot that fired them (slot 1 right, slot 2 left, #1261), and close onto the simulated line within `converge_m` (#602).
 ## A bolt that vanishes with range left ended on something: an impact flash.
 func show_projectiles(projectiles: Array[Projectile], alpha: float,
 		ship_poses: Array[Transform3D] = []) -> void:
@@ -202,14 +202,14 @@ func _apply_look() -> void:
 	_material.emission = emission_color
 
 
-## The muzzle offset of a bolt shown for the first time: the next muzzle of
-## the ship that fired it, turned by that ship's pose, or none. Starts that
+## The muzzle offset of a bolt shown for the first time: the muzzle of the
+## slot that fired it, turned by that ship's pose, or none. Starts that
 ## muzzle's flash.
 func _new_bolt_offset(projectile: Projectile, ship_poses: Array[Transform3D]) -> Vector3:
 	var ship: int = projectile.owner_index
 	if projectile.is_robot_owned() or ship >= ship_poses.size():
 		return Vector3.ZERO
-	var local: Vector3 = muzzles.take(ship)
+	var local: Vector3 = muzzles.for_slot(projectile.slot)
 	muzzle_flashes.flash(ship_poses[ship] * local, ship, local)
 	return ship_poses[ship].basis * local
 

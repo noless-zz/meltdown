@@ -67,11 +67,6 @@ func test_no_fire_without_trigger_weapon_or_energy() -> String:
 	_step(unarmed, _fire(), 30)
 	if not unarmed.projectiles.is_empty():
 		return "fired with an empty slot"
-	var other_slot: Sim = _armed_sim()
-	other_slot.ships[0].selected_primary = 1
-	_step(other_slot, _fire(), 30)
-	if not other_slot.projectiles.is_empty():
-		return "fired from slot 0 with the empty slot 1 selected"
 	var drained: Sim = _armed_sim()
 	drained.ships[0].energy = _cannon().energy_cost * 0.5
 	_step(drained, _fire(), 30)
@@ -128,7 +123,7 @@ func test_projectiles_change_the_hash() -> String:
 	_step(fired, _fire(), 1)
 	_step(idle, ShipInput.new(), 1)
 	idle.ships[0].energy = fired.ships[0].energy
-	idle.ships[0].fire_cooldown = fired.ships[0].fire_cooldown
+	idle.ships[0].fire_cooldowns = fired.ships[0].fire_cooldowns.duplicate()
 	if fired.state_hash() == idle.state_hash():
 		return "a live projectile does not change the hash"
 	return ""

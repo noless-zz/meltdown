@@ -11,7 +11,7 @@ extends RefCounted
 
 
 ## Moves the part in ship `index`'s hold into its first empty primary slot,
-## or, with both full, into the selected one. The weapon it replaces is
+## or, with both full, into slot 1 (#1262 lets the pilot choose). The weapon it replaces is
 ## dropped as a `SalvageItem` moving with the ship, `swap_drop_distance` behind
 ## it (`SalvageRules`), appended
 ## to `drops` for `Sim` to add once the tick's items have moved. Does
@@ -29,7 +29,8 @@ static func slot_held(sim: Sim, index: int, drops: Array[SalvageItem]) -> void:
 	var slot: int = ship.primary_slots.find(null)
 	var event: SimEvent = SimEvent.new(SimEvent.Kind.PART_SLOTTED, index)
 	if slot < 0:
-		slot = ship.selected_primary
+		# Slot 1, the slot that was always selected before both fired (#1261).
+		slot = 0
 		var old_id: String = ship.primary_ids[slot]
 		# A weapon placed without an id cannot be named as a part, so it has
 		# nothing to drop as; every run's weapons come with ids from data.

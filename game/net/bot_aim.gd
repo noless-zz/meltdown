@@ -30,7 +30,7 @@ const METRES_PER_RADIAN: float = 30.0
 ## Where `target` will be when a shot fired now reaches it, if it keeps its
 ## velocity: the shot's flight time is taken over the present distance.
 static func lead_point(ship: ShipState, target: RobotState) -> Vector3:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	var weapon: WeaponDef = ship.aim_primary()
 	if weapon == null or weapon.projectile_speed <= 0.0:
 		return target.position
 	var flight: float = ship.position.distance_to(target.position) / weapon.projectile_speed
@@ -73,10 +73,10 @@ static func cost(ship: ShipState, target: RobotState) -> float:
 
 
 ## Whether `ship` should hold fire at a target `offset` away: within its
-## selected primary weapon's range and within the cone ahead of its nose. An
+## longest-reaching primary weapon's range and within the cone ahead of its nose. An
 ## empty slot has no range, so an unarmed ship never fires.
 static func should_fire(ship: ShipState, offset: Vector3) -> bool:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	var weapon: WeaponDef = ship.aim_primary()
 	if weapon == null:
 		return false
 	var weapon_range: float = weapon.projectile_speed * float(weapon.lifetime_ticks()) \

@@ -80,14 +80,14 @@ func test_a_destroyed_ship_stops_and_ignores_thrust_turn_and_boost() -> String:
 func test_a_destroyed_ship_never_fires() -> String:
 	var sim: Sim = _moving_wreck()
 	sim.projectiles.clear()
-	var cooldown: int = sim.ships[0].fire_cooldown
+	var cooldowns: Array[int] = sim.ships[0].fire_cooldowns.duplicate()
 	_run(sim, _everything(), 120)
 	if not sim.projectiles.is_empty():
 		return "%d shots from a wreck" % sim.projectiles.size()
-	if sim.ships[0].fire_cooldown != cooldown:
-		return "cooldown moved from %d to %d" % [cooldown, sim.ships[0].fire_cooldown]
-	if sim.ships[0].fire_primary(true) != null:
-		return "fire_primary gave a weapon"
+	if sim.ships[0].fire_cooldowns != cooldowns:
+		return "cooldowns moved from %s to %s" % [cooldowns, sim.ships[0].fire_cooldowns]
+	if not sim.ships[0].fire_primary(true).is_empty():
+		return "fire_primary fired a slot"
 	return ""
 
 

@@ -97,31 +97,16 @@ func test_rows_run_countdown_hull_shield_energy_weapon_hold_then_the_rest() -> S
 func test_the_weapon_rows_name_each_slot_or_say_empty() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var unwired: String = panel.texts()[StatusPanel.WEAPON_NAME]
-	panel.show_weapons(["Needle Gun", ""] as Array[String], 0)
+	panel.show_weapons(["Needle Gun", ""] as Array[String])
 	var armed: String = panel.texts()[StatusPanel.WEAPON_NAME]
-	panel.show_weapons(["", ""] as Array[String], 0)
+	panel.show_weapons(["", ""] as Array[String])
 	var empty: String = panel.texts()[StatusPanel.WEAPON_NAME]
 	panel.free()
-	var none: String = StatusPanelWeaponRows.row_text(0, "", true)
+	var none: String = StatusPanelWeaponRows.row_text(0, "", false)
 	if unwired != none or empty != none:
 		return "an empty slot reads %s, then %s" % [unwired, empty]
 	if armed != "> 1 Needle Gun":
 		return "the weapon row reads %s" % armed
-	return ""
-
-
-func test_active_weapon_is_the_selected_primary_slots_id() -> String:
-	var ship: ShipState = ShipState.new()
-	var none: String = CombatWiring.active_weapon(ship)
-	ship.primary_slots[1] = WeaponDef.new()
-	ship.primary_ids[1] = "arc_lance"
-	var other_slot: String = CombatWiring.active_weapon(ship)
-	ship.selected_primary = 1
-	var selected: String = CombatWiring.active_weapon(ship)
-	if none != "" or other_slot != "":
-		return "an empty selected slot names %s, %s" % [none, other_slot]
-	if selected != "arc_lance":
-		return "the selected slot names %s" % selected
 	return ""
 
 
