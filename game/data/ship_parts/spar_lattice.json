@@ -1,0 +1,9 @@
+{
+	"id": "spar_lattice",
+	"name": "Spar Lattice",
+	"kind": "hull",
+	"stats": {
+		"max_hull": 1.2,
+		"wall_damage_per_speed": 0.6
+	}
+}

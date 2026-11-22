@@ -1,0 +1,15 @@
+{
+	"id": "spar_lattice",
+	"name": "Spar Lattice",
+	"branch": "defence",
+	"kind": "hull",
+	"tier": 2,
+	"requires": [
+		"layered_plating"
+	],
+	"cost": {
+		"scrap_alloy": 3,
+		"circuit_shards": 3
+	},
+	"grants": "spar_lattice"
+}
