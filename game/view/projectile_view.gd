@@ -2,35 +2,25 @@ class_name ProjectileView
 extends Node3D
 
 ## Draws the simulation's projectiles as glowing bolts (CMB-1). Mines are dark
-## by default and weapons are one of the main light sources (LGT-1), so the
-## bolts are unshaded and emissive: they read without any light on them.
+## and weapons are a main light source (LGT-1), so bolts are unshaded and
+## emissive. It only reads the projectiles it is given, so the view cannot
+## change what the authoritative simulation decided (MP-2). Bolts are pooled,
+## so a burst of fire reuses hidden nodes.
 ##
-## It only reads the projectiles it is given and never writes to them, so the
-## view cannot change what the authoritative simulation decided (MP-2).
-## Bolts are pooled: a burst of fire reuses hidden nodes instead of creating
-## and freeing them every frame.
-##
-## The nearest few bolts to the viewer also carry a real light, so fire lights
-## the tunnel walls (LGT-1). The lights have a fixed budget and are pooled, so a
-## burst of fire cannot blow the Quest 3 frame budget (PRF-1).
-##
-## A ship's bolts are drawn from its muzzles, not its centre where the eye is
-## (`BoltMuzzles`, #602), with a flash there; a bolt that ends on something
-## gets an impact flash (`BoltFlashes`).
-##
-## The look is a guess for the headset and lives in
+## The bolts nearest the viewer carry real lights from a budgeted pool
+## (`BoltLights`, PRF-1). A ship's bolts are drawn from its muzzles
+## (`BoltMuzzles`, #602) with a flash there, and a bolt that ends on something
+## gets an impact flash (`BoltFlashes`). The look lives in
 ## `res://view/projectile_look.json` (`ProjectileLook`) so the owner can change it.
 
 const NODE_NAME: String = "ProjectileView"
 const BOLT_PREFIX: String = "Bolt"
-const LIGHT_PREFIX: String = "BoltLight"
+const LIGHT_PREFIX: String = BoltLights.LIGHT_PREFIX
 const DEFAULT_LOOK_FILE: String = ProjectileLook.DEFAULT_FILE
 const MUZZLE_FLASHES_NAME: String = "MuzzleFlashes"
 const IMPACT_FLASHES_NAME: String = "ImpactFlashes"
-## A robot's bolt that ends this close to a ship hit the ship, not a wall: the
-## ship's radius (1 m) with some room for the ship having moved. Its impact is
-## the pilot's own hit, shown by the cockpit shake, so it gets no flash in the
-## pilot's face.
+## A robot's bolt ending this close to a ship (radius 1 m, plus room for its
+## move) hit the pilot, whose hit the cockpit shake shows: no flash in the face.
 const SHIP_HIT_RADIUS_M: float = 1.5
 
 # The fields below, `muzzles` and the two flash pools are set from the look
@@ -51,10 +41,7 @@ var muzzle_flashes: BoltFlashes = BoltFlashes.new(MUZZLE_FLASHES_NAME)
 var impact_flashes: BoltFlashes = BoltFlashes.new(IMPACT_FLASHES_NAME)
 
 var _bolts: Array[MeshInstance3D] = []
-var _lights: Array[OmniLight3D] = []
-## Bolt index each pooled light sits on, in light order; -1 when unused.
-var _lit: Array[int] = []
-var _viewer: Vector3 = Vector3.ZERO
+var _lamps: BoltLights = null
 ## Each projectile shown on the last call, with the position it had when it
 ## was first shown. Holding it keeps its identity from being reused meanwhile.
 var _first_seen: Dictionary[Projectile, Vector3] = {}
@@ -69,6 +56,7 @@ var _material: StandardMaterial3D = StandardMaterial3D.new()
 
 func _init() -> void:
 	name = NODE_NAME
+	_lamps = BoltLights.new(self)
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.emission_enabled = true
 	# One draw call's worth of geometry per bolt; it is small and fast.
@@ -85,9 +73,8 @@ static func parse_look(text: String) -> Dictionary:
 	return ProjectileLook.parse(text)
 
 
-## Applies the look file at `path`. A missing or rejected file leaves the
-## default look, sets `look_error` and pushes a warning naming the field.
-## Returns `look_error`.
+## Applies the look file at `path`. A missing or rejected file leaves the default
+## look, sets `look_error` (returned) and pushes a warning naming the field.
 func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 	var values: Dictionary = {"error": "file not found"}
 	if FileAccess.file_exists(path):
@@ -109,15 +96,11 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 
 
 ## Draws one bolt per projectile, `alpha` (0..1) of the way from the previous
-## tick to the current one. A projectile that has not moved since it was first
-## shown was fired on the current tick and has no previous position, so it is
-## drawn where it is. Never writes to `projectiles` (MP-2).
-##
-## `ship_poses[i]`, when given, is ship `i`'s pose this frame, with the eye at
-## its origin. A bolt that ship fires is drawn from its muzzles, left and right
-## in turn, and closes onto the simulated line within `converge_m` (#602); the
-## simulation still fires from the ship's centre. A bolt that vanishes with
-## range left ended on something and gets an impact flash.
+## tick to the current one; one fired this tick, not yet moved, is drawn where
+## it is. Never writes to `projectiles` (MP-2). `ship_poses[i]`, when given, is
+## ship `i`'s pose (eye at its origin): its bolts start at its muzzles, left and
+## right in turn, and close onto the simulated line within `converge_m` (#602).
+## A bolt that vanishes with range left ended on something: an impact flash.
 func show_projectiles(projectiles: Array[Projectile], alpha: float,
 		ship_poses: Array[Transform3D] = []) -> void:
 	var blend: float = clampf(alpha, 0.0, 1.0)
@@ -125,11 +108,15 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 		_add_bolt()
 	var seen: Dictionary[Projectile, Vector3] = {}
 	var offsets: Dictionary[Projectile, Vector3] = {}
+	var positions: Array[Vector3] = []
+	var shown: Array[bool] = []
 	for index: int in projectiles.size():
 		var projectile: Projectile = projectiles[index]
 		var bolt: MeshInstance3D = _bolts[index]
+		shown.append(projectile != null)
 		if projectile == null:
 			bolt.visible = false
+			positions.append(bolt.position)
 			continue
 		var first_position: Vector3 = _first_seen.get(projectile, projectile.position)
 		seen[projectile] = first_position
@@ -141,6 +128,7 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 		drawn += offsets[projectile] * muzzles.weight(drawn.distance_to(first_position))
 		bolt.transform = Transform3D(bolt_basis(projectile.velocity), drawn)
 		bolt.visible = true
+		positions.append(drawn)
 	for index: int in range(projectiles.size(), _bolts.size()):
 		_bolts[index].visible = false
 	for gone: Projectile in _first_seen:
@@ -149,33 +137,28 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 	_first_seen = seen
 	_offsets = offsets
 	muzzle_flashes.follow(ship_poses)
-	_light_nearest(projectiles)
-
+	_lamps.light_nearest(positions, shown, max_lights, light_range, light_energy, emission_color)
 
 
 ## Where the camera is, in this node's space; the bolts nearest to it get the
 ## lights on the next `show_projectiles`.
 func set_viewer(at: Vector3) -> void:
-	_viewer = at
+	_lamps.viewer = at
 
 
 ## Indices of the bolts carrying a light, nearest to the viewer first.
 func lit_bolts() -> Array[int]:
-	var lit: Array[int] = []
-	for index: int in _lit:
-		if index >= 0:
-			lit.append(index)
-	return lit
+	return _lamps.lit_bolts()
 
 
 ## Number of light nodes in the pool, lit or hidden.
 func light_count() -> int:
-	return _lights.size()
+	return _lamps.count()
 
 
 ## The pooled light at `index`, for tests.
 func light(index: int) -> OmniLight3D:
-	return _lights[index]
+	return _lamps.light(index)
 
 
 ## Number of bolt nodes in the pool, shown or hidden.
@@ -210,67 +193,8 @@ func _add_bolt() -> void:
 	_bolts.append(instance)
 
 
-## Puts the pooled lights on the `max_lights` shown bolts nearest the viewer.
-## Equal distances keep the order of `projectiles`, so the choice is the same
-## for the same input.
-func _light_nearest(projectiles: Array[Projectile]) -> void:
-	var chosen: Array[int] = []
-	var distances: Array[float] = []
-	for index: int in projectiles.size():
-		if projectiles[index] == null:
-			continue
-		var distance: float = _viewer.distance_squared_to(_bolts[index].position)
-		var slot: int = distances.size()
-		# Strictly nearer only, so an equal distance stays behind earlier bolts.
-		while slot > 0 and distance < distances[slot - 1]:
-			slot -= 1
-		if slot >= max_lights:
-			continue  # Also skips every bolt when the budget is 0.
-		chosen.insert(slot, index)
-		distances.insert(slot, distance)
-		if chosen.size() > max_lights:
-			chosen.pop_back()
-			distances.pop_back()
-	while _lights.size() < chosen.size():
-		_add_light()
-	_lit.resize(_lights.size())
-	for slot: int in _lights.size():
-		var lamp: OmniLight3D = _lights[slot]
-		if slot < chosen.size():
-			_lit[slot] = chosen[slot]
-			lamp.position = _bolts[chosen[slot]].position
-			lamp.visible = true
-		else:
-			_lit[slot] = -1
-			lamp.visible = false
-
-
-func _add_light() -> void:
-	var lamp: OmniLight3D = OmniLight3D.new()
-	lamp.name = "%s%d" % [LIGHT_PREFIX, _lights.size()]
-	lamp.shadow_enabled = false
-	lamp.visible = false
-	_style_light(lamp)
-	add_child(lamp)
-	_lights.append(lamp)
-
-
-func _style_light(lamp: OmniLight3D) -> void:
-	lamp.omni_range = light_range
-	lamp.light_energy = light_energy
-	lamp.light_color = emission_color
-
-
 func _apply_look() -> void:
-	# A smaller budget frees the lights above it, so no more than `max_lights`
-	# light nodes ever exist.
-	while _lights.size() > max_lights:
-		var lamp: OmniLight3D = _lights.pop_back()
-		remove_child(lamp)
-		lamp.free()
-	_lit.resize(_lights.size())
-	for lamp: OmniLight3D in _lights:
-		_style_light(lamp)
+	_lamps.apply_look(max_lights, light_range, light_energy, emission_color)
 	_mesh.height = bolt_length_m
 	_mesh.top_radius = bolt_radius_m
 	_mesh.bottom_radius = bolt_radius_m
@@ -290,10 +214,9 @@ func _new_bolt_offset(projectile: Projectile, ship_poses: Array[Transform3D]) ->
 	return ship_poses[ship].basis * local
 
 
-## A bolt shown last call is gone. With a tick of range left it ended on
-## something: a robot, the reactor, debris or a wall. The simulation does not
-## say where along that tick, so the flash goes half a tick on from where it
-## was last seen. A robot's bolt that ends on a ship gets no flash.
+## A bolt shown last call is gone. With a tick of range left it ended on a
+## robot, the reactor, debris or a wall, somewhere along that tick, so the flash
+## goes half a tick on. A robot's bolt that ends on a ship gets no flash.
 func _on_bolt_gone(gone: Projectile, ship_poses: Array[Transform3D]) -> void:
 	if gone.ticks_left <= 1:
 		return  # Its range ran out in open space.
