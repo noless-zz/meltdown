@@ -2,7 +2,8 @@ class_name Profile
 extends RefCounted
 
 ## The save that outlives a run (#928): components banked on escape (CRF-2),
-## crafted upgrades (CRF-3) and rescued crew (CRW-1, #1010). Lost runs keep it
+## crafted upgrades (CRF-3), rescued crew (CRW-1, #1010) and lifetime
+## statistics (CRW-2, #1069). Lost runs keep it
 ## (RUN-7). This class is only the data and its JSON text; `ProfileStore` puts
 ## it on disk.
 
@@ -12,14 +13,16 @@ extends RefCounted
 ## loads; the number was raised because a version 1 build refuses unknown keys,
 ## and without the bump it would call a file with crew unreadable and then save
 ## an empty profile over it. With the bump it sees a newer file and leaves it be.
-const VERSION: int = 2
+## Version 3 added `stats` (#1069), optional and bumped for the same reason.
+const VERSION: int = 3
 const KEY_VERSION: String = "version"
 const KEY_BANKED: String = "banked"
 const KEY_CRAFTED: String = "crafted"
 const KEY_CREW: String = "crew"
-## Keys every file must have; `crew` may be missing (older files).
+const KEY_STATS: String = "stats"
+## Keys every file must have; `crew` and `stats` may be missing (older files).
 const KEYS: Array[String] = [KEY_VERSION, KEY_BANKED, KEY_CRAFTED]
-const OPTIONAL_KEYS: Array[String] = [KEY_CREW]
+const OPTIONAL_KEYS: Array[String] = [KEY_CREW, KEY_STATS]
 const CREW_ID: String = "id"
 const CREW_ROLE: String = "role"
 const CREW_KEYS: Array[String] = [CREW_ID, CREW_ROLE]
@@ -33,6 +36,8 @@ var crafted: Array[String] = []
 ## Ids are unique. Whether each role exists is a question for `CrewRoles`, which
 ## this class does not read; `CrewRoster.check` asks it.
 var crew: Array[Dictionary] = []
+## Lifetime counters (CRW-2); zero for a file written before version 3.
+var stats: ProfileStats = ProfileStats.new()
 ## Set when `parse_json` rejected the text; the profile is then empty.
 var error: String = ""
 ## True when the text was rejected only because its version is newer than ours.
@@ -80,6 +85,7 @@ func to_json() -> String:
 		KEY_BANKED: banked.duplicate(),
 		KEY_CRAFTED: crafted.duplicate(),
 		KEY_CREW: crew.duplicate(true),
+		KEY_STATS: stats.to_dict(),
 	}
 	return JSON.stringify(data, "\t", true) + "\n"
 
@@ -124,6 +130,11 @@ static func parse_json(text: String) -> Profile:
 		var crew_error: String = _read_crew(data[KEY_CREW], profile)
 		if crew_error != "":
 			return _rejected(crew_error)
+	if data.has(KEY_STATS):
+		var stats_error: String = ProfileStats.check(data[KEY_STATS])
+		if stats_error != "":
+			return _rejected("key \"%s\": %s" % [KEY_STATS, stats_error])
+		profile.stats = ProfileStats.from_dict(data[KEY_STATS])
 	# Whatever version the file had, it is written back in the current layout.
 	profile.version = VERSION
 	profile.bank(data[KEY_BANKED])
