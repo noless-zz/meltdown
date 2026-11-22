@@ -3,7 +3,8 @@ extends RefCounted
 ## Gate G4's automated half, "bots complete full runs" (#1118, RUN-1, RUN-3,
 ## RUN-7, GEN-2, DEV-6): the bot pilot flies one pinned run seed through every
 ## level exactly as the run sweep does (`bot_run_sweep.gd`, robots and debris
-## on, the ship file's tuning, the first offered shaft) and must complete it.
+## on, the ship file's tuning, the first offered shaft, each level after the
+## first built with that shaft's robot count scale, #1173) and must complete it.
 ## The seed is the lowest in 1 to 50 the sweep completed when this was written,
 ## pinned in `fixtures/bot_full_run.json` (data, ARC-4). If a change stops the
 ## bot finishing it, this goes red; re-pin only with a reason in the devlog.
@@ -26,7 +27,7 @@ const REPEATED_LEVELS: int = 2
 ## Filled by the first test that needs it, so the run is flown once per file.
 var _flown: RunSweep.RunResult = null
 var _fly_level: Callable = Callable()
-## [level index, level seed, result] for each level the first flight flew.
+## [level index, level seed, robot scale, result] for each level the first flight flew.
 var _levels: Array = []
 var _error: String = ""
 
@@ -55,9 +56,10 @@ func _fly() -> String:
 		_error = "shafts.json: %s" % shafts.error
 		return _error
 	_fly_level = RunSweep.bot_flies(levels)
-	var recording: Callable = func(run_seed: int, index: int, level_seed: int) -> EscapeSweep.SeedResult:
-		var result: EscapeSweep.SeedResult = _fly_level.call(run_seed, index, level_seed)
-		_levels.append([index, level_seed, result])
+	var recording: Callable = func(run_seed: int, index: int, level_seed: int,
+			robot_scale: float) -> EscapeSweep.SeedResult:
+		var result: EscapeSweep.SeedResult = _fly_level.call(run_seed, index, level_seed, robot_scale)
+		_levels.append([index, level_seed, robot_scale, result])
 		return result
 	_flown = RunSweep.fly_run(int(pinned["run_seed"]), FileAccess.get_file_as_string(RunSweep.RUN_FILE),
 			shafts, recording)
@@ -96,8 +98,9 @@ func test_flying_the_first_levels_again_gives_the_same_results() -> String:
 	if _levels.size() < REPEATED_LEVELS:
 		return "the first flight flew only %d levels" % _levels.size()
 	for flown: Array in _levels.slice(0, REPEATED_LEVELS):
-		var again: EscapeSweep.SeedResult = _fly_level.call(_flown.run_seed, flown[0], flown[1])
-		var first: String = _describe(flown[2])
+		var again: EscapeSweep.SeedResult = _fly_level.call(_flown.run_seed, flown[0], flown[1],
+				flown[2])
+		var first: String = _describe(flown[3])
 		if _describe(again) != first:
 			return "level %d (seed %d): %s, then %s" % [flown[0], flown[1], first, _describe(again)]
 	return ""
