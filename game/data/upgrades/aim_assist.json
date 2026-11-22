@@ -1,0 +1,13 @@
+{
+	"id": "aim_assist",
+	"name": "Aim Assist Lens",
+	"branch": "utility",
+	"kind": "module",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 2,
+		"cell_salts": 3
+	},
+	"grants": "aim_assist"
+}

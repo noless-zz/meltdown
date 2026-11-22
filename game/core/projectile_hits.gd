@@ -45,7 +45,8 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 
 ## Fires ship `index`'s primary weapon if it is held and ready. The shot
 ## leaves along the ship's gun direction (the nose unless look-aim turned it,
-## CMB-6) at the weapon's speed, without the ship's own
+## CMB-6), bent by `Sim.aim_assist` when the ship has the aim assist module
+## fitted (CMB-7, #1096), at the weapon's speed, without the ship's own
 ## velocity, so a weapon's range is exactly what its data file says.
 static func fire(sim: Sim, index: int, held: bool) -> void:
 	var ship: ShipState = sim.ships[index]
@@ -57,6 +58,9 @@ static func fire(sim: Sim, index: int, held: bool) -> void:
 	var forward: Vector3 = -ship.orientation.z.normalized()
 	if ship.gun_direction != LookAim.NOSE:
 		forward = (ship.orientation * ship.gun_direction).normalized()
+	# Only with the module, so a ship without it fires exactly as before (#1096).
+	if ship.utility_slots.has(ShipLoadout.AIM_ASSIST_MODULE):
+		forward = sim.aim_assist.bend(ship.position, forward, sim.robots)
 	sim.projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
 		index, weapon.lifetime_ticks(), weapon.damage))
 
