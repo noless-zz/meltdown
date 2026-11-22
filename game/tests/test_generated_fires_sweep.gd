@@ -1,139 +1,28 @@
 extends RefCounted
 
 ## Generated levels place fire from the `fires` section of `debris.json` (#497,
-## RUN-4, GEN-2, GEN-3, ARC-4): the section is checked key by key; fires come
-## after every solid entry and leave `output_hash`, the reactor, the robots and
-## every solid entry as they were; and over seeds 0..999 every level with fire
-## passes `LevelValidator`'s `debris_escape` check (timed with the fires down,
-## since they are placed after `DebrisEscape.trim`) and the debris sweep, and
-## every fire lies inside the level,
-## outside the start module and within the section's ranges and distances. The
-## count of fires placed is printed.
+## RUN-4, GEN-2, GEN-3, ARC-4): fires come after every solid entry and leave
+## `output_hash`, the reactor, the robots and every solid entry as they were;
+## and over seeds 0..999 every level with fire passes `LevelValidator`'s
+## `debris_escape` check (timed with the fires down, since they are placed
+## after `DebrisEscape.trim`) and the debris sweep, and every fire lies inside
+## the level, outside the start module and within the section's ranges and
+## distances. The count of fires placed is printed. Reading the section is in
+## `test_generated_fires_section.gd`, whose fixtures these tests share.
 
+const FiresSection := preload("res://tests/test_generated_fires_section.gd")
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
-const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 ## Twice #903's 15 s target, for the CI runner's run-to-run spread, so a
 ## slow-down fails here instead of going unnoticed.
 const TIME_LIMIT_MS: int = 30000
-const FIRES: Dictionary = {"count": [1, 2], "radius": [2, 3], "damage_per_second": 5,
-		"after_fraction": [0.05, 0.2], "min_start_distance": 15, "min_reactor_distance": 6,
-		"min_robot_distance": 2}
-
-
-func _file() -> Dictionary:
-	return JSON.parse_string(FileAccess.get_file_as_string(DEBRIS_FILE))
-
-
-func _plan(data: Dictionary) -> DebrisPlan:
-	return DebrisPlan.parse_json(JSON.stringify(data))
-
-
-## The shipped file without its fires: spheres and doors, as before #497.
-func _solid_only() -> DebrisPlan:
-	var data: Dictionary = _file()
-	data.erase(DebrisPlan.FIRES_KEY)
-	return _plan(data)
-
-
-func test_the_fires_section_reads() -> String:
-	var plan: DebrisPlan = _plan(_file())
-	if plan.error != "" or plan.fires == null:
-		return "debris.json: %s, fires %s" % [plan.error, plan.fires]
-	var fires: DebrisFires = plan.fires
-	if fires.min_count < 0 or fires.max_count < fires.min_count or fires.max_count < 1:
-		return "fires.count %d..%d" % [fires.min_count, fires.max_count]
-	var data: Dictionary = _file()
-	data[DebrisPlan.FIRES_KEY] = FIRES.duplicate(true)
-	var parsed: DebrisPlan = _plan(data)
-	if parsed.error != "":
-		return "FIRES read as \"%s\"" % parsed.error
-	var read: DebrisFires = parsed.fires
-	if read.min_count != 1 or read.max_count != 2 or read.min_radius_mm != 2000 \
-			or read.max_radius_mm != 3000 or read.milli_dps != 5000 or read.min_after_permille != 50 \
-			or read.max_after_permille != 200 or read.min_start_distance_mm != 15000 \
-			or read.min_reactor_distance_mm != 6000 or read.min_robot_distance_mm != 2000:
-		return "FIRES read with the wrong values"
-	data[DebrisPlan.FIRES_KEY]["count"] = [0, 0]
-	if _plan(data).error != "":
-		return "a count of 0 was rejected: %s" % _plan(data).error
-	return "" if _solid_only().fires == null else "a file without fires has fires"
-
-
-func test_a_bad_fires_section_is_rejected_naming_the_key() -> String:
-	var cases: Array = [
-		["count", [2, 1], "fires.count"], ["count", [0.5, 1], "fires.count"],
-		["count", 1, "fires.count"], ["radius", [0, 2], "fires.radius"],
-		["radius", [3, 2], "fires.radius"], ["radius", [1, 99], "fires.radius"],
-		["damage_per_second", 0, "fires.damage_per_second"],
-		["damage_per_second", -3, "fires.damage_per_second"],
-		["damage_per_second", "hot", "fires.damage_per_second"],
-		["damage_per_second", 1000000, "fires.damage_per_second"],
-		["after_fraction", [0, 0.1], "fires.after_fraction"],
-		["after_fraction", [0.2, 0.1], "fires.after_fraction"],
-		["after_fraction", [0.1, 1.5], "fires.after_fraction"],
-		["after_fraction", [5, 10], "fires.after_fraction"],
-		["after_fraction", 0.1, "fires.after_fraction"],
-		["after_seconds", [10, 50], "fires.after_seconds"],
-		["min_start_distance", -1, "fires.min_start_distance"],
-		["min_reactor_distance", "far", "fires.min_reactor_distance"],
-		["min_robot_distance", [2], "fires.min_robot_distance"], ["colour", "red", "fires.colour"],
-	]
-	for case: Array in cases:
-		var section: Dictionary = FIRES.duplicate(true)
-		section[case[0]] = case[1]
-		var problem: String = _rejects(section, [case[2]])
-		if problem != "":
-			return problem
-	for key: String in FIRES:
-		var section: Dictionary = FIRES.duplicate(true)
-		section.erase(key)
-		var problem: String = _rejects(section, ["\"fires.%s\"" % key])
-		if problem != "":
-			return problem
-	var names: Array = []
-	for key: String in DebrisFires.KEYS:
-		names.append("\"fires.%s\"" % key)
-	var empty: String = _rejects({}, names)
-	if empty != "":
-		return empty
-	return _rejects([], ["fires"])
-
-
-func _rejects(section: Variant, names: Array) -> String:
-	var data: Dictionary = _file()
-	data[DebrisPlan.FIRES_KEY] = section
-	var plan: DebrisPlan = _plan(data)
-	if plan.error == "":
-		return "fires %s accepted" % JSON.stringify(section)
-	for name: String in names:
-		if not plan.error.contains(name):
-			return "error \"%s\" does not name %s" % [plan.error, name]
-	return ""
-
-
-func test_the_same_seed_places_the_same_fires() -> String:
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
-	var data: Dictionary = _file()
-	data[DebrisPlan.FIRES_KEY] = FIRES
-	var lists: Array[String] = []
-	for run: int in 2:
-		var generator: MineGenerator = MineGenerator.generate(7, modules, SeedSweep.MODULE_COUNT,
-				bridges)
-		var level: LevelDef = generator.to_level_def(SeedSweep.load_reactor_plan(),
-				SeedSweep.ship_radius(), SeedSweep.load_robot_plan(), _plan(data))
-		if level.debris == null or _fire_entries(level.debris).is_empty():
-			return "seed 7 got no fire"
-		lists.append(level.debris.to_json())
-	return "" if lists[0] == lists[1] else "seed 7 placed different debris twice"
 
 
 func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String:
 	var validator: LevelValidator = SeedSweep.load_validator()
 	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
-	var plan: DebrisPlan = _plan(_file())
+	var plan: DebrisPlan = FiresSection.plan_of(FiresSection.debris_file())
 	var radius: float = SeedSweep.ship_radius()
 	# Every seed is generated and built once for all the sweeps that read it
 	# (#903, #956): the shipped level, and the same level without the fires
@@ -154,7 +43,7 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 		var level: LevelDef = levels[level_seed]
 		var problem: String = _unchanged(bare, level, SeedLevelCache.generated_hash(level_seed),
 				generator.output_hash())
-		var fires: Array[int] = _fire_entries(level.debris)
+		var fires: Array[int] = FiresSection.fire_entries(level.debris)
 		if problem == "":
 			problem = _fires_fit(generator, level, fires, plan, robot_plan)
 		# The escape timed with every entry, fires too, fallen: the one validator
@@ -190,15 +79,6 @@ func test_seeds_get_fires_inside_the_level_that_change_nothing_solid() -> String
 		return "generating and building the shared levels took %d ms, limit %d" % [shared_ms, TIME_LIMIT_MS]
 	return "" if elapsed <= TIME_LIMIT_MS else "%d seeds took %d ms, limit %d" % [SEEDS, elapsed, TIME_LIMIT_MS]
 
-
-func _fire_entries(debris: MeltdownDebris) -> Array[int]:
-	var found: Array[int] = []
-	if debris == null:
-		return found
-	for index: int in debris.size():
-		if debris.is_fire(index):
-			found.append(index)
-	return found
 
 
 ## `output_hash`, the reactor, the robots and every solid entry as without
