@@ -4,7 +4,9 @@ extends Node3D
 ## Draws the miners still trapped in the level (SLV-3, #1034): an original lit
 ## beacon per miner, not a human figure, with a ring around it that fills while
 ## a ship holds within reach (`MinerRescue.held` against `hold_ticks()`), so
-## the hold-to-rescue rule reads at a glance. A rescued miner leaves
+## the hold-to-rescue rule reads at a glance. The beacon is a six-sided column
+## in rescue green, never round or orange: an orange glowing capsule near the
+## exit was taken for a second reactor (#1208), whose core is an orange sphere. A rescued miner leaves
 ## `MinerRescue.trapped`, and its marker goes with it.
 ##
 ## It only reads the rescue state and the ship it is given and never writes to
@@ -23,10 +25,12 @@ const RANGES: Dictionary = {
 	"radius": [0.05, 5.0], "height": [0.1, 10.0], "width": [0.01, 1.0],
 	"energy": [0.0, 10.0], "track_energy": [0.0, 10.0], "fill_energy": [0.0, 20.0],
 }
+## Sides of the beacon column; few enough to read as a column, not a ball.
+const BEACON_SIDES: int = 6
 ## Steps in a full ring; a partial ring uses its share, at least one.
 const RING_SEGMENTS: int = 48
 const FALLBACK_LOOK: Dictionary = {
-	"beacon": {"radius": 0.3, "height": 1.4, "color": Color(1.0, 0.6, 0.2), "energy": 3.0},
+	"beacon": {"radius": 0.3, "height": 1.4, "color": Color(0.35, 1.0, 0.5), "energy": 3.0},
 	"ring": {"radius": 1.3, "width": 0.14, "track_color": Color(0.4, 0.4, 0.4), "track_energy": 0.4,
 		"fill_color": Color(0.5, 1.0, 0.6), "fill_energy": 3.0},
 }
@@ -35,7 +39,7 @@ const FALLBACK_LOOK: Dictionary = {
 var look_error: String = ""
 
 var _look: Dictionary = FALLBACK_LOOK
-var _beacon_mesh: CapsuleMesh = null
+var _beacon_mesh: CylinderMesh = null
 var _track_mesh: ArrayMesh = null
 var _fill_material: StandardMaterial3D = null
 var _markers: Array[Node3D] = []
@@ -93,9 +97,12 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 	_markers.clear()
 	_fills.clear()
 	var beacon: Dictionary = _look["beacon"]
-	_beacon_mesh = CapsuleMesh.new()
-	_beacon_mesh.radius = beacon["radius"]
+	_beacon_mesh = CylinderMesh.new()
+	_beacon_mesh.top_radius = beacon["radius"]
+	_beacon_mesh.bottom_radius = beacon["radius"]
 	_beacon_mesh.height = maxf(beacon["height"], 2.0 * float(beacon["radius"]))
+	_beacon_mesh.radial_segments = BEACON_SIDES
+	_beacon_mesh.rings = 0
 	_beacon_mesh.material = _glow(beacon["color"], beacon["energy"])
 	var ring: Dictionary = _look["ring"]
 	_track_mesh = build_arc(ring["radius"], ring["width"], 1.0)

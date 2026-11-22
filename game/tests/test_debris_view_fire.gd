@@ -84,8 +84,14 @@ func _check_stage(view: DebrisView, rock: DebrisView.EntryState, fire: DebrisVie
 			return "entry %d has children; fire must add no collision" % index
 		if view.entry_is_fire(index) != (index > 0):
 			return "entry %d fire is %s" % [index, view.entry_is_fire(index)]
-	if not view.entry(1).mesh is SphereMesh or absf(view.entry_radius(1) - 1.5) > EPSILON:
-		return "the fire sphere is not a 1.5 m sphere"
+	if absf(view.entry_radius(1) - 1.5) > EPSILON:
+		return "the fire sphere is not 1.5 m across its radius"
+	# Burning, a fire sphere is a flame (a cone), never a ball like the reactor (#1208).
+	var flame: CylinderMesh = view.entry(1).mesh as CylinderMesh
+	if fire == DebrisView.EntryState.BURNING and (flame == null or flame.top_radius != 0.0):
+		return "a burning fire sphere is drawn as %s, not a flame" % view.entry(1).mesh
+	if fire == DebrisView.EntryState.WARNING and not view.entry(1).mesh is SphereMesh:
+		return "a fire sphere's warning is not the sphere warning"
 	if not view.entry(2).mesh is BoxMesh or not view.entry_size(2).is_equal_approx(FIRE_BOX):
 		return "the fire box is %s, expected a %s slab" % [view.entry_size(2), FIRE_BOX]
 	if not view.entry(2).position.is_equal_approx(Vector3(0, 0, -40)):

@@ -27,7 +27,9 @@ extends RefCounted
 ## `warn_seconds` with spheres, so both warn equally early.
 ##
 ## Fire entries (#496) burn see-through in `fire_color`, so they never read as a
-## wall the ship must avoid touching. Their glow swings by up to `fire_flicker`
+## wall the ship must avoid touching. The colour is a cold plasma blue, far in
+## hue from the reactor's orange, so a fire is never taken for the reactor
+## (#1208, held there by `test_look_hues`). Their glow swings by up to `fire_flicker`
 ## of `fire_energy`, slowly and from the simulation's tick (`fire_energy_at`).
 
 const DEFAULT_FILE: String = "res://view/debris_look.json"
@@ -75,7 +77,7 @@ const FALLBACK: Dictionary = {
 	"slab_warn_color": Color(1.0, 0.8, 0.1),
 	"slab_warn_energy": 1.5,
 	"slab_warn_alpha": 0.3,
-	"fire_color": Color(1.0, 0.35, 0.05),
+	"fire_color": Color(0.3, 0.55, 1.0),
 	"fire_energy": 2.0,
 	"fire_alpha": 0.4,
 	"fire_flicker": 0.2,
