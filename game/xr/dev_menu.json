@@ -17,6 +17,8 @@
 	],
 	"corners": ["bottom_left", "bottom_right", "top_left", "top_right", "centre"],
 	"schemes": ["thumbsticks", "gripped"],
+	"distance_m": 1.0,
+	"offset_m": [0.0, 0.0],
 	"tunnel_text": "Test tunnel",
 	"seed_text": "Seed {seed}",
 	"random_text": "Random seed",

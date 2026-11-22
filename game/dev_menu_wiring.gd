@@ -10,7 +10,10 @@ extends RefCounted
 ## rest of `main.gd` idle, so the ship gets neutral input and drifts to a stop
 ## the way the flight test holds it, and the right stick, A, B, Y and the
 ## triggers drive the menu's named actions instead. Only the menu button
-## passes through, so a hold still resets. Nothing here writes simulation
+## passes through, so a hold still resets. The frame it closes is idle too,
+## and a stick, trigger or button still held then stays away from the ship
+## until released once (`DevMenuRelease`, #1206). The status panel hides while
+## the menu is open, so the menu never covers it. Nothing here writes simulation
 ## state: a level or restart goes through `main.gd`'s `restart_level`, a new
 ## session from the start, behind a fade (MP-2, ARC-3, CMF-8).
 ##
@@ -49,6 +52,8 @@ const LOG_PREFIX: String = DevMenuRestart.LOG_PREFIX
 ## Under the rig once `attach` has run.
 var menu: DevMenu = null
 var tap: MenuTap = MenuTap.new()
+## What the menu was using when it closed, kept from the ship until released (#1206).
+var release: DevMenuRelease = DevMenuRelease.new()
 ## One helper per entry kind, in the order `dev_menu.json` lists them.
 var entries: Array[DevMenuEntry] = []
 ## The comfort wiring the Comfort, Refresh and Swivel chair entries read; null in tests without one.
@@ -181,15 +186,20 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		return values
 	menu.set_update(_update.waiting_version() if _update != null else "",
 		_update != null and _update.download_busy())
+	var was_open: bool = is_open()
 	if blocked():
 		menu.close()
 	elif tapped:
 		_toggle()
+	if is_open():
+		for entry: DevMenuEntry in entries:
+			entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
+		apply(menu.update(actions(values)))
+	_show_panel(not is_open())
+	if not is_open() and not was_open:
+		return release.filter(values)
 	if not is_open():
-		return values
-	for entry: DevMenuEntry in entries:
-		entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
-	apply(menu.update(actions(values)))
+		release.hold(values)  # A still down from Close or a level is not the afterburner (#1206).
 	return neutral(values)
 
 
@@ -241,9 +251,28 @@ func _toggle() -> void:
 		return
 	for entry: DevMenuEntry in entries:
 		entry.show_on(menu.model)
+	menu.place(head())  # In front of the eyes as they are now, then world-locked (#1206).
 	menu.open(PanelCorner.current, _level_start.source if _level_start != null else "",
 		_controls.scheme_shown(), _controls.left_handed(), _controls.invert_pitch(),
 		_comfort_shown(), _break_shown(), _comfort_entry.custom_base())
+
+
+## The head's pose in the rig's space, which is the menu's parent space: the
+## rig's camera, or the default eye point without a rig or camera.
+func head() -> Transform3D:
+	var rig: Node3D = _restarts.rig
+	var camera: Node3D = rig.get_node_or_null("Camera") as Node3D if rig != null else null
+	return camera.transform if camera != null else DevMenu.DEFAULT_HEAD
+
+
+## Shows or hides the rig's status panel. It hides while the menu is open:
+## the corner panels sit within a few degrees of the view centre, where the
+## menu opens, and the menu would cover them (#1206). View only (ARC-3).
+func _show_panel(shown: bool) -> void:
+	var rig: Node3D = _restarts.rig
+	var panel: Node3D = rig.get_node_or_null(StatusPanel.NODE_NAME) as Node3D if rig != null else null
+	if panel != null and panel.visible != shown:
+		panel.visible = shown
 
 
 ## Whether the Break reminder entry opens on On: the reminder's own state.
