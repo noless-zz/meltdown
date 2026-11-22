@@ -153,7 +153,7 @@ func test_a_preset_change_reaches_the_panel() -> String:
 	main.call("advance_frame", StatusPanel.PRESET_LARGE_SECONDS + 0.1)
 	var panel: StatusPanel = main.get("status_panel")
 	var large_settled: bool = panel.large_preset_visible()
-	main.call("apply_controls", _values({"left_button_lower": true}))
+	main.call("set_comfort_preset", 3)  # The menu's path; X no longer steps it (#1260).
 	main.call("advance_frame", FRAME)
 	var shown: String = panel.texts()[StatusPanel.PRESET_NAME]
 	var large: bool = panel.large_preset_visible()
@@ -161,7 +161,7 @@ func test_a_preset_change_reaches_the_panel() -> String:
 	if large_settled:
 		return "the start preset was still large after two seconds"
 	if not shown.begins_with("Preset 3 "):
-		return "after X the panel shows '%s'" % shown
+		return "after the change to 3 the panel shows '%s'" % shown
 	if not large:
 		return "the new preset was not shown large"
 	return ""
