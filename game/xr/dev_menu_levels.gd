@@ -51,7 +51,7 @@ func open(source: String) -> void:
 	index = 0
 	if source.begins_with(LevelSwitch.SEED_PREFIX):
 		index = choices.find(CHOICE_SEED)
-		level_seed = maxi(LevelSwitch.seed_from(source.substr(LevelSwitch.SEED_PREFIX.length())), 0)
+		level_seed = maxi(LevelSwitch.source_seed(source), 0)
 	elif choices.has(source):
 		index = choices.find(source)
 

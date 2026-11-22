@@ -63,7 +63,8 @@ func test_a_confirm_on_the_second_entry_flies_that_shafts_level() -> String:
 		return "A did not confirm"
 	if choice.is_open() or run.state.current_shaft() != PINNED_OFFER[1]:
 		return "after the confirm: open %s, shaft '%s'" % [choice.is_open(), run.state.current_shaft()]
-	var want: String = LevelSwitch.SEED_PREFIX + str(run.state.current_level_seed())
+	# The level is named with its shaft's robot scale (#1011).
+	var want: String = LevelSwitch.seed_source(run.state.current_level_seed(), run.level_robot_scale())
 	var through: int = run.state.plan.level_seed_through(1, run.shafts, PINNED_OFFER[1])
 	var next: String = run.after_level(ExitRule.Outcome.ESCAPED, 50.0, {})
 	if next != want or run.state.current_level_seed() != through or run.state.level_index != 1 or run.escape_taken:
@@ -136,7 +137,8 @@ func test_a_restart_with_no_choice_takes_the_first_offered_shaft() -> String:
 	var next: String = run.after_level(ExitRule.Outcome.ESCAPED, 50.0, {})
 	if run.state.needs_choice() or run.state.current_shaft() != PINNED_OFFER[0]:
 		return "the run was left on shaft '%s', choice due %s" % [run.state.current_shaft(), run.state.needs_choice()]
-	if next != LevelSwitch.SEED_PREFIX + str(run.state.current_level_seed()):
+	if next != LevelSwitch.seed_source(run.state.current_level_seed(),
+			float(run.shafts.risks[PINNED_OFFER[0]]["robot_count"])):
 		return "flies %s" % next
 	return ""
 

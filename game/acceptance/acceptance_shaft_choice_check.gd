@@ -12,7 +12,8 @@ extends RefCounted
 ## 4. A pressed: the shaft is taken and the next level flies.
 ##
 ## The next level's source must be `RunPlan.level_seed_through` level 2 and
-## that shaft, and its level hash `expected_next_level_hash`. Like run_advances
+## that shaft, scaled by the shaft's `risk.robot_count` (#1011), and its level
+## hash `expected_next_level_hash`, so a riskier shaft's busier level is pinned. Like run_advances
 ## it swaps the scene's session, so it is the step's last check. How the panel
 ## reads in the headset stays human-checked (#950).
 
@@ -62,7 +63,8 @@ static func run(step: AcceptanceStep, main: Node, flown: bool, measurements: Dic
 		return [AcceptanceReport.RESULT_FAIL, "A did not take the highlighted shaft"]
 	var kind: String = offered[PICK]
 	var plan: RunPlan = AcceptanceRunStep.plan_for(step.run_seed)
-	var want: String = LevelSwitch.SEED_PREFIX + str(plan.level_seed_through(1, run.shafts, kind))
+	var want: String = LevelSwitch.seed_source(plan.level_seed_through(1, run.shafts, kind),
+		float(run.shafts.risks[kind]["robot_count"]))
 	var session: LocalSession = main.get("session")
 	var actual: int = AcceptanceStepLevel.level_hash(session.replay)
 	measurements["chosen"] = kind
