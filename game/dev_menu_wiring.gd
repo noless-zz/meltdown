@@ -15,7 +15,8 @@ extends RefCounted
 ## until released once (`DevMenuRelease`, #1206). The status panel hides while
 ## the menu is open, so the menu never covers it. Nothing here writes simulation
 ## state: a level or restart goes through `main.gd`'s `restart_level`, a new
-## session from the start, behind a fade (MP-2, ARC-3, CMF-8).
+## session from the start, behind a fade (MP-2, ARC-3, CMF-8). In solo play
+## the open menu also pauses the session (`DevMenuPause`, #1245).
 ##
 ## The tap does nothing during the first-launch flight test, while the
 ## destroyed or escape screen is up or while the hub is open, and closes a
@@ -97,6 +98,8 @@ var _flight_test: FlightTestWiring = null
 var _destroyed: DestroyedWiring = null
 ## True while the hub is open (`HubWiring.is_open`); unset, there is no hub.
 var _hub_open: Callable = Callable()
+## The session the open menu pauses (`DevMenuPause`); unset, nothing pauses.
+var _session_of: Callable = Callable()
 
 
 func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
@@ -120,13 +123,15 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
 ## `level_start.source` again from its start; the flight test and the end
 ## screens say when the tap is ignored, and so does `hub_open` (#1170).
+## `session_of` returns the session flying now, which the open menu pauses.
 ## Calling it again adds nothing.
 func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart: Callable,
 		flight_test: FlightTestWiring, destroyed: DestroyedWiring, p_menu: DevMenu = null,
-		hub_open: Callable = Callable()) -> void:
+		hub_open: Callable = Callable(), session_of: Callable = Callable()) -> void:
 	if menu != null:
 		return
 	_hub_open = hub_open
+	_session_of = session_of
 	_update = update
 	_level_start = level_start
 	_flight_test = flight_test
@@ -201,6 +206,8 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 			entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
 		apply(menu.update(actions(values)))
 	_show_panel(not is_open())
+	if _session_of.is_valid():
+		DevMenuPause.hold(_session_of.call() as LocalSession, is_open())
 	if not is_open() and not was_open:
 		return release.filter(values)
 	if not is_open():
