@@ -19,6 +19,7 @@ const SAMPLE_RESULTS: Dictionary = {
 	DevMenuSpec.KIND_LEVEL: DevMenuModel.LEVEL_PREFIX + "seed:42",
 	DevMenuSpec.KIND_RESTART: DevMenuModel.RESTART,
 	DevMenuSpec.KIND_FLIGHT_TEST: DevMenuModel.FLIGHT_TEST,
+	DevMenuSpec.KIND_RETURN: DevMenuModel.RETURN,
 	DevMenuSpec.KIND_CLOSE: DevMenuModel.CLOSE,
 }
 

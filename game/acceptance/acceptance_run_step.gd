@@ -35,10 +35,11 @@ const STATS_AFTER_ESCAPE: Dictionary = {"runs_started": 1, "levels_escaped": 1, 
 ## The checks that press on to the run's next level; a step lists at most one.
 const MOVING_CHECKS: Array[String] = [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE,
 	AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS,
-	AcceptanceStep.CHECK_CRAFT_AND_FIT, AcceptanceStep.CHECK_SUSPEND_RESUME]
+	AcceptanceStep.CHECK_CRAFT_AND_FIT, AcceptanceStep.CHECK_SUSPEND_RESUME, AcceptanceStep.CHECK_ABANDON_RUN]
 ## The moving checks that fly the level with drops and rescue on and judge the
-## profile, not the next level's hash (#1028, #1084).
-const RULES_CHECKS: Array[String] = [AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS]
+## profile, not the next level's hash (#1028, #1084, #1246).
+const RULES_CHECKS: Array[String] = [AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS,
+	AcceptanceStep.CHECK_ABANDON_RUN]
 
 
 ## Reads `run` and `expected_next_level_hash` into `step`; "" or the problem,
