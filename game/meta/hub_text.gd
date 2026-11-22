@@ -183,15 +183,14 @@ func _craft_rows() -> Array[Dictionary]:
 	return rows
 
 
-## While a suspended run waits, first a row to resume it (#1106, RUN-8). Then each
-## slot with what it holds, the crafted upgrades of its kind it could take, and a
-## row to strip a fitted upgrade; then the launch row, with a note under it that
-## launching discards the waiting run.
+## Each slot with what it holds, the crafted upgrades of its kind it could take,
+## and a row to strip a fitted upgrade. While a suspended run waits, a row to
+## resume it (#1106, RUN-8) sits directly above the launch row, so the two ways
+## into the mine are side by side (owner's decision, #1172); a note under the
+## launch row says launching discards the waiting run.
 func _fit_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	var waiting: Dictionary = model.waiting()
-	if not waiting.is_empty():
-		rows.append(_acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}))
 	var built: Array[String] = model.crafted()
 	for slot: Dictionary in model.fit_slots():
 		var fitted: String = _words().row("slot_empty")
@@ -208,6 +207,8 @@ func _fit_rows() -> Array[Dictionary]:
 					{"action": ACTION_FIT, "slot": slot["slot"], "id": id}))
 		if slot["upgrade"] != "":
 			rows.append(_acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
+	if not waiting.is_empty():
+		rows.append(_acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}))
 	rows.append(_acting(_words().row("launch_row"), {"action": ACTION_LAUNCH}))
 	if not waiting.is_empty():
 		rows.append(_shown(_words().row("launch_discard_note")))
