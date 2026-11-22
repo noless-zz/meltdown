@@ -1,0 +1,13 @@
+{
+	"id": "trim_vanes",
+	"name": "Trim Vanes",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 2,
+		"cell_salts": 2
+	},
+	"grants": "trim_vanes"
+}

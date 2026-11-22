@@ -1,0 +1,13 @@
+{
+	"id": "mesh_ward",
+	"name": "Mesh Ward",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"cell_salts": 2,
+		"scrap_alloy": 2
+	},
+	"grants": "mesh_ward"
+}

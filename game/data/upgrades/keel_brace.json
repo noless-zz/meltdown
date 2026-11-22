@@ -1,0 +1,15 @@
+{
+	"id": "keel_brace",
+	"name": "Keel Brace",
+	"branch": "defence",
+	"kind": "hull",
+	"tier": 2,
+	"requires": [
+		"layered_plating"
+	],
+	"cost": {
+		"scrap_alloy": 3,
+		"circuit_shards": 2
+	},
+	"grants": "keel_brace"
+}

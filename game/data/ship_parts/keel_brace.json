@@ -1,0 +1,9 @@
+{
+	"id": "keel_brace",
+	"name": "Keel Brace",
+	"kind": "hull",
+	"stats": {
+		"max_hull": 1.15,
+		"wall_damage_per_speed": 0.85
+	}
+}
