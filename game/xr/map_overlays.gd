@@ -67,7 +67,7 @@ func rebuild_meshes(look: Dictionary) -> void:
 	var energy: float = float(look["line_energy"])
 	marker.mesh = MapShipMarker.mesh(look["marker_color"], float(look["marker_radius_m"]), energy)
 	exit.mesh = MapShapes.exit_cube(look)
-	reactor.mesh = MapShapes.reactor_ball(look, _reactor_destroyed, energy)
+	reactor.mesh = MapShapes.reactor_marker(look, _reactor_destroyed, energy)
 
 
 func set_ship_position(position: Vector3, view: Transform3D) -> void:
@@ -87,7 +87,7 @@ func set_markers(exit_at: Vector3, reactor_at: Vector3, reactor_known: bool, rea
 	_reactor_known = reactor_known
 	if reactor_destroyed != _reactor_destroyed:
 		_reactor_destroyed = reactor_destroyed
-		reactor.mesh = MapShapes.reactor_ball(look, _reactor_destroyed, float(look["line_energy"]))
+		reactor.mesh = MapShapes.reactor_marker(look, _reactor_destroyed, float(look["line_energy"]))
 	_markers_set = true
 	place_markers(view)
 

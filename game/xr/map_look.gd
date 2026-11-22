@@ -17,11 +17,12 @@ extends RefCounted
 ##      "fire_color": [r, g, b], "fire_size_m": 0.002..0.05,
 ##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10,
 ##      "fires_explored_only": true | false,
-##      "miner_color": [r, g, b], "miner_size_m": 0.002..0.05}
+##      "miner_color": [r, g, b], "miner_size_m": 0.002..0.05,
+##      "reactor_shape": shape, "miner_shape": shape, "fire_shape": shape}
 ##
 ## `exit_radius_m` is half the edge of the exit cube, drawn see-through with
 ## opacity `exit_alpha` so it never hides the tunnel beside it (#913). Once the
-## reactor is destroyed its ball takes `reactor_dead_color` and stays, so the
+## reactor is destroyed its marker takes `reactor_dead_color` and stays, so the
 ## player still sees where the escape began. `blocked_size_m` is the
 ## length of each bar of a blocked opening's cross. `distance_height_m` is the
 ## height of the route's distance label (#442) and `distance_offset_m` how far
@@ -41,15 +42,22 @@ extends RefCounted
 ##
 ## `miner_color` and `miner_size_m` (optional, #1072) are the mine scanner's
 ## trapped-miner pins: their colour and the height and width of each pin.
+##
+## `reactor_shape`, `miner_shape` and `fire_shape` (optional, #1219) each name
+## one of `MapMarkerShapes.NAMES`, and no two may name the same shape, so the
+## reactor, a trapped miner and a fire differ by outline as well as colour; the
+## ship keeps its dart (#679), which none of them can name.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
 		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second", "fires_explored_only", "reactor_dead_color",
-		"exit_alpha", "miner_color", "miner_size_m"]
+		"exit_alpha", "miner_color", "miner_size_m", "reactor_shape", "miner_shape", "fire_shape"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
 		"blocked_color", "distance_color", "fire_color", "reactor_dead_color", "miner_color"]
 const BOOL_KEYS: Array[String] = ["fires_explored_only"]
+## Keys naming a marker shape; each must differ from the others (#1219).
+const SHAPE_KEYS: Array[String] = ["reactor_shape", "miner_shape", "fire_shape"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"line_energy": [0.0, 8.0],
@@ -103,12 +111,19 @@ const FALLBACK: Dictionary = {
 	"distance_color": Color(0.95, 0.95, 0.95),
 	"distance_height_m": 0.008,
 	"distance_offset_m": 0.012,
-	"fire_color": Color(1.0, 1.0, 0.0),
+	# Blue, as fire burns in the tunnel (`debris_look.json`): yellow sat under
+	# 30 degrees of hue from the ship's orange and was taken for it (#1219).
+	"fire_color": Color(0.2, 0.4, 1.0),
 	"fire_size_m": 0.012,
 	# Violet: apart from the cyan lines, the orange ship, the green exit, the
-	# magenta reactor, the white route, the red crosses and the yellow fires (#1072).
-	"miner_color": Color(0.6, 0.45, 1.0),
+	# magenta reactor, the white route, the red crosses and the blue fires
+	# (#1072); redder than before so it keeps clear of the fires' blue (#1219).
+	"miner_color": Color(0.7, 0.3, 1.0),
 	"miner_size_m": 0.01,
+	# Four outlines no two markers share: diamond, pin, flame and the ship's dart (#1219).
+	"reactor_shape": MapMarkerShapes.DIAMOND,
+	"miner_shape": MapMarkerShapes.PIN,
+	"fire_shape": MapMarkerShapes.FLAME,
 	# Half size shows a whole large mine in the hand; three times the size reads
 	# one junction at arm's length without the map filling the view (#549).
 	"min_zoom": 0.5,
@@ -165,6 +180,17 @@ static func parse(text: String) -> Dictionary:
 		if typeof(data[key]) != TYPE_BOOL:
 			return _rejected("\"%s\" must be true or false" % key)
 		look[key] = data[key]
+	for key: String in SHAPE_KEYS:
+		if not data.has(key):
+			continue
+		if typeof(data[key]) != TYPE_STRING or not MapMarkerShapes.NAMES.has(data[key]):
+			return _rejected("\"%s\" must be one of %s" % [key, ", ".join(MapMarkerShapes.NAMES)])
+		look[key] = data[key]
+	for i: int in SHAPE_KEYS.size():
+		for j: int in range(i + 1, SHAPE_KEYS.size()):
+			if look[SHAPE_KEYS[i]] == look[SHAPE_KEYS[j]]:
+				return _rejected("\"%s\" and \"%s\" are both \"%s\"; each marker needs its own shape" \
+						% [SHAPE_KEYS[i], SHAPE_KEYS[j], look[SHAPE_KEYS[i]]])
 	if float(look["min_zoom"]) >= float(look["max_zoom"]):
 		return _rejected("\"min_zoom\" %s must be below \"max_zoom\" %s" % [look["min_zoom"], look["max_zoom"]])
 	if float(look["min_zoom"]) > MapZoom.START or float(look["max_zoom"]) < MapZoom.START:
