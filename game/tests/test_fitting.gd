@@ -180,7 +180,7 @@ func test_shield_hull_and_engine_refuse_the_utility_slot() -> String:
 
 func test_a_module_the_simulation_does_not_know_is_not_fittable_yet() -> String:
 	# Fitting one would build a loadout the run rejects, so it is refused here first.
-	for id: String in ["mine_scanner", "wide_radar"]:
+	for id: String in ["mine_scanner"]:
 		var reason: String = Fitting.check(_fitting(["", ""], ["", ""], [id]), _tree(), _all_crafted(_tree()), _ship_data())
 		if not reason.begins_with("utility[0]: \"%s\" grants module" % id) or not reason.ends_with("not fittable yet"):
 			return "%s: '%s'" % [id, reason]

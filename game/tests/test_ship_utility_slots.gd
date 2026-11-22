@@ -91,10 +91,11 @@ func test_utility_module_errors_name_the_field() -> String:
 	return ""
 
 
-func test_look_aim_is_the_only_known_module() -> String:
-	if ShipLoadout.UTILITY_MODULE_KINDS != ([ShipLoadout.LOOK_AIM_MODULE] as Array[String]):
+func test_look_aim_and_wide_radar_are_the_only_known_modules() -> String:
+	var known: Array[String] = [ShipLoadout.LOOK_AIM_MODULE, ShipLoadout.WIDE_RADAR_MODULE]
+	if ShipLoadout.UTILITY_MODULE_KINDS != known:
 		return "module kinds are %s" % [ShipLoadout.UTILITY_MODULE_KINDS]
-	for id: String in ["aim_assist", "wide_radar", "mine_scanner", "x"]:
+	for id: String in ["aim_assist", "mine_scanner", "x"]:
 		var error: String = _with_utility(2, [id]).error
 		if error.find("\"loadout.utility[0]\"") < 0 or error.find(id) < 0:
 			return "module %s gave \"%s\"" % [id, error]
