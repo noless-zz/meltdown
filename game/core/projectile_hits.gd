@@ -60,7 +60,7 @@ static func fire(sim: Sim, index: int, held: bool) -> void:
 		forward = (ship.orientation * ship.gun_direction).normalized()
 	# Only with the module, so a ship without it fires exactly as before (#1096).
 	if ship.utility_slots.has(ShipLoadout.AIM_ASSIST_MODULE):
-		forward = sim.aim_assist.bend(ship.position, forward, sim.robots)
+		forward = sim.aim_assist.bend(ship.position, forward, sim.robots, weapon.projectile_speed)
 	sim.projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
 		index, weapon.lifetime_ticks(), weapon.damage))
 

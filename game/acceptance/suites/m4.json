@@ -76,8 +76,8 @@
 			"profile": "res://acceptance/fittings/aim_assist_profile.json",
 			"fitting": "res://acceptance/fittings/aim_assist_fitting.json",
 			"checks": ["final_hash", "outcome", "no_script_errors"],
-			"expected_hash": 575253925,
-			"expected_outcome": "RUNNING"
+			"expected_hash": 2704140134,
+			"expected_outcome": "ESCAPED"
 		},
 		{
 			"id": "crew_joins",
