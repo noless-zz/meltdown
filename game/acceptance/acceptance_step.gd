@@ -176,6 +176,9 @@ var expected_banked: Dictionary[String, int] = {}
 ## the chosen shaft's level, or "".
 var shaft_index: int = NO_SHAFT
 var next_replay_path: String = ""
+## A run step's scratch profile and fitting files (#1057, `AcceptanceFittedStart`), or "".
+var profile_path: String = ""
+var fitting_path: String = ""
 ## Component counts the sim must have collected, for the collected check.
 var expected_collected: Dictionary[String, int] = {}
 ## Comfort preset to fly under, or NO_PRESET.

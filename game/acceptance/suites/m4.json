@@ -49,6 +49,15 @@
 			"expected_hash": 2847728389,
 			"expected_outcome": "ESCAPED",
 			"expected_collected": {"scrap_alloy": 2}
+		},
+		{
+			"id": "fitted_start",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"profile": "res://acceptance/fittings/fitted_start_profile.json",
+			"fitting": "res://acceptance/fittings/fitted_start_fitting.json",
+			"checks": ["level_hash", "no_script_errors"],
+			"expected_level_hash": 1969209597
 		}
 	]
 }

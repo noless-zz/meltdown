@@ -18,6 +18,11 @@ extends RefCounted
 ##         "manual_only": false
 ##     }
 ##
+## A run step may name scratch `profile` and `fitting` files (#1057): its run's
+## levels then fly the ship built from them, as `--run` builds it from the
+## pilot's own files; a run step without them flies the plain ship file
+## (`AcceptanceFittedStart`).
+##
 ## `manual_only` (optional, default false) keeps a suite out of NIGHTLY: the
 ## 25-minute soak is too long for the nightly headset run and is dispatched by
 ## hand instead (#812).
