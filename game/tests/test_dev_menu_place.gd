@@ -3,7 +3,8 @@ extends RefCounted
 ## Where the dev menu opens (#1206, PLT-5, CMF-8, ARC-4): centred 1 m along
 ## the head's forward direction with its middle row there, facing the head and
 ## upright, the distance and offset from `dev_menu.json`; world-locked after
-## it opens; and in front of nothing the status panel draws, at every corner.
+## it opens; and never over the status panel in view, at every corner: the
+## panel hides while the menu is open and shows again when it closes.
 
 const TOLERANCE_M: float = 0.05
 ## Half the status panel's size, generously: its rows span 7.5 row pitches
@@ -107,34 +108,103 @@ func test_the_open_menu_stays_where_it_opened_as_the_head_turns() -> String:
 	return ""
 
 
-## The panel's farthest point along the view and the menu's nearest, from the
-## head point the panel is placed around, for one corner.
-static func _depths(corner: String) -> Vector2:
-	var saved: String = PanelCorner.current
-	PanelCorner.current = corner
-	var panel: Transform3D = StatusPanel.rig_transform(Transform3D.IDENTITY)
-	PanelCorner.current = saved
-	var farthest_panel: float = 0.0
-	for x: float in [-PANEL_HALF.x, PANEL_HALF.x]:
-		for y: float in [-PANEL_HALF.y, PANEL_HALF.y]:
-			farthest_panel = maxf(farthest_panel, -(panel * Vector3(x, y, 0.0)).z)
-	var menu: DevMenu = DevMenu.new(DevMenuSpec.load_file(), [])
-	menu.place(Transform3D.IDENTITY)
-	menu.open(corner, "")
-	var nearest_menu: float = INF
+## Yaw and pitch of `point` seen from `head`, in degrees.
+static func _angles(head: Transform3D, point: Vector3) -> Vector2:
+	var local: Vector3 = head.affine_inverse() * point
+	return Vector2(rad_to_deg(atan2(local.x, -local.z)), rad_to_deg(atan2(local.y, -local.z)))
+
+
+## The view-angle box (x: yaw, y: pitch; position min, end max) that `points`
+## cover from `head`.
+static func _view_box(head: Transform3D, points: Array[Vector3]) -> Rect2:
+	var box: Rect2 = Rect2(_angles(head, points[0]), Vector2.ZERO)
+	for point: Vector3 in points:
+		box = box.expand(_angles(head, point))
+	return box
+
+
+## The corners of the menu's shown rows, generously sized from their text.
+static func _menu_points(menu: DevMenu) -> Array[Vector3]:
+	var points: Array[Vector3] = []
 	for child: Node in menu.get_children():
 		var line: Label3D = child as Label3D
-		if line != null and line.visible:
-			nearest_menu = minf(nearest_menu, -(menu.transform * line.position).z)
-	menu.free()
-	return Vector2(farthest_panel, nearest_menu)
+		if line == null or not line.visible or not menu.visible:
+			continue
+		var half: Vector2 = Vector2(line.text.length() * 0.6, 1.0) * line.font_size * line.pixel_size * 0.5
+		for corner: Vector2 in [Vector2(-1, -1), Vector2(-1, 1), Vector2(1, -1), Vector2(1, 1)]:
+			points.append(menu.transform * (line.position + Vector3(half.x * corner.x, half.y * corner.y, 0.0)))
+	return points
 
 
+static func _panel_points(panel: Node3D) -> Array[Vector3]:
+	var points: Array[Vector3] = []
+	if not panel.visible:
+		return points
+	for corner: Vector2 in [Vector2(-1, -1), Vector2(-1, 1), Vector2(1, -1), Vector2(1, 1)]:
+		points.append(panel.transform * Vector3(PANEL_HALF.x * corner.x, PANEL_HALF.y * corner.y, 0.0))
+	return points
+
+
+## Whether what is shown of the menu and the panel covers a common view
+## direction from `head`; nothing shown of either is no overlap.
+static func _overlap_in_view(head: Transform3D, menu: DevMenu, panel: Node3D) -> bool:
+	var menu_points: Array[Vector3] = _menu_points(menu)
+	var panel_points: Array[Vector3] = _panel_points(panel)
+	if menu_points.is_empty() or panel_points.is_empty():
+		return false
+	return _view_box(head, menu_points).intersects(_view_box(head, panel_points))
+
+
+## Opens the menu through the wiring with the status panel at `corner` and
+## says whether the pilot would see the menu over the panel.
 static func _clear_of_panel(corner: String) -> String:
-	var depths: Vector2 = _depths(corner)
-	if depths.y <= depths.x + 0.1:
-		return "%s: the menu's nearest row is %.2f m ahead, the panel reaches %.2f m" % [
-			corner, depths.y, depths.x]
+	var saved: String = PanelCorner.current
+	PanelCorner.current = corner
+	var rig: Node3D = Node3D.new()
+	var camera: Node3D = Node3D.new()
+	camera.name = "Camera"
+	rig.add_child(camera)
+	var head: Transform3D = _head(0.0, 0.0, Vector3(0.0, 1.6, 0.0))
+	camera.transform = head
+	var panel: StatusPanel = StatusPanel.new()
+	rig.add_child(panel)
+	panel.transform = StatusPanel.rig_transform(head)
+	var wiring: DevMenuWiring = DevMenuWiring.new()
+	wiring.attach(rig, null, LevelStart.new(), func() -> void: pass, null, null,
+		DevMenu.new(DevMenuSpec.load_file(), []))
+	wiring.read({"buttons": {ControllerSampler.MENU_BUTTON: true}}, 1.0)
+	wiring.read({"buttons": {}}, 1.2)
+	var result: String = ""
+	if not wiring.is_open():
+		result = "%s: the tap did not open the menu" % corner
+	elif _overlap_in_view(head, wiring.menu, panel):
+		result = "%s: the open menu covers the status panel in view" % corner
+	if result == "":
+		wiring.read({"buttons": {ControllerSampler.MENU_BUTTON: true}}, 2.0)
+		wiring.read({"buttons": {}}, 2.2)
+		if wiring.is_open() or not panel.visible:
+			result = "%s: closing the menu left it open %s, the panel shown %s" % [
+				corner, wiring.is_open(), panel.visible]
+	rig.free()
+	PanelCorner.current = saved
+	return result
+
+
+func test_the_view_check_finds_a_menu_over_a_shown_panel() -> String:
+	# The check itself must be able to fail: a shown panel ahead of the menu.
+	var head: Transform3D = Transform3D.IDENTITY
+	var menu: DevMenu = DevMenu.new(DevMenuSpec.load_file(), [])
+	menu.place(head)
+	menu.open("top_left", "")
+	var panel: Node3D = Node3D.new()
+	panel.transform = Transform3D(Basis.IDENTITY, Vector3(0.1, 0.1, -0.5))
+	var found: bool = _overlap_in_view(head, menu, panel)
+	panel.position = Vector3(1.0, 0.0, -0.2)  # Far to the right: nothing in common.
+	var aside: bool = _overlap_in_view(head, menu, panel)
+	menu.free()
+	panel.free()
+	if not found or aside:
+		return "overlap found ahead %s, to the side %s" % [found, aside]
 	return ""
 
 

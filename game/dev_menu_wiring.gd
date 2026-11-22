@@ -12,7 +12,8 @@ extends RefCounted
 ## triggers drive the menu's named actions instead. Only the menu button
 ## passes through, so a hold still resets. The frame it closes is idle too,
 ## and a stick, trigger or button still held then stays away from the ship
-## until released once (`DevMenuRelease`, #1206). Nothing here writes simulation
+## until released once (`DevMenuRelease`, #1206). The status panel hides while
+## the menu is open, so the menu never covers it. Nothing here writes simulation
 ## state: a level or restart goes through `main.gd`'s `restart_level`, a new
 ## session from the start, behind a fade (MP-2, ARC-3, CMF-8).
 ##
@@ -194,6 +195,7 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		for entry: DevMenuEntry in entries:
 			entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
 		apply(menu.update(actions(values)))
+	_show_panel(not is_open())
 	if not is_open() and not was_open:
 		return release.filter(values)
 	if not is_open():
@@ -261,6 +263,16 @@ func head() -> Transform3D:
 	var rig: Node3D = _restarts.rig
 	var camera: Node3D = rig.get_node_or_null("Camera") as Node3D if rig != null else null
 	return camera.transform if camera != null else DevMenu.DEFAULT_HEAD
+
+
+## Shows or hides the rig's status panel. It hides while the menu is open:
+## the corner panels sit within a few degrees of the view centre, where the
+## menu opens, and the menu would cover them (#1206). View only (ARC-3).
+func _show_panel(shown: bool) -> void:
+	var rig: Node3D = _restarts.rig
+	var panel: Node3D = rig.get_node_or_null(StatusPanel.NODE_NAME) as Node3D if rig != null else null
+	if panel != null and panel.visible != shown:
+		panel.visible = shown
 
 
 ## Whether the Break reminder entry opens on On: the reminder's own state.
