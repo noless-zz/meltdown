@@ -9,8 +9,12 @@ extends RefCounted
 ## The air is the union of the boxes; everything else is rock. A wall gap is
 ## found between a face of box A and the parallel face of box B beyond it on
 ## the same axis, the two facing away from each other with rock between
-## (`b.min > a.max` on that axis), where the faces overlap in projection. Two
-## boxes that overlap or touch open into each other and give no gap. Where
+## (`b.min >= a.max` on that axis), where the faces overlap in projection. Two
+## boxes that overlap open into each other and give no gap. Two boxes that only
+## touch are walled off from each other (a ship is kept in one box at a time by
+## `BoxUnion`, which is why the generator adds a doorway box at every join), so
+## they give a gap of 0 m, unless a third box straddles the shared face inside
+## the touching area: that is the doorway, and the pair is joined. Where
 ## other boxes fill the space between the faces (a connector, or a box that
 ## opens through A's face), that part does not count: a pair counts only if
 ## some part of the overlap has rock all the way across.
@@ -48,12 +52,16 @@ static func pair_gap(boxes: Array[BoxBounds], i: int, j: int) -> float:
 		var low: BoxBounds = a if a.max_corner[axis] <= b.min_corner[axis] else b
 		var high: BoxBounds = b if low == a else a
 		var gap: float = high.min_corner[axis] - low.max_corner[axis]
-		if gap <= EPSILON or gap >= found:
+		if gap < -EPSILON or gap >= found:
 			continue
 		var u: int = (axis + 1) % 3
 		var v: int = (axis + 2) % 3
 		var rect: Rect2 = _overlap(a, b, u, v)
 		if rect.size.x <= EPSILON or rect.size.y <= EPSILON:
+			continue
+		if gap <= EPSILON:
+			if not _doorway(boxes, i, j, axis, high.min_corner[axis], rect):
+				found = 0.0
 			continue
 		if _rock_across(boxes, i, j, axis, low.max_corner[axis], high.min_corner[axis], rect):
 			found = gap
@@ -96,6 +104,25 @@ static func _rock_across(boxes: Array[BoxBounds], i: int, j: int, axis: int, fro
 			var centre: Vector2 = Vector2((xs[xi] + xs[xi + 1]) * 0.5, (ys[yi] + ys[yi + 1]) * 0.5)
 			if not _covered(covers, centre):
 				return true
+	return false
+
+
+## Whether a box other than `i` and `j` reaches through the plane at `plane`
+## along `axis` inside `rect`: a doorway between two touching boxes.
+static func _doorway(boxes: Array[BoxBounds], i: int, j: int, axis: int, plane: float,
+		rect: Rect2) -> bool:
+	var u: int = (axis + 1) % 3
+	var v: int = (axis + 2) % 3
+	for k: int in boxes.size():
+		if k == i or k == j:
+			continue
+		var box: BoxBounds = boxes[k]
+		if box.min_corner[axis] >= plane - EPSILON or box.max_corner[axis] <= plane + EPSILON:
+			continue
+		var shadow: Rect2 = rect.intersection(Rect2(box.min_corner[u], box.min_corner[v],
+			box.max_corner[u] - box.min_corner[u], box.max_corner[v] - box.min_corner[v]))
+		if shadow.size.x > EPSILON and shadow.size.y > EPSILON:
+			return true
 	return false
 
 

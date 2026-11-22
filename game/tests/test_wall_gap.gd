@@ -31,15 +31,31 @@ func test_the_thinnest_of_several_walls_is_found_on_any_axis() -> String:
 	return ""
 
 
-func test_overlapping_or_touching_boxes_are_an_opening_not_a_wall() -> String:
+func test_overlapping_boxes_are_an_opening_not_a_wall() -> String:
 	var overlapping: BoxUnion = _union([_box(Vector3(0, 0, 0), Vector3(4, 4, 20)),
 		_box(Vector3(2, 0, 10), Vector3(12, 4, 14))])
 	if WallGap.thinnest(overlapping)["gap_m"] != INF:
 		return "two overlapping boxes were counted: %s" % WallGap.thinnest(overlapping)
+	return ""
+
+
+func test_flush_boxes_with_no_doorway_give_a_zero_metre_wall() -> String:
+	# BoxUnion keeps a ship in one box at a time, so a flush face with no doorway
+	# box across it is a wall of no thickness.
 	var touching: BoxUnion = _union([_box(Vector3(0, 0, 0), Vector3(4, 4, 20)),
 		_box(Vector3(4, 0, 5), Vector3(10, 4, 9))])
-	if WallGap.thinnest(touching)["gap_m"] != INF:
-		return "two touching boxes were counted: %s" % WallGap.thinnest(touching)
+	var found: Dictionary = WallGap.thinnest(touching)
+	if absf(float(found["gap_m"])) > 1e-4 or found["box_a"] != 0 or found["box_b"] != 1:
+		return "expected 0 m between flush boxes 0 and 1, got %s" % found
+	return ""
+
+
+func test_flush_boxes_joined_by_a_doorway_are_an_opening() -> String:
+	var joined: BoxUnion = _union([_box(Vector3(0, 0, 0), Vector3(4, 4, 20)),
+		_box(Vector3(4, 0, 5), Vector3(10, 4, 9)),
+		_box(Vector3(3, 1, 6), Vector3(5, 3, 8))])
+	if WallGap.thinnest(joined)["gap_m"] != INF:
+		return "a doorway between flush boxes was counted as a wall: %s" % WallGap.thinnest(joined)
 	return ""
 
 
