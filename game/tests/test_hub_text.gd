@@ -230,3 +230,36 @@ func test_the_hub_text_touches_no_simulation() -> String:
 		if source.find(forbidden) >= 0:
 			return "hub_text.gd uses %s" % forbidden
 	return ""
+
+
+func test_the_fitting_bay_offers_only_parts_of_each_slots_kind() -> String:
+	var profile: Profile = Profile.new()
+	profile.bank({"scrap_alloy": 20, "cell_salts": 20, "circuit_shards": 20, "core_glass": 20})
+	var hub: HubText = _hub(profile)
+	for id: String in ["shield_capacitor", "layered_plating"]:
+		if hub.model.craft(id) != "":
+			return "could not craft %s" % id
+	_to_page(hub, HubConfig.FIT)
+	var words: HubWords = hub.model.config.words
+	var stock: String = words.row("slot_row", {"slot": words.slot_name("shield", 0), "fitted": words.row("slot_stock")})
+	if not hub.lines().has(stock) or words.slot_name("engine", 0) != "Engine":
+		return "no stock shield row on %s" % [hub.lines()]
+	if not _select(hub, "id", "shield_capacitor", HubText.ACTION_FIT) or hub.selected()["slot"] != "shield":
+		return "shield_capacitor is not offered for the shield slot: %s" % [hub.selected()]
+	if hub.press() != "" or hub.model.fitting.parts["shield"] != "shield_capacitor":
+		return "pressing did not fit the shield"
+	if not _select(hub, "id", "layered_plating", HubText.ACTION_FIT) or hub.selected()["slot"] != "hull":
+		return "layered_plating is not offered for the hull slot: %s" % [hub.selected()]
+	# Walk every fit row: each part is offered only for its own slot.
+	hub.move(-1000)
+	for i: int in 200:
+		var picked: Dictionary = hub.selected()
+		if picked.get("action") == HubText.ACTION_FIT and picked["id"] != "":
+			var kind: String = hub.model.tree.get_upgrade(picked["id"]).kind
+			if Fitting.PART_KEYS.has(kind) and picked["slot"] != kind:
+				return "%s offered for %s" % [picked["id"], picked["slot"]]
+		var before: int = hub.selected_line()
+		hub.move(1)
+		if hub.selected_line() == before:
+			break
+	return ""

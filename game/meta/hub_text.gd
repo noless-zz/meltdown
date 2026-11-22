@@ -15,7 +15,9 @@ const ACTION_CRAFT: String = "craft"
 const ACTION_FIT: String = "fit"
 const ACTION_LAUNCH: String = "launch"
 ## Upgrade kind that fits each slot kind; a kind not listed offers no upgrade.
-const FITS: Dictionary[String, String] = {"primary": "weapon", "utility": "module"}
+## A part slot (#1094) takes only upgrades of its own kind.
+const FITS: Dictionary[String, String] = {"primary": "weapon", "utility": "module",
+	"shield": "shield", "hull": "hull", "engine": "engine"}
 
 var model: HubModel
 ## Index into `model.pages()` of the page shown.
@@ -166,6 +168,8 @@ func _fit_rows() -> Array[Dictionary]:
 			fitted = _words().row("slot_upgrade", {"name": _name(slot["upgrade"])})
 		elif slot["part"] != "":
 			fitted = _words().row("slot_part", {"part": slot["part"]})
+		elif Fitting.PART_KEYS.has(slot["kind"]):
+			fitted = _words().row("slot_stock")
 		rows.append(_info(_words().row("slot_row", {"slot": _words().slot_name(slot["kind"], slot["index"]), "fitted": fitted})))
 		for id: String in built:
 			if id != slot["upgrade"] and model.tree.get_upgrade(id).kind == FITS.get(slot["kind"], ""):

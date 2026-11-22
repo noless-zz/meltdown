@@ -21,14 +21,15 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"slot_upgrade": ["name"],
 	"slot_part": ["part"],
 	"slot_empty": [],
+	"slot_stock": [],
 	"fit_option_row": ["name"],
 	"clear_row": [],
 	"launch_row": [],
 }
 const KEY_SLOT_NAMES: String = "slot_names"
 const KEY_STAT_NAMES: String = "stat_names"
-## Slot kinds a slot name is needed for, as `Fitting.KEYS`.
-const SLOT_KINDS: Array[String] = ["primary", "secondary", "utility"]
+## Slot kinds a slot name is needed for: `Fitting.KEYS`, then `Fitting.PART_KEYS`.
+const SLOT_KINDS: Array[String] = ["primary", "secondary", "utility", "shield", "hull", "engine"]
 
 var rows: Dictionary[String, String] = {}
 ## Slot kind to a pattern with `{number}`, counted from 1.
