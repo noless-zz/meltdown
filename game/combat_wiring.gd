@@ -31,7 +31,7 @@ var hit_flash: HitFlash = load_hit_flash(HitFlash.DEFAULT_FILE)
 var hit_haptics: HitHaptics = HitHaptics.load_shipped()
 ## The edge strips under the rig's camera, once `attach` found one.
 var hit_overlay: HitFlashOverlay = null
-## Where the guns point while look-aim is on (#923), beside the bolts once `attach` has run.
+## Where the guns point, on every preset (#923, #1211), beside the bolts once `attach` has run.
 var aim_reticle: AimReticle = null
 
 
@@ -68,9 +68,10 @@ func attach(world: Node3D) -> void:
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
 ## `panel`, if given, shows the ship's shield, hull, weapon and the part in its
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
-## The aim reticle shows along the ship's gun direction while `look_aim` is on.
+## The aim reticle shows along the ship's gun direction on every preset
+## (#1211), so `_look_aim` no longer changes anything; `main.gd` still passes it.
 func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0,
-		look_aim: bool = false) -> void:
+		_look_aim: bool = false) -> void:
 	show_hit_flash(delta)
 	if panel != null:
 		var ship: ShipState = session.current_ship()
@@ -90,7 +91,8 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 		session.current_ship(), session.interpolation_fraction)
 	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction,
 		[pose] as Array[Transform3D])
-	aim_reticle.show_aim(pose, session.current_ship().gun_direction, look_aim)
+	aim_reticle.show_aim(pose, session.current_ship().gun_direction, session.current_robots(),
+		weapon_range(session.current_ship()))
 	robot_view.show_robots(session.previous_robots(), session.current_robots(),
 		session.interpolation_fraction)
 	salvage_view.show_salvage(session.previous_salvage(), session.current_salvage(),
@@ -172,6 +174,16 @@ static func active_weapon(ship: ShipState) -> String:
 	if slot < 0 or slot >= ship.primary_slots.size() or ship.primary_slots[slot] == null:
 		return ""
 	return ship.primary_ids[slot] if slot < ship.primary_ids.size() else ""
+
+
+## How far a shot from `ship`'s selected primary weapon flies, in metres:
+## its speed times its lifetime, or 0 when the slot is empty.
+static func weapon_range(ship: ShipState) -> float:
+	var slot: int = ship.selected_primary
+	if slot < 0 or slot >= ship.primary_slots.size() or ship.primary_slots[slot] == null:
+		return 0.0
+	var weapon: WeaponDef = ship.primary_slots[slot]
+	return weapon.projectile_speed * weapon.lifetime
 
 
 ## Where `node` is, in `space`'s coordinates: its global position seen from

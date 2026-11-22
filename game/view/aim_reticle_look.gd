@@ -1,15 +1,18 @@
 class_name AimReticleLook
 extends RefCounted
 
-## Parses `res://view/aim_reticle_look.json`, the look of the look-aim reticle
-## (CMB-6, ARC-4, #923): how far ahead of the ship the ring floats along the
-## gun direction, its size and its colour.
+## Parses `res://view/aim_reticle_look.json`, the look of the aiming reticle
+## (CMB-6, ARC-4, #923, #1211): how far ahead of the ship the ring floats along
+## the gun direction, its size, its colour, the cone around the aim in which a
+## robot within the active weapon's range draws the ring onto it, and how much
+## of the colour's alpha the ring keeps while no robot is there.
 ##
 ##     {"distance_m": 5..200, "radius_m": 0.05..10, "thickness_m": 0.005..1,
-##      "color": [r, g, b, a]}
+##      "cone_degrees": 0.5..30, "dim_alpha": 0.05..1, "color": [r, g, b, a]}
 ##
-## The ring is drawn at a fixed distance rather than on the wall the guns
-## point at, so it reads the same in an open cavern and a narrow tunnel.
+## With no robot ahead the ring is drawn at a fixed distance rather than on the
+## wall the guns point at, so it reads the same in an open cavern and a narrow
+## tunnel.
 
 const DEFAULT_FILE: String = "res://view/aim_reticle_look.json"
 
@@ -18,6 +21,8 @@ const RANGES: Dictionary[String, Array] = {
 	"distance_m": [5.0, 200.0],
 	"radius_m": [0.05, 10.0],
 	"thickness_m": [0.005, 1.0],
+	"cone_degrees": [0.5, 30.0],
+	"dim_alpha": [0.05, 1.0],
 }
 const COLOR_KEY: String = "color"
 
@@ -26,6 +31,8 @@ const FALLBACK: Dictionary = {
 	"distance_m": 25.0,
 	"radius_m": 0.5,
 	"thickness_m": 0.04,
+	"cone_degrees": 4.0,
+	"dim_alpha": 0.35,
 	"color": Color(0.4, 1.0, 0.55, 0.85),
 }
 
