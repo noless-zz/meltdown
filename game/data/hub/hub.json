@@ -25,6 +25,8 @@
 		"fit_option_row": "Mount {name}",
 		"clear_row": "Strip this slot back to stock",
 		"launch_row": "Drop into the mine",
+		"resume_row": "Resume the suspended run: level {level}, seed {seed}",
+		"launch_discard_note": "A new drop scraps the suspended run.",
 		"stats_empty": "No runs logged yet. Every run you fly is counted here.",
 		"stats_runs_started": "Runs launched: {count}",
 		"stats_runs_won": "Runs won: {count}",

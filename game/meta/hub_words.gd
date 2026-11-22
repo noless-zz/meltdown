@@ -25,6 +25,8 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"fit_option_row": ["name"],
 	"clear_row": [],
 	"launch_row": [],
+	"resume_row": ["level", "seed"],
+	"launch_discard_note": [],
 	"stats_empty": [],
 	"stats_runs_started": ["count"],
 	"stats_runs_won": ["count"],

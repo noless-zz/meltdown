@@ -14,6 +14,7 @@ extends RefCounted
 const ACTION_CRAFT: String = "craft"
 const ACTION_FIT: String = "fit"
 const ACTION_LAUNCH: String = "launch"
+const ACTION_RESUME: String = "resume"
 ## Upgrade kind that fits each slot kind; a kind not listed offers no upgrade.
 ## A part slot (#1094) takes only upgrades of its own kind.
 const FITS: Dictionary[String, String] = {"primary": "weapon", "utility": "module",
@@ -26,6 +27,8 @@ var page: int = 0
 var row: int = 0
 ## The loadout section the last successful launch press gave; {} before one.
 var launched: Dictionary = {}
+## The action the last successful resume press gave (`{"resume": true}`); {} before one.
+var resumed: Dictionary = {}
 
 
 func _init(p_model: HubModel) -> void:
@@ -67,7 +70,7 @@ func turn_page(delta: int) -> void:
 
 
 ## What the selected row does: {"action": "craft", "id"}, {"action": "fit",
-## "slot", "id"} ("" empties the slot), {"action": "launch"}, or {} for a row
+## "slot", "id"} ("" empties the slot), {"action": "launch"}, {"action": "resume"}, or {} for a row
 ## that only shows information.
 func selected() -> Dictionary:
 	var line: int = selected_line()
@@ -90,6 +93,12 @@ func press() -> String:
 			reason = model.launch_check()
 			if reason == "":
 				launched = model.launch()
+		ACTION_RESUME:
+			var result: Variant = model.resume()
+			if typeof(result) == TYPE_DICTIONARY:
+				resumed = result
+			else:
+				reason = str(result)
 	move(0)  # The rows may have changed; keep the selection on one.
 	return reason
 
@@ -174,10 +183,15 @@ func _craft_rows() -> Array[Dictionary]:
 	return rows
 
 
-## Each slot with what it holds, the crafted upgrades of its kind it could take,
-## and a row to strip a fitted upgrade; then the launch row.
+## While a suspended run waits, first a row to resume it (#1106, RUN-8). Then each
+## slot with what it holds, the crafted upgrades of its kind it could take, and a
+## row to strip a fitted upgrade; then the launch row, with a note under it that
+## launching discards the waiting run.
 func _fit_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
+	var waiting: Dictionary = model.waiting()
+	if not waiting.is_empty():
+		rows.append(_acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}))
 	var built: Array[String] = model.crafted()
 	for slot: Dictionary in model.fit_slots():
 		var fitted: String = _words().row("slot_empty")
@@ -195,6 +209,8 @@ func _fit_rows() -> Array[Dictionary]:
 		if slot["upgrade"] != "":
 			rows.append(_acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
 	rows.append(_acting(_words().row("launch_row"), {"action": ACTION_LAUNCH}))
+	if not waiting.is_empty():
+		rows.append(_shown(_words().row("launch_discard_note")))
 	return rows
 
 
