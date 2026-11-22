@@ -71,7 +71,7 @@
 		{
 			"id": "craft_and_fit",
 			"run": 12345,
-			"replay": "res://acceptance/replays/run_advances.replay",
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
 			"checks": ["no_script_errors", "craft_and_fit"]
 		}

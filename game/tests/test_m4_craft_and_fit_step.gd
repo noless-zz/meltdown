@@ -8,8 +8,8 @@ extends RefCounted
 
 const SUITE_PATH: String = "res://acceptance/suites/m4.json"
 const STEP_ID: String = "craft_and_fit"
-## The replay takes about 7,200 ticks; the runner flies one per frame.
-const FRAME_LIMIT: int = 20000
+## The replay is two seconds of idle input; the runner flies one tick per frame.
+const FRAME_LIMIT: int = 5000
 
 var _quit_codes: Array[int] = []
 

@@ -4,7 +4,7 @@ extends RefCounted
 ## The `craft_and_fit` check of a run step (#1093, CRW-2, CRF-3, CRF-4,
 ## DEV-6, decision record 0005). In a suite:
 ##
-##     {"id": "craft_and_fit", "run": 12345, "replay": "res://...",
+##     {"id": "craft_and_fit", "run": 12345, "replay": "res://...craft_and_fit_idle.replay",
 ##      "profile": "res://acceptance/fittings/craft_and_fit_profile.json",
 ##      "checks": ["no_script_errors", "craft_and_fit"]}
 ##
