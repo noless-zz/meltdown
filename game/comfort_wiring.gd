@@ -189,15 +189,6 @@ func cockpit_spec() -> CockpitSpec:
 	return spec
 
 
-## Next preset as the preset button goes down (`ComfortButtons`); from 4 a
-## rejected custom file is reported (#807).
-func read_preset_button(buttons: Dictionary) -> void:
-	if preset_pressed(buttons):
-		if number == ComfortPresetFiles.PATHS.size():
-			custom_notice.refused(custom())
-		set_preset(next_number())
-
-
 ## Hands this frame's mapped `input` to the session's input source.
 ## `orientation` is the ship's, read only, for the pitch limit and auto-level.
 ## `reset_due` replaces the input with a still reset tick; `ship_held` stops the swivel (#819).

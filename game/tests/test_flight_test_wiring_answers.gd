@@ -109,36 +109,39 @@ func test_stop_ends_the_test_at_preset_one() -> String:
 	return message
 
 
-func test_x_is_ignored_during_the_test_and_saved_after() -> String:
+## X is no longer held back during the test (it changes no preset since
+## decision record 0011, #1260); a preset switch after the test is saved.
+func test_x_passes_through_the_test_and_a_switch_after_is_saved() -> String:
 	var path: String = Wiring.scratch("x.json")
 	var c: ComfortWiring = Wiring.comfort()
 	var wired: FlightTestWiring = Wiring.wiring(FlightTestWiring.Start.TUNNEL, path, c)
+	var before: int = c.number
 	var rest: Dictionary = Wiring.frame(wired, {X: true, A: true})
-	if rest.has(X) or not rest.has(A):
+	if not rest.has(X) or not rest.has(A):
 		Wiring.free_panel(wired)
 		return "during the test the rest of the frame reads %s" % rest
-	Wiring.answer_with(wired, Y)
-	rest = Wiring.frame(wired, {X: true})
-	if not rest.has(X):
+	if c.number != before:
 		Wiring.free_panel(wired)
-		return "X is still taken after the test"
-	c.read_preset_button(rest)
+		return "X during the test moved the preset from %d to %d" % [before, c.number]
+	Wiring.answer_with(wired, Y)
+	c.set_preset(c.next_number())
 	Wiring.frame(wired, {})
 	Wiring.free_panel(wired)
 	var back: ComfortChoice = Wiring.saved(path)
 	if c.number != 2 or back.preset() != 2 or back.first_launch():
-		return "after X: active %d, saved %d, first launch %s" % [c.number, back.preset(), back.first_launch()]
+		return "after the switch: active %d, saved %d, first launch %s" % [c.number, back.preset(), back.first_launch()]
 	return ""
 
 
-func test_x_on_a_level_start_is_saved() -> String:
+func test_a_switch_on_a_level_start_is_saved() -> String:
 	var path: String = Wiring.scratch("level_x.json")
 	Wiring.write(path, "{\"preset\": 4, \"flight_test_done\": true}")
 	var c: ComfortWiring = Wiring.comfort()
 	var wired: FlightTestWiring = Wiring.wiring(FlightTestWiring.Start.SAVED, path, c)
-	c.read_preset_button(Wiring.frame(wired, {X: true}))
+	Wiring.frame(wired, {})
+	c.set_preset(c.next_number())
 	Wiring.frame(wired, {})
 	var back: ComfortChoice = Wiring.saved(path)
 	if c.number != 1 or back.preset() != 1 or back.first_launch():
-		return "after X from 4: active %d, saved %d, first launch %s" % [c.number, back.preset(), back.first_launch()]
+		return "after a switch from 4: active %d, saved %d, first launch %s" % [c.number, back.preset(), back.first_launch()]
 	return ""

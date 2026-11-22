@@ -1,13 +1,12 @@
 extends RefCounted
 
-## The custom comfort mode chosen in the game (CMF-1, #806): the preset button
-## reaches it only with an accepted file, the launch switch starts in it, the
+## The custom comfort mode chosen in the game (CMF-1, #806): the preset cycle
+## (`next_number`) reaches it only with an accepted file, the launch switch starts in it, the
 ## saved choice keeps it and falls back to its base, and it feeds everything a
 ## numbered preset does (CMF-7 swivel, PRF-1 refresh rate) without touching the
 ## simulation (CMF-6, ARC-3).
 
 const SCRATCH_DIR: String = "user://test_comfort_custom_choice"
-const X: String = "left_button_lower"
 const CUSTOM: int = ComfortPresetFiles.CUSTOM_NUMBER
 
 
@@ -34,13 +33,13 @@ static func comfort(custom_text: String, name: String) -> ComfortWiring:
 	return wiring
 
 
-## The presets the button visits from preset 1, `presses` presses long.
-static func cycle(wiring: ComfortWiring, presses: int) -> Array[int]:
+## The presets `next_number` visits from preset 1, `steps` steps long, each set
+## through the comfort switch (the X button that stepped it is retired, #1260).
+static func cycle(wiring: ComfortWiring, steps: int) -> Array[int]:
 	wiring.set_preset(1)
 	var seen: Array[int] = [wiring.number]
-	for i: int in presses:
-		wiring.read_preset_button({X: true})
-		wiring.read_preset_button({})
+	for i: int in steps:
+		wiring.set_preset(wiring.next_number())
 		seen.append(wiring.number)
 	return seen
 
@@ -51,21 +50,21 @@ func test_custom_is_the_fifth_place_in_the_cycle() -> String:
 	return ""
 
 
-func test_button_cycles_through_custom_with_an_accepted_file() -> String:
+func test_the_cycle_passes_custom_with_an_accepted_file() -> String:
 	var wiring: ComfortWiring = comfort("{\"base\": 3, \"display_name\": \"Mine\"}", "good.json")
 	var seen: Array[int] = cycle(wiring, 6)
 	if seen != [1, 2, 3, 4, CUSTOM, 1, 2]:
-		return "with a file the button visits %s" % str(seen)
+		return "with a file the cycle visits %s" % str(seen)
 	wiring.set_preset(CUSTOM)
 	if wiring.preset.display_name != "Mine" or wiring.preset != wiring.custom().preset:
 		return "the custom mode is %s, not the file's preset" % wiring.preset.display_name
 	return ""
 
 
-func test_button_cycles_one_to_four_without_a_file() -> String:
+func test_the_cycle_is_one_to_four_without_a_file() -> String:
 	var seen: Array[int] = cycle(comfort("", "none.json"), 5)
 	if seen != [1, 2, 3, 4, 1, 2]:
-		return "without a file the button visits %s" % str(seen)
+		return "without a file the cycle visits %s" % str(seen)
 	return ""
 
 
@@ -73,7 +72,7 @@ func test_a_rejected_file_is_not_offered_and_its_field_is_named() -> String:
 	var wiring: ComfortWiring = comfort("{\"base\": 3, \"pitch_mode\": \"SIDEWAYS\"}", "rejected.json")
 	var seen: Array[int] = cycle(wiring, 5)
 	if seen != [1, 2, 3, 4, 1, 2]:
-		return "with a rejected file the button visits %s" % str(seen)
+		return "with a rejected file the cycle visits %s" % str(seen)
 	if not wiring.custom().error.contains("\"pitch_mode\""):
 		return "the rejection \"%s\" does not name pitch_mode" % wiring.custom().error
 	return ""
@@ -211,15 +210,15 @@ func test_saved_custom_is_restored_and_falls_back_to_its_base() -> String:
 	return ""
 
 
-func test_pressing_into_custom_saves_it_with_its_base() -> String:
+func test_stepping_into_custom_saves_it_with_its_base() -> String:
 	var wiring: ComfortWiring = comfort("{\"base\": 1}", "press.json")
 	var wired: FlightTestWiring = restored("{\"preset\": 4, \"flight_test_done\": true}", wiring, "press_choice.json")
-	wiring.read_preset_button({X: true})
+	wiring.set_preset(wiring.next_number())
 	wired.update(1.0 / 90.0, false)
 	var back: ComfortChoice = ComfortChoice.new()
 	back.load_from(wired.choice_path)
 	if wiring.number != CUSTOM or back.preset() != CUSTOM or back.custom_base() != 1:
-		return "after X from 4: active %d, saved %d base %d" % [wiring.number, back.preset(), back.custom_base()]
+		return "after stepping from 4: active %d, saved %d base %d" % [wiring.number, back.preset(), back.custom_base()]
 	return ""
 
 

@@ -37,9 +37,6 @@ const WORDS: Dictionary = {
 const FIXED_LABELS: Dictionary = {
 	ResetHold.BUTTON: "tap: menu, hold: reset",
 }
-## The label of the comfort preset button (`ThumbstickMapping.PRESET_BUTTON`),
-## which no layout binds but which swaps hands with the rest (#613).
-const PRESET_WORD: String = "comfort preset"
 ## The label of the control-label toggle (`ThumbstickMapping.LABEL_BUTTON`),
 ## also read outside the layout, while no map shares its control: then a click
 ## flips the labels and the word comes first on its control.
@@ -67,10 +64,10 @@ const ACTION_SEPARATOR: String = ", "
 
 
 ## Physical control -> its label, for every control the layout binds with a
-## non-zero weight, plus `FIXED_LABELS`, the comfort preset button and the
-## label toggle. Both axes of a stick share one cross label under
-## `<hand>_stick`. In left-handed mode each binding, and the two buttons, are
-## shown on the other hand's control, where `ThumbstickMapping` reads them.
+## non-zero weight, plus `FIXED_LABELS` and the label toggle. Both axes of a
+## stick share one cross label under `<hand>_stick`. In left-handed mode each
+## binding, and the toggle, are shown on the other hand's control, where
+## `ThumbstickMapping` reads them.
 ## `invert_pitch` swaps the pitch words to match the mapping. With
 ## `pickup_hint` the slot control reads `PICKUP_HINT_WORD` instead.
 static func for_layout(layout: Dictionary, left_handed: bool = false,
@@ -95,7 +92,6 @@ static func for_layout(layout: Dictionary, left_handed: bool = false,
 				(ends[physical][1] as Array).append(pair[1])
 			else:
 				_add(actions, physical, pair[1])
-	_add(actions, _for_hand_mode(ThumbstickMapping.PRESET_BUTTON, left_handed), PRESET_WORD)
 	var toggle: String = _for_hand_mode(ThumbstickMapping.LABEL_BUTTON, left_handed)
 	if (actions.get(toggle, []) as Array).has(WORDS["show_map"][1]):
 		_add(actions, toggle, LABEL_HOLD_WORD)

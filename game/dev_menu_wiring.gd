@@ -30,11 +30,10 @@ extends RefCounted
 ## corner to `DevMenuCorner`, Controls, Hands and Pitch to `DevMenuControls`,
 ## Comfort to `DevMenuComfort`, Break reminder to `DevMenuBreak`, Refresh to
 ## `DevMenuRefresh`, Swivel chair to `DevMenuSwivel`, Foveation to
-## `DevMenuFoveation` (#871), the update to
-## `DevMenuUpdate`, and Level, Restart level and Flight test to
-## `DevMenuRestart`, which owns the fade. A new entry adds one helper and one
-## line in `_init`. It sits beside `main.gd` because it restarts the `net/`
-## session and reads the flight test and the end screens.
+## `DevMenuFoveation` (#871), the update to `DevMenuUpdate`, Level, Restart level and
+## Flight test to `DevMenuRestart`, which owns the fade, and Return to base to
+## `DevMenuReturn` (#1246). A new entry adds one helper and one line in `_init`. It
+## sits beside `main.gd` because it restarts the `net/` session and reads the flight test and end screens.
 
 ## A stick pushed this far counts as a menu step; well past drift, short of the rim.
 const STICK_STEP: float = 0.6
@@ -84,7 +83,7 @@ var pick_seed: Callable:
 	get: return _restarts.pick_seed
 	set(value): _restarts.pick_seed = value
 var alpha: float:
-	get: return _restarts.alpha
+	get: return maxf(_restarts.alpha, _return.alpha)
 
 var _corner: DevMenuCorner = DevMenuCorner.new()
 var _controls: DevMenuControls = null
@@ -92,6 +91,7 @@ var _comfort_entry: DevMenuComfort = null
 var _break_entry: DevMenuBreak = null
 var _update_entry: DevMenuUpdate = DevMenuUpdate.new()
 var _restarts: DevMenuRestart = DevMenuRestart.new()
+var _return: DevMenuReturn = DevMenuReturn.new()
 var _update: UpdateWiring = null
 var _level_start: LevelStart = null
 var _flight_test: FlightTestWiring = null
@@ -117,7 +117,7 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 	var close: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_CLOSE], [DevMenuModel.CLOSE], true)
 	entries = [_update_entry, _corner, _comfort_entry, _break_entry,
 		refresh if refresh != null else no_refresh, swivel, DevMenuAutoLevel.started(p_comfort), _controls,
-		DevMenuFoveation.new(p_foveation), _restarts, close]
+		DevMenuFoveation.new(p_foveation), _restarts, _return, close]
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -141,6 +141,7 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 	_restarts.restart = restart
 	_restarts.flight_test = flight_test
 	_restarts.rig = rig
+	_return.wire(level_start, restart, destroyed, hub_open)
 	menu = p_menu if p_menu != null else DevMenu.new()
 	info = DevMenuInfo.new(menu.model.spec.info_title_text)  # The panel's development lines (#1207).
 	info.source = rig
@@ -189,6 +190,7 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 	if hub_is_open():
 		_restarts.cancel()  # A level picked before the hub opened must not fly behind it.
 	_restarts.advance(now)
+	_return.advance(now)
 	var tapped: bool = tap.feed(ResetHold.is_held(values), now)
 	if tapped and _update != null and _update.tap_taker.is_valid() and bool(_update.tap_taker.call()):
 		tapped = false

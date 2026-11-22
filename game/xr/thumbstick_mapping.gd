@@ -10,8 +10,9 @@ extends RefCounted
 ##
 ## The default right-handed layout (decision record 0004) and layout files
 ## are read by `ThumbstickLayout` (#1158); `default_layout`, `from_file` and
-## `from_json` forward to it so callers do not change. X (left lower) is the
-## comfort preset button (`PRESET_BUTTON`), read outside this mapping.
+## `from_json` forward to it so callers do not change. X (left lower) is
+## bound by no layout and does nothing; it is free for future use (decision
+## record 0011, #1260). The comfort preset is chosen in the menu (CMF-4).
 ##
 ## Ship axes use the pilot's view, each -1..1 before scaling:
 ## `strafe` (+ right), `lift` (+ up), `forward` (+ ahead), `pitch` (+ nose up),
@@ -58,10 +59,6 @@ const BUTTONS: Array[String] = [
 	"left_stick_click", "right_stick_click",
 ]
 
-## The comfort preset button in right-handed mode: X, the lower face button of
-## the hand that does not turn (decision record 0004, #613). It is not a
-## flight control, so no layout binds it; `preset_button` swaps its hand.
-const PRESET_BUTTON: String = "left_button_lower"
 ## The control-label toggle in right-handed mode: the left stick click (#181,
 ## decision record 0004). Read outside the mapping; `label_button` swaps it.
 const LABEL_BUTTON: String = "left_stick_click"
@@ -171,12 +168,6 @@ func action_held(action: String, buttons: Dictionary) -> bool:
 	if left_handed:
 		controls = ThumbstickLayout.swap_hands(controls)
 	return _axis_value(controls, action) >= BUTTON_THRESHOLD
-
-
-## The physical comfort preset button for this hand setting: X, or A when
-## left-handed.
-func preset_button() -> String:
-	return str(ThumbstickLayout.swap_hands({PRESET_BUTTON: 0.0}).keys()[0]) if left_handed else PRESET_BUTTON
 
 
 ## The physical control-label toggle: the left stick click, or the right one

@@ -123,33 +123,22 @@ func test_the_pitch_limit_sees_the_real_ship() -> String:
 	return ""
 
 
-func test_the_preset_button_cycles_once_per_press_and_wraps() -> String:
-	var main: Node = _main()
-	var seen: Array[int] = []
-	for press: int in 4:
-		for i: int in 5:
-			main.call("apply_controls", _values(Vector2.ZERO, {"left_button_lower": true}))
-		main.call("apply_controls", _values())
-		seen.append(int((main.get("comfort") as ComfortWiring).number))
-	var name_after: String = ((main.get("comfort") as ComfortWiring).preset as ComfortPreset).display_name
-	main.free()
-	if seen != [3, 4, 1, 2]:
-		return "presses from preset 2 gave %s, expected [3, 4, 1, 2]" % str(seen)
-	if name_after != "Guided":
-		return "back at 2 the preset is %s" % name_after
-	return ""
-
-
-func test_left_handed_uses_the_right_lower_button() -> String:
-	var main: Node = _main()
-	(main.get("mapping") as ThumbstickMapping).left_handed = true
-	main.call("apply_controls", _values(Vector2.ZERO, {"left_button_lower": true}))
-	var after_left: int = (main.get("comfort") as ComfortWiring).number
-	main.call("apply_controls", _values(Vector2.ZERO, {"right_button_lower": true}))
-	var after_right: int = (main.get("comfort") as ComfortWiring).number
-	main.free()
-	if after_left != 2 or after_right != 3:
-		return "left-handed: X gave %d, A gave %d (expected 2 then 3)" % [after_left, after_right]
+## X was the preset button until decision record 0011 (#1260): now neither X
+## nor its left-handed mirror, A, changes the preset, however often pressed.
+func test_the_free_button_changes_no_preset_in_either_hand() -> String:
+	for left_handed: bool in [false, true]:
+		var main: Node = _main()
+		(main.get("mapping") as ThumbstickMapping).left_handed = left_handed
+		var free_button: String = "right_button_lower" if left_handed else "left_button_lower"
+		for press: int in 4:
+			for i: int in 3:
+				main.call("apply_controls", _values(Vector2.ZERO, {free_button: true}))
+			main.call("apply_controls", _values())
+		var number: int = (main.get("comfort") as ComfortWiring).number
+		main.free()
+		if number != 2:
+			return "%s: pressing %s moved the preset from 2 to %d" % [
+				"left-handed" if left_handed else "right-handed", free_button, number]
 	return ""
 
 

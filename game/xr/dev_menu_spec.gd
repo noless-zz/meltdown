@@ -38,6 +38,8 @@ extends RefCounted
 ## menu opens from the head (#1206): its centre that far along the head's
 ## forward direction, then moved across the view; both optional.
 ## `info_title_text` heads the read-only Info section (#1207); optional.
+## The `return` entry (#1246) shows only while a run's level flies; once pressed
+## it reads `confirm_return_text` until a second press abandons the run.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -55,15 +57,16 @@ const KIND_REFRESH: String = "refresh"
 const KIND_SWIVEL: String = "swivel"
 const KIND_FOVEATION: String = "foveation"
 const KIND_AUTO_LEVEL: String = "auto_level"
+const KIND_RETURN: String = "return"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
 	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK, KIND_FLIGHT_TEST,
-	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_AUTO_LEVEL]
+	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_AUTO_LEVEL, KIND_RETURN]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
 	"break_on_text", "break_off_text", "custom_text", "refresh_90_text", "refresh_120_text",
 	"refresh_note_text", "swivel_on_text", "swivel_off_text", "swivel_custom_text",
 	"foveation_off_text", "foveation_dynamic_text", "foveation_note_text", "info_title_text",
-	"auto_level_on_text", "auto_level_off_text", "auto_level_preset_text"]
+	"auto_level_on_text", "auto_level_off_text", "auto_level_preset_text", "confirm_return_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
@@ -80,6 +83,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_SWIVEL: "Swivel chair",
 	KIND_FOVEATION: "Foveation",
 	KIND_AUTO_LEVEL: "Auto-level",
+	KIND_RETURN: "Return to base",
 }
 const PLACE_KEYS: Array[String] = ["distance_m", "offset_m"]
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
@@ -116,6 +120,8 @@ var distance_m: float = 1.0
 var offset_m: Vector2 = Vector2.ZERO
 ## The heading of the Info section under the entries (#1207, `DevMenuInfo`).
 var info_title_text: String = "Info"
+## The Return to base row's text once pressed, before the confirming press (#1246).
+var confirm_return_text: String = "Confirm: abandon run"
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 

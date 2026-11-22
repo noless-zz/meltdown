@@ -199,13 +199,21 @@ func after_level(outcome: int, hull: float, collected: Dictionary, rescued: int 
 			print("%s %d: level %d escaped, flying level %d (seed %d)" % [LOG_PREFIX, state.plan.run_seed,
 				state.level_index, state.current_depth(), state.current_level_seed()])
 	elif hull <= 0.0:
-		state.lose()
-		stats.run_lost(profile, store)
-		print("%s %d lost on level %d; banked %s" % [LOG_PREFIX, state.plan.run_seed, state.current_depth(),
-			state.banked])
-		ended = state
-		start(_new_seed())
+		_lose("lost")
 	return level_source()
+
+
+## The menu's "Return to base" (#1246, RUN-7, CRF-2): ends the run as a
+## destroyed ship does (`_lose`), and deletes a suspended-run save so it cannot
+## come back. False, changing nothing, without a run in flight.
+func abandon() -> bool:
+	if not active():
+		return false
+	escape_taken = false
+	_lose("abandoned")
+	if saves != null and saves.has_save() and not saves.discard():
+		print("%s: %s" % [LOG_PREFIX, saves.message])
+	return true
 
 
 ## The source after a session ended with `session`: the run's next level when
@@ -254,6 +262,17 @@ func stop() -> void:
 	if state != null:
 		print("%s %d left on level %d" % [LOG_PREFIX, state.plan.run_seed, state.current_depth()])
 	state = null
+
+
+## Ends the run as lost (`how` names the way in the log) and starts the next
+## with a new seed; one path for a destroyed ship and an abandoned run.
+func _lose(how: String) -> void:
+	state.lose()
+	stats.run_lost(profile, store)
+	print("%s %d %s on level %d; banked %s" % [LOG_PREFIX, state.plan.run_seed, how, state.current_depth(),
+		state.banked])
+	ended = state
+	start(_new_seed())
 
 
 ## A level is never flown while a choice is due: with none made, the first

@@ -4,7 +4,7 @@ extends RefCounted
 ## Counts the times a rejected custom comfort file kept the custom mode from
 ## being chosen (CMF-1, #807), so the status panel can say so in the headset
 ## instead of only in the log. The panel shows the notice once per count, so
-## a file rejected at start and again at the preset button shows twice.
+## a file rejected at start and again when asked for shows twice.
 ##
 ## View side only: it reads the parsed file and never touches simulation state
 ## (ARC-3).
@@ -26,8 +26,8 @@ func check_start(custom: ComfortCustom) -> void:
 	refused(custom)
 
 
-## Reports `custom` when it was rejected: the custom mode was asked for, or
-## the preset button would have reached it, and the file kept it away.
+## Reports `custom` when it was rejected: the custom mode was asked for and
+## the file kept it away.
 func refused(custom: ComfortCustom) -> void:
 	if custom == null or custom.error.is_empty():
 		return

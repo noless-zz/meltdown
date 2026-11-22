@@ -167,6 +167,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_CRAFT_AND_FIT: _craft_and_fit,
 		AcceptanceStep.CHECK_SUSPEND_RESUME: _suspend_resume,
 		AcceptanceStep.CHECK_AUTO_LEVEL_OPTION: _auto_level_option,
+		AcceptanceStep.CHECK_ABANDON_RUN: _abandon_run,
 	}
 
 
@@ -261,3 +262,7 @@ func _suspend_resume(step: AcceptanceStep, runner: AcceptanceRunner, measurement
 
 func _auto_level_option(_step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return AcceptanceAutoLevelCheck.run(runner.main, measurements)
+
+
+func _abandon_run(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return AcceptanceAbandonRunCheck.run(step, runner.main, runner.flown(), measurements)

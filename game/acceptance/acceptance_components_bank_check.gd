@@ -14,6 +14,7 @@ extends RefCounted
 ## escapes, the check presses on as the escape screen's restart does, which
 ## banks the sim's `collected` counts through `RunWiring.after_level`, and
 ## compares the run's profile, kept in memory only, with `expected_banked`.
+## The abandon_run check (#1246) takes `expected_banked` too.
 ## Like run_advances it swaps the scene's session, so it is the step's last
 ## check; a step lists one of the three.
 
@@ -23,11 +24,13 @@ const KEY: String = "expected_banked"
 ## Reads `expected_banked` into `step`; "" or the problem, with the field named.
 static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) -> String:
 	var where: String = "%s.%s" % [field, KEY]
-	if not step.has_check(AcceptanceStep.CHECK_COMPONENTS_BANK):
+	var check: String = AcceptanceStep.CHECK_ABANDON_RUN if step.has_check(AcceptanceStep.CHECK_ABANDON_RUN) \
+		else AcceptanceStep.CHECK_COMPONENTS_BANK
+	if not step.has_check(check):
 		return "%s: only used by the %s check, which the step does not list" % [where,
 			AcceptanceStep.CHECK_COMPONENTS_BANK] if data.has(KEY) else ""
 	if not data.has(KEY):
-		return "%s: needed by the %s check" % [where, AcceptanceStep.CHECK_COMPONENTS_BANK]
+		return "%s: needed by the %s check" % [where, check]
 	var value: Variant = data[KEY]
 	if typeof(value) != TYPE_DICTIONARY or (value as Dictionary).is_empty():
 		return "%s: must be an object of component id to count" % where

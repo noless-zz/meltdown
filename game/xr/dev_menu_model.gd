@@ -18,7 +18,7 @@ extends RefCounted
 ## `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
-## `flight_test` (#839), `update` or `close`.
+## `flight_test` (#839), `update`, `return_to_base` (#1246) or `close`.
 ## The update entry is skipped while `update_version` is empty. The menu
 ## only returns these; it never reads or writes the simulation (MP-2, ARC-3).
 
@@ -62,10 +62,11 @@ const RESTART: String = "restart"
 const FLIGHT_TEST: String = "flight_test"
 const CLOSE: String = "close"
 const UPDATE: String = "update"
+const RETURN: String = "return_to_base"
 
 ## The entries confirming acts on with no value to step (`value` gives null).
 const ACTION_KINDS: Array[String] = [DevMenuSpec.KIND_RESTART, DevMenuSpec.KIND_FLIGHT_TEST,
-	DevMenuSpec.KIND_UPDATE, DevMenuSpec.KIND_CLOSE]
+	DevMenuSpec.KIND_UPDATE, DevMenuSpec.KIND_CLOSE, DevMenuSpec.KIND_RETURN]
 
 var spec: DevMenuSpec
 ## Index of the highlighted entry in `spec.entries`.
@@ -76,6 +77,10 @@ var levels: DevMenuLevels
 var update_version: String = ""
 ## True while that build downloads: the entry then cancels it.
 var update_busy: bool = false
+## Whether the Return to base row shows (a run flies) and is armed: its first
+## press arms it, the second returns `RETURN`, moving or reopening disarms (#1246).
+var run_shown: bool = false
+var return_armed: bool = false
 ## The valid custom comfort file's base preset (1..4), or 0 when there is none (#837).
 var custom_base: int:
 	get: return _comfort.custom_base
@@ -159,6 +164,7 @@ func open(corner: String, source: String, scheme: String = "", left_handed: bool
 		p_break_on: bool = true, p_custom_base: int = 0) -> void:
 	selected = _step_shown(-1, 1)
 	_held = {}
+	return_armed = false
 	_corner.select(corner)
 	_scheme.select(scheme)
 	_hands.index = 1 if left_handed else 0
@@ -196,9 +202,26 @@ func value_text(entry_kind: String) -> String:
 	return helper.value_text() if helper != null else ""
 
 
-## Whether entry `index` is on the menu now: every entry but a hidden update.
+## Whether entry `index` is on the menu now: every entry but a hidden update
+## or Return to base row.
 func is_shown(index: int) -> bool:
-	return str(spec.entries[index]["kind"]) != DevMenuSpec.KIND_UPDATE or update_version != ""
+	match str(spec.entries[index]["kind"]):
+		DevMenuSpec.KIND_UPDATE: return update_version != ""
+		DevMenuSpec.KIND_RETURN: return run_shown
+	return true
+
+
+## Shows or hides the Return to base row, disarmed; the highlight leaves it when hidden.
+func set_run(shown: bool) -> void:
+	run_shown = shown
+	return_armed = false
+	if not is_shown(selected):
+		selected = _step_shown(selected, 1)
+
+
+## The words the Return to base row shows: its label, or the confirm text once armed.
+func return_text(label: String) -> String:
+	return spec.confirm_return_text if return_armed else label
 
 
 ## Names the waiting build, or hides the update entry with "". A hidden
@@ -246,10 +269,9 @@ func set_swivel(on: bool, locked: bool) -> void:
 
 func _act(action: String) -> String:
 	match action:
-		UP:
-			selected = _step_shown(selected, -1)
-		DOWN:
-			selected = _step_shown(selected, 1)
+		UP, DOWN:
+			selected = _step_shown(selected, -1 if action == UP else 1)
+			return_armed = false  # Moving to another row cancels the confirm step.
 		LEFT, RIGHT:
 			var helper: DevMenuValue = value(kind())
 			if helper != null:
@@ -273,6 +295,9 @@ func _confirm() -> String:
 			return FLIGHT_TEST
 		DevMenuSpec.KIND_UPDATE:
 			return UPDATE
+		DevMenuSpec.KIND_RETURN:
+			return_armed = not return_armed
+			return "" if return_armed else RETURN
 	return CLOSE
 
 

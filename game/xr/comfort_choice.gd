@@ -53,7 +53,7 @@ func load_error() -> String:
 	return _load_error
 
 
-## Sets the preset (an X press, or the test's recommendation). A number outside
+## Sets the preset (a menu choice, or the test's recommendation). A number outside
 ## 1..4 is refused and the current preset kept; returns whether it was taken.
 func set_preset(number: int) -> bool:
 	if number < MIN_PRESET or number > MAX_PRESET:

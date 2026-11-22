@@ -13,6 +13,7 @@
 		{"kind": "foveation", "label": "Foveation"},
 		{"kind": "level", "label": "Level"},
 		{"kind": "restart", "label": "Restart level"},
+		{"kind": "return", "label": "Return to base"},
 		{"kind": "flight_test", "label": "Flight test"},
 		{"kind": "close", "label": "Close"}
 	],
@@ -43,5 +44,6 @@
 	"foveation_off_text": "Off",
 	"foveation_dynamic_text": "dynamic",
 	"foveation_note_text": "(this session)",
-	"info_title_text": "Info"
+	"info_title_text": "Info",
+	"confirm_return_text": "Confirm: abandon run"
 }
