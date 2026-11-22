@@ -24,6 +24,13 @@ var haptics: DefenceHaptics = DefenceHaptics.load_shipped()
 ## Under the rig origin once `attach` has run, null before.
 var screen: DestroyedScreen = null
 var escape: EscapeEndWiring = EscapeEndWiring.new()
+## Hides the status panel and the map while an end screen is up (#1228).
+var cover: EndScreenCover = EndScreenCover.new()
+## Whether the fade went down on some frame while an end screen was up, since
+## the last `reset`; the acceptance check reads it (#1228, CMF-8).
+var fade_dropped: bool = false
+
+var _last_alpha: float = 0.0
 
 var _restart_held: bool = false
 
@@ -34,6 +41,8 @@ func attach(rig: Node3D, left: XRController3D, right: XRController3D) -> void:
 	haptics.left_controller = left
 	haptics.right_controller = right
 	escape.attach(rig)
+	if rig != null:
+		cover.attach(rig)
 	if screen != null or rig == null:
 		return
 	screen = DestroyedScreen.new()
@@ -64,7 +73,24 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), xr_running)
 	var escape_due: bool = escape.update(session, delta_seconds, _restart_held, RigViews.head_point(recentre),
 		xr_running)
+	_watch_fade()
 	return due or escape_due
+
+
+## True from the frame either end screen starts its fade until the press that
+## ends it, and while the shaft panel holds the view dark after an escape.
+func end_screen_up() -> bool:
+	return sequence.line_shown() or escape.sequence.line_shown() or escape.choice.is_open()
+
+
+## Hides the panel and map while an end screen is up and notes a fade that went down.
+func _watch_fade() -> void:
+	var up: bool = end_screen_up()
+	cover.update(up)
+	var alpha: float = fade_alpha()
+	if up and alpha < _last_alpha:
+		fade_dropped = true
+	_last_alpha = alpha if up else 0.0
 
 
 ## The fade's opacity this frame from either end screen, 0..1.
@@ -82,3 +108,6 @@ func reset() -> void:
 	if screen != null:
 		screen.visible = false
 	escape.reset()
+	cover.restore()
+	fade_dropped = false
+	_last_alpha = 0.0
