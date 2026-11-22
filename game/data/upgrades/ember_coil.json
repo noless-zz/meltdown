@@ -1,0 +1,13 @@
+{
+	"id": "ember_coil",
+	"name": "Ember Coil",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"scrap_alloy": 2,
+		"cell_salts": 3
+	},
+	"grants": "ember_coil"
+}

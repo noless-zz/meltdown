@@ -1,0 +1,13 @@
+{
+	"id": "prism_veil",
+	"name": "Prism Veil",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 1,
+	"requires": [],
+	"cost": {
+		"cell_salts": 3,
+		"scrap_alloy": 1
+	},
+	"grants": "prism_veil"
+}
