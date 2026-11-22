@@ -91,6 +91,7 @@ static func placement(head: Transform3D, distance_m: float, offset_m: Vector2) -
 ## Hides the menu; it keeps its choices for the next `open`.
 func close() -> void:
 	visible = false
+	model.return_armed = false  # Closing cancels the Return to base confirm step (#1246).
 
 
 ## One frame of named actions while open (see `DevMenuModel.press`).
@@ -140,6 +141,8 @@ func _refresh() -> void:
 		var entry_kind: String = str(entry["kind"])
 		if entry_kind == DevMenuSpec.KIND_UPDATE:
 			text = model.update_text(text)
+		elif entry_kind == DevMenuSpec.KIND_RETURN:
+			text = model.return_text(text)
 		elif model.value(entry_kind) != null:
 			text += ": < %s >" % model.value_text(entry_kind)
 		var chosen: bool = index == model.selected
