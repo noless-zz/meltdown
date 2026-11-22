@@ -31,3 +31,16 @@ func explored() -> Array[int]:
 		if _seen[index]:
 			result.append(index)
 	return result
+
+
+## Marks every box whose nearest point to `position` is within `radius` metres,
+## walls ignored: the wide radar sees tunnels through rock (#1059, CRF-5).
+## A box holding `position` is at distance zero, so this marks what `visit`
+## marks and more.
+func visit_within(position: Vector3, radius: float) -> void:
+	var limit: float = radius * radius
+	for index: int in _union.boxes.size():
+		var box: BoxBounds = _union.boxes[index]
+		var nearest: Vector3 = position.clamp(box.min_corner, box.max_corner)
+		if nearest.distance_squared_to(position) <= limit:
+			_seen[index] = true

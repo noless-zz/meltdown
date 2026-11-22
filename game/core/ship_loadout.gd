@@ -35,9 +35,13 @@ const UTILITY_KEY: String = "utility"
 ## The look-aim module (CMB-8, #1042): while fitted, look-aim stays on at every
 ## comfort preset. Core only carries the id; the headset side reads it.
 const LOOK_AIM_MODULE: String = "look_aim"
+## The wide radar module (#1059, CRF-5, MAP-1): while fitted, the hologram map
+## also shows tunnels near the ship. Core only carries the id; the map reads it.
+const WIDE_RADAR_MODULE: String = "wide_radar"
 ## Utility module kinds core knows; any other module id is rejected, naming
-## the field. Look-aim is the first (#1042); radar and scanner come later.
-const UTILITY_MODULE_KINDS: Array[String] = ["look_aim"]
+## the field. Look-aim came first (#1042), then the wide radar (#1059); the
+## mine scanner comes later.
+const UTILITY_MODULE_KINDS: Array[String] = [LOOK_AIM_MODULE, WIDE_RADAR_MODULE]
 
 ## Weapon id of each slot, "" when empty.
 var primary_ids: Array[String] = ["", ""]

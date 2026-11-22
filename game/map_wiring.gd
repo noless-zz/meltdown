@@ -21,6 +21,11 @@ extends RefCounted
 ## reactor stays marked, dimmed, where the escape began. Whether it is
 ## destroyed comes from `MapRouteWiring.reactor_destroyed`, which reads a copy.
 ##
+## While the wide radar module is in one of the ship's utility slots (#1059,
+## CRF-5), every box within the radar's radius of the ship is marked too, walls
+## ignored. The slots are read from the session's ship copy each frame, and the
+## radius from `WideRadar`'s data file.
+##
 ## While the meltdown runs, `MapRouteWiring` hands the map the escape route the
 ## player knows (#402, MAP-2). It lives in its own file because it searches the
 ## meltdown's debris and names the simulation, which this file never does.
@@ -51,6 +56,8 @@ var _reactor_destroyed: bool = false
 var _reactor_at: Vector3 = Vector3.ZERO
 ## The known escape route on the map during the meltdown (#402).
 var route_wiring: MapRouteWiring = MapRouteWiring.new()
+## The wide radar's data, read on the first `update`; tests may set it first.
+var radar: WideRadar = null
 
 
 ## Creates the hologram and hangs it in the hand that clicks `show_map` under
@@ -79,7 +86,7 @@ func update(session: LocalSession, _delta_seconds: float, shared: ClickHold = nu
 		return
 	if session != _session:
 		_start(session)
-	explored.visit(session.current_ship().position)
+	_explore(session.current_ship())
 	var now: Array[int] = explored.explored()
 	var grew: bool = now != _drawn
 	if grew:
@@ -125,6 +132,23 @@ func _start(session: LocalSession) -> void:
 	_reactor_destroyed = false
 	_mark(session)
 	route_wiring.clear(hologram)
+
+
+## Marks the boxes `ship` has found this frame: those holding it, or with the
+## wide radar fitted, every box within its radius. A rejected radar file is
+## reported once and the map falls back to the boxes flown through.
+func _explore(ship: ShipState) -> void:
+	if not ship.utility_slots.has(ShipLoadout.WIDE_RADAR_MODULE):
+		explored.visit(ship.position)
+		return
+	if radar == null:
+		radar = WideRadar.load_file()
+		if radar.error != "":
+			push_error(radar.error)
+	if radar.error != "":
+		explored.visit(ship.position)
+		return
+	explored.visit_within(ship.position, radar.reveal_radius_m)
 
 
 ## Hands the exit, the reactor and whether it is known to the hologram. Both
