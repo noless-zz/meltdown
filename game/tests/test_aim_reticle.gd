@@ -1,8 +1,9 @@
 extends RefCounted
 
-## The aiming reticle (CMB-6, ARC-4, ARC-3, #923, #1211): its look file, its
-## place along the simulated gun direction read from a fed ship state, and that
-## it shows on every comfort preset. Its robot target: `test_aim_reticle_target.gd`.
+## The aiming reticle (CMB-6, ARC-4, ARC-3, #923, #1211, #1239): its look file,
+## its place along the simulated gun direction read from a fed ship state, that
+## it shows on every comfort preset, and that look-aim reaches it only through the
+## ship input and the simulated gun direction. Its robot target: `test_aim_reticle_target.gd`.
 
 
 func test_the_shipped_look_file_is_accepted_and_matches_the_fallback() -> String:
@@ -99,7 +100,7 @@ func test_combat_wiring_shows_it_on_every_preset() -> String:
 		var session: LocalSession = LevelStart.tunnel_session(LatestInputSource.new())
 		var combat: CombatWiring = CombatWiring.new()
 		combat.attach(world)
-		combat.update(session, null, null, 0.0, preset.look_aim)
+		combat.update(session, null, null, 0.0)
 		var shown: bool = combat.aim_reticle.visible
 		var at: Vector3 = combat.aim_reticle.transform.origin
 		var parented: bool = combat.aim_reticle.get_parent() == world
@@ -116,6 +117,40 @@ func test_combat_wiring_shows_it_on_every_preset() -> String:
 	return ""
 
 
+func test_with_look_aim_on_the_guns_and_reticle_follow_the_head() -> String:
+	var source: LatestInputSource = LatestInputSource.new()
+	var session: LocalSession = LevelStart.tunnel_session(source)
+	var rig: Node3D = Node3D.new()
+	var camera: Node3D = Node3D.new()
+	camera.name = "Camera"
+	rig.add_child(camera)
+	var comfort: ComfortWiring = ComfortWiring.new(source, ThumbstickMapping.new())
+	comfort.attach_cockpit_frame(rig, HeadRecentre.new())
+	comfort.look_aim.head_trusted = func() -> bool: return true
+	comfort.set_preset(1)
+	# Ten degrees right: inside the gimbal cone, so the guns reach it.
+	camera.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-10.0)), Vector3(0.0, 1.2, 0.0))
+	var world: Node3D = Node3D.new()
+	var combat: CombatWiring = CombatWiring.new()
+	combat.attach(world)
+	for i: int in range(30):
+		comfort.hand_input(ShipInput.new(), Basis.IDENTITY, false)
+		session.advance(ShipState.TICK_DT)
+	combat.update(session, null, null, 0.0)
+	var ship: ShipState = session.current_ship()
+	var expected: Vector3 = ship.position + ship.orientation * ship.gun_direction \
+		* combat.aim_reticle.shown_distance
+	var at: Vector3 = combat.aim_reticle.transform.origin
+	rig.free()
+	world.free()
+	var right: float = rad_to_deg(atan2(ship.gun_direction.x, -ship.gun_direction.z))
+	if absf(right - 10.0) > 0.5:
+		return "with look-aim on the guns point %s degrees right, expected 10" % right
+	if not at.is_equal_approx(expected):
+		return "reticle at %s, expected %s along the turned guns" % [at, expected]
+	return ""
+
+
 func test_on_preset_4_without_the_module_it_sits_on_the_nose() -> String:
 	var preset: ComfortPreset = ComfortPresetFiles.load_number(4)
 	if preset == null or preset.look_aim:
@@ -124,7 +159,7 @@ func test_on_preset_4_without_the_module_it_sits_on_the_nose() -> String:
 	var session: LocalSession = LevelStart.tunnel_session(LatestInputSource.new())
 	var combat: CombatWiring = CombatWiring.new()
 	combat.attach(world)
-	combat.update(session, null, null, 0.0, preset.look_aim)
+	combat.update(session, null, null, 0.0)
 	var ship: ShipState = session.current_ship()
 	var facing: Vector3 = -combat.aim_reticle.transform.basis.z.normalized()
 	var nose: Vector3 = (ship.orientation * LookAim.NOSE).normalized()

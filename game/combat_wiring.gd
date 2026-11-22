@@ -69,9 +69,8 @@ func attach(world: Node3D) -> void:
 ## `panel`, if given, shows the ship's gauges (#1216), weapon slots and the part in its
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
 ## The aim reticle shows along the ship's gun direction on every preset
-## (#1211), so `_look_aim` no longer changes anything; `main.gd` still passes it.
-func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0,
-		_look_aim: bool = false) -> void:
+## (#1211); look-aim reaches it only through that simulated direction (#1239).
+func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0) -> void:
 	show_hit_flash(delta)
 	if panel != null:
 		var ship: ShipState = session.current_ship()
