@@ -170,7 +170,10 @@ func test_the_interior_tint_differs_from_the_tunnel_walls() -> String:
 ## The status panel's bottom row rests on the ledge's band. #605 raised the
 ## panel toward the eye line, so its lower rows, not its centre, meet the ledge.
 func test_the_ledge_sits_under_the_status_panel() -> String:
-	var panel_pitch: float = -CockpitGeometry.yaw_pitch(StatusPanel.row_point(StatusPanel.PRESET_Y)).y
+	var panel: StatusPanel = StatusPanel.new()
+	var preset_y: float = (panel.get_node(StatusPanel.PRESET_NAME) as Node3D).position.y
+	panel.free()
+	var panel_pitch: float = -CockpitGeometry.yaw_pitch(StatusPanel.row_point(preset_y)).y
 	for number: int in [1, 2]:
 		var frame: CockpitFrame = CockpitFrame.new(_spec_for(number))
 		var band: Vector2 = frame.ledge_band()

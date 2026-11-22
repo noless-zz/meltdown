@@ -4,10 +4,11 @@ extends RefCounted
 ## empty at the start, the part's id once the ship has flown through it, and
 ## empty again once the ship has slotted it, from the part catalogue the main
 ## scene's session carries (#320). For two seconds after each it says what
-## happened instead (#605).
+## happened instead (#605), for the look's message time (#1210).
 
 ## Frames at 90 Hz that outlast the look's message time.
-const PAST_MESSAGE_FRAMES: int = 200
+static func _past_message_frames() -> int:
+	return ceili(float(StatusPanelLook.load_file()["message_seconds"]) * 90.0) + 20
 
 
 func _main() -> Node:
@@ -60,7 +61,7 @@ func test_the_hold_row_names_a_part_flown_through() -> String:
 	var session: LocalSession = main.get("session")
 	var hold: Array[String] = session.current_ship().hold.duplicate()
 	var message: String = _hold_text(main)
-	_fly(main, PAST_MESSAGE_FRAMES, ShipInput.new())
+	_fly(main, _past_message_frames(), ShipInput.new())
 	var shown: String = _hold_text(main)
 	main.free()
 	if id == "":
@@ -85,7 +86,7 @@ func test_slotting_through_the_input_source_empties_the_hold_row() -> String:
 	var hold: Array[String] = session.current_ship().hold.duplicate()
 	var ids: Array[String] = session.current_ship().primary_ids.duplicate()
 	var message: String = _hold_text(main)
-	_fly(main, PAST_MESSAGE_FRAMES, ShipInput.new())
+	_fly(main, _past_message_frames(), ShipInput.new())
 	var shown: String = _hold_text(main)
 	main.free()
 	if not held.contains(id) or id == "":
@@ -129,15 +130,52 @@ func test_held_part_is_the_first_id_or_empty() -> String:
 	return ""
 
 
-func test_the_weapon_row_names_the_active_primary() -> String:
+func test_the_weapon_rows_name_every_primary_slot() -> String:
 	var main: Node = _main()
 	_fly(main, 2, ShipInput.new())
 	var panel: StatusPanel = main.get("status_panel")
 	var session: LocalSession = main.get("session")
-	var expected: String = CombatWiring.active_weapon(session.current_ship())
-	var shown: String = String(panel.texts()[StatusPanel.WEAPON_NAME])
+	var ship: ShipState = session.current_ship()
+	var names: Array[String] = CombatWiring.weapon_names(ship)
+	var shown: Array[String] = []
+	for slot: int in names.size():
+		shown.append(String(panel.texts()[StatusPanelWeaponRows.node_name(slot)]))
+	var selected: int = ship.selected_primary
 	main.free()
-	var want: String = StatusPanel.WEAPON_NONE if expected == "" else "Weapon %s" % expected
-	if shown != want:
-		return "the weapon row reads %s, not %s" % [shown, want]
+	for slot: int in names.size():
+		var want: String = StatusPanelWeaponRows.row_text(slot, names[slot], slot == selected)
+		if shown[slot] != want:
+			return "slot %d reads %s, not %s" % [slot + 1, shown[slot], want]
+	return ""
+
+
+## #1210: the owner's needle gun went into the empty second slot and showed
+## nowhere. On the very frame the slot fills, row 2 names it and row 1, the
+## slot that fires, keeps the mark.
+func test_a_slotted_part_shows_on_its_row_on_the_frame_it_is_slotted() -> String:
+	var main: Node = _main()
+	var id: String = _take_first_part(main)
+	var session: LocalSession = main.get("session")
+	var panel: StatusPanel = main.get("status_panel")
+	var slot: ShipInput = ShipInput.new()
+	slot.slot_held = true
+	var frame_ids: Array[String] = []
+	var rows: Array[String] = []
+	for frame: int in 6:
+		_fly(main, 1, slot)
+		frame_ids = session.current_ship().primary_ids.duplicate()
+		if frame_ids.has(id):
+			rows = [String(panel.texts()[StatusPanelWeaponRows.node_name(0)]),
+				String(panel.texts()[StatusPanelWeaponRows.node_name(1)])]
+			break
+	var ship: ShipState = session.current_ship()
+	var names: Array[String] = CombatWiring.weapon_names(ship)
+	main.free()
+	if id == "" or rows.is_empty():
+		return "part %s was not slotted within 6 frames (%s)" % [id, frame_ids]
+	var at: int = frame_ids.find(id)
+	if rows[at] != StatusPanelWeaponRows.row_text(at, names[at], at == ship.selected_primary):
+		return "on the slotting frame row %d reads %s" % [at + 1, rows[at]]
+	if not rows[ship.selected_primary].begins_with(StatusPanelWeaponRows.FIRE_MARK):
+		return "the fire mark is not on row %d: %s" % [ship.selected_primary + 1, rows]
 	return ""

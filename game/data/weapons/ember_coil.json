@@ -1,4 +1,5 @@
 {
+	"name": "Ember Coil",
 	"fire_interval_ticks": 8,
 	"projectile_speed": 240.0,
 	"lifetime": 2.5,

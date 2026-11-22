@@ -9,10 +9,10 @@ extends RefCounted
 const FACING_LIMIT_DEG: float = 15.0
 ## Rows closer than this would put glyphs on top of each other.
 const MIN_ROW_GAP: float = 0.025
-## Top to bottom, as #605 asks: countdown, hull, shield, energy, weapon, hold,
-## then the rest.
+## Top to bottom, as #605 asks: countdown, hull, shield, energy, the weapon
+## slots (#1210), hold, then the rest.
 const ROW_ORDER: Array[String] = [StatusPanel.MELTDOWN_NAME, StatusPanel.HULL_LABEL_NAME,
-	StatusPanel.SHIELD_LABEL_NAME, StatusPanel.ENERGY_LABEL_NAME, StatusPanel.WEAPON_NAME,
+	StatusPanel.SHIELD_LABEL_NAME, StatusPanel.ENERGY_LABEL_NAME, StatusPanel.WEAPON_NAME, "Weapon2",
 	StatusPanel.HOLD_NAME, StatusPanel.SPEED_NAME, StatusPanel.PRESET_NAME]
 
 
@@ -25,6 +25,10 @@ static func _below(point: Vector3) -> float:
 	return -CockpitGeometry.yaw_pitch(point).y
 
 
+## Every row the panel draws. Speed and the preset have not drawn since #1207
+## (the dev menu shows them); with a row per weapon slot (#1210) they sit
+## below the glance, which `test_the_shipped_rows_leave_out_speed_and_preset`
+## keeps true.
 func test_every_row_is_within_a_glance_down_on_every_preset() -> String:
 	var limit: float = float(StatusPanelLook.load_file()["max_row_angle_deg"])
 	for number: int in [1, 2, 3, 4]:
@@ -37,7 +41,8 @@ func test_every_row_is_within_a_glance_down_on_every_preset() -> String:
 		var eye: Transform3D = frame.transform.affine_inverse()
 		var angles: Array[float] = []
 		for row: String in ROW_ORDER:
-			angles.append(_below(eye * panel.transform * Vector3(0.0, _y(panel, row), 0.0)))
+			if (panel.get_node(row) as VisualInstance3D).layers != 0:
+				angles.append(_below(eye * panel.transform * Vector3(0.0, _y(panel, row), 0.0)))
 		var facing: Vector3 = (eye.basis * panel.transform.basis).z
 		var to_eye: Vector3 = -(eye * panel.transform.origin).normalized()
 		var facing_off: float = rad_to_deg(facing.angle_to(to_eye))
@@ -49,6 +54,16 @@ func test_every_row_is_within_a_glance_down_on_every_preset() -> String:
 			return "preset %d: the top row is above the eye line" % number
 		if facing_off > FACING_LIMIT_DEG:
 			return "preset %d: the panel faces %.1f degrees off the eye" % [number, facing_off]
+	return ""
+
+
+func test_the_shipped_rows_leave_out_speed_and_preset() -> String:
+	var rows: Array[String] = StatusPanelLook.load_file()["rows"]
+	for row: String in ["meltdown", "hull", "shield", "energy", "weapon", "hold"]:
+		if not rows.has(row):
+			return "the shipped panel does not draw %s" % row
+	if rows.has("speed") or rows.has("preset"):
+		return "the shipped panel draws speed or preset below the glance: %s" % [rows]
 	return ""
 
 
@@ -79,17 +94,18 @@ func test_rows_run_countdown_hull_shield_energy_weapon_hold_then_the_rest() -> S
 	return ""
 
 
-func test_the_weapon_row_names_the_weapon_or_says_none() -> String:
+func test_the_weapon_rows_name_each_slot_or_say_empty() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var unwired: String = panel.texts()[StatusPanel.WEAPON_NAME]
-	panel.show_weapon("needle_gun")
+	panel.show_weapons(["Needle Gun", ""] as Array[String], 0)
 	var armed: String = panel.texts()[StatusPanel.WEAPON_NAME]
-	panel.show_weapon("")
+	panel.show_weapons(["", ""] as Array[String], 0)
 	var empty: String = panel.texts()[StatusPanel.WEAPON_NAME]
 	panel.free()
-	if unwired != StatusPanel.WEAPON_NONE or empty != StatusPanel.WEAPON_NONE:
+	var none: String = StatusPanelWeaponRows.row_text(0, "", true)
+	if unwired != none or empty != none:
 		return "an empty slot reads %s, then %s" % [unwired, empty]
-	if armed != "Weapon needle_gun":
+	if armed != "> 1 Needle Gun":
 		return "the weapon row reads %s" % armed
 	return ""
 
