@@ -58,6 +58,17 @@ func _start(source: String) -> void:
 	_fade_from = -1.0  # Started on the next `advance`, on its clock.
 
 
+## Drops a restart that waits and ends its fade at once, clear (#1170): the
+## hub opened, and a level must not start behind it.
+func cancel() -> void:
+	if _pending != null:
+		print("%s drops %s: the hub opened" % [LOG_PREFIX, str(_pending)])
+	_pending = null
+	_test_pending = false
+	_fade_from = -1.0
+	alpha = 0.0
+
+
 ## Once a frame: fades out, restarts on the black frame, fades back in.
 func advance(now: float) -> void:
 	if _pending == null and _fade_from < 0.0:
