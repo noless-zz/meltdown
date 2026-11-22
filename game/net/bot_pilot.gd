@@ -6,13 +6,13 @@ extends ShipInputSource
 ## and in front of the nose (CMB-3, PLT-4). Used to check automatically that
 ## a level can be beaten (gate G2) without a person flying it. In a level it
 ## also picks the robot cheapest to aim at, weaves across the line of fire and
-## falls back to cover when outnumbered (#492; `BotAim`, `BotDodge`, `BotCover`).
+## falls back to cover when outnumbered (#492; `BotAim`, `BotDodge`, `BotCover`,
+## `BotFallback`).
 ##
 ## It only reads the simulation and answers with a `ShipInput`, exactly what a
 ## pilot's controllers would give, so the server stays the only writer of
 ## state (MP-2). No randomness and no clock: the same flight gives the same
-## inputs (ARC-1, ARC-2). In a level it remembers where it last stood out of
-## every robot's line of fire, the cover it chose and the way it weaves.
+## inputs (ARC-1, ARC-2).
 
 ## Distance to the target the bot tries to hold, metres. Far enough that a
 ## robot's shots take a moment to arrive, close enough that every shipped
@@ -36,21 +36,11 @@ const ROUTE_SPEED: float = 10.0
 ## opening's centre and hangs at the corner under fire (#334). Below the
 ## ship's wall damage threshold, so brushing a wall past the corner is free.
 const CORNER_SPEED: float = 3.0
-## In a level, the bot falls back out of fire once its shield drops below
-## this many points, and comes on again only with the shield full, so hull
-## damage comes in short exchanges rather than one long one (#334). In the
-## G2 level every robot is awake from the start, so a straight fight is lost.
-const RETREAT_SHIELD: float = 20.0
-## The bot falls back too once this many robots can shoot it at once (#492):
-## it meets them one at a time from cover instead.
-const OUTNUMBERED: int = 2
-## A robot out of sight that closes on the ship faster than this, metres per
-## second, is waited for where the bot stands rather than met round a corner.
-const CLOSING_ROBOT_SPEED: float = 0.5
-## The longest the bot waits in a row for robots out of sight, ticks (10 s).
-## Robots behind a wall no longer fire through it (#615), so one held against
-## the wall can creep along it for good; the bot then goes to meet it.
-const MAX_WAIT_TICKS: int = 600
+## Falling back and waiting live in `BotFallback` (#1135); the names stay here for callers.
+const RETREAT_SHIELD: float = BotFallback.RETREAT_SHIELD
+const OUTNUMBERED: int = BotFallback.OUTNUMBERED
+const CLOSING_ROBOT_SPEED: float = BotFallback.CLOSING_ROBOT_SPEED
+const MAX_WAIT_TICKS: int = BotFallback.MAX_WAIT_TICKS
 
 var _sim: Sim = null
 var _ship_index: int = 0
@@ -60,10 +50,6 @@ var _route: LevelRoute = null
 var _walls: BoxUnion = null
 var _goal: Vector3 = Vector3.ZERO
 var _has_goal: bool = false
-## Where the ship last stood with no robot able to shoot it, while routed.
-var _last_safe: Vector3 = Vector3.ZERO
-var _has_safe: bool = false
-var _retreating: bool = false
 ## Firing points round an intact reactor (#375); null without a level.
 var _flank: BotFlank = null
 ## Reactor and exit steps (#360); null without a level.
@@ -72,8 +58,8 @@ var _escape: BotEscape = null
 var _dodge: BotDodge = null
 ## Places out of every robot's line of fire (#492); null without a level.
 var _cover: BotCover = null
-## Ticks in a row the bot has waited for robots out of sight (`MAX_WAIT_TICKS`).
-var _waited_ticks: int = 0
+## Falling back and waiting (#1135); null without a level.
+var _fallback: BotFallback = null
 ## Stalled (#658), the bot neither weaves nor turns to the robot; null without a level.
 var _stall: BotStall = null
 ## A miner to hold at before the reactor (#1084); null unless a recording sets one.
@@ -92,6 +78,7 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 		_escape = BotEscape.new(sim, ship_index, _walls, _route)
 		_dodge = BotDodge.new(_walls)
 		_cover = BotCover.new(sim, level, _route)
+		_fallback = BotFallback.new(sim, _cover)
 		_stall = BotStall.new()
 
 
@@ -146,18 +133,11 @@ func next_input(_tick: int) -> ShipInput:
 ## in sight the nose stays on it and the bot fires on the way, so a robot that
 ## sees the ship round a corner is shot back at rather than given free shots
 ## (#334); thrust is in ship space, so the route is flown whichever way the
-## nose points. With no robot in sight and none firing, the bot waits while
-## robots close on it or its shield recharges; with its shield low under fire
-## it falls back to where it last stood safe.
+## nose points. When it waits or falls back instead is `BotFallback`'s call.
 func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var shooter: RobotState = _cover.threat(ship)
 	var threatened: bool = shooter != null
-	if not threatened:
-		_last_safe = ship.position
-		_has_safe = true
-		_retreating = false
-	elif ship.shield < RETREAT_SHIELD or _cover.threat_count(ship) >= OUTNUMBERED:
-		_retreating = true
+	_fallback.update(ship, threatened)
 	var in_sight: bool = target != null and shot_reaches(ship, target.position)
 	if _escape.takes_over(self, ship):
 		if _rescue != null and not _sim.reactor.destroyed and _rescue.active():
@@ -167,7 +147,7 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var flanking: bool = flank_point != Vector3.INF
 	var aim: Vector3 = _goal
 	var hold: float = 0.0
-	var shelter: Vector3 = _shelter(ship) if _retreating else Vector3.INF
+	var shelter: Vector3 = _fallback.shelter(ship)
 	if shelter != Vector3.INF:
 		aim = shelter
 	elif flanking:
@@ -187,15 +167,8 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	var offset: Vector3 = waypoint - ship.position
 	var distance: float = offset.length()
 	var wanted: Vector3 = Vector3.ZERO
-	if in_sight or threatened:
-		_waited_ticks = 0
 	var stalled: bool = _stall.update(ship.position)
-	# Stalled, a wait is what keeps the ship there (#603), so it goes on.
-	var waiting: bool = target != null and not in_sight and not threatened and not flanking \
-		and not stalled and (robots_closing(ship) or ship.shield < ship.max_shield) \
-		and _waited_ticks < MAX_WAIT_TICKS
-	if waiting:
-		_waited_ticks += 1
+	var waiting: bool = _fallback.waits(ship, target != null, in_sight, threatened, flanking, stalled)
 	if not waiting and distance > 0.0:
 		var speed: float = clampf((distance - hold) * CLOSING_GAIN, min_speed, ROUTE_SPEED)
 		wanted = offset / distance * speed
@@ -218,39 +191,18 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 	return input
 
 
-## Where to fall back to while retreating: where the ship last stood safe if
-## no robot can hit it there now, else the nearest cover (#492), else where it
-## last stood safe after all; INF when there is nowhere.
-func _shelter(ship: ShipState) -> Vector3:
-	if _has_safe and not _cover.exposed(_last_safe):
-		return _last_safe
-	var point: Vector3 = _cover.point_for(ship)
-	if point == Vector3.INF and _has_safe:
-		return _last_safe
-	return point
-
-
 static func lead_point(ship: ShipState, target: RobotState) -> Vector3:
 	return BotAim.lead_point(ship, target)
 
 
-## Whether any live, armed robot could hit `ship` now: in its weapon's range
-## with a clear line. Robots turn to their target, so facing is not counted.
-## An intact reactor stops robot shots too (#345), so one behind it is no threat.
+## Whether any live, armed robot could hit `ship` now (`BotFallback.under_fire`).
 func under_fire(ship: ShipState) -> bool:
-	for robot: RobotState in _sim.robots:
-		if BotCover.hits(_sim, _walls, robot, ship.position):
-			return true
-	return false
+	return BotFallback.under_fire(_sim, _walls, ship)
 
 
 ## Whether any live robot is closing on `ship` faster than CLOSING_ROBOT_SPEED.
 func robots_closing(ship: ShipState) -> bool:
-	for robot: RobotState in _sim.robots:
-		if robot.is_alive() and robot.position != ship.position \
-				and robot.velocity.dot((ship.position - robot.position).normalized()) > CLOSING_ROBOT_SPEED:
-			return true
-	return false
+	return BotFallback.robots_closing(_sim, ship)
 
 
 ## In a level, of the robots a shot can reach the one `BotAim.cost` rates
@@ -272,20 +224,15 @@ func _target_in_level(ship: ShipState, nearest: RobotState) -> RobotState:
 ## Whether a shot from `ship`'s selected primary weapon, fired straight at
 ## `point`, would reach it inside the walls: a shot ends where it leaves open
 ## space (`ProjectileHits`, `LineOfSight`), so this checks the same line. An
-## intact reactor in the way takes the shot, so
-## a robot behind it is out of reach too. An empty slot never reaches anything.
+## intact reactor in the way takes the shot, so a robot behind it is out of
+## reach too. An empty slot never reaches anything.
 func shot_reaches(ship: ShipState, point: Vector3) -> bool:
 	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
 	if weapon == null:
 		return false
 	if _sim.reactor != null and _sim.reactor.segment_entry(ship.position, point) >= 0.0:
 		return false
-	return _reaches(ship.position, point, weapon.projectile_speed)
-
-
-## Whether a shot from `from` straight at `point` stays in open space.
-func _reaches(from: Vector3, point: Vector3, speed: float) -> bool:
-	return BotFlank.reaches_walls(_walls, from, point, speed)
+	return BotFlank.reaches_walls(_walls, ship.position, point, weapon.projectile_speed)
 
 
 static func turn_towards(local: Vector3) -> Vector3:
