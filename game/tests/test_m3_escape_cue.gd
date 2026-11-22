@@ -10,8 +10,7 @@ const EXPECTED_HASH: int = 3709902663
 ## The replay header written as format version 17 since #922.
 const EXPECTED_LEVEL_HASH: int = 1931884533
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
-## The escape takes a few thousand ticks; the runner flies one per frame.
-const FRAME_LIMIT: int = 40000
+const M3Run := preload("res://tests/m3_suite_run.gd")
 
 
 func test_the_step_lists_escape_cue_and_keeps_its_hashes() -> String:
@@ -35,34 +34,18 @@ func test_the_check_is_known_and_needs_a_replay() -> String:
 	return ""
 
 
-## The shipped step, flown by the runner in a main scene built as on the
+## The shipped step, flown in the shared m3 run (`m3_suite_run.gd`, #1139) by
+## the runner in a main scene built as on the
 ## headset: every check passes, and the countdown and arrow were seen.
 func test_the_runner_passes_the_step_with_the_cue() -> String:
-	var only: AcceptanceSuite = AcceptanceSuite.new()
-	only.name = "m3"
-	only.steps.append(SeedPick.find_step(STEP_ID))
-	var suites: Array[AcceptanceSuite] = [only]
-	var runner: AcceptanceRunner = AcceptanceRunner.new()
-	runner.quit_callback = func(_code: int) -> void: pass
-	runner.setup(_main(), suites, null)
-	var frames: int = 0
-	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
-		frames += 1
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var step: Dictionary = runner.reports[0].steps[0]
+	var problem: String = M3Run.step_problem(STEP_ID)
+	if problem == "":
+		var step: Dictionary = M3Run.step(STEP_ID)
 		var measured: Dictionary = step["measurements"]
 		if int(measured.get("escape_cue_countdown_ticks", 0)) < 60 \
 				or int(measured.get("escape_cue_arrow_ticks", 0)) < 60 \
 				or not str(step["message"]).contains("escape_cue: countdown shown on"):
 			problem = "measured %s: %s" % [measured, step["message"]]
-	for path: String in runner.report_paths:
-		DirAccess.remove_absolute(path)
-	runner.main.free()
-	runner.free()
 	return problem
 
 
@@ -168,11 +151,3 @@ static func _fails_with(taken: Array[Dictionary], text: String) -> String:
 	if result[0] == AcceptanceReport.RESULT_PASS or str(result[1]) != text:
 		return "wanted '%s', got %s" % [text, result]
 	return ""
-
-
-## The main scene with its rig built and `_ready` run, as on the headset.
-static func _main() -> Node:
-	var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
-	main.get_node("XRRig").call("build")
-	main.call("_ready")
-	return main

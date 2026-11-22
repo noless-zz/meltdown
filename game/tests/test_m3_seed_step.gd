@@ -36,7 +36,11 @@ const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const MODULE_FILE: String = "res://data/modules/offset_shaft.json"
 ## The escape takes about 3,700 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 12000
+## The changed-data test flies only this many ticks of the replay (#1139).
+const SHORT_TICKS: int = 60
+const SHORT_REPLAY: String = "user://t1139_short_escape.replay"
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
+const M3Run := preload("res://tests/m3_suite_run.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
 const REPLAY_HEADER: String = """# The bot pilot's escape from the m3 suite's generated seed (#460, #494): robots
 # and the reactor destroyed, debris falling, out through the entrance. Inputs
@@ -95,27 +99,37 @@ func test_the_replay_holds_only_inputs() -> String:
 	return ""
 
 
-## The step alone, as the headset flies it: every check passes, the bot
+## The step in the m3 suite, as the headset flies it (flown once for every
+## m3 test, `m3_suite_run.gd`, #1139): every check passes, the bot
 ## escapes with all four robots gone and at least one rock down.
 func test_the_runner_passes_the_step() -> String:
-	var runner: AcceptanceRunner = _run({})
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
+	var problem: String = M3Run.step_problem(STEP_ID)
+	if problem == "":
+		var measured: Dictionary = M3Run.step(STEP_ID)["measurements"]
 		if measured.get("outcome") != "ESCAPED" or int(measured.get("debris_fallen", 0)) < 1 \
 				or int(measured.get("robots_alive", -1)) != 0:
 			problem = "measured %s" % measured
-	_done(runner)
 	return problem
 
 
 ## A changed shipped value that changes the seed's level fails the step, and
 ## the report and the log name it, and the level hash says the level changed
 ## even where the flight might not show it (a rock's radius). One change each
-## to robot, debris and generator data.
+## to robot, debris and generator data. The level hash is taken from the level
+## the step builds before it flies, so the step flies only the first
+## SHORT_TICKS of the replay and checks only `level_hash` (#1139); with the
+## shipped data that short step passes, so the failures come from the changes.
 func test_a_changed_data_value_fails_the_step_naming_it() -> String:
+	var short: AcceptanceStep = _short_step()
+	if short == null:
+		return "could not write %s" % SHORT_REPLAY
+	var control: AcceptanceRunner = _run({}, short)
+	var unchanged: String = "\n".join(control.messages)
+	var control_passed: bool = control.exit_code == AcceptanceRunner.EXIT_PASS
+	_done(control)
+	if not control_passed:
+		DirAccess.remove_absolute(SHORT_REPLAY)
+		return "with the shipped data the short step failed: %s" % unchanged
 	var changes: Dictionary = {
 		ROBOTS_FILE: ["\"min_per_level\": 4", "\"min_per_level\": 5"],
 		DEBRIS_FILE: ["\"radius\": [1.5, 3]", "\"radius\": [1.5, 2.5]"],
@@ -125,8 +139,9 @@ func test_a_changed_data_value_fails_the_step_naming_it() -> String:
 		var text: String = SeedLevel.read_text(path)
 		var pair: Array = changes[path]
 		if not text.contains(pair[0]):
+			DirAccess.remove_absolute(SHORT_REPLAY)
 			return "%s no longer has %s; pick another change" % [path, pair[0]]
-		var runner: AcceptanceRunner = _run({path: text.replace(pair[0], pair[1])})
+		var runner: AcceptanceRunner = _run({path: text.replace(pair[0], pair[1])}, short)
 		var report: Dictionary = runner.reports[0].steps[0] if not runner.reports.is_empty() else {}
 		var said: String = "\n".join(runner.messages)
 		var problem: String = ""
@@ -143,7 +158,9 @@ func test_a_changed_data_value_fails_the_step_naming_it() -> String:
 			problem = "with %s changed the log does not name the step: %s" % [path.get_file(), said]
 		_done(runner)
 		if problem != "":
+			DirAccess.remove_absolute(SHORT_REPLAY)
 			return problem
+	DirAccess.remove_absolute(SHORT_REPLAY)
 	return ""
 
 
@@ -215,14 +232,33 @@ func _on_quit(code: int) -> void:
 	_quit_codes.append(code)
 
 
-## Flies a suite holding only this step, with `overrides` in place of data files.
-func _run(overrides: Dictionary) -> AcceptanceRunner:
+## The step flying only the first SHORT_TICKS inputs of its replay, written to
+## SHORT_REPLAY, and checking only `level_hash`; null if it cannot be written.
+func _short_step() -> AcceptanceStep:
+	var lines: PackedStringArray = FileAccess.get_file_as_string(REPLAY_PATH).split("\n")
+	var first_input: int = lines.find("inputs") + 1
+	if first_input == 0:
+		return null
+	var file: FileAccess = FileAccess.open(SHORT_REPLAY, FileAccess.WRITE)
+	if file == null:
+		return null
+	file.store_string("\n".join(lines.slice(0, first_input + SHORT_TICKS)) + "\n")
+	file.close()
+	var short: AcceptanceStep = step()
+	short.replay_path = SHORT_REPLAY
+	short.checks.assign([AcceptanceStep.CHECK_LEVEL_HASH])
+	return short
+
+
+## Flies a suite holding only `flown` (this step when null), with `overrides`
+## in place of data files.
+func _run(overrides: Dictionary, flown: AcceptanceStep = null) -> AcceptanceRunner:
 	_quit_codes.clear()
 	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
 	var only: AcceptanceSuite = AcceptanceSuite.new()
 	only.name = suite.name
 	only.error = suite.error
-	only.steps.append(step())
+	only.steps.append(flown if flown != null else step())
 	var suites: Array[AcceptanceSuite] = [only]
 	var runner: AcceptanceRunner = AcceptanceRunner.new()
 	runner.quit_callback = _on_quit

@@ -142,9 +142,9 @@ func test_held_entries_match_the_route_guard() -> String:
 	boxes.remove_at(4)
 	level.union = BoxUnion.new(boxes)
 	var levels: Array[LevelDef] = [level]
-	var inputs: SeedLevel = SeedLevel.load_inputs()
+	# Shipped levels shared with the sweeps (#1139); both guards only read them.
 	for level_seed: int in GUARD_SEEDS:
-		levels.append(inputs.level_of(inputs.generate(level_seed)))
+		levels.append(SeedLevelCache.level(level_seed))
 	var compared: int = 0
 	for index: int in levels.size():
 		var each: LevelDef = levels[index]

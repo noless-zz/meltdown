@@ -2,15 +2,13 @@ extends RefCounted
 
 ## The `map_markers` acceptance check (#913, MAP-1, MAP-2, RUN-2, DEV-7) and the
 ## four generated m3 replays flown with it: from the tick the reactor dies the
-## held map marks it, and the exit is marked throughout. `m3.json` is lane-a's
-## (#912), so the steps are flown here with the check added in memory; the
-## suite file lists it once #912 adds it.
+## held map marks it, and the exit is marked throughout. `m3.json` lists the
+## check on all four (#912).
 
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
 const GENERATED_STEPS: Array[String] = ["bot_generated_escape", "bot_generated_door_escape",
 	"bot_generated_sight", "bot_generated_fire_escape"]
-## The escapes take a few thousand ticks; the runner flies one per frame.
-const FRAME_LIMIT: int = 160000
+const M3Run := preload("res://tests/m3_suite_run.gd")
 
 
 func test_the_check_is_known_judged_and_needs_a_replay() -> String:
@@ -25,45 +23,27 @@ func test_the_check_is_known_judged_and_needs_a_replay() -> String:
 	return ""
 
 
-## The four generated m3 steps, each with `map_markers` added, flown by the
-## runner in a main scene holding the map as on the headset: every check of
-## every step passes, and the reactor was marked on every tick after it died.
+## The four generated m3 steps list `map_markers` in `m3.json` (#912) and, flown
+## by the runner in a main scene holding the map as on the headset, pass it:
+## the reactor was marked on every tick after it died. The flights are the
+## shared m3 run (`m3_suite_run.gd`, #1139).
 func test_the_generated_m3_replays_mark_the_reactor_once_it_dies() -> String:
-	var suite: AcceptanceSuite = AcceptanceSuite.new()
-	suite.name = "m3"
 	for id: String in GENERATED_STEPS:
-		var step: AcceptanceStep = SeedPick.find_step(id)
-		if step == null:
+		var listed: AcceptanceStep = SeedPick.find_step(id)
+		if listed == null:
 			return "m3 has no step %s" % id
-		if not step.has_check(AcceptanceStep.CHECK_MAP_MARKERS):
-			step.checks.append(AcceptanceStep.CHECK_MAP_MARKERS)
-		suite.steps.append(step)
-	var suites: Array[AcceptanceSuite] = [suite]
-	var runner: AcceptanceRunner = AcceptanceRunner.new()
-	runner.quit_callback = func(_code: int) -> void: pass
-	runner.setup(_main(), suites, null)
-	var frames: int = 0
-	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
-		frames += 1
-	var problem: String = ""
-	if not runner.finished:
-		problem = "the four steps did not finish in %d frames" % FRAME_LIMIT
-	elif runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		for step: Dictionary in runner.reports[0].steps:
-			var measured: Dictionary = step["measurements"]
-			var dead: int = int(measured.get("map_markers_dead_ticks", 0))
-			if dead < 1 or int(measured.get("map_markers_reactor_shown_dead_ticks", -1)) != dead \
-					or not str(step["message"]).contains("map_markers: exit marked"):
-				problem = "%s measured %s: %s" % [step.get("id", "?"), measured, step["message"]]
-				break
-	for path: String in runner.report_paths:
-		DirAccess.remove_absolute(path)
-	runner.main.free()
-	runner.free()
-	return problem
+		if not listed.has_check(AcceptanceStep.CHECK_MAP_MARKERS):
+			return "%s does not list map_markers: %s" % [id, listed.checks]
+		var problem: String = M3Run.step_problem(id)
+		if problem != "":
+			return problem
+		var step: Dictionary = M3Run.step(id)
+		var measured: Dictionary = step["measurements"]
+		var dead: int = int(measured.get("map_markers_dead_ticks", 0))
+		if dead < 1 or int(measured.get("map_markers_reactor_shown_dead_ticks", -1)) != dead \
+				or not str(step["message"]).contains("map_markers: exit marked"):
+			return "%s measured %s: %s" % [id, measured, step["message"]]
+	return ""
 
 
 func test_a_clean_hand_fed_run_passes() -> String:
@@ -128,12 +108,3 @@ static func _fails_with(taken: Array[Dictionary], text: String) -> String:
 	if result[0] == AcceptanceReport.RESULT_PASS or str(result[1]) != text:
 		return "wanted '%s', got %s" % [text, result]
 	return ""
-
-
-## The main scene with its rig built and `_ready` run, so it holds the map in a
-## hand as on the headset.
-static func _main() -> Node:
-	var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
-	main.get_node("XRRig").call("build")
-	main.call("_ready")
-	return main

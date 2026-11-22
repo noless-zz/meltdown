@@ -10,8 +10,7 @@ const EXPECTED_HASH: int = 854268051
 ## The replay header written as format version 17 since #922.
 const EXPECTED_LEVEL_HASH: int = 174792129
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
-## The escape takes a few thousand ticks; the runner flies one per frame.
-const FRAME_LIMIT: int = 40000
+const M3Run := preload("res://tests/m3_suite_run.gd")
 const GRACE: int = MapRouteWiring.ROUTE_EVERY_TICKS
 const TICK: float = 1.0 / 60.0
 ## G2's side room, off the route out, and its reactor room (`test_main_map_route.gd`).
@@ -40,34 +39,18 @@ func test_the_check_is_known_and_needs_a_replay() -> String:
 	return ""
 
 
-## The shipped step, flown by the runner in a main scene that holds its map as
+## The shipped step, flown in the shared m3 run (`m3_suite_run.gd`, #1139) by
+## the runner in a main scene that holds its map as
 ## on the headset: every check passes and the route is drawn through the meltdown.
 func test_the_runner_passes_the_step_with_the_map() -> String:
-	var only: AcceptanceSuite = AcceptanceSuite.new()
-	only.name = "m3"
-	only.steps.append(SeedPick.find_step(STEP_ID))
-	var suites: Array[AcceptanceSuite] = [only]
-	var runner: AcceptanceRunner = AcceptanceRunner.new()
-	runner.quit_callback = func(_code: int) -> void: pass
-	runner.setup(_main(), suites, null)
-	var frames: int = 0
-	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
-		frames += 1
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var step: Dictionary = runner.reports[0].steps[0]
+	var problem: String = M3Run.step_problem(STEP_ID)
+	if problem == "":
+		var step: Dictionary = M3Run.step(STEP_ID)
 		var measured: Dictionary = step["measurements"]
 		var meltdown: int = int(measured.get("map_route_meltdown_ticks", 0))
 		if meltdown < 60 or int(measured.get("map_route_drawn_ticks", 0)) < meltdown - GRACE \
 				or not str(step["message"]).contains("map_route: route drawn on"):
 			problem = "measured %s: %s" % [measured, step["message"]]
-	for path: String in runner.report_paths:
-		DirAccess.remove_absolute(path)
-	runner.main.free()
-	runner.free()
 	return problem
 
 

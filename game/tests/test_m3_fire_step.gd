@@ -19,9 +19,8 @@ const STEP_ID: String = "bot_generated_fire_escape"
 const REPLAY_PATH: String = "res://acceptance/replays/bot_generated_fire_escape.replay"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 const RecordSwitch := preload("res://tests/record_switch.gd")
-## The escape takes a few thousand ticks; the runner flies one per frame.
-const FRAME_LIMIT: int = 40000
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
+const M3Run := preload("res://tests/m3_suite_run.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
 const REPLAY_HEADER: String = """# The bot pilot's escape from the m3 suite's fire seed (#517): the reactor
 # destroyed, the ship burnt by fire at least once, out through the entrance.
@@ -38,8 +37,6 @@ const FIRE_ON_THE_PATH: String = '[{"position": [0, 0, -8], "size": [8, 8, 2],' 
 ## The same fire moved beside the path: the ship's centre never enters it.
 const FIRE_BESIDE_THE_PATH: String = '[{"position": [7, 0, -8], "size": [4, 4, 2],' \
 	+ ' "after_seconds": 0.1, "kind": "fire", "damage_per_second": 40}]'
-
-var _quit_codes: Array[int] = []
 
 
 ## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
@@ -83,18 +80,15 @@ func test_the_replay_holds_only_inputs() -> String:
 	return ""
 
 
-## The step alone, as the headset flies it: every check passes, the bot
+## The step in the m3 suite, as the headset flies it (flown once for every
+## m3 test, `m3_suite_run.gd`, #1139): every check passes, the bot
 ## escapes having been burnt.
 func test_the_runner_passes_the_step() -> String:
-	var runner: AcceptanceRunner = _run()
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
+	var problem: String = M3Run.step_problem(STEP_ID)
+	if problem == "":
+		var measured: Dictionary = M3Run.step(STEP_ID)["measurements"]
 		if measured.get("outcome") != "ESCAPED" or int(measured.get("burnt_ticks", 0)) < 1:
 			problem = "measured %s" % measured
-	_done(runner)
 	return problem
 
 
@@ -180,38 +174,3 @@ func _step() -> AcceptanceStep:
 	step.id = STEP_ID
 	step.checks = [AcceptanceStep.CHECK_FIRE_BURNED]
 	return step
-
-
-func _on_quit(code: int) -> void:
-	_quit_codes.append(code)
-
-
-## Flies a suite holding only this step.
-func _run() -> AcceptanceRunner:
-	_quit_codes.clear()
-	var only: AcceptanceSuite = AcceptanceSuite.new()
-	only.name = "m3"
-	only.steps.append(SeedPick.find_step(STEP_ID))
-	var suites: Array[AcceptanceSuite] = [only]
-	var runner: AcceptanceRunner = AcceptanceRunner.new()
-	runner.quit_callback = _on_quit
-	var scene: PackedScene = load("res://main.tscn") as PackedScene
-	# Built and readied as on the headset, so the map in the hand that
-	# `map_markers` reads is there (#912, as #884 did for `map_route`).
-	var main: Node = scene.instantiate()
-	main.get_node("XRRig").call("build")
-	main.call("_ready")
-	runner.setup(main, suites, null)
-	var frames: int = 0
-	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
-		frames += 1
-	return runner
-
-
-func _done(runner: AcceptanceRunner) -> void:
-	for path: String in runner.report_paths:
-		DirAccess.remove_absolute(path)
-	if runner.main != null:
-		runner.main.free()
-	runner.free()

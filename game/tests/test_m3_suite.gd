@@ -35,6 +35,7 @@ const BotEscapeTest := preload("res://tests/test_bot_escape.gd")
 ## The recorder's flight, shared with the check that the step flies the same
 ## level (#578).
 const G2Setup := preload("res://tests/m3_g2_setup.gd")
+const M3Run := preload("res://tests/m3_suite_run.gd")
 ## Written above the recording; `Replay` skips lines starting with `#`.
 const REPLAY_HEADER: String = """# The bot pilot's G2 escape (#360): robots cleared, reactor destroyed, out
 # through the entrance. Flown in the m3 suite (#376).
@@ -136,18 +137,20 @@ func test_replay_ends_on_its_hash_escaped() -> String:
 
 
 ## The suite as `--acceptance=m3` runs it, in the flat main scene: every
-## check of both steps passes and the report measures the outcome.
+## check of every step passes and the report measures the outcome. Flown once
+## and shared with the step tests (`m3_suite_run.gd`, #1139).
 func test_the_runner_passes_m3() -> String:
-	var runner: AcceptanceRunner = _run(AcceptanceSuite.load_named(SUITE_NAME))
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
-		if measured.get("outcome") != "ESCAPED":
-			problem = "measured %s" % measured
-	_done(runner)
-	return problem
+	var problem: String = M3Run.suite_problem()
+	if problem != "":
+		return problem
+	var ran: Array[Dictionary] = M3Run.steps()
+	var suite: AcceptanceSuite = AcceptanceSuite.load_file(SUITE_PATH)
+	if ran.size() != suite.steps.size():
+		return "the report has %d steps, the suite %d" % [ran.size(), suite.steps.size()]
+	var measured: Dictionary = ran[0]["measurements"]
+	if ran[0].get("id") != STEP_ID or measured.get("outcome") != "ESCAPED":
+		return "%s measured %s" % [ran[0].get("id"), measured]
+	return ""
 
 
 ## A copy of the replay with one input line changed flies a different run:
