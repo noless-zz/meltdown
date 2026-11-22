@@ -1,0 +1,28 @@
+{
+	"banked": {},
+	"crafted": [
+		"needle_gun",
+		"lattice_shield"
+	],
+	"crew": [
+		{
+			"id": "crew-1",
+			"role": "shield_tech"
+		},
+		{
+			"id": "crew-2",
+			"role": "shield_tech"
+		}
+	],
+	"stats": {
+		"components_banked": 0,
+		"deepest_level": 0,
+		"levels_escaped": 0,
+		"miners_rescued": 0,
+		"runs_lost": 0,
+		"runs_started": 0,
+		"runs_won": 0
+	},
+	"version": 3
+}
+

@@ -1,0 +1,19 @@
+{
+	"fitting": {
+		"parts": {
+			"engine": "",
+			"hull": "",
+			"shield": "lattice_shield"
+		},
+		"primary": [
+			"needle_gun",
+			""
+		],
+		"secondary": [
+			"",
+			""
+		],
+		"utility": []
+	},
+	"version": 2
+}

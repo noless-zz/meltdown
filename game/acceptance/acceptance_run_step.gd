@@ -111,6 +111,7 @@ static func begin(main: Node, step: AcceptanceStep) -> void:
 	if level_start.run != null:
 		level_start.run.level_rules = step.has_check(AcceptanceStep.CHECK_COMPONENTS_BANK) \
 			or step.has_check(AcceptanceStep.CHECK_COLLECTED) or flies_on  # #1028, #1065.
+		AcceptanceFittedStart.begin(level_start.run, step)  # Scratch stores or the plain ship (#1057).
 		level_start.source = level_start.run.level_source()
 	if destroyed != null:
 		destroyed.escape.run = level_start.run

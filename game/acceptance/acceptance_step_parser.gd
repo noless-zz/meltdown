@@ -38,7 +38,8 @@ extends RefCounted
 ## goes with the components_bank check (`AcceptanceComponentsBankCheck`, #1028).
 ## `shaft` and `next_replay` (#1065) fly a run step on into a chosen shaft's
 ## level (`AcceptanceShaftStep`); `expected_collected` goes with the collected
-## check (`AcceptanceCollectedCheck`).
+## check (`AcceptanceCollectedCheck`). `profile` and `fitting` (#1057) point a
+## run step at scratch stores (`AcceptanceFittedStart`).
 ##
 ## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -52,7 +53,8 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED,
 	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY, AcceptanceRunStep.KEY_RUN,
 	AcceptanceRunStep.KEY_NEXT_HASH, AcceptanceComponentsBankCheck.KEY, AcceptanceShaftStep.KEY_SHAFT,
-	AcceptanceShaftStep.KEY_NEXT_REPLAY, AcceptanceCollectedCheck.KEY]
+	AcceptanceShaftStep.KEY_NEXT_REPLAY, AcceptanceCollectedCheck.KEY, AcceptanceFittedStart.KEY_PROFILE,
+	AcceptanceFittedStart.KEY_FITTING]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -137,6 +139,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceShaftStep.parse_step(data, field, step)  # #1065.
 	if problem == "":
 		problem = AcceptanceCollectedCheck.parse_step(data, field, step)  # #1065.
+	if problem == "":
+		problem = AcceptanceFittedStart.parse_step(data, field, step)  # #1057.
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 

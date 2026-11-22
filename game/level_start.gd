@@ -45,12 +45,14 @@ static func tunnel_session(input: ShipInputSource) -> LocalSession:
 ## with its robots, with the level drawn under `world` where the tunnel was;
 ## null, drawing nothing, for "" or a rejected file.
 ## `rules`, when given, turns component drops and miner rescue on (#1028).
+## `tuning`, when given, is the ship flown in place of the ship file's (#1057).
 static func level_session(world: Node3D, path: String, input: ShipInputSource,
-		rules: RunLevelRules = null) -> LocalSession:
+		rules: RunLevelRules = null, tuning: ShipTuning = null) -> LocalSession:
 	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
 	if level == null:
 		return null
-	var session: LocalSession = LocalSession.for_level(level, 0, input, LocalSession.load_tuning(SHIP_TUNING_PATH))
+	var session: LocalSession = LocalSession.for_level(level, 0, input,
+		tuning if tuning != null else LocalSession.load_tuning(SHIP_TUNING_PATH))
 	if rules != null:
 		rules.install(session, level)
 	LevelSwitch.show_level(world, level)
@@ -58,9 +60,20 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource,
 
 
 ## `level_session` for `path`, with drops and rescue on when `path` is the
-## level the run flies now (#1028): a level flown alone keeps them off.
+## level the run flies now (#1028): a level flown alone keeps them off. The
+## run's level flies the fitted ship too (`run_tuning`, #1057), and its loadout
+## is the one handed to the comfort wiring.
 func session_for(world: Node3D, path: String, input: ShipInputSource) -> LocalSession:
-	return hand_loadout(level_session(world, path, input, run_rules(path)))
+	return hand_loadout(level_session(world, path, input, run_rules(path), run_tuning(path)))
+
+
+## The ship a session for `path` flies (#1057, CRF-4, CRW-1): the run's fitted
+## ship (`RunShip`) when the run flies `path` now, otherwise null, which flies
+## the plain ship file, so `--level`, `--seed` and the tunnel never move.
+func run_tuning(path: String) -> ShipTuning:
+	if run == null or not run.active() or path != run.level_source():
+		return null
+	return run.ship.tuning_for(run.profile, run.roles)
 
 
 ## The launch's start (#1050): `session_for(path)`, or, for "" or a rejected
@@ -103,7 +116,8 @@ func run_rules(path: String) -> RunLevelRules:
 
 
 ## Takes what the launch asks to fly (`LevelSwitch.requested_path`). A run,
-## `run:<n>`, starts a `RunWiring` whose current level becomes `source`.
+## `run:<n>`, starts a `RunWiring` whose current level becomes `source`; its
+## levels fly the fitting saved by the hub.
 ## Returns the run, or null for a single level.
 func choose(p_source: String, profiles: ProfileStore = null) -> RunWiring:
 	source = p_source
@@ -111,6 +125,7 @@ func choose(p_source: String, profiles: ProfileStore = null) -> RunWiring:
 	if p_source.begins_with(LevelSwitch.RUN_PREFIX):
 		run = RunWiring.new(LevelSwitch.seed_from(p_source.substr(LevelSwitch.RUN_PREFIX.length())),
 			profiles if profiles != null else ProfileStore.new())
+		run.ship.fittings = FittingStore.new()  # The hub's fitting, beside the profile (#1057).
 		source = run.level_source()
 	return run
 

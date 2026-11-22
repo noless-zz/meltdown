@@ -71,6 +71,8 @@ var level_rules: bool = true
 var roles: CrewRoles = null
 ## Why the last escape added no crew although miners were rescued; empty otherwise.
 var crew_error: String = ""
+## The fitted ship each of the run's levels flies, from `profile` and `roles` (#1057).
+var ship: RunShip = RunShip.new()
 
 
 ## A run for `run_seed`. `p_store` is read for the profile and written after
