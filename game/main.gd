@@ -46,7 +46,7 @@ var foveation: FoveationSwitch = FoveationSwitch.from_launch()  # --foveation sw
 var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headset builds (#646).
 ## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
 var destroyed: DestroyedWiring = DestroyedWiring.new()
-var level_start: LevelStart = LevelStart.new()
+var level_start: LevelStart = LevelStart.new(comfort)
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
 var vignette: VignetteWiring = VignetteWiring.new()  # Comfort vignette from the shown motion, CMF-1 (#931).
@@ -198,9 +198,9 @@ func _end_one_tick_if_flown() -> void:
 ## level drawn where the tunnel was. Call it before the first frame. Returns
 ## false, leaving the tunnel and its session, for "" or a rejected file.
 func use_level(path: String) -> bool:
-	var fresh: LocalSession = level_start.session_for(self, path, input_source)  # A run's level drops components (#1028).
-	session = fresh if fresh != null else session
-	return fresh != null
+	var kept: LocalSession = session  # A run's level drops components (#1028); the tunnel's loadout too (#1050).
+	session = level_start.start_or_keep(self, path, input_source, kept)
+	return session != kept
 
 
 ## Flies the level, or a run's next one, from its start (#616) through the launch's loading path (MP-2).
