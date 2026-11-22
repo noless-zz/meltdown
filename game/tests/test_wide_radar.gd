@@ -66,13 +66,13 @@ func test_the_level_is_as_the_tests_need() -> String:
 	return ""
 
 
-func test_the_core_accepts_the_wide_radar_and_still_refuses_the_mine_scanner() -> String:
+func test_the_core_accepts_the_wide_radar_and_still_refuses_an_unknown_module() -> String:
 	var radar: ShipLoadout = ShipLoadout.from_data({"utility": [ShipLoadout.WIDE_RADAR_MODULE]})
 	if radar.error != "" or radar.utility_ids != ([ShipLoadout.WIDE_RADAR_MODULE] as Array[String]):
 		return "wide_radar gave '%s' %s" % [radar.error, radar.utility_ids]
-	var scanner: ShipLoadout = ShipLoadout.from_data({"utility": ["mine_scanner"]})
-	if scanner.error.find("\"loadout.utility[0]\"") < 0:
-		return "mine_scanner gave '%s'" % scanner.error
+	var unknown: ShipLoadout = ShipLoadout.from_data({"utility": ["deep_sonar"]})
+	if unknown.error.find("\"loadout.utility[0]\"") < 0:
+		return "deep_sonar gave '%s'" % unknown.error
 	return ""
 
 

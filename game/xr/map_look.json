@@ -22,5 +22,7 @@
 	"min_zoom": 0.5,
 	"max_zoom": 3.0,
 	"zoom_per_second": 1.5,
-	"fires_explored_only": true
+	"fires_explored_only": true,
+	"miner_color": [0.6, 0.45, 1.0],
+	"miner_size_m": 0.01
 }

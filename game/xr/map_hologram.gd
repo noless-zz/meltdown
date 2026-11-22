@@ -17,7 +17,8 @@ extends Node3D
 ## (#338, MAP-2, RUN-3); a `MapRoute` child draws the route and blocked openings
 ## (#400) and a `MapFires` child burning fire entries (#519), all fitted like
 ## the lines, with shared geometry in `MapShapes`; fires only in explored boxes
-## unless the look's `fires_explored_only` is off (#562). `set_zoom` scales it all
+## unless the look's `fires_explored_only` is off (#562), and a `MapMinerMarkers`
+## child the trapped miners the mine scanner finds (#1072). `set_zoom` scales it all
 ## about the hand anchor (#549). The look is `res://xr/map_look.json` (ARC-4),
 ## read and parsed by `MapLook`.
 
@@ -48,11 +49,13 @@ var _exit: MeshInstance3D = MeshInstance3D.new()
 var _reactor: MeshInstance3D = MeshInstance3D.new()
 var _route: MapRoute = MapRoute.new()
 var _fires: MapFires = MapFires.new()
+var _miners: MapMinerMarkers = MapMinerMarkers.new()
 ## The route's level-space points and blocked centres, kept so `build` can re-fit them.
 var _route_at: PackedVector3Array = PackedVector3Array()
 var _blocked_at: PackedVector3Array = PackedVector3Array()
 var _fire_at: PackedVector3Array = PackedVector3Array()
 var _fire_radii: PackedFloat32Array = PackedFloat32Array()
+var _miner_at: PackedVector3Array = PackedVector3Array()
 ## The explored boxes of the last `build`, as copies, for `fires_explored_only`.
 var _explored_boxes: Array[AABB] = []
 var _exit_at: Vector3 = Vector3.ZERO
@@ -77,6 +80,7 @@ func _init() -> void:
 		add_child(child)
 	add_child(_route)
 	add_child(_fires)
+	add_child(_miners)
 	load_look()
 
 
@@ -207,6 +211,18 @@ func fires() -> MapFires:
 	return _fires
 
 
+## Marks a trapped miner at each of `at_m` (level-space copies), fitted like the
+## lines; see `MapMinerMarkers`. An empty array removes them (#1072).
+func show_miners(at_m: PackedVector3Array) -> void:
+	_miner_at = at_m.duplicate()
+	_place_route()
+
+
+## The node drawing the miner markers, for reading what it drew.
+func miners() -> MapMinerMarkers:
+	return _miners
+
+
 ## Whether the exit marker is drawn: once `set_markers` was called.
 func exit_marker_shown() -> bool:
 	return _exit.visible
@@ -287,6 +303,7 @@ func _place_route() -> void:
 	if _look["fires_explored_only"]:
 		shown = MapFires.inside(_fire_at, _fire_radii, _explored_boxes)
 	_fires.draw_fitted(_view(), shown[0], shown[1], _look)
+	_miners.draw_fitted(_view(), _miner_at, _look)
 
 
 func _view() -> Transform3D:

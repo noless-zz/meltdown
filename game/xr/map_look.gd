@@ -16,7 +16,8 @@ extends RefCounted
 ##      "distance_offset_m": 0..0.05,
 ##      "fire_color": [r, g, b], "fire_size_m": 0.002..0.05,
 ##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10,
-##      "fires_explored_only": true | false}
+##      "fires_explored_only": true | false,
+##      "miner_color": [r, g, b], "miner_size_m": 0.002..0.05}
 ##
 ## `exit_radius_m` is half the edge of the exit cube, drawn see-through with
 ## opacity `exit_alpha` so it never hides the tunnel beside it (#913). Once the
@@ -37,14 +38,17 @@ extends RefCounted
 ## `fires_explored_only` (optional, #562) marks only fires inside the explored
 ## boxes, so the map does not give away unexplored tunnels (MAP-1); false marks
 ## every burning fire.
+##
+## `miner_color` and `miner_size_m` (optional, #1072) are the mine scanner's
+## trapped-miner pins: their colour and the height and width of each pin.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
 		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second", "fires_explored_only", "reactor_dead_color",
-		"exit_alpha"]
+		"exit_alpha", "miner_color", "miner_size_m"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
-		"blocked_color", "distance_color", "fire_color", "reactor_dead_color"]
+		"blocked_color", "distance_color", "fire_color", "reactor_dead_color", "miner_color"]
 const BOOL_KEYS: Array[String] = ["fires_explored_only"]
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
@@ -64,6 +68,7 @@ const RANGES: Dictionary[String, Array] = {
 	"distance_height_m": [0.003, 0.03],
 	"distance_offset_m": [0.0, 0.05],
 	"fire_size_m": [0.002, 0.05],
+	"miner_size_m": [0.002, 0.05],
 	"min_zoom": [0.1, 10.0],
 	"max_zoom": [0.1, 10.0],
 	# At 1.0 the control would do nothing; past 10x a second one frame's jitter
@@ -100,6 +105,10 @@ const FALLBACK: Dictionary = {
 	"distance_offset_m": 0.012,
 	"fire_color": Color(1.0, 1.0, 0.0),
 	"fire_size_m": 0.012,
+	# Violet: apart from the cyan lines, the orange ship, the green exit, the
+	# magenta reactor, the white route, the red crosses and the yellow fires (#1072).
+	"miner_color": Color(0.6, 0.45, 1.0),
+	"miner_size_m": 0.01,
 	# Half size shows a whole large mine in the hand; three times the size reads
 	# one junction at arm's length without the map filling the view (#549).
 	"min_zoom": 0.5,
