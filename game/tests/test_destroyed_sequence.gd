@@ -126,3 +126,22 @@ func test_paused_frames_hold_the_sequence_still() -> String:
 	if sequence.prompt_shown() or sequence.fade_alpha() > 0.0:
 		return "zero-length frames moved the sequence on"
 	return ""
+
+
+## The fade out is timed from the destruction, not from the prompt (#1228,
+## CMF-8): its opacity never goes down until the press, whatever the times.
+func test_the_fade_never_goes_down_before_the_press() -> String:
+	for times: Dictionary in [{"fade_seconds": 1.0, "hold_seconds": 3.0},
+			{"fade_seconds": 2.0, "hold_seconds": 0.5}, {"fade_seconds": 0.0, "hold_seconds": 1.0}]:
+		var sequence: DestroyedSequence = DestroyedSequence.new(times)
+		var last: float = 0.0
+		for i: int in ceili(6.0 / FRAME):
+			sequence.update(0.0, FRAME, false)
+			var alpha: float = sequence.fade_alpha()
+			if alpha < last:
+				return "with %s the fade went down from %.3f to %.3f in %s" % [times, last, alpha,
+					DestroyedSequence.State.keys()[sequence.state]]
+			last = alpha
+		if sequence.state != DestroyedSequence.State.CAN_RESTART or last != 1.0:
+			return "with %s the view is not dark at the prompt (alpha %.2f)" % [times, last]
+	return ""

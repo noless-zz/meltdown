@@ -4,7 +4,9 @@ extends RefCounted
 ## The `escape_screen` acceptance check (#751, RUN-3, RUN-7): when the replay
 ## ends on an escape, the main scene shows the escape's end screen, `ESCAPED`
 ## with the meltdown time left, and not the destroyed ship's. Kept out of
-## `AcceptanceRunner` so that file stays short.
+## `AcceptanceRunner` so that file stays short. While the screen shows, the
+## status panel and the held map are hidden, and the fade never went down on
+## the way there (#1228, CMF-8).
 
 
 ## [result, message] for the check on `main`, the game scene, after its replay
@@ -24,4 +26,13 @@ static func run(main: Node, flown: bool, measurements: Dictionary) -> Array:
 		return [AcceptanceReport.RESULT_FAIL, "the escape screen is not shown"]
 	if wiring.sequence.line_shown():
 		return [AcceptanceReport.RESULT_FAIL, "the destroyed screen shows after an escape"]
+	if wiring.fade_dropped:
+		return [AcceptanceReport.RESULT_FAIL, "the fade went down while the escape screen showed"]
+	var rig: Node3D = main.get_node_or_null("XRRig") as Node3D
+	var panel: Node3D = rig.get_node_or_null(StatusPanel.NODE_NAME) as Node3D if rig != null else null
+	if panel != null and panel.visible:
+		return [AcceptanceReport.RESULT_FAIL, "the status panel shows over the escape screen"]
+	var map: Node3D = rig.find_child(MapHologram.NODE_NAME, true, false) as Node3D if rig != null else null
+	if map != null and map.visible:
+		return [AcceptanceReport.RESULT_FAIL, "the map shows over the escape screen"]
 	return [AcceptanceReport.RESULT_PASS, "%s, %s" % [end.look["line_text"], time]]

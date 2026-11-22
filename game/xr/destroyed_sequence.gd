@@ -31,6 +31,11 @@ var fade_seconds: float = FALLBACK["fade_seconds"]
 var hold_seconds: float = FALLBACK["hold_seconds"]
 ## Seconds since the ship was destroyed, or since the restart.
 var elapsed: float = 0.0
+## Seconds since the ship was destroyed, kept through CAN_RESTART: the fade out
+## is timed by this, not `elapsed`, which restarts when the prompt shows.
+## Timing it by `elapsed` dropped the view to clear at the prompt and faded it
+## out a second time, the level flashing back behind the end screen (#1228).
+var dark_seconds: float = 0.0
 
 ## Whether the restart button was up at some frame since restarting became
 ## possible, so a button already held (A is also the afterburner) does not
@@ -93,10 +98,12 @@ func update(hull: float, delta: float, restart_held: bool) -> bool:
 				_enter(State.DESTROYED)
 		State.DESTROYED:
 			elapsed += step
+			dark_seconds += step
 			if elapsed >= hold_seconds:
 				_enter(State.CAN_RESTART)
 		State.CAN_RESTART:
 			elapsed += step
+			dark_seconds += step
 			if not restart_held:
 				_released = true
 			elif _released:
@@ -110,11 +117,12 @@ func update(hull: float, delta: float, restart_held: bool) -> bool:
 
 
 ## The fade's opacity this frame, 0..1: rising to 1 over `fade_seconds` once
-## destroyed, held there until the restart, then falling back to 0.
+## destroyed, held there until the restart, then falling back to 0. It never
+## goes down between the destruction and the press (CMF-8).
 func fade_alpha() -> float:
 	match state:
 		State.DESTROYED, State.CAN_RESTART:
-			return 1.0 if fade_seconds <= 0.0 else clampf(elapsed / fade_seconds, 0.0, 1.0)
+			return 1.0 if fade_seconds <= 0.0 else clampf(dark_seconds / fade_seconds, 0.0, 1.0)
 		State.RESTARTED:
 			return 0.0 if fade_seconds <= 0.0 else clampf(1.0 - elapsed / fade_seconds, 0.0, 1.0)
 	return 0.0
@@ -133,4 +141,6 @@ func prompt_shown() -> bool:
 func _enter(next: State) -> void:
 	state = next
 	elapsed = 0.0
+	if next == State.DESTROYED:
+		dark_seconds = 0.0
 	_released = false
