@@ -143,7 +143,7 @@ func test_without_a_hub_nothing_is_blocked() -> String:
 
 func test_the_main_scene_hands_the_hub_to_the_menu() -> String:
 	var text: String = FileAccess.get_file_as_string("res://main.gd")
-	if not text.contains("hub.is_open)"):
+	if not text.contains("destroyed, null, hub.is_open"):  # Then the session the menu pauses (#1245).
 		return "main.gd does not pass hub.is_open to dev_menu.attach"
 	var lines: int = text.split("\n").size() - 1
 	if lines > 300:

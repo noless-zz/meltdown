@@ -35,14 +35,26 @@ var interpolation_fraction: float = 0.0
 var dropped_seconds: float = 0.0
 ## Ticks run by the most recent `advance` call.
 var ticks_last_advance: int = 0
-## Solo pause (PLT-7). While true, `advance` runs nothing and throws the frame
-## time away, so the view holds the last pose. Clearing it arms a one-frame
-## limit, so the frame that spans the pause cannot run catch-up ticks.
-var paused: bool = false:
+## The headset lost focus (PLT-7); `paused` sets and clears this reason.
+const PAUSE_FOCUS: String = "focus"
+## The dev menu is open in solo play (#1245, `DevMenuWiring.hold_session`).
+const PAUSE_MENU: String = "menu"
+
+## Solo pause (PLT-7). True while any pause reason holds. While true, `advance`
+## runs nothing and throws the frame time away, so the view holds the last
+## pose. When the last reason clears, a one-frame limit is armed, so the frame
+## that spans the pause cannot run catch-up ticks. Setting it sets the focus
+## reason only, which is what the focus callbacks always meant (#1245).
+var paused: bool:
+	get:
+		return not _pause_reasons.is_empty()
 	set(value):
-		if paused and not value:
-			_resuming = true
-		paused = value
+		set_paused(PAUSE_FOCUS, value)
+
+## The reasons holding the pause, each kept separately so that clearing one
+## leaves the others in force: the headset put back on while the menu is
+## still open stays paused until the menu closes, and the other way round.
+var _pause_reasons: Dictionary[String, bool] = {}
 
 var _input_source: ShipInputSource
 var _accumulator: float = 0.0
@@ -107,6 +119,23 @@ func advance(delta_seconds: float) -> int:
 		ticks_last_advance += 1
 	interpolation_fraction = clampf(_accumulator / ShipState.TICK_DT, 0.0, 1.0)
 	return ticks_last_advance
+
+
+## Holds the pause for `reason` or lets it go. Only the last reason to go
+## resumes, and only then is the next frame limited to one tick.
+func set_paused(reason: String, held: bool) -> void:
+	var was_paused: bool = paused
+	if held:
+		_pause_reasons[reason] = true
+	else:
+		_pause_reasons.erase(reason)
+	if was_paused and not paused:
+		_resuming = true
+
+
+## Whether `reason` is one of the reasons holding the pause now.
+func paused_by(reason: String) -> bool:
+	return _pause_reasons.has(reason)
 
 
 ## The data loaders below forward to `SpawnLoader` and `SessionLoader`, which

@@ -99,7 +99,7 @@ func _ready() -> void:
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
 	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
-	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed, null, hub.is_open)
+	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed, null, hub.is_open, get.bind("session"))
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 
@@ -212,7 +212,7 @@ func use_level(path: String) -> bool:
 ## Flies the level, or a run's next one, from its start (#616) through the launch's loading path (MP-2).
 ## `moved_on` when the run already moved on from the ended session (the hub's launch, #1093).
 func restart_level(moved_on: bool = false) -> void:
-	var paused: bool = session.paused
+	var paused: bool = session.paused_by(LocalSession.PAUSE_FOCUS)  # The menu holds its own (#1245).
 	session = level_start.fresh_session(self, input_source, null if moved_on else session)  # A run moves on first (#989).
 	session.paused = paused
 	meltdown.attach(self, session)

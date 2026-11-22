@@ -51,6 +51,7 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptanceScreenshots.KEY_END,
 	AcceptanceViewFlatCheck.KEY_SECONDS, "flight_test_answers", "expected_preset",
 	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS,
+	AcceptancePauseCheck.KEY_BY,
 	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED,
 	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY, AcceptanceRunStep.KEY_RUN,
 	AcceptanceRunStep.KEY_NEXT_HASH, AcceptanceComponentsBankCheck.KEY, AcceptanceShaftStep.KEY_SHAFT,

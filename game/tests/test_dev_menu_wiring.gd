@@ -117,37 +117,37 @@ func test_a_tap_opens_and_closes_the_menu_and_a_hold_resets_with_it_closed() -> 
 	return result
 
 
+## Since #1245 the open menu also pauses solo play, so no tick runs at all.
 func test_with_the_menu_open_the_ship_flies_neutral_input() -> String:
-	var hashes: Array[int] = []
-	for with_menu: bool in [false, true]:
-		var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
-		main.get_node("XRRig").call("build")
-		main.call("_ready")
-		var wiring: DevMenuWiring = main.get("dev_menu")
-		if with_menu:
-			main.call("apply_controls", _values({ControllerSampler.MENU_BUTTON: true}))
-			main.call("apply_controls", _values())
-			if not wiring.is_open():
-				main.free()
-				return "a tap through main.gd did not open the menu"
-		for frame: int in 120:
-			# Stick, triggers and face buttons, as a pilot flying would hold them,
-			# but never A on a confirm-able frame: confirming would close the menu.
-			var values: Dictionary = _values({"right_button_upper": true, "left_button_upper": frame % 3 == 0})
-			values["left_stick"] = Vector2(0.4, 1.0)
-			values["right_stick"] = Vector2(0.3, 0.2)
-			values["right_trigger"] = 0.3
-			values["right_grip"] = 1.0
-			main.call("apply_controls", values if with_menu else _values())
-			main.call("advance_frame", FRAME)
-		if with_menu and not wiring.is_open():
-			main.free()
-			return "the menu closed while flying"
-		hashes.append((main.get("session") as LocalSession).sim.state_hash())
+	var main: Node = (load("res://main.tscn") as PackedScene).instantiate()
+	main.get_node("XRRig").call("build")
+	main.call("_ready")
+	var wiring: DevMenuWiring = main.get("dev_menu")
+	main.call("apply_controls", _values({ControllerSampler.MENU_BUTTON: true}))
+	main.call("apply_controls", _values())
+	if not wiring.is_open():
 		main.free()
-	if hashes[0] != hashes[1]:
-		return "the open menu let input through: %s" % [hashes]
-	return ""
+		return "a tap through main.gd did not open the menu"
+	var session: LocalSession = main.get("session")
+	var hash_at_open: int = session.sim.state_hash()
+	var result: String = ""
+	for frame: int in 120:
+		# Stick, triggers and face buttons, as a pilot flying would hold them,
+		# but never A on a confirm-able frame: confirming would close the menu.
+		var values: Dictionary = _values({"right_button_upper": true, "left_button_upper": frame % 3 == 0})
+		values["left_stick"] = Vector2(0.4, 1.0)
+		values["right_stick"] = Vector2(0.3, 0.2)
+		values["right_trigger"] = 0.3
+		values["right_grip"] = 1.0
+		main.call("apply_controls", values)
+		main.call("advance_frame", FRAME)
+		var input: ShipInput = (main.get("input_source") as LatestInputSource).latest_input()
+		if input.thrust_q != Vector3i.ZERO or input.turn_q != Vector3i.ZERO or input.afterburner:
+			result = "frame %d: the open menu let input through" % frame
+	if result == "" and (not wiring.is_open() or session.sim.state_hash() != hash_at_open):
+		result = "the menu closed (%s) or the simulation ran with it open" % (not wiring.is_open())
+	main.free()
+	return result
 
 
 func test_choices_save_the_corner_and_restart_on_a_seed_or_the_same_source() -> String:

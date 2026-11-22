@@ -128,6 +128,15 @@
 			"expected_hash": 861662111
 		},
 		{
+			"id": "menu_pause",
+			"replay": "res://acceptance/replays/basic_flight.replay",
+			"checks": ["held_while_paused", "final_hash", "no_script_errors"],
+			"pause_at_tick": 300,
+			"pause_seconds": 2,
+			"pause_by": "menu",
+			"expected_hash": 861662111
+		},
+		{
 			"id": "right_handed_flight",
 			"replay": "res://acceptance/replays/basic_flight.replay",
 			"controls": "res://acceptance/replays/m1_controls.controls.json",

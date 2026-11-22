@@ -20,9 +20,17 @@ extends RefCounted
 ## `"pause_seconds": <s>` go together with the held_while_paused check. The
 ## hold is counted in the frames the runner feeds the scene (one tick's time
 ## each), so the step takes the same frames on every device.
+##
+## `"pause_by": "menu"` (#1245) opens the dev menu over the flight instead of
+## taking the headset off. The runner does not feed controller values, so it
+## cannot tap the menu open; it sets and clears the menu's pause reason through
+## `DevMenuPause.hold`, the same call the open menu makes every frame.
 
 const KEY_TICK: String = "pause_at_tick"
 const KEY_SECONDS: String = "pause_seconds"
+const KEY_BY: String = "pause_by"
+const BY_FOCUS: String = "focus"
+const BY_MENU: String = "menu"
 const MAX_SECONDS: float = 60.0
 ## Camera position (metres) and rotation axes may differ by this much: a held
 ## pose repeats the same numbers, so it only absorbs float noise, far below
@@ -64,10 +72,16 @@ func before_frame(main: Node, tick: int) -> void:
 	if not _started and tick >= _step.pause_at_tick:
 		var session: LocalSession = main.get("session")
 		hold_from(session.sim.tick, session.sim.state_hash(), world_pose(main), countdown_text(main))
-		main.call("on_session_visible")
+		if _step.pause_by == BY_MENU:
+			DevMenuPause.hold(session, true)
+		else:
+			main.call("on_session_visible")
 	elif _started and not _resumed and _held >= _hold_frames:
 		_resumed = true
-		main.call("on_session_focussed")
+		if _step.pause_by == BY_MENU:
+			DevMenuPause.hold(main.get("session") as LocalSession, false)
+		else:
+			main.call("on_session_focussed")
 
 
 ## After the frame: a held frame must show nothing moved; the first frame after
@@ -183,6 +197,12 @@ static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) ->
 	var wanted: bool = step.has_check(AcceptanceStep.CHECK_HELD_WHILE_PAUSED)
 	var has_tick: bool = data.has(KEY_TICK)
 	var has_seconds: bool = data.has(KEY_SECONDS)
+	if data.has(KEY_BY):
+		if not has_tick:
+			return "%s.%s: only used with %s" % [field, KEY_BY, KEY_TICK]
+		if not [BY_FOCUS, BY_MENU].has(data[KEY_BY]):
+			return "%s.%s: must be \"%s\" or \"%s\"" % [field, KEY_BY, BY_FOCUS, BY_MENU]
+		step.pause_by = String(data[KEY_BY])
 	if not has_tick and not has_seconds:
 		return "%s.%s: needed by the held_while_paused check" % [field, KEY_TICK] if wanted else ""
 	for key: String in [KEY_TICK, KEY_SECONDS]:
