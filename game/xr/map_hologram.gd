@@ -1,25 +1,19 @@
 class_name MapHologram
 extends Node3D
 
-## The map of the explored mine as a small hologram held in the hand (MAP-1,
-## #314): the `MapWireframe` outline of the explored boxes as one emissive line
-## mesh, fitted into a cube of `size_m`, with a dart for the ship (`MapShipMarker`).
+## The explored mine as a small hologram held in the hand (MAP-1, #314): the
+## `MapWireframe` outline of the explored boxes as one emissive line mesh fitted
+## into a cube of `size_m`, and a dart for the ship (`MapShipMarker`). It hangs
+## under a controller; a click of `show_map` opens it and the next closes it
+## (#914). Sharing the label button, a click toggles the map and a hold the
+## labels (#335). It is handed copies and holds no session, so it never writes
+## simulation state or comfort settings (ARC-3, CMF-6, MP-2).
 ##
-## It hangs under a controller, so it turns with the hand. A click of `show_map`
-## opens it and the next closes it, so nothing is held while steering (#914).
-## Sharing the label button, it reads the label wiring's `ClickHold` (#335): a
-## click toggles the map, a hold the labels, never both.
-##
-## It is handed copies and keeps no reference to the session, so it can never
-## write simulation state or comfort settings (ARC-3, CMF-6, MP-2).
-##
-## An exit cube and a reactor ball show where to leave and what to destroy
-## (#338, MAP-2, RUN-3); a `MapRoute` child draws the route and blocked openings
-## (#400) and a `MapFires` child burning fire entries (#519), all fitted like
-## the lines, with shared geometry in `MapShapes`; fires only in explored boxes
-## unless the look's `fires_explored_only` is off (#562). `set_zoom` scales it all
-## about the hand anchor (#549). The look is `res://xr/map_look.json` (ARC-4),
-## read and parsed by `MapLook`.
+## Children fitted like the lines mark the exit and reactor (#338, RUN-3), the
+## route and blocked openings (`MapRoute`, #400), fires (`MapFires`, #519; only in
+## explored boxes unless `fires_explored_only` is off, #562) and trapped miners
+## (`MapMinerMarkers`, #1072). `set_zoom` scales it all about the hand (#549). The
+## look is `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
 
 const NODE_NAME: String = "MapHologram"
 const LINES_NAME: String = "Lines"
@@ -27,11 +21,9 @@ const MARKER_NAME: String = "Marker"
 const EXIT_NAME: String = "Exit"
 const REACTOR_NAME: String = "Reactor"
 const DEFAULT_LOOK_FILE: String = "res://xr/map_look.json"
-## How long the shared `show_map` button must be held to be a hold (the label
-## toggle) rather than a click (the map toggle, #914).
+## Seconds the shared `show_map` button is held for a hold (labels), not a click (map, #914).
 const HOLD_SECONDS: float = 0.4
-## The map's centre from the controller: above the hand and a little ahead,
-## so the hand does not cover it and lowering the hand takes it out of view.
+## The map's centre from the controller: above and ahead, clear of the hand, gone when it drops.
 const HAND_OFFSET: Vector3 = Vector3(0.0, 0.12, -0.08)
 ## Look used when the file is missing or rejected.
 const FALLBACK_LOOK: Dictionary = MapLook.FALLBACK
@@ -48,6 +40,7 @@ var _exit: MeshInstance3D = MeshInstance3D.new()
 var _reactor: MeshInstance3D = MeshInstance3D.new()
 var _route: MapRoute = MapRoute.new()
 var _fires: MapFires = MapFires.new()
+var _miners: MapMinerMarkers = MapMinerMarkers.new()
 ## The route's level-space points and blocked centres, kept so `build` can re-fit them.
 var _route_at: PackedVector3Array = PackedVector3Array()
 var _blocked_at: PackedVector3Array = PackedVector3Array()
@@ -77,6 +70,7 @@ func _init() -> void:
 		add_child(child)
 	add_child(_route)
 	add_child(_fires)
+	add_child(_miners)
 	load_look()
 
 
@@ -207,6 +201,12 @@ func fires() -> MapFires:
 	return _fires
 
 
+## Pins a trapped miner at each of `at_m` (level-space copies); none when empty (#1072).
+func show_miners(at_m: PackedVector3Array) -> void:
+	_miners.at_m = at_m.duplicate()
+	_place_route()
+
+
 ## Whether the exit marker is drawn: once `set_markers` was called.
 func exit_marker_shown() -> bool:
 	return _exit.visible
@@ -287,6 +287,7 @@ func _place_route() -> void:
 	if _look["fires_explored_only"]:
 		shown = MapFires.inside(_fire_at, _fire_radii, _explored_boxes)
 	_fires.draw_fitted(_view(), shown[0], shown[1], _look)
+	_miners.draw_fitted(_view(), _look)
 
 
 func _view() -> Transform3D:

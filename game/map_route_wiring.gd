@@ -91,6 +91,16 @@ static func reactor_destroyed(session: LocalSession) -> bool:
 	return reactor != null and reactor.destroyed
 
 
+## A copy of the miners still trapped, in millimetres as `MinerRescue.trapped`
+## holds them; empty without rescue in the run. `MapWiring` hands the ones near
+## the ship to the map while the mine scanner is fitted (#1072).
+static func trapped_miners(session: LocalSession) -> Array[Vector3i]:
+	var miners: Array[Vector3i] = []
+	if session.sim.rescue != null:
+		miners.assign(session.sim.rescue.trapped)
+	return miners
+
+
 ## How many debris entries have fallen; 0 without debris.
 static func solid_count(debris: MeltdownDebris) -> int:
 	var count: int = 0

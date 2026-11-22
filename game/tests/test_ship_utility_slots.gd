@@ -91,11 +91,12 @@ func test_utility_module_errors_name_the_field() -> String:
 	return ""
 
 
-func test_look_aim_and_wide_radar_are_the_only_known_modules() -> String:
-	var known: Array[String] = [ShipLoadout.LOOK_AIM_MODULE, ShipLoadout.WIDE_RADAR_MODULE]
+func test_look_aim_wide_radar_and_mine_scanner_are_the_only_known_modules() -> String:
+	var known: Array[String] = [ShipLoadout.LOOK_AIM_MODULE, ShipLoadout.WIDE_RADAR_MODULE,
+			ShipLoadout.MINE_SCANNER_MODULE]
 	if ShipLoadout.UTILITY_MODULE_KINDS != known:
 		return "module kinds are %s" % [ShipLoadout.UTILITY_MODULE_KINDS]
-	for id: String in ["aim_assist", "mine_scanner", "x"]:
+	for id: String in ["aim_assist", "deep_sonar", "x"]:
 		var error: String = _with_utility(2, [id]).error
 		if error.find("\"loadout.utility[0]\"") < 0 or error.find(id) < 0:
 			return "module %s gave \"%s\"" % [id, error]
@@ -112,7 +113,7 @@ func test_a_ship_file_with_the_look_aim_module_loads() -> String:
 	_resolved(tuning).equip(ship)
 	if ship.utility_slots != (["look_aim", ""] as Array[String]):
 		return "equipped utility slots %s" % [ship.utility_slots]
-	var second: String = _with_utility(2, ["look_aim", "mine_scanner"]).error
+	var second: String = _with_utility(2, ["look_aim", "deep_sonar"]).error
 	if second.find("\"loadout.utility[1]\"") < 0:
 		return "a second, unknown module gave \"%s\"" % second
 	return ""

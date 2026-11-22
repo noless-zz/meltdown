@@ -26,6 +26,12 @@ extends RefCounted
 ## ignored. The slots are read from the session's ship copy each frame, and the
 ## radius from `WideRadar`'s data file.
 ##
+## While the mine scanner module is fitted (#1072, CRF-5, SLV-3), every miner
+## still trapped within the scanner's radius of the ship is marked, walls
+## ignored. The miners come from `MapRouteWiring.trapped_miners`, a copy, so a
+## rescued miner leaves the list and its marker goes. Without the module, or
+## without rescue in the run, no miner is marked.
+##
 ## While the meltdown runs, `MapRouteWiring` hands the map the escape route the
 ## player knows (#402, MAP-2). It lives in its own file because it searches the
 ## meltdown's debris and names the simulation, which this file never does.
@@ -58,6 +64,10 @@ var _reactor_at: Vector3 = Vector3.ZERO
 var route_wiring: MapRouteWiring = MapRouteWiring.new()
 ## The wide radar's data, read on the first `update`; tests may set it first.
 var radar: WideRadar = null
+## The mine scanner's data, read on the first frame it is fitted; tests may set it first.
+var scanner: MineScanner = null
+## The miner positions last handed to the hologram, so it redraws only on a change.
+var _miners_shown: PackedVector3Array = PackedVector3Array()
 
 
 ## Creates the hologram and hangs it in the hand that clicks `show_map` under
@@ -100,6 +110,7 @@ func update(session: LocalSession, _delta_seconds: float, shared: ClickHold = nu
 		_reactor_destroyed = destroyed
 		_mark(session)
 	route_wiring.update(session, _union, _drawn, grew, hologram)
+	_scan(session)
 	hologram.set_ship_position(session.previous_ship().position.lerp(
 		session.current_ship().position, session.interpolation_fraction))
 	hologram.set_ship_orientation(session.previous_ship().orientation.slerp(
@@ -132,6 +143,8 @@ func _start(session: LocalSession) -> void:
 	_reactor_destroyed = false
 	_mark(session)
 	route_wiring.clear(hologram)
+	_miners_shown = PackedVector3Array()
+	hologram.show_miners(_miners_shown)
 
 
 ## Marks the boxes `ship` has found this frame: those holding it, or with the
@@ -149,6 +162,23 @@ func _explore(ship: ShipState) -> void:
 		explored.visit(ship.position)
 		return
 	explored.visit_within(ship.position, radar.reveal_radius_m)
+
+
+## Marks the trapped miners within the mine scanner's radius of the ship while
+## the scanner is fitted, and none otherwise. A rejected scanner file is
+## reported once and marks nothing. The hologram is redrawn only on a change.
+func _scan(session: LocalSession) -> void:
+	var ship: ShipState = session.current_ship()
+	var found: PackedVector3Array = PackedVector3Array()
+	if ship.utility_slots.has(ShipLoadout.MINE_SCANNER_MODULE):
+		if scanner == null:
+			scanner = MineScanner.load_file()
+			if scanner.error != "":
+				push_error(scanner.error)
+		found = scanner.in_range(MapRouteWiring.trapped_miners(session), ship.position)
+	if found != _miners_shown:
+		_miners_shown = found
+		hologram.show_miners(found)
 
 
 ## Hands the exit, the reactor and whether it is known to the hologram. Both

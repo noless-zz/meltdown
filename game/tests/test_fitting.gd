@@ -180,8 +180,18 @@ func test_shield_hull_and_engine_refuse_the_utility_slot() -> String:
 
 func test_a_module_the_simulation_does_not_know_is_not_fittable_yet() -> String:
 	# Fitting one would build a loadout the run rejects, so it is refused here first.
-	for id: String in ["mine_scanner"]:
-		var reason: String = Fitting.check(_fitting(["", ""], ["", ""], [id]), _tree(), _all_crafted(_tree()), _ship_data())
+	# Every shipped module is known since #1072, so the tree gains a made-up one.
+	var texts: Dictionary = {}
+	for file: String in DirAccess.get_files_at(UpgradeTree.UPGRADES_DIR):
+		if file.ends_with(".json"):
+			texts[file] = FileAccess.get_file_as_string(UpgradeTree.UPGRADES_DIR.path_join(file))
+	texts["deep_sonar.json"] = (texts["mine_scanner.json"] as String).replace("mine_scanner", "deep_sonar") \
+		.replace("Mine Scanner", "Deep Sonar")
+	var tree: UpgradeTree = UpgradeTree.parse(texts)
+	if tree.error != "":
+		return "the tree with a made-up module was rejected: %s" % tree.error
+	for id: String in ["deep_sonar"]:
+		var reason: String = Fitting.check(_fitting(["", ""], ["", ""], [id]), tree, _all_crafted(tree), _ship_data())
 		if not reason.begins_with("utility[0]: \"%s\" grants module" % id) or not reason.ends_with("not fittable yet"):
 			return "%s: '%s'" % [id, reason]
 	return ""
