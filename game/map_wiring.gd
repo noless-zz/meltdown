@@ -28,9 +28,9 @@ extends RefCounted
 ##
 ## While the mine scanner module is fitted (#1072, CRF-5, SLV-3), every miner
 ## still trapped within the scanner's radius of the ship is marked, walls
-## ignored. The miners are read from the sim's rescue state, a read only, so a
-## rescued miner leaves `MinerRescue.trapped` and its marker goes. Without the
-## module, or without rescue in the run, no miner is marked.
+## ignored. The miners come from `MapRouteWiring.trapped_miners`, a copy, so a
+## rescued miner leaves the list and its marker goes. Without the module, or
+## without rescue in the run, no miner is marked.
 ##
 ## While the meltdown runs, `MapRouteWiring` hands the map the escape route the
 ## player knows (#402, MAP-2). It lives in its own file because it searches the
@@ -170,12 +170,12 @@ func _explore(ship: ShipState) -> void:
 func _scan(session: LocalSession) -> void:
 	var ship: ShipState = session.current_ship()
 	var found: PackedVector3Array = PackedVector3Array()
-	if ship.utility_slots.has(ShipLoadout.MINE_SCANNER_MODULE) and session.sim.rescue != null:
+	if ship.utility_slots.has(ShipLoadout.MINE_SCANNER_MODULE):
 		if scanner == null:
 			scanner = MineScanner.load_file()
 			if scanner.error != "":
 				push_error(scanner.error)
-		found = scanner.in_range(session.sim.rescue.trapped, ship.position)
+		found = scanner.in_range(MapRouteWiring.trapped_miners(session), ship.position)
 	if found != _miners_shown:
 		_miners_shown = found
 		hologram.show_miners(found)

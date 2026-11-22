@@ -38,7 +38,11 @@ func _flown(miners_m: Array[Vector3], utility: Array[String]) -> Array:
 
 
 func _marked(flown: Array) -> int:
-	return (flown[1] as MapWiring).hologram.miners().marker_count()
+	return _markers(flown[1]).marker_count()
+
+
+func _markers(wiring: MapWiring) -> MapMinerMarkers:
+	return wiring.hologram.get_node(MapMinerMarkers.NODE_NAME) as MapMinerMarkers
 
 
 func test_the_core_accepts_the_mine_scanner() -> String:
@@ -76,7 +80,7 @@ func test_a_miner_40_m_away_is_marked_with_the_scanner_and_not_without() -> Stri
 		var flown: Array = _flown(miner, utility)
 		var marked: int = _marked(flown)
 		var wiring: MapWiring = flown[1]
-		var where: PackedVector3Array = wiring.hologram.miners().marker_positions()
+		var where: PackedVector3Array = _markers(wiring).marker_positions()
 		(flown[2] as Node).free()
 		if flown[3] != "":
 			return "rescue rules refused: %s" % flown[3]
@@ -132,7 +136,8 @@ func test_the_marker_look_comes_from_the_map_look_file() -> String:
 	if not (shipped as Dictionary).has("miner_color") or not (shipped as Dictionary).has("miner_size_m"):
 		return "map_look.json has no miner keys"
 	var markers: MapMinerMarkers = MapMinerMarkers.new()
-	markers.draw_fitted(Transform3D.IDENTITY, PackedVector3Array([Vector3.ZERO]), look)
+	markers.at_m = PackedVector3Array([Vector3.ZERO])
+	markers.draw_fitted(Transform3D.IDENTITY, look)
 	var material: StandardMaterial3D = markers.mesh_node().mesh.surface_get_material(0)
 	var color: Color = material.emission
 	markers.free()

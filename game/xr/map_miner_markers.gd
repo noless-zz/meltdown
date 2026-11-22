@@ -16,25 +16,29 @@ extends Node3D
 ## node's space, and the colour and size come from the map look file (ARC-4).
 ## It holds no simulation object (MP-2).
 
+const NODE_NAME: String = "MapMinerMarkers"
 const MESH_NAME: String = "MinerMarkers"
 ## Vertices of one marker: four sides and a two-triangle top, no shared vertices.
 const VERTICES_PER_MARKER: int = 18
+
+## The miners to mark, level space; `draw_fitted` draws them.
+var at_m: PackedVector3Array = PackedVector3Array()
 
 var _mesh_node: MeshInstance3D = MeshInstance3D.new()
 var _centres: PackedVector3Array = PackedVector3Array()
 
 
 func _init() -> void:
-	name = "MapMinerMarkers"
+	name = NODE_NAME
 	_mesh_node.name = MESH_NAME
 	_mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mesh_node)
 
 
-## Draws one marker at each of `at_m` (level space) moved by `fit`, with
-## `miner_color`, `miner_size_m` and `line_energy` from `look`. Empty `at_m`
-## draws nothing; replaces what was drawn.
-func draw_fitted(fit: Transform3D, at_m: PackedVector3Array, look: Dictionary) -> void:
+## Draws one marker at each of `at_m` moved by `fit`, with `miner_color`,
+## `miner_size_m` and `line_energy` from `look`. Empty `at_m` draws nothing;
+## replaces what was drawn.
+func draw_fitted(fit: Transform3D, look: Dictionary) -> void:
 	_mesh_node.mesh = null
 	_centres = PackedVector3Array()
 	if at_m.is_empty():
