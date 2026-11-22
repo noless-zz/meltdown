@@ -1,4 +1,5 @@
 {
+	"name": "Slug Thrower",
 	"fire_interval_ticks": 40,
 	"projectile_speed": 60.0,
 	"lifetime": 3.0,

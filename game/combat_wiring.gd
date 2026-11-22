@@ -66,7 +66,7 @@ func attach(world: Node3D) -> void:
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
-## `panel`, if given, shows the ship's shield, hull, weapon and the part in its
+## `panel`, if given, shows the ship's shield, hull, weapon slots and the part in its
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
 ## The aim reticle shows along the ship's gun direction on every preset
 ## (#1211), so `_look_aim` no longer changes anything; `main.gd` still passes it.
@@ -80,7 +80,7 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 			panel.flash_bar(false, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.SHIELD))
 			panel.flash_bar(true, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.HULL))
 		panel.show_hold(held_part(ship))
-		panel.show_weapon(active_weapon(ship))
+		panel.show_weapons(weapon_names(ship), ship.selected_primary)
 		panel.show_hold_message(hold_messages.update(ship.hold, ship.primary_ids))
 	if projectile_view == null:
 		return
@@ -161,14 +161,31 @@ static func show_defence(panel: StatusPanel, ship: ShipState) -> void:
 
 
 ## The part `ship`, a session copy, would slot next: the first id in its hold,
-## or "" when the hold is empty. Weapon data files carry no display name yet,
-## so the id is what the panel shows.
+## or "" when the hold is empty. The hold row shows the id.
 static func held_part(ship: ShipState) -> String:
 	return ship.hold[0] if not ship.hold.is_empty() else ""
 
 
+## The name of the weapon in each of `ship`'s primary slots, "" for an empty
+## slot (#1210): the `name` from the weapon's data file, or its part id made
+## readable ("needle_gun" as "Needle Gun") for a file that names none, never
+## blank for a filled slot.
+static func weapon_names(ship: ShipState) -> Array[String]:
+	var names: Array[String] = []
+	for slot: int in ship.primary_slots.size():
+		var weapon: WeaponDef = ship.primary_slots[slot]
+		var id: String = ship.primary_ids[slot] if slot < ship.primary_ids.size() else ""
+		if weapon == null:
+			names.append("")
+		elif not weapon.name.is_empty():
+			names.append(weapon.name)
+		else:
+			names.append(id.capitalize() if not id.is_empty() else "Weapon")
+	return names
+
+
 ## The part id of the weapon in `ship`'s selected primary slot, or "" when
-## that slot is empty. Like the hold, the id is the name shown.
+## that slot is empty.
 static func active_weapon(ship: ShipState) -> String:
 	var slot: int = ship.selected_primary
 	if slot < 0 or slot >= ship.primary_slots.size() or ship.primary_slots[slot] == null:

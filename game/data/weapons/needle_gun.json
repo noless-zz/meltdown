@@ -1,4 +1,5 @@
 {
+	"name": "Needle Gun",
 	"fire_interval_ticks": 4,
 	"projectile_speed": 180.0,
 	"lifetime": 0.8,

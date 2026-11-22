@@ -3,11 +3,10 @@ extends Node3D
 
 ## A small panel fixed in the cockpit, below and ahead of the eye point (#146).
 ## In flight it draws what a pilot needs in a fight (#1207): hull, shield and
-## energy (#227), the meltdown countdown (#315), the weapon that fires (#605),
-## the part in the hold (#290) and how the level ended (#361). Its other rows
-## (speed and afterburner, preset, build, the seed or level, #747) keep taking
-## their values but draw only if the look file's `rows` names them
-## (`StatusPanelRowList`); the dev menu's Info section shows them instead.
+## energy (#227), the countdown (#315), every primary slot, the one that fires
+## marked (#1210), the hold (#290) and how the level ended (#361). Its other
+## rows (speed, preset, build, level, #747) take their values but draw only if
+## the look's `rows` names them (`StatusPanelRowList`); the dev menu shows them.
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
 ## the session, so it can never read more than it is handed or write
@@ -30,7 +29,8 @@ const HULL_LABEL_NAME: String = "HullLabel"
 const HULL_BAR_NAME: String = "HullBar"
 const HULL_TRACK_NAME: String = "HullTrack"
 const HOLD_NAME: String = "Hold"
-const WEAPON_NAME: String = "Weapon"
+## The first weapon row; the others are `StatusPanelWeaponRows.node_name`.
+const WEAPON_NAME: String = StatusPanelWeaponRows.FIRST_NAME
 const MELTDOWN_NAME: String = "Meltdown"
 const OUTCOME_NAME: String = "Outcome"
 const LEVEL_NAME: String = "Level"
@@ -38,8 +38,6 @@ const ESCAPED_TEXT: String = "ESCAPED"
 const LOST_TEXT: String = "SHIP LOST"
 ## An empty hold is said, not left blank, which looks like an unwired panel.
 const HOLD_EMPTY: String = "Hold empty"
-## The weapon row reads "Weapon <part>" or this when the active slot is empty.
-const WEAPON_NONE: String = "Weapon none"
 const BOOST_ON: String = "BOOST"
 const BOOST_RECHARGING: String = "recharging"
 
@@ -65,18 +63,17 @@ const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
 ## Under this many seconds the meltdown row turns `HULL_WARNING_COLOR`: the
 ## same red as a failing hull, so red on the panel always means "act now".
 const MELTDOWN_WARNING_SECONDS: float = 30.0
-## Rows 2.7 cm apart, centred on the panel's origin (#605): what decides the
-## next seconds comes first, nearest the line of sight. Speed and the preset
-## are last, so leaving them out (#1207) leaves no gap between drawn rows.
+## Rows 2.7 cm apart (#605): what decides the next seconds comes first,
+## nearest the line of sight. One weapon row per primary slot follows energy
+## (#1210); the hold, then speed and the preset come under the last of them,
+## so leaving speed and the preset out (#1207) leaves no gap between drawn
+## rows. The top stays where it was, clear of the large preset label.
 const ROW_PITCH: float = 0.027
 const MELTDOWN_Y: float = 3.5 * ROW_PITCH
 const HULL_Y: float = 2.5 * ROW_PITCH
 const SHIELD_Y: float = 1.5 * ROW_PITCH
 const ENERGY_Y: float = 0.5 * ROW_PITCH
 const WEAPON_Y: float = -0.5 * ROW_PITCH
-const HOLD_Y: float = -1.5 * ROW_PITCH
-const SPEED_Y: float = -2.5 * ROW_PITCH
-const PRESET_Y: float = -3.5 * ROW_PITCH
 const LABEL_X: float = -0.12
 ## The large outcome row sits above everything, clear of the large preset label.
 const OUTCOME_Y: float = 0.2
@@ -114,7 +111,8 @@ var _level_row: StatusPanelLevelRow
 var _speed: Label3D
 var _boost: Label3D
 var _hold_row: StatusPanelHoldRow
-var _weapon: Label3D
+## One row per primary slot (#1210).
+var weapon_rows: StatusPanelWeaponRows
 var _meltdown_row: StatusPanelMeltdownRow
 var _outcome_row: StatusPanelOutcomeRow
 var _hull_label: Label3D
@@ -126,17 +124,17 @@ var _hull_bar: PanelBar
 func _init() -> void:
 	name = NODE_NAME
 	preset_row = StatusPanelPresetRow.new(self)
-	_speed = StatusPanelLabels.make(self, SPEED_NAME, Vector3(LABEL_X, SPEED_Y, 0.0), SMALL_FONT)
+	# Rows under the weapon rows are placed by `StatusPanelWeaponRows.place_all`, once the slots are known.
+	_speed = StatusPanelLabels.make(self, SPEED_NAME, Vector3(LABEL_X, 0.0, 0.0), SMALL_FONT)
 	StatusPanelLabels.make(self, ENERGY_LABEL_NAME, Vector3(LABEL_X, ENERGY_Y, 0.0), SMALL_FONT).text = "Energy"
 	StatusPanelLabels.make(self, SHIELD_LABEL_NAME, Vector3(LABEL_X, SHIELD_Y, 0.0), SMALL_FONT).text = "Shield"
 	_hull_label = StatusPanelLabels.make(self, HULL_LABEL_NAME, Vector3(LABEL_X, HULL_Y, 0.0), SMALL_FONT)
 	_hull_label.text = "Hull"
-	_boost = StatusPanelLabels.make(self, BOOST_NAME, Vector3(0.04, SPEED_Y, 0.0), SMALL_FONT)
+	_boost = StatusPanelLabels.make(self, BOOST_NAME, Vector3(0.04, 0.0, 0.0), SMALL_FONT)
 	_hold_row = StatusPanelHoldRow.new(
-		StatusPanelLabels.make(self, HOLD_NAME, Vector3(LABEL_X, HOLD_Y, 0.0), SMALL_FONT),
+		StatusPanelLabels.make(self, HOLD_NAME, Vector3(LABEL_X, 0.0, 0.0), SMALL_FONT),
 		float(StatusPanelLook.shared()["message_seconds"]))
-	_weapon = StatusPanelLabels.make(self, WEAPON_NAME, Vector3(LABEL_X, WEAPON_Y, 0.0), SMALL_FONT)
-	_weapon.text = WEAPON_NONE
+	weapon_rows = StatusPanelWeaponRows.new(self, Vector3(LABEL_X, WEAPON_Y, 0.0))
 	_meltdown_row = StatusPanelMeltdownRow.new(
 		StatusPanelLabels.make(self, MELTDOWN_NAME, Vector3(LABEL_X, MELTDOWN_Y, 0.0), SMALL_FONT))
 	preset_row.add_large(self)
@@ -150,6 +148,7 @@ func _init() -> void:
 	# Full until `show_defence` is first called, so an unwired panel does not
 	# look like a dying ship.
 	show_defence(1.0, 1.0)
+	weapon_rows.place_all(self)
 	show_rows(StatusPanelLook.shared()["rows"])
 
 
@@ -157,6 +156,7 @@ func _init() -> void:
 func show_rows(p_rows: Array[String]) -> void:
 	rows = p_rows.duplicate()
 	StatusPanelRowList.apply(self, rows)
+	weapon_rows.set_layers(StatusPanelRowList.DRAWN_LAYERS if rows.has("weapon") else 0)
 
 
 ## Shows this frame's values. `boost` is `""`, `BOOST_ON` or
@@ -207,10 +207,12 @@ func hold_message_seconds_left() -> float:
 	return _hold_row.seconds_left
 
 
-## Shows the weapon in the active primary slot by part id; an empty string
-## shows `WEAPON_NONE`. Safe to call every frame.
-func show_weapon(part_name: String) -> void:
-	StatusPanelLabels.set_text(_weapon, WEAPON_NONE if part_name.is_empty() else "Weapon %s" % part_name)
+## Shows one row per primary slot: `names` holds each slot's weapon name, ""
+## for an empty slot, and `selected` is the slot that fires. A slot filled
+## this frame shows this frame. Safe to call every frame.
+func show_weapons(names: Array[String], selected: int) -> void:
+	if weapon_rows.show_slots(names, selected):
+		weapon_rows.place_all(self)  # A ship with another slot count: the rows below move.
 
 
 ## Shows the meltdown countdown (#315); a negative value hides the row. See

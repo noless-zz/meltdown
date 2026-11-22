@@ -58,7 +58,7 @@ func _init(panel: Node3D, look: Dictionary = StatusPanelLook.shared()) -> void:
 	_rejected_seconds = float(look.get("preset_custom_rejected_seconds",
 		StatusPanelLook.FALLBACK["preset_custom_rejected_seconds"]))
 	_small = StatusPanelLabels.make(panel, StatusPanel.PRESET_NAME,
-		Vector3(StatusPanel.LABEL_X, StatusPanel.PRESET_Y, 0.0), StatusPanel.SMALL_FONT)
+		Vector3(StatusPanel.LABEL_X, 0.0, 0.0), StatusPanel.SMALL_FONT)  # Height: `StatusPanelWeaponRows.place_all`.
 
 
 ## Adds the build line, in a smaller font, and the large centred label.

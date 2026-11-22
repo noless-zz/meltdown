@@ -42,6 +42,11 @@ var windup_ticks: int = 0
 ## `values_hash`: it says where the weapon comes from, not how it fires.
 var crafted_only: bool = false
 
+## Optional (#1210, PLT-2): the name a pilot reads on the status panel, 1..24
+## characters. Not part of `values_hash` and never read by the simulation, so
+## naming a weapon moves no hash; "" when the file names none.
+var name: String = ""
+
 ## Every key of the data file, in the order the file lists them.
 const KEYS: Array[String] = [
 	"fire_interval_ticks", "projectile_speed", "lifetime", "damage", "energy_cost",
@@ -52,6 +57,11 @@ const OPTIONAL_KEYS: Array[String] = ["burst_shots", "burst_pause_ticks", "windu
 
 ## Optional keys read as booleans rather than numbers; each defaults to false.
 const FLAG_KEYS: Array[String] = ["crafted_only"]
+
+## Optional keys read as text; each defaults to "".
+const TEXT_KEYS: Array[String] = ["name"]
+## The longest name the panel's row is laid out for.
+const MAX_NAME_LENGTH: int = 24
 
 ## Keys read as whole numbers.
 const WHOLE_KEYS: Array[String] = [
@@ -77,7 +87,7 @@ var error: String = ""
 
 ## Parses the text of a weapon data file: one JSON object holding every key in
 ## `KEYS` as a number, any of `OPTIONAL_KEYS`, any of `FLAG_KEYS` as a
-## boolean, and nothing else. A missing
+## boolean, any of `TEXT_KEYS` as text, and nothing else. A missing
 ## required key is an error rather than a silent default, so a typo cannot
 ## leave a value untuned. On failure the
 ## returned weapon has `error` set, naming the field, and default values.
@@ -90,7 +100,7 @@ static func parse_json(text: String) -> WeaponDef:
 	var data: Dictionary = json.data
 	for key: Variant in data:
 		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)
-				or FLAG_KEYS.has(key)):
+				or FLAG_KEYS.has(key) or TEXT_KEYS.has(key)):
 			return _failed("unknown key \"%s\"" % str(key))
 	var weapon: WeaponDef = WeaponDef.new()
 	for key: String in FLAG_KEYS:
@@ -98,6 +108,12 @@ static func parse_json(text: String) -> WeaponDef:
 			if typeof(data[key]) != TYPE_BOOL:
 				return _failed("key \"%s\" must be true or false" % key)
 			weapon.set(key, data[key])
+	for key: String in TEXT_KEYS:
+		if data.has(key):
+			if typeof(data[key]) != TYPE_STRING or String(data[key]).strip_edges().is_empty() \
+					or String(data[key]).length() > MAX_NAME_LENGTH:
+				return _failed("key \"%s\" must be text of 1 to %d characters" % [key, MAX_NAME_LENGTH])
+			weapon.set(key, String(data[key]).strip_edges())
 	for key: String in KEYS + OPTIONAL_KEYS:
 		if not data.has(key):
 			if OPTIONAL_KEYS.has(key):

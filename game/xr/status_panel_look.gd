@@ -68,7 +68,7 @@ const FALLBACK: Dictionary = {
 	"position_m": Vector3(0.0, -0.179, -0.52),
 	"tilt_deg": 19.0,
 	"max_row_angle_deg": 30.0,
-	"message_seconds": 2.0,
+	"message_seconds": 3.0,
 	"low_hull_fraction": 0.25,
 	# Smaller than the rows' 32 and grey, so it never draws the eye from the bars.
 	"level_font": 24.0,

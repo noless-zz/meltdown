@@ -26,7 +26,7 @@ var _shown: String = "/"
 func _init(panel: Node3D, look: Dictionary) -> void:
 	_look = look
 	_label = StatusPanelLabels.make(panel, StatusPanel.LEVEL_NAME,
-		Vector3(-StatusPanel.LABEL_X, StatusPanel.PRESET_Y, 0.0), int(look["level_font"]))
+		Vector3(-StatusPanel.LABEL_X, 0.0, 0.0), int(look["level_font"]))  # Height: `StatusPanelWeaponRows.place_all`.
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_label.modulate = look["level_color"]
 	_label.text = text_for("", "", look)  # The tunnel until told otherwise, never blank.

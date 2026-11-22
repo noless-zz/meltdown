@@ -1,4 +1,5 @@
 {
+	"name": "Drift Mortar",
 	"fire_interval_ticks": 30,
 	"projectile_speed": 35.0,
 	"lifetime": 6.0,

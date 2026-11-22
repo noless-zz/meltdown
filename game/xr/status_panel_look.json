@@ -3,7 +3,7 @@
 	"position_m": [0.0, -0.179, -0.52],
 	"tilt_deg": 19,
 	"max_row_angle_deg": 30,
-	"message_seconds": 2,
+	"message_seconds": 3,
 	"low_hull_fraction": 0.25,
 	"level_font": 24,
 	"level_color": [0.5, 0.56, 0.6],

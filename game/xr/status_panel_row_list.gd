@@ -19,7 +19,9 @@ const NODES: Dictionary = {
 	"hull": ["HullLabel", "HullBar", "HullTrack"],
 	"shield": ["ShieldLabel", "ShieldBar", "ShieldTrack"],
 	"energy": ["EnergyLabel", "EnergyBar", "EnergyTrack"],
-	"weapon": ["Weapon"],
+	# One row per primary slot (#1210); a ship with more than two slots gets
+	# more, drawn as the first is (`StatusPanelWeaponRows.set_layers`).
+	"weapon": ["Weapon", "Weapon2"],
 	"hold": ["Hold"],
 	"outcome": ["Outcome"],
 	"speed": ["Speed", "Boost"],
