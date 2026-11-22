@@ -68,8 +68,8 @@ shard() {
 	read -r fr fc fl fe ff <<< "$4"
 	{
 		echo "WARNING: OpenXR: no runtime"
-		ship_lines "" "$first" "$r" "$c" "$l" "$e" "$r" $plain_losses
-		ship_lines "_FITTED" "$first" "$fr" "$fc" "$fl" "$fe" "$fr" $fitted_losses
+		ship_lines "" "$first" "$r" "$c" "$l" "$e" "$r" "$plain_losses"
+		ship_lines "_FITTED" "$first" "$fr" "$fc" "$fl" "$fe" "$fr" "$fitted_losses"
 		ship_line plain "$r" "$c" "$f"
 		ship_line fitted "$fr" "$fc" "$ff"
 	} > "$file"
