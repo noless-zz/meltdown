@@ -125,8 +125,13 @@ func test_preset_one_never_rolls_smoothly() -> String:
 	return ""
 
 
+## Preset 3 levels only with the menu's Auto-level option on (#1247).
+static func _pilot_levelling() -> ComfortPreset:
+	return AutoLevelChoice.applied(_load("pilot"), AutoLevelChoice.ON)
+
+
 func test_player_roll_in_preset_three_is_not_fought() -> String:
-	var filter: ComfortInputFilter = ComfortInputFilter.new(_load("pilot"))
+	var filter: ComfortInputFilter = ComfortInputFilter.new(_pilot_levelling())
 	var orientation: Basis = _banked(45.0, 10.0)
 	for roll: int in [1500, -1500, 1]:
 		var out: ShipInput = filter.filter(_input(0, 0, roll), orientation)
@@ -134,6 +139,8 @@ func test_player_roll_in_preset_three_is_not_fought() -> String:
 			return "player roll %d came out as %d" % [roll, out.turn_q.z]
 	if filter.filter(_input(), orientation).turn_q.z >= 0:
 		return "preset 3 did not level once the player let go"
+	if ComfortInputFilter.new(_load("pilot")).filter(_input(), orientation).turn_q.z != 0:
+		return "preset 3 levelled with the option off, its default"
 	return ""
 
 
@@ -157,7 +164,8 @@ func test_preset_four_and_auto_level_off_leave_roll_alone() -> String:
 func test_nose_near_vertical_is_skipped() -> String:
 	var limit: float = ComfortAutoLevel.MAX_ELEVATION_DEG
 	for preset_name: String in ["anchored", "guided", "pilot"]:
-		var filter: ComfortInputFilter = ComfortInputFilter.new(_load(preset_name))
+		var preset: ComfortPreset = _pilot_levelling() if preset_name == "pilot" else _load(preset_name)
+		var filter: ComfortInputFilter = ComfortInputFilter.new(preset)
 		for elevation: float in [limit + 1.0, 89.9, 90.0, -90.0, -(limit + 2.0)]:
 			for bank: float in [30.0, -90.0, 179.0]:
 				var orientation: Basis = _banked(bank, elevation)

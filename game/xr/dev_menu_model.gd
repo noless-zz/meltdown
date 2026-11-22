@@ -13,6 +13,7 @@ extends RefCounted
 ## `corner:<name>`, `controls:<scheme>` (#778), `hands:<left|right>` and
 ## `pitch:<normal|inverted>` (#790), `comfort:<1..4>` (#805) or `comfort:5`, the custom mode (#837),
 ## `break:<on|off>` (#821), `refresh:<90|120>` (#852), `swivel:<on|off>` (#853),
+## `auto_level:<on|off>` (#1247),
 ## `foveation:<0..3>:<on|off>` with the second part dynamic (#871),
 ## `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
@@ -48,6 +49,9 @@ const REFRESH_STANDARD: String = RefreshChoice.OFF
 const SWIVEL_PREFIX: String = "swivel:"
 const SWIVEL_ON: String = "on"
 const SWIVEL_OFF: String = "off"
+const AUTO_LEVEL_PREFIX: String = "auto_level:"
+const AUTO_LEVEL_ON: String = "on"
+const AUTO_LEVEL_OFF: String = "off"
 const FOVEATION_PREFIX: String = "foveation:"
 ## The hand and pitch choices, in the order left / right steps through them.
 const HANDS: Array[String] = ["right", "left"]
@@ -138,7 +142,9 @@ func _init(p_spec: DevMenuSpec, level_paths: Array[String]) -> void:
 		DevMenuSpec.KIND_HANDS: _hands, DevMenuSpec.KIND_PITCH: _pitch,
 		DevMenuSpec.KIND_COMFORT: _comfort, DevMenuSpec.KIND_BREAK: _break,
 		DevMenuSpec.KIND_REFRESH: _refresh, DevMenuSpec.KIND_SWIVEL: _swivel,
-		DevMenuSpec.KIND_FOVEATION: _foveation,
+		DevMenuSpec.KIND_FOVEATION: _foveation, DevMenuSpec.KIND_AUTO_LEVEL: DevMenuValueToggle.new(
+			AUTO_LEVEL_PREFIX, AUTO_LEVEL_ON, AUTO_LEVEL_OFF, spec.auto_level_on_text,
+			spec.auto_level_off_text, spec.auto_level_preset_text),
 		DevMenuSpec.KIND_LEVEL: DevMenuValueLevel.new(LEVEL_PREFIX, levels, spec)}
 
 

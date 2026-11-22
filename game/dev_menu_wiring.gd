@@ -57,7 +57,7 @@ var tap: MenuTap = MenuTap.new()
 var release: DevMenuRelease = DevMenuRelease.new()
 ## One helper per entry kind, in the order `dev_menu.json` lists them.
 var entries: Array[DevMenuEntry] = []
-## The comfort wiring the Comfort, Refresh and Swivel chair entries read; null in tests without one.
+## The comfort wiring the Comfort, Refresh, Swivel chair and Auto-level entries read; null in tests without one.
 var comfort: ComfortWiring = null
 ## The break prompt the Break reminder entry shows and switches; null in tests without one.
 var break_prompt: BreakPromptWiring = null
@@ -116,7 +116,7 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 	var no_refresh: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_REFRESH], [DevMenuModel.REFRESH_PREFIX])
 	var close: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_CLOSE], [DevMenuModel.CLOSE], true)
 	entries = [_update_entry, _corner, _comfort_entry, _break_entry,
-		refresh if refresh != null else no_refresh, swivel, _controls,
+		refresh if refresh != null else no_refresh, swivel, DevMenuAutoLevel.started(p_comfort), _controls,
 		DevMenuFoveation.new(p_foveation), _restarts, close]
 
 
