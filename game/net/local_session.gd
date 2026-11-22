@@ -97,6 +97,7 @@ func _init(run_seed: int = 0, input_source: ShipInputSource = null, bounds: BoxB
 		sim.equip(replay.loadout)
 	if RobotSpawn.spawn_all(sim, robots):
 		replay.robots = robots.duplicate()
+	parts = SpawnLoader.with_loadout_weapons(parts, replay.loadout)
 	var parts_problem: String = sim.set_parts(parts)
 	if parts_problem == "":
 		replay.parts = parts.duplicate()

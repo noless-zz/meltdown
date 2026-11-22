@@ -35,6 +35,13 @@ var burst_pause_ticks: int = 0
 ## has a window to dodge or shoot first.
 var windup_ticks: int = 0
 
+## Optional flag (#1105, SLV-1, SLV-2): true for a weapon that is only ever
+## crafted, never dropped by a robot. Such a weapon stays out of the salvage
+## catalogue (`SpawnLoader.parts_from_files`), whose contents `SimHash` hashes,
+## so adding a crafted weapon file moves no session's hash. Not part of
+## `values_hash`: it says where the weapon comes from, not how it fires.
+var crafted_only: bool = false
+
 ## Every key of the data file, in the order the file lists them.
 const KEYS: Array[String] = [
 	"fire_interval_ticks", "projectile_speed", "lifetime", "damage", "energy_cost",
@@ -42,6 +49,9 @@ const KEYS: Array[String] = [
 
 ## Keys a file may leave out; each falls back to its field's default above.
 const OPTIONAL_KEYS: Array[String] = ["burst_shots", "burst_pause_ticks", "windup_ticks"]
+
+## Optional keys read as booleans rather than numbers; each defaults to false.
+const FLAG_KEYS: Array[String] = ["crafted_only"]
 
 ## Keys read as whole numbers.
 const WHOLE_KEYS: Array[String] = [
@@ -66,7 +76,8 @@ var error: String = ""
 
 
 ## Parses the text of a weapon data file: one JSON object holding every key in
-## `KEYS` as a number, any of `OPTIONAL_KEYS`, and nothing else. A missing
+## `KEYS` as a number, any of `OPTIONAL_KEYS`, any of `FLAG_KEYS` as a
+## boolean, and nothing else. A missing
 ## required key is an error rather than a silent default, so a typo cannot
 ## leave a value untuned. On failure the
 ## returned weapon has `error` set, naming the field, and default values.
@@ -78,9 +89,15 @@ static func parse_json(text: String) -> WeaponDef:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)
+				or FLAG_KEYS.has(key)):
 			return _failed("unknown key \"%s\"" % str(key))
 	var weapon: WeaponDef = WeaponDef.new()
+	for key: String in FLAG_KEYS:
+		if data.has(key):
+			if typeof(data[key]) != TYPE_BOOL:
+				return _failed("key \"%s\" must be true or false" % key)
+			weapon.set(key, data[key])
 	for key: String in KEYS + OPTIONAL_KEYS:
 		if not data.has(key):
 			if OPTIONAL_KEYS.has(key):
