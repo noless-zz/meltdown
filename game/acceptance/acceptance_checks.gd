@@ -160,6 +160,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_RUN_ADVANCES: _run_advances,
 		AcceptanceStep.CHECK_SHAFT_CHOICE: _shaft_choice,
 		AcceptanceStep.CHECK_COMPONENTS_BANK: _components_bank,
+		AcceptanceStep.CHECK_COLLECTED: _collected,
 	}
 
 
@@ -236,3 +237,7 @@ func _shaft_choice(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 
 func _components_bank(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return AcceptanceComponentsBankCheck.run(step, runner.main, runner.flown(), measurements)
+
+
+func _collected(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return AcceptanceCollectedCheck.run(step, runner.main, runner.flown(), measurements)

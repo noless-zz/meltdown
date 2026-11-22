@@ -53,6 +53,7 @@ var _step_started: bool = false
 var _source: ReplayInputSource = null
 var _level_problem: String = ""  # Why the step's level or custom comfort file could not be flown, or "".
 var _checks: AcceptanceChecks = null  # The step's samplers and check dispatch (#817).
+var _next_started: bool = false  # The step's `next_replay` has been started (#1065).
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -137,6 +138,7 @@ func _start_step(step: AcceptanceStep) -> void:
 	xr_waited = 0
 	_source = null
 	_level_problem = ""
+	_next_started = false
 	_checks = AcceptanceChecks.begin(step, xr_available(), on_headset, screenshots.grab)
 	_checks.errors_at_start = errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
@@ -179,12 +181,29 @@ func _step_ready(step: AcceptanceStep) -> bool:
 			_checks.after_tick(main)
 			return false
 		_source.finish()
+		if _flies_next(step):
+			return false
 		main.set_process(true)
 	if _checks.sampling():
 		return false
 	if _checks.waits_for_xr(step, self) and xr_waited < XR_WAIT_FRAMES:
 		xr_waited += 1
 		return false
+	return true
+
+
+## Once the first replay of a step with `next_replay` ends, takes its shaft
+## and flies that replay on the chosen shaft's level (#1065,
+## `AcceptanceShaftStep`). True while the second replay is to be flown.
+func _flies_next(step: AcceptanceStep) -> bool:
+	if step.next_replay_path == "" or _next_started or _level_problem != "":
+		return false
+	_next_started = true
+	var next: Array = AcceptanceShaftStep.fly_next(main, step)
+	_level_problem = next[0]
+	if next[1] == null:
+		return false
+	_source = next[1]
 	return true
 
 

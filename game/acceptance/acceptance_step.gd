@@ -123,13 +123,18 @@ const CHECK_SHAFT_CHOICE: String = "shaft_choice"
 ## press banks exactly `expected_banked` (#1028, CRF-1, CRF-2;
 ## `AcceptanceComponentsBankCheck`). Must be the step's last check.
 const CHECK_COMPONENTS_BANK: String = "components_bank"
+## The sim's `collected` counts when the step's last replay ends are exactly
+## `expected_collected` (#1065, CRF-7; `AcceptanceCollectedCheck`). With
+## `next_replay` that is the chosen shaft's level (`AcceptanceShaftStep`).
+const CHECK_COLLECTED: String = "collected"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
 	CHECK_FRAME_BUDGET, CHECK_WALL_BOUNCED, CHECK_COMFORT_MOTION, CHECK_CONTROLLERS_BOUND, CHECK_ESCAPE_SCREEN,
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
-	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE, CHECK_COMPONENTS_BANK]
+	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE, CHECK_COMPONENTS_BANK,
+	CHECK_COLLECTED]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -145,6 +150,7 @@ const NO_HASH: int = -1
 const NO_OUTCOME: int = -1
 const NO_SEED: int = -1
 const NO_PAUSE: int = -1
+const NO_SHAFT: int = -1
 
 ## Unique within its suite; names the step in the report.
 var id: String = ""
@@ -165,6 +171,13 @@ var run_seed: int = NO_SEED
 var expected_next_level_hash: int = NO_HASH
 ## Component counts the run's profile must hold after the escape, for the components_bank check.
 var expected_banked: Dictionary[String, int] = {}
+## A run step's shaft and second level (#1065, `AcceptanceShaftStep`): the
+## index into the offer after level 1, or NO_SHAFT, and the replay flown on
+## the chosen shaft's level, or "".
+var shaft_index: int = NO_SHAFT
+var next_replay_path: String = ""
+## Component counts the sim must have collected, for the collected check.
+var expected_collected: Dictionary[String, int] = {}
 ## Comfort preset to fly under, or NO_PRESET.
 var preset: int = NO_PRESET
 ## Names from KNOWN_CHECKS, in the order the suite lists them.
