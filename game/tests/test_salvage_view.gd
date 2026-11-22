@@ -2,7 +2,7 @@ extends RefCounted
 
 ## Floating salvage drawn as placeholder shapes (SLV-1, LGT-1, ARC-4): one mesh
 ## per item at the blended position, a view-only spin, pooled nodes, a look
-## per part from data covering every weapon data file, glowing, and never
+## per part from data covering every part in the salvage catalogue, glowing, and never
 ## sharing a shape and colour with a robot.
 
 const WEAPONS_DIR: String = "res://data/weapons"
@@ -120,18 +120,18 @@ func test_a_picked_up_item_is_hidden_and_nodes_are_pooled() -> String:
 	return result
 
 
-func test_shipped_look_covers_every_weapon_data_file() -> String:
+## Only weapons that can be dropped need a look: crafted-only weapons stay out
+## of the salvage catalogue (#1105), so that is the list to cover.
+func test_shipped_look_covers_every_salvage_part() -> String:
 	var view: SalvageView = SalvageView.new()
 	var result: String = view.look_error
 	var weapon_ids: Array[String] = []
-	for file: String in DirAccess.get_files_at(WEAPONS_DIR):
-		if file.ends_with(".json"):
-			weapon_ids.append(file.get_basename())
+	weapon_ids.assign(SpawnLoader.load_parts(WEAPONS_DIR).keys())
 	if result == "" and weapon_ids.is_empty():
-		result = "no weapon data files found"
+		result = "no salvage parts found"
 	for id: String in weapon_ids:
 		if result == "" and not view.looked_ids().has(id):
-			result = "salvage_look.json has no entry for weapon \"%s\"" % id
+			result = "salvage_look.json has no entry for part \"%s\"" % id
 	view.free()
 	return result
 

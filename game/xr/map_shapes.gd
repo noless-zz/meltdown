@@ -79,3 +79,18 @@ static func reactor_ball(look: Dictionary, destroyed: bool, energy: float) -> Sp
 	material.no_depth_test = true
 	material.render_priority = REACTOR_PRIORITY
 	return sphere
+
+
+## The explored outline `points` (segment pairs, level space) fitted into a cube
+## of `edge_m` as one glowing line mesh in the look's line colour; null when there
+## is nothing explored (moved here from `MapHologram.build`, #1120).
+static func outline(points: PackedVector3Array, edge_m: float, look: Dictionary) -> ArrayMesh:
+	if points.is_empty():
+		return null
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = MapWireframe.fit_to_cube(points, edge_m)
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
+	mesh.surface_set_material(0, glow(look["line_color"], float(look["line_energy"])))
+	return mesh

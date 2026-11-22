@@ -41,10 +41,14 @@ const WIDE_RADAR_MODULE: String = "wide_radar"
 ## The mine scanner module (#1072, CRF-5, SLV-3): while fitted, the hologram map
 ## shows trapped miners near the ship. Core only carries the id; the map reads it.
 const MINE_SCANNER_MODULE: String = "mine_scanner"
+## The aim assist module (#1096, CMB-7, CMB-8): while fitted, the ship's shots
+## bend towards a robot just off the aim (`AimAssist`, `ProjectileHits.fire`).
+const AIM_ASSIST_MODULE: String = "aim_assist"
 ## Utility module kinds core knows; any other module id is rejected, naming
-## the field. Look-aim came first (#1042), then the wide radar (#1059) and the
-## mine scanner (#1072).
-const UTILITY_MODULE_KINDS: Array[String] = [LOOK_AIM_MODULE, WIDE_RADAR_MODULE, MINE_SCANNER_MODULE]
+## the field. Look-aim came first (#1042), then the wide radar (#1059), the
+## mine scanner (#1072) and aim assist (#1096).
+const UTILITY_MODULE_KINDS: Array[String] = [LOOK_AIM_MODULE, WIDE_RADAR_MODULE, MINE_SCANNER_MODULE,
+		AIM_ASSIST_MODULE]
 
 ## Weapon id of each slot, "" when empty.
 var primary_ids: Array[String] = ["", ""]

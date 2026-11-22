@@ -27,15 +27,18 @@ const KEY_RUN: String = "run"
 const KEY_NEXT_HASH: String = "expected_next_level_hash"
 ## The checks that press on to the run's next level; a step lists at most one.
 const MOVING_CHECKS: Array[String] = [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE,
-	AcceptanceStep.CHECK_COMPONENTS_BANK]
+	AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS]
+## The moving checks that fly the level with drops and rescue on and judge the
+## profile, not the next level's hash (#1028, #1084).
+const RULES_CHECKS: Array[String] = [AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS]
 
 
 ## Reads `run` and `expected_next_level_hash` into `step`; "" or the problem,
 ## with the field named. Runs after the step's replay, seed, level and checks are read.
 static func parse_step(data: Dictionary, field: String, step: AcceptanceStep) -> String:
 	var moves: String = moving_check(step)
-	# components_bank moves on too, but judges the bank, not the next level's hash (#1028).
-	var wants: bool = moves != "" and moves != AcceptanceStep.CHECK_COMPONENTS_BANK
+	# components_bank and crew_joins move on too, but judge the profile (#1028, #1084).
+	var wants: bool = moves != "" and not RULES_CHECKS.has(moves)
 	var moving: Array[String] = []
 	for check: String in MOVING_CHECKS:
 		if step.has_check(check):
@@ -109,8 +112,8 @@ static func begin(main: Node, step: AcceptanceStep) -> void:
 		step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE) or flies_on) \
 		if step.run_seed != AcceptanceStep.NO_SEED else null
 	if level_start.run != null:
-		level_start.run.level_rules = step.has_check(AcceptanceStep.CHECK_COMPONENTS_BANK) \
-			or step.has_check(AcceptanceStep.CHECK_COLLECTED) or flies_on  # #1028, #1065.
+		level_start.run.level_rules = RULES_CHECKS.has(moving_check(step)) \
+			or step.has_check(AcceptanceStep.CHECK_COLLECTED) or flies_on  # #1028, #1065, #1084.
 		AcceptanceFittedStart.begin(level_start.run, step)  # Scratch stores or the plain ship (#1057).
 		level_start.source = level_start.run.level_source()
 	if destroyed != null:
