@@ -54,11 +54,12 @@ func _pinned() -> Array[Dictionary]:
 func test_escaping_with_two_rescued_gives_two_pinned_crew_saved_once() -> String:
 	var store: CountingStore = CountingStore.new(_path("escape"))
 	var run: RunWiring = _wiring(store)
+	var started: int = store.saves  # The run start's statistics save (#1092).
 	run.after_level(ExitRule.Outcome.ESCAPED, 50.0, {"power_cell": 1}, 2)
 	if run.profile.crew != _pinned():
 		return "crew %s, expected %s" % [run.profile.crew, _pinned()]
-	if store.saves != 1:
-		return "the escape saved %d times, expected once with the components" % store.saves
+	if store.saves - started != 1:
+		return "the escape saved %d times, expected once with the components" % (store.saves - started)
 	var read: Profile = ProfileStore.new(store.path).load_profile()
 	if read.crew != _pinned() or read.count_of("power_cell") != 1:
 		return "the saved profile has crew %s and %d power cells" % [read.crew, read.count_of("power_cell")]
@@ -83,8 +84,9 @@ func test_a_lost_level_with_one_rescued_adds_nobody() -> String:
 	var store: CountingStore = CountingStore.new(_path("loss"))
 	var run: RunWiring = _wiring(store)
 	run.after_level(ExitRule.Outcome.RUNNING, 0.0, {}, 1)
-	if not run.profile.crew.is_empty() or store.saves != 0:
-		return "the loss gave crew %s and %d saves" % [run.profile.crew, store.saves]
+	var saved: Profile = ProfileStore.new(store.path).load_profile()
+	if not run.profile.crew.is_empty() or not saved.crew.is_empty():
+		return "the loss gave crew %s, saved %s" % [run.profile.crew, saved.crew]
 	return ""
 
 
@@ -106,15 +108,15 @@ func test_the_same_run_level_and_count_give_the_same_roles() -> String:
 	return ""
 
 
-func test_a_rejected_roles_file_adds_no_crew_and_leaves_the_file_unchanged() -> String:
+## The escape is still saved for the statistics (#1092), with the crew unchanged.
+func test_a_rejected_roles_file_adds_no_crew_and_leaves_the_saved_crew_unchanged() -> String:
 	var store: ProfileStore = ProfileStore.new(_path("rejected"))
 	var run: RunWiring = _wiring(store)
 	run.after_level(ExitRule.Outcome.ESCAPED, 50.0, {}, 2)
-	var before: String = FileAccess.get_file_as_string(store.path)
 	run.use_roles("{\"roles\": []}")
 	var next: String = run.after_level(ExitRule.Outcome.ESCAPED, 50.0, {}, 1)
-	if FileAccess.get_file_as_string(store.path) != before:
-		return "the refused add changed the profile file"
+	if ProfileStore.new(store.path).load_profile().crew != _pinned():
+		return "the refused add changed the saved crew"
 	if run.profile.crew != _pinned() or run.crew_error == "":
 		return "crew %s, crew error '%s'" % [run.profile.crew, run.crew_error]
 	if run.error != "" or next == "" or run.state.level_index != 2:
@@ -137,13 +139,14 @@ func test_escape_for_choice_adds_the_crew_once() -> String:
 	var run: RunWiring = _wiring(store, true)
 	if run.shafts == null:
 		return "the shipped shafts were rejected"
+	var started: int = store.saves  # The run start's statistics save (#1092).
 	if run.escape_for_choice({"power_cell": 1}, 2).is_empty():
 		return "no shaft choice after level 1"
-	if run.profile.crew != _pinned() or store.saves != 1:
-		return "crew %s after %d saves" % [run.profile.crew, store.saves]
+	if run.profile.crew != _pinned() or store.saves - started != 1:
+		return "crew %s after %d saves" % [run.profile.crew, store.saves - started]
 	run.after_level(ExitRule.Outcome.ESCAPED, 50.0, {"power_cell": 1}, 2)
-	if run.profile.crew != _pinned() or store.saves != 1:
-		return "the restart added crew again: %s, %d saves" % [run.profile.crew, store.saves]
+	if run.profile.crew != _pinned() or store.saves - started != 1:
+		return "the restart added crew again: %s, %d saves" % [run.profile.crew, store.saves - started]
 	return ""
 
 
