@@ -67,6 +67,13 @@
 			"expected_hash": 3375022947,
 			"expected_outcome": "ESCAPED",
 			"expected_crew": 1
+		},
+		{
+			"id": "craft_and_fit",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
+			"checks": ["no_script_errors", "craft_and_fit"]
 		}
 	]
 }

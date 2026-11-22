@@ -1,0 +1,15 @@
+{
+	"id": "halo_weir",
+	"name": "Halo Weir",
+	"branch": "defence",
+	"kind": "shield",
+	"tier": 3,
+	"requires": [
+		"baffled_emitter"
+	],
+	"cost": {
+		"circuit_shards": 3,
+		"core_glass": 2
+	},
+	"grants": "halo_weir"
+}

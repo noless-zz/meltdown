@@ -8,6 +8,8 @@ extends RefCounted
 
 const WEAPONS_DIR: String = "res://data/weapons"
 const DEEPEST_TIER: int = 3
+## SLV-2: parts across weapons, shields, engines and utilities at release.
+const RELEASE_PART_COUNT: int = 30
 
 
 static func _texts(dir: String) -> Dictionary:
@@ -88,11 +90,20 @@ func test_tier_three_costs_a_tier_three_component() -> String:
 
 
 ## SLV-2 asks for 30 parts at release; the count is printed so each run shows
-## how far along it is, and only checked not to shrink below today's.
+## it, and checked not to shrink below the 18 the first parts brought.
 func test_shipped_part_count() -> String:
 	var weapons: int = _texts(WEAPONS_DIR).size()
 	var parts: int = _parts().size()
 	print("  shipped parts: %d (%d weapons + %d part files)" % [weapons + parts, weapons, parts])
 	if weapons + parts < 18:
 		return "only %d parts shipped" % (weapons + parts)
+	return ""
+
+
+## SLV-2: weapons plus ship parts, utility modules included, reach the 30 the
+## release needs (#1090). Fails as soon as removing a file drops the count.
+func test_at_least_release_part_count() -> String:
+	var total: int = _texts(WEAPONS_DIR).size() + _parts().size()
+	if total < RELEASE_PART_COUNT:
+		return "only %d parts shipped, SLV-2 needs %d" % [total, RELEASE_PART_COUNT]
 	return ""

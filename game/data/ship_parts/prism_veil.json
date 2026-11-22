@@ -1,0 +1,10 @@
+{
+	"id": "prism_veil",
+	"name": "Prism Veil",
+	"kind": "shield",
+	"stats": {
+		"max_shield": 0.85,
+		"shield_recharge": 1.15,
+		"shield_energy_cost": 0.7
+	}
+}

@@ -3,45 +3,25 @@ extends RefCounted
 
 ## Flies a run in the game (#989, RUN-1, RUN-3, RUN-7, CRF-2): owns the
 ## `RunState` built from `data/run/run.json` for `--run=<n>` and says which
-## level the main scene flies next. Each level of the run is the generated
-## level `SeedLevel` builds for `RunState.current_level_seed()`, so its source
-## is `seed:<level seed>`, the form `LevelStart.source` already flies; a level
-## whose shaft scales the robots adds `:robots=<scale>` (#1011).
+## level the main scene flies next, as the source `seed:<level seed>` that
+## `LevelStart.source` flies, plus `:robots=<scale>` when its shaft scales the
+## robots (#1011).
 ##
-## When an end screen's restart press ends a level, `after_level` reads the
-## ended session's outcome, ship hull and collected components:
+## On an end screen's restart press `after_level` reads the ended session: an
+## escape banks the level (`RunEscapeBank`, #1136) and flies the next, or wins
+## the run after the last; a lost ship drops the level's unbanked components,
+## earlier escapes stay banked (RUN-7); a win or loss starts a new run with a
+## new seed. Neither (the dev menu's Restart) flies the same level again.
 ##
-## - Escaped: `RunState.advance` hands over the level's components, which are
-##   banked into the profile (`RunBanking`, #977) and saved, and the run moves
-##   to its next level. After the last level the run is won and a new run
-##   starts with a new seed.
-## - Ship lost: `RunState.lose` drops the level's unbanked components; earlier
-##   escapes stay banked. A new run starts with a new seed.
-## - Neither (the dev menu's Restart while flying): the same level again.
-##
-## Between levels the pilot picks a shaft (#990, RUN-1, CRF-7): the run holds
-## the `ShaftOffer` from `data/run/shafts.json`. When the escape screen's press
-## comes after a level that is not the last, `escape_for_choice` advances and
-## banks at once and hands back the offer; the shaft panel's confirm calls
-## `choose`, and the restart that follows flies the chosen shaft's level
-## (`after_level` sees the escape was already taken). A restart press that
-## reaches `after_level` with no choice made takes the first offered shaft, so a
-## level never flies while a choice is due. A rejected shaft file, or
-## `with_shafts` false, runs without a choice as #989 did.
-##
-## An escape also brings the level's rescued miners into the profile's crew
-## (#1032, CRW-1, SLV-3): `CrewRoster.add_rescued` gives each a role seeded by
-## the run seed and the escaped level's index, and the profile is saved once
-## with the banked components. A lost ship adds nobody, and crew from earlier
-## escapes stays (RUN-7). A rejected roles file logs one line at the start and
-## then escapes add no crew; the run flies on.
-##
-## The profile's statistics (#1092, CRW-2) count each run start, escape, loss
-## and win through `RunStatsRecorder`, saved with the same store once per event.
+## Between levels the pilot picks a shaft (#990, CRF-7) from the `ShaftOffer` in
+## `data/run/shafts.json`: `escape_for_choice` advances and banks at once and
+## hands back the offer, the panel's confirm calls `choose`, and the restart
+## after it flies the chosen level. A restart with no choice made takes the
+## first offered shaft. A rejected shaft file, or `with_shafts` false, runs
+## without a choice.
 ##
 ## It sits beside `main.gd` because it reads the `net/` session's outcome and
-## the sim's `collected` counts; it only reads them and hands back a level
-## source for `main.gd` to load, as `EscapeEndWiring` hands back a restart (MP-2).
+## `collected` counts; it only hands back a level source for `main.gd` (MP-2).
 
 const RUN_FILE: String = "res://data/run/run.json"
 const SHAFTS_FILE: String = "res://data/run/shafts.json"
@@ -122,10 +102,7 @@ func start(run_seed: int) -> bool:
 ## Reads the crew roles from `text`, the roles file's text (tests hand in
 ## their own). A rejected file logs one line; escapes then add no crew.
 func use_roles(text: String) -> void:
-	roles = CrewRoles.parse_json(text)
-	if roles.error != "":
-		print("%s: %s rejected, rescued miners will not join the crew: %s" % [LOG_PREFIX,
-			CrewRoles.ROLES_FILE, roles.error])
+	roles = RunEscapeBank.read_roles(text)
 
 
 ## How many miners `sim` has rescued so far; 0 when it flies without rescue.
@@ -176,8 +153,7 @@ func choice_due_after_escape() -> bool:
 func escape_for_choice(collected: Dictionary, rescued: int = 0) -> Array[String]:
 	if not choice_due_after_escape():
 		return []
-	var escaped_index: int = state.level_index
-	_bank(state.advance(collected), escaped_index, rescued)
+	_bank(collected, rescued)
 	escape_taken = true
 	return state.offer()
 
@@ -207,8 +183,7 @@ func after_level(outcome: int, hull: float, collected: Dictionary, rescued: int 
 		escape_taken = false
 		_settle_choice()
 	elif outcome == ExitRule.Outcome.ESCAPED:
-		var escaped_index: int = state.level_index
-		_bank(state.advance(collected), escaped_index, rescued)
+		_bank(collected, rescued)
 		_settle_choice()
 		if state.won:
 			print("%s %d won after %d levels; banked %s" % [LOG_PREFIX, state.plan.run_seed,
@@ -252,44 +227,16 @@ func _settle_choice() -> void:
 		choose(offered[0])
 
 
-## Banks an escape of level `level_index`: its `counts` and its `rescued`
-## miners, records it in the statistics, then one save for all three.
-func _bank(counts: Dictionary[String, int], level_index: int, rescued: int) -> void:
-	if state.error != "":
-		error = "the escape was refused: %s" % state.error
-		print("%s: %s" % [LOG_PREFIX, error])
-		return
-	var banked: Dictionary[String, int] = {}
-	if not counts.is_empty():
-		var problem: String = RunBanking.bank_escape(profile, counts)
-		if problem != "":
-			error = problem
-			print("%s: %s" % [LOG_PREFIX, problem])
-		else:
-			banked = counts
-	var joined: int = rescued if _add_crew(level_index, rescued) else 0
-	stats.escaped(profile, level_index, joined, banked)
-	if store != null and not store.save(profile):
-		error = store.message
-		print("%s: %s" % [LOG_PREFIX, error])
-		stats.fail("the escape was not saved: %s" % error)
-
-
-## Adds `rescued` miners from level `level_index` to the crew; true when any
-## joined. A refusal is logged and leaves the crew as it was; the run goes on.
-func _add_crew(level_index: int, rescued: int) -> bool:
-	crew_error = ""
-	if rescued <= 0:
-		return false
-	if roles == null or roles.error != "":
-		crew_error = "no crew roles"  # Logged once when the roles file was read.
-		return false
-	crew_error = CrewRoster.add_rescued(profile, roles, state.plan.run_seed, level_index, rescued)
-	if crew_error != "":
-		print("%s: %d rescued miners did not join the crew: %s" % [LOG_PREFIX, rescued, crew_error])
-		return false
-	print("%s %d: %d rescued miners joined the crew" % [LOG_PREFIX, state.plan.run_seed, rescued])
-	return true
+## Advances past the escaped level and banks its `collected` components and
+## `rescued` miners through `RunEscapeBank` (#1136).
+func _bank(collected: Dictionary, rescued: int) -> void:
+	var escaped_index: int = state.level_index
+	var banked: RunEscapeBank = RunEscapeBank.bank(state, state.advance(collected), escaped_index, rescued,
+		profile, store, roles, stats)
+	if banked.error != "":
+		error = banked.error
+	if not banked.refused:
+		crew_error = banked.crew_error
 
 
 func _new_seed() -> int:

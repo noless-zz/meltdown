@@ -1,0 +1,22 @@
+{
+	"fitting": {
+		"parts": {
+			"engine": "torsion_drive",
+			"hull": "fused_bulkhead",
+			"shield": "glass_core_shield"
+		},
+		"primary": [
+			"arc_lance",
+			"needle_gun"
+		],
+		"secondary": [
+			"",
+			""
+		],
+		"utility": [
+			"mine_scanner",
+			"wide_radar"
+		]
+	},
+	"version": 2
+}

@@ -1,0 +1,15 @@
+{
+	"id": "quill_battery",
+	"name": "Quill Battery",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 2,
+	"requires": [
+		"ember_coil"
+	],
+	"cost": {
+		"scrap_alloy": 3,
+		"circuit_shards": 3
+	},
+	"grants": "quill_battery"
+}

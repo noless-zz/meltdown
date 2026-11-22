@@ -10,7 +10,14 @@ extends SceneTree
 ##
 ##     godot --headless --path game -s res://tests/bot_run_sweep.gd -- --runs=100 --first=1
 ##
-## Options: `--runs=N` (default 100), `--first=S` (first run seed, default 1).
+## Options: `--runs=N` (default 100), `--first=S` (first run seed, default 1),
+## and `--profile=<path>` with `--fitting=<path>` (#1091, CRW-3): with both,
+## the same run seeds are flown twice, first by the plain ship file and then by
+## the ship that profile and fitting start a run with (`bot_sweep_ship.gd`, as
+## `RunShip` builds it for a run level), and one `MELTDOWN_BOT_SHIP` line each
+## sets them side by side: runs finished, level-1 escapes, mean hull left on
+## level 1. That comparison is reported, never judged. Without them the sweep
+## flies the ship file and prints exactly what it printed before.
 ## Where the run waits for a shaft choice the sweep takes the first shaft
 ## offered, so a run seed always flies the same levels. An escape calls
 ## `advance`; anything else (ship destroyed, countdown run out, still flying at
@@ -19,6 +26,7 @@ extends SceneTree
 ##
 ## Prints one `MELTDOWN_BOT_RUN` line per run, then
 ## `MELTDOWN_BOT_RUNS {"runs":N,"completed":C,"rate":r,"levels_flown":L,"levels_escaped":E}`.
+## The fitted ship's lines carry `FITTED_SUFFIX` on both tags.
 ## The gate has no bar for this rate yet, so it is reported, not judged: the
 ## exit code is 0 unless a run seed fails to build (a broken data file) or the
 ## summary cannot be printed. A shaft's robot-count risk is not applied yet;
@@ -30,6 +38,9 @@ const RUN_FILE: String = "res://data/run/run.json"
 const SHAFTS_FILE: String = "res://data/run/shafts.json"
 const RUN_TAG: String = "MELTDOWN_BOT_RUN"
 const SUMMARY_TAG: String = "MELTDOWN_BOT_RUNS"
+const SHIP_TAG: String = "MELTDOWN_BOT_SHIP"
+const FITTED_SUFFIX: String = "_FITTED"
+const Ship := preload("res://tests/bot_sweep_ship.gd")
 
 
 ## How one run went.
@@ -45,13 +56,16 @@ class RunResult extends RefCounted:
 	var shafts: Array[String] = []
 	## Why the run seed could not be built; empty when it was.
 	var error: String = ""
+	## Whether level 1 was escaped, and the hull left where it stopped.
+	var first_escaped: bool = false
+	var first_hull: float = 0.0
 
 	func completed() -> bool:
 		return ended == "completed"
 
-	func line() -> String:
+	func line(tag: String = RUN_TAG) -> String:
 		return '%s {"seed":%d,"planned":%d,"flown":%d,"escaped":%d,"ended":"%s"}' % [
-				RUN_TAG, run_seed, planned, flown, escaped, ended]
+				tag, run_seed, planned, flown, escaped, ended]
 
 
 ## Flies one run. `fly_level` takes (run seed, level index, level seed) and
@@ -74,6 +88,9 @@ static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
 		var flown: EscapeSweep.SeedResult = fly_level.call(run_seed, state.level_index,
 				state.current_level_seed())
 		result.flown += 1
+		if result.flown == 1:
+			result.first_escaped = flown.escaped
+			result.first_hull = flown.hull
 		if flown.escaped:
 			result.escaped += 1
 			state.advance()
@@ -85,14 +102,27 @@ static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
 	return result
 
 
+## The sweep's `fly_level`: the bot flies each level of `levels` (built with
+## robots and debris) in `tuning`, or the ship file's when null. Shared with
+## the pinned full run (#1118) so it flies exactly as the sweep does.
+static func bot_flies(levels: Levels, tuning: ShipTuning = null) -> Callable:
+	var flown_tuning: ShipTuning = tuning if tuning != null else levels.tuning
+	return func(_run_seed: int, _index: int, level_seed: int) -> EscapeSweep.SeedResult:
+		return EscapeSweep.fly(level_seed, levels.level_of(levels.generate(level_seed)),
+				flown_tuning)
+
+
 ## Run seeds `first_seed` to `first_seed + count - 1`. With no `fly_level` the
-## bot flies each level with robots and debris on. The result holds "runs",
-## "completed", "rate", "levels_flown", "levels_escaped", "lines" (one
-## `MELTDOWN_BOT_RUN` line per run) and "errors" (why a run seed or a data file
-## could not be built).
-static func run(first_seed: int, count: int, fly_level: Callable = Callable()) -> Dictionary:
+## bot flies each level with robots and debris on, in `tuning`, or the ship
+## file's when null. The result holds "runs", "completed", "rate",
+## "levels_flown", "levels_escaped", "level1_escapes", "level1_hull" (summed
+## over the runs), "lines" (one `MELTDOWN_BOT_RUN` line per run, or `tag`'s)
+## and "errors" (why a run seed or a data file could not be built).
+static func run(first_seed: int, count: int, fly_level: Callable = Callable(),
+		tuning: ShipTuning = null, tag: String = RUN_TAG) -> Dictionary:
 	var result: Dictionary = {"runs": count, "completed": 0, "rate": 0.0, "levels_flown": 0,
-			"levels_escaped": 0, "lines": [] as Array[String], "errors": [] as Array[String]}
+			"levels_escaped": 0, "level1_escapes": 0, "level1_hull": 0.0,
+			"lines": [] as Array[String], "errors": [] as Array[String]}
 	var run_text: String = FileAccess.get_file_as_string(RUN_FILE)
 	var shafts: ShaftOffer = ShaftOffer.build(FileAccess.get_file_as_string(SHAFTS_FILE))
 	if shafts.error != "":
@@ -104,17 +134,17 @@ static func run(first_seed: int, count: int, fly_level: Callable = Callable()) -
 		if broken != "":
 			result["errors"].append(broken)
 			return result
-		fly_level = func(_run_seed: int, _index: int, level_seed: int) -> EscapeSweep.SeedResult:
-			return EscapeSweep.fly(level_seed, levels.level_of(levels.generate(level_seed)),
-					levels.tuning)
+		fly_level = bot_flies(levels, tuning)
 	for run_seed: int in range(first_seed, first_seed + count):
 		var flown: RunResult = fly_run(run_seed, run_text, shafts, fly_level)
 		if flown.error != "":
 			result["errors"].append("run seed %d: %s" % [run_seed, flown.error])
 			continue
-		result["lines"].append(flown.line())
+		result["lines"].append(flown.line(tag))
 		result["levels_flown"] += flown.flown
 		result["levels_escaped"] += flown.escaped
+		result["level1_escapes"] += 1 if flown.first_escaped else 0
+		result["level1_hull"] += flown.first_hull
 		if flown.completed():
 			result["completed"] += 1
 	result["rate"] = float(result["completed"]) / float(count)
@@ -123,33 +153,78 @@ static func run(first_seed: int, count: int, fly_level: Callable = Callable()) -
 
 ## `MELTDOWN_BOT_RUNS {...}`, the rate to four places so the line is the same on
 ## every machine.
-static func summary(result: Dictionary) -> String:
+static func summary(result: Dictionary, tag: String = SUMMARY_TAG) -> String:
 	return '%s {"runs":%d,"completed":%d,"rate":%.4f,"levels_flown":%d,"levels_escaped":%d}' % [
-			SUMMARY_TAG, result["runs"], result["completed"], result["rate"],
+			tag, result["runs"], result["completed"], result["rate"],
 			result["levels_flown"], result["levels_escaped"]]
 
 
-func _init() -> void:
-	var options: Dictionary[String, int] = {"runs": 100, "first": 1}
-	for argument: String in OS.get_cmdline_user_args():
-		var parts: PackedStringArray = argument.trim_prefix("--").split("=")
-		if parts.size() != 2 or not options.has(parts[0]) or not parts[1].is_valid_int():
-			printerr("unknown option ", argument, "; expected --runs=N or --first=S")
-			quit(2)
-			return
-		options[parts[0]] = parts[1].to_int()
+## `MELTDOWN_BOT_SHIP {"ship":<ship>,"runs":N,"finished":C,"level1_escapes":E,"level1_mean_hull":h}`,
+## the hull to two places; a run whose ship was destroyed on level 1 counts 0.
+static func ship_line(ship: String, result: Dictionary) -> String:
+	var runs: int = maxi(int(result["runs"]), 1)
+	return '%s {"ship":"%s","runs":%d,"finished":%d,"level1_escapes":%d,"level1_mean_hull":%.2f}' % [
+			SHIP_TAG, ship, result["runs"], result["completed"], result["level1_escapes"],
+			float(result["level1_hull"]) / float(runs)]
+
+
+## The options in `arguments`: "runs", "first", "profile" and "fitting", or
+## "error" naming what is wrong. Profile and fitting come together or not at all.
+static func parse_options(arguments: PackedStringArray) -> Dictionary:
+	var options: Dictionary = {"runs": 100, "first": 1, "profile": "", "fitting": "", "error": ""}
+	for argument: String in arguments:
+		var parts: PackedStringArray = argument.trim_prefix("--").split("=", true, 1)
+		var known: bool = parts.size() == 2 and options.has(parts[0]) and parts[0] != "error"
+		if known and (parts[0] == "profile" or parts[0] == "fitting") and parts[1] != "":
+			options[parts[0]] = parts[1]
+		elif known and (parts[0] == "runs" or parts[0] == "first") and parts[1].is_valid_int():
+			options[parts[0]] = parts[1].to_int()
+		else:
+			options["error"] = "unknown option %s; expected --runs=N, --first=S, --profile=<path> or --fitting=<path>" % argument
+			return options
 	if options["runs"] < 1:
-		printerr("--runs must be at least 1")
-		quit(2)
-		return
-	var result: Dictionary = run(options["first"], options["runs"])
+		options["error"] = "--runs must be at least 1"
+	elif (options["profile"] == "") != (options["fitting"] == ""):
+		options["error"] = "--profile and --fitting go together"
+	return options
+
+
+## Prints one sweep's lines and summary under `tag`s; false when the summary
+## could not be built or a run seed failed.
+static func _print(result: Dictionary, run_tag: String, summary_tag: String) -> bool:
 	for line: String in result["lines"]:
 		print(line)
 	for problem: String in result["errors"]:
 		printerr(problem)
-	var line: String = summary(result)
-	if not line.begins_with(SUMMARY_TAG):
-		quit(1)
-		return
+	var line: String = summary(result, summary_tag)
+	if not line.begins_with(summary_tag):
+		return false
 	print(line)
-	quit(1 if not result["errors"].is_empty() else 0)
+	return result["errors"].is_empty()
+
+
+func _init() -> void:
+	var options: Dictionary = parse_options(OS.get_cmdline_user_args())
+	if options["error"] != "":
+		printerr(options["error"])
+		quit(2)
+		return
+	var fitted: ShipTuning = null
+	if options["profile"] != "":
+		var built: Dictionary = Ship.fitted(options["profile"], options["fitting"])
+		if built["error"] != "":
+			printerr(built["error"])
+			quit(2)
+			return
+		fitted = built["tuning"]
+	var plain: Dictionary = run(options["first"], options["runs"])
+	var ok: bool = _print(plain, RUN_TAG, SUMMARY_TAG)
+	if fitted == null:
+		quit(0 if ok else 1)
+		return
+	var with_fitting: Dictionary = run(options["first"], options["runs"], Callable(), fitted,
+			RUN_TAG + FITTED_SUFFIX)
+	ok = _print(with_fitting, RUN_TAG + FITTED_SUFFIX, SUMMARY_TAG + FITTED_SUFFIX) and ok
+	print(ship_line("plain", plain))
+	print(ship_line("fitted", with_fitting))
+	quit(0 if ok else 1)

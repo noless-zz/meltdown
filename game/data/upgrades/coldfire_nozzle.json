@@ -1,0 +1,15 @@
+{
+	"id": "coldfire_nozzle",
+	"name": "Coldfire Nozzle",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 3,
+	"requires": [
+		"vectored_thrusters"
+	],
+	"cost": {
+		"scrap_alloy": 2,
+		"core_glass": 3
+	},
+	"grants": "coldfire_nozzle"
+}
