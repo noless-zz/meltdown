@@ -46,7 +46,7 @@ var foveation: FoveationSwitch = FoveationSwitch.from_launch()  # --foveation sw
 var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headset builds (#646).
 ## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
 var destroyed: DestroyedWiring = DestroyedWiring.new()
-var level_start: LevelStart = LevelStart.new()
+var level_start: LevelStart = LevelStart.new(comfort)
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
 var vignette: VignetteWiring = VignetteWiring.new()  # Comfort vignette from the shown motion, CMF-1 (#931).

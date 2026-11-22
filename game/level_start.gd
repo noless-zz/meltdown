@@ -22,6 +22,13 @@ const ROBOT_SPAWNS_PATH: String = "res://data/levels/test_tunnel_robots.json"  #
 var source: String = ""
 ## The run `--run=<n>` flies (#989), or null when the launch flies one level.
 var run: RunWiring = null
+## Told each new session's ship loadout (CMB-8, #1050), so a fitted look-aim
+## module takes effect; null in tests that need no comfort.
+var comfort: ComfortWiring = null
+
+
+func _init(p_comfort: ComfortWiring = null) -> void:
+	comfort = p_comfort
 
 
 ## The test tunnel's session: inside the walls the tunnel is drawn around
@@ -53,7 +60,27 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource,
 ## `level_session` for `path`, with drops and rescue on when `path` is the
 ## level the run flies now (#1028): a level flown alone keeps them off.
 func session_for(world: Node3D, path: String, input: ShipInputSource) -> LocalSession:
-	return level_session(world, path, input, run_rules(path))
+	return hand_loadout(level_session(world, path, input, run_rules(path)))
+
+
+## The local ship's loadout in `session` (CMB-8, #1050): the one the session
+## equipped, else its ship file's; an empty loadout without either, so a module
+## from an earlier level never sticks. The caller only reads it (MP-2).
+static func local_loadout(session: LocalSession) -> ShipLoadout:
+	if session == null:
+		return ShipLoadout.new()
+	if session.replay.loadout != null:
+		return session.replay.loadout
+	return session.replay.tuning.loadout if session.replay.tuning != null else ShipLoadout.new()
+
+
+## Hands `session`'s local loadout to `comfort`, if any, and returns `session`.
+## Every start goes through here: launch, restart, a dev menu level switch and
+## a run's next level. A null session hands nothing; the session kept is unchanged.
+func hand_loadout(session: LocalSession) -> LocalSession:
+	if comfort != null and session != null:
+		comfort.set_loadout(local_loadout(session))
+	return session
 
 
 ## The rules a session for `path` gets: the data files' when the run flies
@@ -94,7 +121,7 @@ func fresh_session(world: Node3D, input: ShipInputSource, ended: LocalSession = 
 	if session != null:
 		return session
 	LevelSwitch.show_tunnel(world, TUNNEL_OFFSET)
-	return tunnel_session(input)
+	return hand_loadout(tunnel_session(input))
 
 
 ## The seed digits and level name the status panel names `p_source` by
