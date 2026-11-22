@@ -14,6 +14,7 @@
 	"preset_custom_text": "Custom (base {base})",
 	"preset_custom_rejected_text": "Custom file rejected: {field}",
 	"preset_custom_rejected_seconds": 10,
+	"rows": ["meltdown", "hull", "shield", "energy", "weapon", "hold", "outcome"],
 	"corners": {
 		"top_left": [-0.157, 0.124, -0.512],
 		"top_right": [0.157, 0.124, -0.512],

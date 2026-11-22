@@ -1,13 +1,13 @@
 class_name StatusPanel
 extends Node3D
 
-## A small panel fixed in the cockpit, below and ahead of the eye point, that
-## shows at a glance what the owner could not tell in the headset (#146): the
-## active comfort preset, the ship's speed, the energy pool, the shield and
-## hull (#227), whether the afterburner is boosting or locked out, the part in
-## the hold (#290) and what was just picked up or slotted, the weapon that
-## fires (#605), the meltdown countdown (#315), which build is running, how
-## the level ended (#361) and which seed or level is flown (#747).
+## A small panel fixed in the cockpit, below and ahead of the eye point (#146).
+## In flight it draws what a pilot needs in a fight (#1207): hull, shield and
+## energy (#227), the meltdown countdown (#315), the weapon that fires (#605),
+## the part in the hold (#290) and how the level ended (#361). Its other rows
+## (speed and afterburner, preset, build, the seed or level, #747) keep taking
+## their values but draw only if the look file's `rows` names them
+## (`StatusPanelRowList`); the dev menu's Info section shows them instead.
 ##
 ## It is given plain values every frame and keeps no reference to the ship or
 ## the session, so it can never read more than it is handed or write
@@ -36,8 +36,7 @@ const OUTCOME_NAME: String = "Outcome"
 const LEVEL_NAME: String = "Level"
 const ESCAPED_TEXT: String = "ESCAPED"
 const LOST_TEXT: String = "SHIP LOST"
-## The hold line reads "Hold <part>" or this, so an empty hold is said, not
-## left blank: a blank line looks the same as an unwired panel.
+## An empty hold is said, not left blank, which looks like an unwired panel.
 const HOLD_EMPTY: String = "Hold empty"
 ## The weapon row reads "Weapon <part>" or this when the active slot is empty.
 const WEAPON_NONE: String = "Weapon none"
@@ -66,11 +65,9 @@ const HULL_WARNING_COLOR: Color = Color(1.0, 0.2, 0.15)
 ## Under this many seconds the meltdown row turns `HULL_WARNING_COLOR`: the
 ## same red as a failing hull, so red on the panel always means "act now".
 const MELTDOWN_WARNING_SECONDS: float = 30.0
-## Rows, top to bottom, 2.7 cm apart and centred on the panel's origin (#605):
-## what decides the next seconds comes first, nearest the line of sight. The
-## meltdown countdown (RUN-2, hidden without one), hull, shield and energy,
-## then the weapon that fires and the part in the hold (CMB-1, SLV-1), then
-## speed and the preset. Eight rows keep the bottom one within a glance down.
+## Rows 2.7 cm apart, centred on the panel's origin (#605): what decides the
+## next seconds comes first, nearest the line of sight. Speed and the preset
+## are last, so leaving them out (#1207) leaves no gap between drawn rows.
 const ROW_PITCH: float = 0.027
 const MELTDOWN_Y: float = 3.5 * ROW_PITCH
 const HULL_Y: float = 2.5 * ROW_PITCH
@@ -81,18 +78,13 @@ const HOLD_Y: float = -1.5 * ROW_PITCH
 const SPEED_Y: float = -2.5 * ROW_PITCH
 const PRESET_Y: float = -3.5 * ROW_PITCH
 const LABEL_X: float = -0.12
-## The large, centred outcome row sits above everything, nearest the line of
-## sight, and clear of the large preset label and build line even if all show.
+## The large outcome row sits above everything, clear of the large preset label.
 const OUTCOME_Y: float = 0.2
-## The panel draws without a depth test, over whatever lies between it and the
-## eyes: the solid shell of cockpit presets 1 and 2 is nearer than the panel
-## (#199). Its render priority sits above the cockpit frame's materials, which
-## keep the default 0, so the panel lands on top of the shell, and well below
-## the reset fade quad (`Material.RENDER_PRIORITY_MAX - 1`), so the fade still
-## covers the panel.
+## No depth test, so the panel draws over the nearer shell of cockpit presets
+## 1 and 2 (#199): its priority is above the cockpit frame's default 0 and
+## well below the reset fade quad's, so the fade still covers it.
 const RENDER_PRIORITY: int = 10
-## Labels and the filled bar draw one step above the bar's track, so the
-## track never covers them now that depth no longer decides.
+## Labels and the filled bar draw above the track, which must never cover them.
 const RENDER_PRIORITY_TOP: int = RENDER_PRIORITY + 1
 
 ## How many times each row's text was replaced. Only tests read them: they
@@ -114,6 +106,8 @@ var large_seconds_left: float:
 	get:
 		return preset_row.seconds_left if preset_row != null else 0.0
 
+## The rows the panel draws, from the look file's `rows` (#1207).
+var rows: Array[String] = []
 ## The preset row; `RigViews.show_swivel` tags it (#792).
 var preset_row: StatusPanelPresetRow
 var _level_row: StatusPanelLevelRow
@@ -156,6 +150,13 @@ func _init() -> void:
 	# Full until `show_defence` is first called, so an unwired panel does not
 	# look like a dying ship.
 	show_defence(1.0, 1.0)
+	show_rows(StatusPanelLook.shared()["rows"])
+
+
+## Draws the rows named in `p_rows` (`StatusPanelRowList.NODES`) and no others.
+func show_rows(p_rows: Array[String]) -> void:
+	rows = p_rows.duplicate()
+	StatusPanelRowList.apply(self, rows)
 
 
 ## Shows this frame's values. `boost` is `""`, `BOOST_ON` or

@@ -64,6 +64,8 @@ var break_prompt: BreakPromptWiring = null
 var refresh: DevMenuRefresh = null
 ## The Swivel chair entry; applies the saved choice to `comfort` when made.
 var swivel: DevMenuSwivel = null
+## The read-only Info section under the menu's entries, once `attach` has run.
+var info: DevMenuInfo = null
 
 ## The stores and settings below live in the helpers; these names stay for
 ## `main.gd` and the tests.
@@ -135,6 +137,9 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 	_restarts.flight_test = flight_test
 	_restarts.rig = rig
 	menu = p_menu if p_menu != null else DevMenu.new()
+	info = DevMenuInfo.new(menu.model.spec.info_title_text)  # The panel's development lines (#1207).
+	info.source = rig
+	menu.add_child(info)
 	if rig != null:
 		rig.add_child(menu)
 
