@@ -1,0 +1,21 @@
+{
+	"fitting": {
+		"parts": {
+			"engine": "",
+			"hull": "",
+			"shield": ""
+		},
+		"primary": [
+			"",
+			""
+		],
+		"secondary": [
+			"",
+			""
+		],
+		"utility": [
+			"aim_assist"
+		]
+	},
+	"version": 2
+}

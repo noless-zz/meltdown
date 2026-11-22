@@ -70,6 +70,16 @@
 			"expected_outcome": "RUNNING"
 		},
 		{
+			"id": "aim_assist_fitted",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"profile": "res://acceptance/fittings/aim_assist_profile.json",
+			"fitting": "res://acceptance/fittings/aim_assist_fitting.json",
+			"checks": ["final_hash", "outcome", "no_script_errors"],
+			"expected_hash": 575253925,
+			"expected_outcome": "RUNNING"
+		},
+		{
 			"id": "crew_joins",
 			"run": 12345,
 			"replay": "res://acceptance/replays/crew_joins.replay",
