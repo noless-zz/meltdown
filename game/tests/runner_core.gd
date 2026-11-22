@@ -17,9 +17,32 @@ static var _logger: ScriptErrorLogger = null
 
 
 ## Runs every `test_*` method of the script at `path`. Returns
-## `{"count": int, "failures": int, "lines": Array[String]}`, where each line
-## starts with `PASS ` or `FAIL ` and is named by `label` (the file name).
+## `{"count": int, "failures": int, "lines": Array[String], "ms": int}`, where
+## each line starts with `PASS ` or `FAIL ` and is named by `label` (the file
+## name), and `ms` is the file's wall time including loading (issue #1138).
 static func run_file(path: String, label: String) -> Dictionary:
+	var started_usec: int = Time.get_ticks_usec()
+	var result: Dictionary = _run_file_untimed(path, label)
+	result["ms"] = (Time.get_ticks_usec() - started_usec) / 1000
+	return result
+
+
+## Returns up to `limit` lines `SLOW <ms> <file>` for the files in `times`
+## (file name to milliseconds), longest first, ties by name so the CI log is
+## stable. The suite prints them so the costly files can be found and cut.
+static func slow_lines(times: Dictionary, limit: int) -> Array[String]:
+	var files: Array = times.keys()
+	files.sort_custom(func(a: Variant, b: Variant) -> bool:
+		if times[a] != times[b]:
+			return times[a] > times[b]
+		return str(a) < str(b))
+	var lines: Array[String] = []
+	for file: Variant in files.slice(0, maxi(limit, 0)):
+		lines.append("SLOW %d %s" % [times[file], file])
+	return lines
+
+
+static func _run_file_untimed(path: String, label: String) -> Dictionary:
 	var lines: Array[String] = []
 	var count: int = 0
 	var failures: int = 0
