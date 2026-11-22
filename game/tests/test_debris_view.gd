@@ -6,7 +6,10 @@ extends RefCounted
 ## nodes; a rejected look file names its key and keeps the built-in look; the
 ## view references no simulation, session or layer above core.
 
-const SCRIPT_PATHS: Array[String] = ["res://view/debris_view.gd", "res://view/debris_look.gd"]
+const SCRIPT_PATHS: Array[String] = [
+	"res://view/debris_view.gd", "res://view/debris_look.gd",
+	"res://view/debris_meshes.gd", "res://view/debris_materials.gd",
+]
 const OUTSIDE_DIRS: Array[String] = ["res://xr", "res://meta", "res://net"]
 ## Simulation classes the view must never be handed (MP-2).
 const SIM_CLASSES: Array[String] = ["Sim", "MeltdownDebris", "ReactorState", "ShipState"]

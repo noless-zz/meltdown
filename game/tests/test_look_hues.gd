@@ -92,9 +92,8 @@ func test_a_miner_beacon_and_a_burning_fire_are_not_round() -> String:
 	miners.free()
 	if result != "":
 		return result
-	var debris: DebrisView = DebrisView.new()
-	var flame: CylinderMesh = debris._flame_mesh
+	# The flame mesh moved from `DebrisView` to `DebrisMeshes` (#1237).
+	var flame: CylinderMesh = DebrisMeshes.new().flame
 	if flame == null or flame.top_radius != 0.0:
-		result = "the fire flame is not a cone: %s" % debris._flame_mesh
-	debris.free()
+		result = "the fire flame is not a cone: %s" % flame
 	return result

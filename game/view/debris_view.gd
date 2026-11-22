@@ -13,7 +13,8 @@ extends Node3D
 ## (MP-2). Debris glows faintly by itself because the mine is dark (LGT-1);
 ## it adds no lights, so the 8-light budget is untouched (GFX-4). The glow is
 ## steady: nothing flashes. The look lives in `res://view/debris_look.json`
-## (`DebrisLook`, ARC-4).
+## (`DebrisLook`, ARC-4); the meshes are in `DebrisMeshes` and the materials
+## in `DebrisMaterials`.
 ##
 ## A box entry (a blast door or a collapsed ceiling, #459) is an axis-aligned
 ## slab of its size with its own `slab_*` look, going through the same hidden,
@@ -40,16 +41,8 @@ var look_error: String = ""
 var mesh_builds: int = 0
 
 var _look: Dictionary = DebrisLook.FALLBACK
-var _rock_mesh: SphereMesh
-var _cracked_mesh: SphereMesh
-var _flame_mesh: CylinderMesh
-var _solid_material: StandardMaterial3D
-var _warn_material: StandardMaterial3D
-var _held_material: StandardMaterial3D
-var _slab_mesh: BoxMesh
-var _slab_material: StandardMaterial3D
-var _slab_warn_material: StandardMaterial3D
-var _fire_material: StandardMaterial3D
+var _meshes: DebrisMeshes
+var _materials: DebrisMaterials = DebrisMaterials.new()
 var _entries: Array[MeshInstance3D] = []
 var _states: Array[EntryState] = []
 var _boxes: Array[bool] = []
@@ -60,25 +53,8 @@ var _fire_tick: int = 0
 
 func _init() -> void:
 	name = NODE_NAME
-	_solid_material = _new_material(false)
-	_warn_material = _new_material(true)
-	_held_material = _new_material(true)
-	_slab_material = _new_material(false)
-	_slab_warn_material = _new_material(true)
-	_fire_material = _new_material(true)
-	# More facets read as a whole rock; fewer, as a broken one.
-	_rock_mesh = _build_mesh(10, 5)
-	_cracked_mesh = _build_mesh(5, 3)
-	_slab_mesh = BoxMesh.new()
-	_slab_mesh.size = Vector3.ONE
-	mesh_builds += 1
-	_flame_mesh = CylinderMesh.new()
-	_flame_mesh.top_radius = 0.0
-	_flame_mesh.bottom_radius = 1.0
-	_flame_mesh.height = 2.0
-	_flame_mesh.radial_segments = 5
-	_flame_mesh.rings = 0
-	mesh_builds += 1
+	_meshes = DebrisMeshes.new()
+	mesh_builds += _meshes.builds
 	load_look()
 
 
@@ -98,14 +74,7 @@ func load_look(path: String = DebrisLook.DEFAULT_FILE) -> String:
 		push_warning("DebrisView uses the built-in look; %s" % look_error)
 	else:
 		_look = values
-	_paint(_solid_material, _look["solid_color"], float(_look["solid_energy"]), 1.0)
-	_paint(_warn_material, _look["warn_color"], float(_look["warn_energy"]), float(_look["warn_alpha"]))
-	_paint(_held_material, _look["held_color"], float(_look["held_energy"]), float(_look["held_alpha"]))
-	_paint(_slab_material, _look["slab_color"], float(_look["slab_energy"]), 1.0)
-	_paint(_slab_warn_material, _look["slab_warn_color"], float(_look["slab_warn_energy"]),
-		float(_look["slab_warn_alpha"]))
-	_paint(_fire_material, _look["fire_color"], DebrisLook.fire_energy_at(_look, _fire_tick),
-		float(_look["fire_alpha"]))
+	_materials.paint(_look, _fire_tick)
 	return look_error
 
 
@@ -156,19 +125,19 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 		entry.position = positions_m[index]
 		if is_box:
 			entry.scale = size_m.max(Vector3.ONE * 0.001)
-			entry.mesh = _slab_mesh
+			entry.mesh = _meshes.slab
 			entry.material_override = slab_material_for(state)
 		else:
 			entry.scale = Vector3.ONE * maxf(radii_m[index], 0.001)
-			entry.mesh = _cracked_mesh if state == EntryState.HELD else _rock_mesh
+			entry.mesh = _meshes.cracked if state == EntryState.HELD else _meshes.rock
 			entry.material_override = material_for(state)
 		if is_fire:
 			entry.material_override = fire_material_for(state)
 			if not is_box and state == EntryState.BURNING:
-				entry.mesh = _flame_mesh
+				entry.mesh = _meshes.flame
 	if tick != _fire_tick:
 		_fire_tick = tick
-		_fire_material.emission_energy_multiplier = DebrisLook.fire_energy_at(_look, tick)
+		_materials.flicker_fire(_look, tick)
 
 
 ## Which look an entry gets. Held wins over solid: a held entry never fell.
@@ -213,11 +182,11 @@ func _falling_state(solid: bool, seconds_to_fall: float) -> EntryState:
 func material_for(state: EntryState) -> StandardMaterial3D:
 	match state:
 		EntryState.SOLID:
-			return _solid_material
+			return _materials.solid
 		EntryState.WARNING:
-			return _warn_material
+			return _materials.warn
 		EntryState.HELD:
-			return _held_material
+			return _materials.held
 	return null
 
 
@@ -226,9 +195,9 @@ func material_for(state: EntryState) -> StandardMaterial3D:
 func fire_material_for(state: EntryState) -> StandardMaterial3D:
 	match state:
 		EntryState.WARNING:
-			return _warn_material
+			return _materials.warn
 		EntryState.BURNING:
-			return _fire_material
+			return _materials.fire
 	return null
 
 
@@ -236,9 +205,9 @@ func fire_material_for(state: EntryState) -> StandardMaterial3D:
 func slab_material_for(state: EntryState) -> StandardMaterial3D:
 	match state:
 		EntryState.SOLID:
-			return _slab_material
+			return _materials.slab
 		EntryState.WARNING:
-			return _slab_warn_material
+			return _materials.slab_warn
 	return null
 
 
@@ -277,31 +246,3 @@ func entry_size(index: int) -> Vector3:
 	var slab: BoxMesh = _entries[index].mesh
 	return slab.size * _entries[index].scale
 
-
-func _new_material(see_through: bool) -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.emission_enabled = true
-	material.roughness = 1.0
-	if see_through:
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		# Both faces, so the glow still shows with the ship inside it.
-		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	return material
-
-
-func _paint(material: StandardMaterial3D, color: Color, energy: float, alpha: float) -> void:
-	material.albedo_color = Color(color.r, color.g, color.b, alpha)
-	material.emission = color
-	material.emission_energy_multiplier = energy
-
-
-## A unit sphere; each node's scale is its entry's radius, so a new radius
-## never needs a new mesh.
-func _build_mesh(segments: int, rings: int) -> SphereMesh:
-	var sphere: SphereMesh = SphereMesh.new()
-	sphere.radius = 1.0
-	sphere.height = 2.0
-	sphere.radial_segments = segments
-	sphere.rings = rings
-	mesh_builds += 1
-	return sphere
