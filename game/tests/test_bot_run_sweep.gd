@@ -14,8 +14,10 @@ const PINNED_SHAFTS: Array[String] = ["deep", "hot", "deep", "steady"]
 ## the fitted ship: the plain report must not move (#1091). #1173 builds levels
 ## 2 and 3 with the deep and hot shafts' robot scales; the outcome did not move,
 ## the line gained `robot_scales`.
+## #1195 adds the loss fields after the older summary fields, which keep their
+## values: lost on level 3, ship destroyed.
 const PINNED_PLAIN_LINE: String = 'MELTDOWN_BOT_RUN {"seed":12345,"planned":5,"flown":3,"escaped":2,"ended":"LOST ship destroyed","robot_scales":[1.00,1.30,1.10]}'
-const PINNED_PLAIN_SUMMARY: String = 'MELTDOWN_BOT_RUNS {"runs":1,"completed":0,"rate":0.0000,"levels_flown":3,"levels_escaped":2}'
+const PINNED_PLAIN_SUMMARY: String = 'MELTDOWN_BOT_RUNS {"runs":1,"completed":0,"rate":0.0000,"levels_flown":3,"levels_escaped":2,"lost_by_level":[0,0,1],"lost_by_outcome":{"destroyed":1,"timed_out":0,"not_flown":0}}'
 
 
 static func _result(escaped: bool) -> EscapeSweep.SeedResult:
@@ -59,7 +61,7 @@ func test_stubbed_runs_escaped_escaped_lost_give_the_summary() -> String:
 	var first: int = _plan(1).level_count()
 	var second: int = _plan(2).level_count()
 	var flown: int = first + second + 1
-	var expected: String = 'MELTDOWN_BOT_RUNS {"runs":3,"completed":2,"rate":0.6667,"levels_flown":%d,"levels_escaped":%d}' \
+	var expected: String = 'MELTDOWN_BOT_RUNS {"runs":3,"completed":2,"rate":0.6667,"levels_flown":%d,"levels_escaped":%d,"lost_by_level":[1],"lost_by_outcome":{"destroyed":1,"timed_out":0,"not_flown":0}}' \
 			% [flown, first + second]
 	if RunSweep.summary(result) != expected:
 		return "summary %s, expected %s" % [RunSweep.summary(result), expected]

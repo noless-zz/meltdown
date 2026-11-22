@@ -32,7 +32,8 @@ extends SceneTree
 ##
 ## Prints one `MELTDOWN_BOT_RUN` line per run, its `robot_scales` the scale
 ## each flown level was built with, then
-## `MELTDOWN_BOT_RUNS {"runs":N,"completed":C,"rate":r,"levels_flown":L,"levels_escaped":E}`.
+## `MELTDOWN_BOT_RUNS {"runs":N,"completed":C,"rate":r,"levels_flown":L,"levels_escaped":E,
+## "lost_by_level":[...],"lost_by_outcome":{...}}` (`bot_run_losses.gd`).
 ## The fitted ship's lines carry `FITTED_SUFFIX` on both tags.
 ## The gate has no bar for this rate yet, so it is reported, not judged: the
 ## exit code is 0 unless a run seed fails to build (a broken data file) or the
@@ -47,6 +48,7 @@ const SUMMARY_TAG: String = "MELTDOWN_BOT_RUNS"
 const SHIP_TAG: String = "MELTDOWN_BOT_SHIP"
 const FITTED_SUFFIX: String = "_FITTED"
 const Ship := preload("res://tests/bot_sweep_ship.gd")
+const Losses := preload("res://tests/bot_run_losses.gd")
 
 
 ## How one run went.
@@ -58,6 +60,8 @@ class RunResult extends RefCounted:
 	## "completed", or how the last level flown ended: an `ExitRule.Outcome`
 	## name or "NO_LEVEL" / "NO_REACTOR", then " ship destroyed" when it was.
 	var ended: String = ""
+	## How the lost level ended, a `Losses` outcome; empty unless lost (#1195).
+	var lost_outcome: String = ""
 	## The shaft taken into each level after the first, in order.
 	var shafts: Array[String] = []
 	## The robot count scale each flown level was built with, in order.
@@ -112,6 +116,7 @@ static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
 		else:
 			state.lose()
 			result.ended = flown.outcome + (" ship destroyed" if flown.destroyed else "")
+			result.lost_outcome = Losses.outcome_of(flown.outcome, flown.destroyed)
 	if state.won:
 		result.ended = "completed"
 	return result
@@ -133,13 +138,14 @@ static func bot_flies(levels: Levels, tuning: ShipTuning = null) -> Callable:
 ## bot flies each level with robots and debris on, in `tuning`, or the ship
 ## file's when null. The result holds "runs", "completed", "rate",
 ## "levels_flown", "levels_escaped", "level1_escapes", "level1_hull" (summed
-## over the runs), "lines" (one `MELTDOWN_BOT_RUN` line per run, or `tag`'s)
+## over the runs), "lost_by_level" and "lost_by_outcome" (`Losses`), "lines" (one `MELTDOWN_BOT_RUN` line per run, or `tag`'s)
 ## and "errors" (why a run seed or a data file could not be built).
 static func run(first_seed: int, count: int, fly_level: Callable = Callable(),
 		tuning: ShipTuning = null, tag: String = RUN_TAG, shaft_index: int = 0) -> Dictionary:
 	var result: Dictionary = {"runs": count, "completed": 0, "rate": 0.0, "levels_flown": 0,
 			"levels_escaped": 0, "level1_escapes": 0, "level1_hull": 0.0,
 			"lines": [] as Array[String], "errors": [] as Array[String]}
+	result.merge(Losses.empty())
 	var run_text: String = FileAccess.get_file_as_string(RUN_FILE)
 	var shafts: ShaftOffer = ShaftOffer.build(FileAccess.get_file_as_string(SHAFTS_FILE))
 	if shafts.error != "":
@@ -164,16 +170,19 @@ static func run(first_seed: int, count: int, fly_level: Callable = Callable(),
 		result["level1_hull"] += flown.first_hull
 		if flown.completed():
 			result["completed"] += 1
+		else:
+			Losses.add(result, flown.flown, flown.lost_outcome)
 	result["rate"] = float(result["completed"]) / float(count)
 	return result
 
 
 ## `MELTDOWN_BOT_RUNS {...}`, the rate to four places so the line is the same on
-## every machine.
+## every machine. The loss fields (#1195) come after the older ones, which keep
+## their names, order and values.
 static func summary(result: Dictionary, tag: String = SUMMARY_TAG) -> String:
-	return '%s {"runs":%d,"completed":%d,"rate":%.4f,"levels_flown":%d,"levels_escaped":%d}' % [
+	return '%s {"runs":%d,"completed":%d,"rate":%.4f,"levels_flown":%d,"levels_escaped":%d%s}' % [
 			tag, result["runs"], result["completed"], result["rate"],
-			result["levels_flown"], result["levels_escaped"]]
+			result["levels_flown"], result["levels_escaped"], Losses.summary_fields(result)]
 
 
 ## `MELTDOWN_BOT_SHIP {"ship":<ship>,"runs":N,"finished":C,"level1_escapes":E,"level1_mean_hull":h}`,
