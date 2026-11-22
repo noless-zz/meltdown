@@ -9,11 +9,9 @@ extends Node3D
 ## labels (#335). It is handed copies and holds no session, so it never writes
 ## simulation state or comfort settings (ARC-3, CMF-6, MP-2).
 ##
-## Children fitted like the lines mark the exit and reactor (#338, RUN-3), the
-## route and blocked openings (`MapRoute`, #400), fires (`MapFires`, #519; only in
-## explored boxes unless `fires_explored_only` is off, #562) and trapped miners
-## (`MapMinerMarkers`, #1072). `set_zoom` scales it all about the hand (#549). The
-## look is `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
+## The markers and overlays fitted like the lines (ship, exit, reactor, route,
+## fires, miners) live in `MapOverlays` (#1120). `set_zoom` scales it all about
+## the hand (#549). The look is `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
 
 const NODE_NAME: String = "MapHologram"
 const LINES_NAME: String = "Lines"
@@ -35,25 +33,7 @@ var _look: Dictionary = FALLBACK_LOOK
 ## Level space -> hologram space, as `MapWireframe.fit_to_cube` fits the lines.
 var _fit: Transform3D = Transform3D.IDENTITY
 var _lines: MeshInstance3D = MeshInstance3D.new()
-var _marker: MeshInstance3D = MeshInstance3D.new()
-var _exit: MeshInstance3D = MeshInstance3D.new()
-var _reactor: MeshInstance3D = MeshInstance3D.new()
-var _route: MapRoute = MapRoute.new()
-var _fires: MapFires = MapFires.new()
-var _miners: MapMinerMarkers = MapMinerMarkers.new()
-## The route's level-space points and blocked centres, kept so `build` can re-fit them.
-var _route_at: PackedVector3Array = PackedVector3Array()
-var _blocked_at: PackedVector3Array = PackedVector3Array()
-var _fire_at: PackedVector3Array = PackedVector3Array()
-var _fire_radii: PackedFloat32Array = PackedFloat32Array()
-## The explored boxes of the last `build`, as copies, for `fires_explored_only`.
-var _explored_boxes: Array[AABB] = []
-var _exit_at: Vector3 = Vector3.ZERO
-var _reactor_at: Vector3 = Vector3.ZERO
-var _markers_set: bool = false
-var _reactor_known: bool = false
-var _reactor_destroyed: bool = false
-var _ship_at: Vector3 = Vector3.ZERO
+var _over: MapOverlays = MapOverlays.new()
 var _zoom: float = MapZoom.START
 var _toggle: MapToggle = MapToggle.new()
 
@@ -62,15 +42,9 @@ func _init() -> void:
 	name = NODE_NAME
 	visible = false
 	_lines.name = LINES_NAME
-	_marker.name = MARKER_NAME
-	_exit.name = EXIT_NAME
-	_reactor.name = REACTOR_NAME
-	for child: MeshInstance3D in [_lines, _marker, _exit, _reactor]:
-		child.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(child)
-	add_child(_route)
-	add_child(_fires)
-	add_child(_miners)
+	_lines.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_lines)
+	_over.add_to(self)
 	load_look()
 
 
@@ -93,11 +67,7 @@ func look() -> Dictionary:
 ## Redraws the map from the boxes of `union` listed in `explored`.
 func build(union: BoxUnion, explored: Array[int]) -> void:
 	var points: PackedVector3Array = MapWireframe.segments(union, explored)
-	_explored_boxes.clear()
-	for index: int in explored:
-		if index >= 0 and index < union.boxes.size():
-			var box: BoxBounds = union.boxes[index]
-			_explored_boxes.append(AABB(box.min_corner, box.max_corner - box.min_corner))
+	_over.keep_explored(union, explored)
 	var size: float = float(_look["size_m"])
 	_fit = fit_transform(points, size)
 	_lines.mesh = null
@@ -109,12 +79,7 @@ func build(union: BoxUnion, explored: Array[int]) -> void:
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
 		mesh.surface_set_material(0, MapShapes.glow(_look["line_color"], float(_look["line_energy"])))
 		_lines.mesh = mesh
-	var energy: float = float(_look["line_energy"])
-	_marker.mesh = MapShipMarker.mesh(_look["marker_color"], float(_look["marker_radius_m"]), energy)
-	_exit.mesh = MapShapes.exit_cube(_look)
-	_reactor.mesh = MapShapes.reactor_ball(_look, _reactor_destroyed, energy)
-	_place_markers()
-	_place_route()
+	_over.rebuild(_view(), _look)
 
 
 ## Number of line segments drawn by the last `build`.
@@ -127,55 +92,44 @@ func segment_count() -> int:
 
 ## Moves the marker to the ship's level-space `position` (a copy), fitted like the lines.
 func set_ship_position(position: Vector3) -> void:
-	_ship_at = position
-	_marker.position = _view() * position
+	_over.ship_at = position
+	_over.place_ship(_view())
 
 
 ## The marker's position in the hologram.
 func marker_position() -> Vector3:
-	return _marker.position
+	return _over.marker.position
 
 
 ## Turns the marker to the ship's `orientation` (a copy); the fit only scales, so it carries over.
 func set_ship_orientation(orientation: Basis) -> void:
-	_marker.basis = orientation.orthonormalized()
+	_over.marker.basis = orientation.orthonormalized()
 
 
-## Marks the exit (the entrance, RUN-3) and the reactor at level-space copies of
-## their positions, fitted like the lines; the reactor shows only while `reactor_known`,
-## in the look's dead colour once `reactor_destroyed` (#913).
+## Marks the exit (RUN-3) and the reactor at level-space copies of their positions;
+## see `MapOverlays.set_markers` (#338, #913).
 func set_markers(exit_at: Vector3, reactor_at: Vector3, reactor_known: bool, reactor_destroyed: bool = false) -> void:
-	_exit_at = exit_at
-	_reactor_at = reactor_at
-	_reactor_known = reactor_known
-	if reactor_destroyed != _reactor_destroyed:
-		_reactor_destroyed = reactor_destroyed
-		_reactor.mesh = MapShapes.reactor_ball(_look, _reactor_destroyed, float(_look["line_energy"]))
-	_markers_set = true
-	_place_markers()
+	_over.set_markers(exit_at, reactor_at, reactor_known, reactor_destroyed, _look, _view())
 
 
 ## The exit and reactor markers' nodes, for reading their meshes and materials.
 func marker_nodes() -> Array[MeshInstance3D]:
-	return [_exit, _reactor]
+	return [_over.exit, _over.reactor]
 
 
 ## The exit marker's position in the hologram.
 func exit_marker_position() -> Vector3:
-	return _exit.position
+	return _over.exit.position
 
 
 ## The reactor marker's position in the hologram.
 func reactor_marker_position() -> Vector3:
-	return _reactor.position
+	return _over.reactor.position
 
 
-## Draws the suggested route through `points_m` and a cross at each of `blocked_m`
-## (level-space copies, as `KnownRoute` gives them), fitted like the lines.
+## Draws the route through `points_m` and a cross at each of `blocked_m` (level-space, as `KnownRoute` gives them).
 func show_route(points_m: PackedVector3Array, blocked_m: PackedVector3Array) -> void:
-	_route_at = points_m.duplicate()
-	_blocked_at = blocked_m.duplicate()
-	_place_route()
+	_over.show_route(points_m, blocked_m, _view(), _look)
 
 
 ## Removes the route and the blocked markers.
@@ -185,36 +139,32 @@ func clear_route() -> void:
 
 ## The route's node, for reading what it drew.
 func route() -> MapRoute:
-	return _route
+	return _over.route
 
 
-## Marks each burning fire entry at `centres_m` with radius `radii_m` (level-
-## space copies), fitted like the lines; see `MapFires`. Empty arrays remove them.
+## Marks each burning fire at `centres_m` with radius `radii_m` (level space); empty arrays remove them.
 func show_fires(centres_m: PackedVector3Array, radii_m: PackedFloat32Array) -> void:
-	_fire_at = centres_m.duplicate()
-	_fire_radii = radii_m.duplicate()
-	_place_route()
+	_over.show_fires(centres_m, radii_m, _view(), _look)
 
 
 ## The node drawing the fire markers, for reading what it drew.
 func fires() -> MapFires:
-	return _fires
+	return _over.fires
 
 
 ## Pins a trapped miner at each of `at_m` (level-space copies); none when empty (#1072).
 func show_miners(at_m: PackedVector3Array) -> void:
-	_miners.at_m = at_m.duplicate()
-	_place_route()
+	_over.show_miners(at_m, _view(), _look)
 
 
 ## Whether the exit marker is drawn: once `set_markers` was called.
 func exit_marker_shown() -> bool:
-	return _exit.visible
+	return _over.exit.visible
 
 
 ## Whether the reactor marker is drawn: once `set_markers` said it is known.
 func reactor_marker_shown() -> bool:
-	return _reactor.visible
+	return _over.reactor.visible
 
 
 ## Closes the map; the wiring calls it on a restart, a level switch and a
@@ -241,8 +191,7 @@ static func hand_for(mapping: ThumbstickMapping) -> String:
 	return "left"
 
 
-## Hangs this map under the `LeftHand` or `RightHand` node of `rig`, as
-## `hand_for` picks, at `HAND_OFFSET`. Returns false when the rig has no such hand.
+## Hangs this map under the hand of `rig` that `hand_for` picks, at `HAND_OFFSET`; false when there is none.
 func attach_to(rig: Node, mapping: ThumbstickMapping) -> bool:
 	var node_name: String = "RightHand" if hand_for(mapping) == "right" else "LeftHand"
 	var hand: Node3D = rig.get_node_or_null(node_name) as Node3D
@@ -255,14 +204,11 @@ func attach_to(rig: Node, mapping: ThumbstickMapping) -> bool:
 	return true
 
 
-## Scales the map by `factor`, clamped to the look's limits, about the hand anchor
-## (its origin), so the held point stays put. Marker sizes keep their floors; `build` keeps it.
+## Scales the map by `factor`, clamped to the look's limits, about the hand anchor so the held point stays put.
 func set_zoom(factor: float) -> void:
 	_zoom = clampf(factor, float(_look["min_zoom"]), float(_look["max_zoom"]))
 	_lines.scale = Vector3.ONE * _zoom
-	_marker.position = _view() * _ship_at
-	_place_markers()
-	_place_route()
+	_over.place_all(_view(), _look)
 
 
 func zoom() -> float:
@@ -272,22 +218,6 @@ func zoom() -> float:
 ## Level space -> hologram space; see `MapShapes.fit_transform`.
 static func fit_transform(points: PackedVector3Array, edge_m: float) -> Transform3D:
 	return MapShapes.fit_transform(points, edge_m)
-
-
-func _place_markers() -> void:
-	_exit.visible = _markers_set
-	_reactor.visible = _markers_set and _reactor_known
-	_exit.position = _view() * _exit_at
-	_reactor.position = _view() * _reactor_at
-
-
-func _place_route() -> void:
-	_route.draw_fitted(_view(), _route_at, _blocked_at, _look)
-	var shown: Array = [_fire_at, _fire_radii]
-	if _look["fires_explored_only"]:
-		shown = MapFires.inside(_fire_at, _fire_radii, _explored_boxes)
-	_fires.draw_fitted(_view(), shown[0], shown[1], _look)
-	_miners.draw_fitted(_view(), _look)
 
 
 func _view() -> Transform3D:
