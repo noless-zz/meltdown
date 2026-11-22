@@ -27,6 +27,9 @@ extends RefCounted
 ## "bottom_right": ...}`. A panel in a corner is turned to face the eye with
 ## its rows level. `position_m` and `tilt_deg` stay the panel's place when no
 ## corner is chosen (`PanelCorner.CENTRE`).
+##
+## `rows` may be left out (#1207): the names of the rows the panel draws, from
+## `StatusPanelRowList.NODES`; without it, `StatusPanelRowList.FIGHT`.
 
 const DEFAULT_FILE: String = "res://xr/status_panel_look.json"
 const COLOR_KEYS: Array[String] = ["escaped_color"]
@@ -87,6 +90,7 @@ const FALLBACK: Dictionary = {
 		"bottom_left": Vector3(-0.157, -0.124, -0.512),
 		"bottom_right": Vector3(0.157, -0.124, -0.512),
 	},
+	"rows": StatusPanelRowList.FIGHT,
 }
 
 
@@ -123,7 +127,8 @@ static func parse(text: String) -> Dictionary:
 	var known: Array[String] = keys()
 	for key: Variant in data:
 		if typeof(key) != TYPE_STRING or not (known.has(key) or OPTIONAL_NUMBER_RANGES.has(key) \
-				or OPTIONAL_COLOR_KEYS.has(key) or OPTIONAL_TEXT_KEYS.has(key) or key == "corners"):
+				or OPTIONAL_COLOR_KEYS.has(key) or OPTIONAL_TEXT_KEYS.has(key) \
+				or ["corners", "rows"].has(key)):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	for key: String in known:
 		if not data.has(key):
@@ -149,6 +154,11 @@ static func parse(text: String) -> Dictionary:
 		if corners is String:
 			return {"error": corners}
 		look["corners"] = corners
+	if data.has("rows"):
+		var rows: Variant = StatusPanelRowList.parse(data["rows"])
+		if rows is String:
+			return {"error": rows}
+		look["rows"] = rows
 	for key: String in OPTIONAL_TEXT_KEYS:
 		if data.has(key):
 			if typeof(data[key]) != TYPE_STRING or (data[key] as String).strip_edges() == "":

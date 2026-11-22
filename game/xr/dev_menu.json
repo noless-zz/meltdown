@@ -38,5 +38,6 @@
 	"refresh_note_text": "(preset 4 only)",
 	"foveation_off_text": "Off",
 	"foveation_dynamic_text": "dynamic",
-	"foveation_note_text": "(this session)"
+	"foveation_note_text": "(this session)",
+	"info_title_text": "Info"
 }
