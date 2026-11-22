@@ -35,7 +35,8 @@ var windup_elapsed: int = 0
 
 ## The chase stand-off, the strafe band and its radial gain come from `def`
 ## (`standoff_radii`, `strafe_min_distance`, `strafe_max_distance`,
-## `strafe_radial_gain`), so tuning a robot is a data change (ARC-4, #246).
+## `strafe_radial_gain`), so tuning a robot is a data change (ARC-4, #246);
+## `RobotSteering` applies them.
 ## A robot fires only at a target within this angle of its facing, degrees.
 ## Shots leave along the facing, so a wider cone would mostly miss.
 const FIRE_CONE_HALF_ANGLE_DEG: float = 10.0
@@ -50,25 +51,10 @@ func _init(p_def: RobotDef, p_position: Vector3 = Vector3.ZERO,
 	awake = not p_def.has_wake_range()
 
 
-## Moves one tick according to `def.movement`, towards or around `target`,
-## the ship `Sim` chose for it. With no target every movement is hover and the
-## robot does not turn: there is nothing to face.
+## Moves one tick according to `def.movement`, towards or around `target`;
+## the movement itself lives in `RobotSteering` (#1155).
 func step(target: ShipState = null) -> void:
-	if target == null:
-		_hover()
-		return
-	var offset: Vector3 = target.position - position
-	var distance: float = offset.length()
-	# A target exactly on the centre gives no direction; keep the facing.
-	var to_target: Vector3 = offset / distance if distance > 0.0 else forward()
-	turn_towards(to_target)
-	match def.movement:
-		"chase":
-			_chase(to_target, distance, chase_standoff(target))
-		"strafe":
-			_strafe(to_target, distance)
-		_:
-			_hover()
+	RobotSteering.step(self, target)
 
 
 ## The direction the robot faces: its local -z, as for ships.
@@ -78,112 +64,23 @@ func forward() -> Vector3:
 
 ## Largest turn in one tick, radians.
 func max_turn_per_tick() -> float:
-	return deg_to_rad(def.turn_rate) * ShipState.TICK_DT
+	return RobotSteering.max_turn_per_tick(self)
 
 
 ## Distance from the target's centre a chaser holds.
 func chase_standoff(target: ShipState) -> float:
-	return def.standoff_radii * def.radius + target.radius
+	return RobotSteering.chase_standoff(self, target)
 
 
 ## Turns the facing towards `direction` (unit length) by at most
-## `max_turn_per_tick`. The rotation is about the axis perpendicular to both,
-## so the facing moves by exactly the turned angle and no roll is added.
+## `max_turn_per_tick`.
 func turn_towards(direction: Vector3) -> void:
-	var facing: Vector3 = forward()
-	var angle: float = StableAngle.between(facing, direction)
-	if angle <= 0.0:
-		return
-	var axis: Vector3 = facing.cross(direction)
-	if axis.length_squared() < 1e-12:
-		# Exactly behind: any perpendicular axis will do; the robot's own up
-		# keeps the choice deterministic.
-		axis = orientation.y
-	var turn: float = minf(angle, max_turn_per_tick())
-	orientation = Basis(axis.normalized(), turn) * orientation
-	orientation = orientation.orthonormalized()
+	RobotSteering.turn_towards(self, direction)
 
 
-## Closes on the target along the facing, slowing so that it can stop at
-## `standoff` with its own acceleration; inside the stand-off it backs away.
-## The approach is scaled by how well it faces the target, so a chaser still
-## turning does not fly off sideways.
-func _chase(to_target: Vector3, distance: float, standoff: float) -> void:
-	var gap: float = distance - standoff
-	var desired: Vector3 = Vector3.ZERO
-	if gap > 0.0:
-		var alignment: float = maxf(forward().dot(to_target), 0.0)
-		desired = forward() * _stopping_speed(gap) * alignment
-	elif gap < 0.0:
-		desired = -to_target * _stopping_speed(-gap)
-	_steer(desired)
-
-
-## Circles the target sideways in `strafe_direction`, about the world vertical
-## (or the world x axis when straight above or below it), drifting back to the
-## middle of the distance band.
-func _strafe(to_target: Vector3, distance: float) -> void:
-	var axis: Vector3 = Vector3.UP
-	if absf(to_target.dot(axis)) > 0.99:
-		axis = Vector3.RIGHT
-	var sideways: Vector3 = to_target.cross(axis).normalized() * float(strafe_direction)
-	var middle: float = (def.strafe_min_distance + def.strafe_max_distance) * 0.5
-	var radial: float = clampf((distance - middle) * def.strafe_radial_gain,
-		-def.max_speed, def.max_speed)
-	# Outside the band, getting back in comes first.
-	if distance < def.strafe_min_distance or distance > def.strafe_max_distance:
-		radial = signf(radial) * def.max_speed
-	_steer((sideways * def.max_speed + to_target * radial).limit_length(def.max_speed))
-
-
-## Fastest speed from which `def.acceleration` still stops within `gap`
-## metres, capped at `def.max_speed`. One tick of margin keeps the discrete
-## tick from overshooting.
-func _stopping_speed(gap: float) -> float:
-	var a: float = def.acceleration
-	var speed: float = sqrt(2.0 * a * gap + a * a * ShipState.TICK_DT * ShipState.TICK_DT) \
-		- a * ShipState.TICK_DT
-	return minf(maxf(speed, 0.0), def.max_speed)
-
-
-## Changes velocity towards `desired` by at most `def.acceleration` this tick,
-## caps it at `def.max_speed` and moves.
-func _steer(desired: Vector3) -> void:
-	var change: Vector3 = (desired - velocity).limit_length(def.acceleration * ShipState.TICK_DT)
-	velocity = (velocity + change).limit_length(def.max_speed)
-	position += velocity * ShipState.TICK_DT
-
-
-## Holds position: any velocity is braked towards zero at `def.acceleration`,
-## never past it, and capped at `def.max_speed`.
-func _hover() -> void:
-	var brake: float = def.acceleration * ShipState.TICK_DT
-	var speed: float = velocity.length()
-	if speed <= brake:
-		velocity = Vector3.ZERO
-	else:
-		velocity = velocity * ((speed - brake) / speed)
-	velocity = velocity.limit_length(def.max_speed)
-	position += velocity * ShipState.TICK_DT
-
-
-## Keeps the robot's sphere inside `bounds`. Robots do not bounce or take wall
-## damage like ships: on each axis where it crossed a wall it is placed back on
-## the wall and its velocity into that wall is removed. A box narrower than the
-## robot holds it on the centre line, as `BoxBounds.contain_impact` does ships.
+## Keeps the robot's sphere inside `bounds`; see `RobotSteering.keep_inside`.
 func keep_inside(bounds: BoxBounds) -> void:
-	for axis: int in 3:
-		var low: float = bounds.min_corner[axis] + def.radius
-		var high: float = bounds.max_corner[axis] - def.radius
-		if low > high:
-			low = (bounds.min_corner[axis] + bounds.max_corner[axis]) * 0.5
-			high = low
-		if position[axis] < low:
-			position[axis] = low
-			velocity[axis] = maxf(velocity[axis], 0.0)
-		elif position[axis] > high:
-			position[axis] = high
-			velocity[axis] = minf(velocity[axis], 0.0)
+	RobotSteering.keep_inside(self, bounds)
 
 
 ## True until the hull reaches zero; `Sim` removes the robot at the end of
