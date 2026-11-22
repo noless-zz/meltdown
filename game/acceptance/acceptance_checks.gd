@@ -7,8 +7,9 @@ extends RefCounted
 ## so a new check adds a judge here and the runner does not grow.
 ##
 ## The checks that read the state a replay ended in (`AcceptanceStep.REPLAY_CHECKS`)
-## go to `AcceptanceStateChecks`; every other known check has a judge in `_judges`.
-## A unit test pins that the two together cover `AcceptanceStep.KNOWN_CHECKS`.
+## go to `AcceptanceStateChecks`; every other known check has a judge in `_judges`,
+## or in a check file under `acceptance/checks/` (`AcceptanceCheckFiles`, #1297).
+## A unit test pins that they together cover `AcceptanceCheckFiles.known_checks()`.
 
 const UNKNOWN_CHECK: String = "unknown check"
 
@@ -124,11 +125,11 @@ func waits_for_xr(step: AcceptanceStep, runner: AcceptanceRunner) -> bool:
 	return reads_rate and not AcceptanceRefreshCheck.settled(runner.main)
 
 
-## Every check name `run` can judge: the replay checks and those with a judge here.
+## Every check name `run` can judge: the replay checks, those with a judge here and the check files'.
 func judged_checks() -> Array[String]:
 	var names: Array[String] = AcceptanceStep.REPLAY_CHECKS.duplicate()
-	for check: String in _judges():
-		names.append(check)
+	names.append_array(_judges().keys())
+	names.append_array(AcceptanceCheckFiles.judges().keys())
 	return names
 
 
@@ -136,7 +137,7 @@ func judged_checks() -> Array[String]:
 func run(check: String, step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	if AcceptanceStep.REPLAY_CHECKS.has(check):
 		return AcceptanceStateChecks.run(check, step, runner.main.get("session"), runner.flown(), measurements)
-	var judge: Callable = _judges().get(check, Callable())
+	var judge: Callable = _judges().get(check, AcceptanceCheckFiles.judges().get(check, Callable()))
 	if not judge.is_valid():
 		return [AcceptanceReport.RESULT_FAIL, UNKNOWN_CHECK]
 	return judge.call(step, runner, measurements)

@@ -9,6 +9,8 @@ const RESULT_PASS: String = "pass"
 const RESULT_FAIL: String = "fail"
 const RESULT_SKIPPED: String = "skipped"
 const RESULTS: Array[String] = [RESULT_PASS, RESULT_FAIL, RESULT_SKIPPED]
+## The message of a suite with no steps (#1297): it is skipped, not passed.
+const NO_STEPS: String = "no steps"
 
 ## The report is echoed to the log between these lines, so it can be cut out
 ## of `adb logcat` or a CI log without knowing anything else about the output.
@@ -71,12 +73,22 @@ static func combine(results: Array[String]) -> String:
 	return RESULT_PASS if results.has(RESULT_PASS) else RESULT_SKIPPED
 
 
-## True only if there is a report and every report passed.
+## True for the report of a suite with no steps yet, such as a milestone
+## suite whose parts are still empty (#1297): it neither passes nor fails a run.
+func skipped() -> bool:
+	return steps.is_empty()
+
+
+## True only if some report passed and every other one passed or was skipped.
 static func all_passed(reports: Array[AcceptanceReport]) -> bool:
+	var any_passed: bool = false
 	for report: AcceptanceReport in reports:
+		if report.skipped():
+			continue
 		if not report.passed():
 			return false
-	return not reports.is_empty()
+		any_passed = true
+	return any_passed
 
 
 ## Writes the report as `<suite>-<commit>.json` in `dir`. Returns the path
@@ -95,13 +107,17 @@ func write_file(dir: String, short_commit: String) -> String:
 
 
 func to_dictionary() -> Dictionary:
-	return {
+	var data: Dictionary = {
 		"suite": suite_name,
 		"build_commit": build_commit,
 		"device": device_name,
 		"passed": passed(),
 		"steps": steps.duplicate(true),
 	}
+	if skipped():
+		data["result"] = RESULT_SKIPPED
+		data["message"] = NO_STEPS
+	return data
 
 
 ## Keys are sorted at every level, measurements included, so two reports of

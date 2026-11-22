@@ -21,10 +21,11 @@ func _missing(names: Array[String], from: Array[String]) -> Array[String]:
 
 func test_every_known_check_has_a_judge() -> String:
 	var judged: Array[String] = AcceptanceChecks.new().judged_checks()
-	var missing: Array[String] = _missing(AcceptanceStep.KNOWN_CHECKS, judged)
+	var known: Array[String] = AcceptanceCheckFiles.known_checks()  # Check files' too (#1297).
+	var missing: Array[String] = _missing(known, judged)
 	if not missing.is_empty():
 		return "known checks without a judge: %s" % ", ".join(missing)
-	var stray: Array[String] = _missing(judged, AcceptanceStep.KNOWN_CHECKS)
+	var stray: Array[String] = _missing(judged, known)
 	if not stray.is_empty():
 		return "judged checks that are not known: %s" % ", ".join(stray)
 	return ""

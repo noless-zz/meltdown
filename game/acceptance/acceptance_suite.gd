@@ -31,6 +31,10 @@ extends RefCounted
 ## Unknown keys, unknown checks and bad values are rejected with the field
 ## named, like `ShipTuning`: a mistyped key would otherwise switch a check off
 ## and the suite would still pass.
+##
+## `include` (optional, #1297) lists parts such as "m6/perf" whose steps run
+## after the suite's own (`AcceptanceSuiteParts`); a suite with parts may list
+## no steps of its own. Checks may come from `AcceptanceCheckFiles` too.
 
 const SUITES_DIR: String = "res://acceptance/suites"
 const SUITE_EXTENSION: String = ".json"
@@ -41,12 +45,15 @@ const ALL: String = "all"
 ## to the workflow. It is not a file either.
 const NIGHTLY: String = "nightly"
 
-const SUITE_KEYS: Array[String] = ["name", "steps", "manual_only"]
+const SUITE_KEYS: Array[String] = ["name", "steps", "manual_only", AcceptanceSuiteParts.INCLUDE_KEY]
 
 var name: String = ""
 ## Left out of NIGHTLY; run only when asked for by name or by ALL.
 var manual_only: bool = false
+## Its own steps, then those of each part in `includes` order.
 var steps: Array[AcceptanceStep] = []
+## The parts listed by `include`, such as "m6/perf".
+var includes: Array[String] = []
 ## Set when the text or file was rejected; the field is named in the message.
 var error: String = ""
 
@@ -58,7 +65,7 @@ var error: String = ""
 static func load_named(suite_name: String, suites_dir: String = SUITES_DIR) -> Array[AcceptanceSuite]:
 	var found: Array[AcceptanceSuite] = []
 	if suite_name != ALL and suite_name != NIGHTLY:
-		found.append(load_file(suites_dir.path_join(suite_name + SUITE_EXTENSION)) if _is_plain_name(suite_name)
+		found.append(load_file(suites_dir.path_join(suite_name + SUITE_EXTENSION)) if is_plain_name(suite_name)
 			else _failed("suite name '%s' may only use a-z, 0-9, '_' and '-'" % suite_name))
 		return found
 	var files: PackedStringArray = DirAccess.get_files_at(suites_dir)
@@ -87,15 +94,23 @@ static func unreadable(found: Array[AcceptanceSuite]) -> String:
 	return ""
 
 
-## Reads one suite file. Its `name` must equal the file name without the
-## extension, so `--acceptance=m1` and the report name the same suite.
+## Reads one suite file and its parts, from the file's folder. Its `name`
+## must equal the file name without the extension, so `--acceptance=m1` and
+## the report name the same suite. A check file that cannot be read fails
+## every suite, as a broken suite does.
 static func load_file(path: String) -> AcceptanceSuite:
 	if not FileAccess.file_exists(path):
 		return _failed("cannot open %s" % path)
+	if AcceptanceCheckFiles.problem() != "":
+		return _failed("%s: %s" % [path, AcceptanceCheckFiles.problem()])
 	var suite: AcceptanceSuite = parse_json(FileAccess.get_file_as_string(path))
 	var stem: String = path.get_file().trim_suffix(SUITE_EXTENSION)
 	if suite.error == "" and suite.name != stem:
 		suite = _failed("name: '%s' does not match the file name '%s'" % [suite.name, stem])
+	if suite.error == "":
+		var problem: String = AcceptanceSuiteParts.add_parts(suite, path.get_base_dir())
+		if problem != "":
+			suite = _failed(problem)
 	if suite.error != "":
 		suite.error = "%s: %s" % [path, suite.error]
 	return suite
@@ -115,30 +130,26 @@ static func parse_json(text: String) -> AcceptanceSuite:
 		return _failed(problem)
 	if typeof(data.get("name")) != TYPE_STRING or str(data["name"]) == "":
 		return _failed("name: must be a non-empty string")
-	if typeof(data.get("steps")) != TYPE_ARRAY or (data["steps"] as Array).is_empty():
-		return _failed("steps: must be a list of at least one step")
+	var includes: Variant = data.get(AcceptanceSuiteParts.INCLUDE_KEY, [])
+	problem = AcceptanceSuiteParts.check_names(includes)
+	if problem != "":
+		return _failed(problem)
+	if typeof(data.get("steps")) != TYPE_ARRAY \
+			or ((data["steps"] as Array).is_empty() and (includes as Array).is_empty()):
+		return _failed("steps: must be a list of at least one step, or of none with an include")
 	if typeof(data.get("manual_only", false)) != TYPE_BOOL:
 		return _failed("manual_only: must be true or false")
 	var suite: AcceptanceSuite = AcceptanceSuite.new()
 	suite.name = data["name"]
 	suite.manual_only = data.get("manual_only", false)
-	var ids: Dictionary[String, bool] = {}
-	var raw_steps: Array = data["steps"]
-	for index: int in raw_steps.size():
-		var field: String = "steps[%d]" % index
-		var step: AcceptanceStep = AcceptanceStep.new()
-		problem = AcceptanceStepParser.parse(raw_steps[index], field, step)
-		if problem == "" and ids.has(step.id):
-			problem = "%s.id: '%s' is used by an earlier step" % [field, step.id]
-		if problem != "":
-			return _failed(problem)
-		ids[step.id] = true
-		suite.steps.append(step)
-	return suite
+	for part: Variant in includes:
+		suite.includes.append(str(part))
+	problem = AcceptanceSuiteParts.add_steps(data["steps"], suite)
+	return _failed(problem) if problem != "" else suite
 
 
-## Keeps a launch argument from reaching outside SUITES_DIR.
-static func _is_plain_name(suite_name: String) -> bool:
+## Keeps a launch argument or a part name from reaching outside SUITES_DIR.
+static func is_plain_name(suite_name: String) -> bool:
 	if suite_name == "":
 		return false
 	for character: String in suite_name:
