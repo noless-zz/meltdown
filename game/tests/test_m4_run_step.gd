@@ -80,7 +80,8 @@ func test_the_step_flies_run_12345_and_checks_the_next_level() -> String:
 	return ""
 
 
-## The step alone, as the headset flies it: every check passes and level 2 flies.
+## The step alone, as the headset flies it: every check passes, level 2 flies
+## and the run's statistics count the escape (#1092).
 func test_the_runner_passes_the_step() -> String:
 	var runner: AcceptanceRunner = _run()
 	var problem: String = ""
@@ -91,6 +92,8 @@ func test_the_runner_passes_the_step() -> String:
 		var want: String = LevelSwitch.SEED_PREFIX + str(AcceptanceRunStep.plan_for(12345).level_seed(1))
 		if measured.get("outcome") != "ESCAPED" or measured.get("next_level_source") != want:
 			problem = "measured %s" % measured
+		elif not str(measured.get("stats", "")).contains("\"levels_escaped\":1"):
+			problem = "the statistics measured %s" % measured.get("stats")  # #1092.
 	_done(runner)
 	return problem
 

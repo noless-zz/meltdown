@@ -36,6 +36,9 @@ extends RefCounted
 ## escapes stays (RUN-7). A rejected roles file logs one line at the start and
 ## then escapes add no crew; the run flies on.
 ##
+## The profile's statistics (#1092, CRW-2) count each run start, escape, loss
+## and win through `RunStatsRecorder`, saved with the same store once per event.
+##
 ## It sits beside `main.gd` because it reads the `net/` session's outcome and
 ## the sim's `collected` counts; it only reads them and hands back a level
 ## source for `main.gd` to load, as `EscapeEndWiring` hands back a restart (MP-2).
@@ -73,6 +76,8 @@ var roles: CrewRoles = null
 var crew_error: String = ""
 ## The fitted ship each of the run's levels flies, from `profile` and `roles` (#1057).
 var ship: RunShip = RunShip.new()
+## Records the run's events in the profile's statistics (#1092).
+var stats: RunStatsRecorder = RunStatsRecorder.new()
 
 
 ## A run for `run_seed`. `p_store` is read for the profile and written after
@@ -110,6 +115,7 @@ func start(run_seed: int) -> bool:
 	escape_taken = false
 	print("%s %d: %d levels, flying level 1 (seed %d)" % [LOG_PREFIX, run_seed, plan.level_count(),
 		state.current_level_seed()])
+	stats.run_started(profile, store)
 	return true
 
 
@@ -208,12 +214,14 @@ func after_level(outcome: int, hull: float, collected: Dictionary, rescued: int 
 			print("%s %d won after %d levels; banked %s" % [LOG_PREFIX, state.plan.run_seed,
 				state.plan.level_count(), state.banked])
 			ended = state
+			stats.run_won(profile, store)
 			start(_new_seed())
 		else:
 			print("%s %d: level %d escaped, flying level %d (seed %d)" % [LOG_PREFIX, state.plan.run_seed,
 				state.level_index, state.current_depth(), state.current_level_seed()])
 	elif hull <= 0.0:
 		state.lose()
+		stats.run_lost(profile, store)
 		print("%s %d lost on level %d; banked %s" % [LOG_PREFIX, state.plan.run_seed, state.current_depth(),
 			state.banked])
 		ended = state
@@ -245,25 +253,26 @@ func _settle_choice() -> void:
 
 
 ## Banks an escape of level `level_index`: its `counts` and its `rescued`
-## miners, then one save for both.
+## miners, records it in the statistics, then one save for all three.
 func _bank(counts: Dictionary[String, int], level_index: int, rescued: int) -> void:
 	if state.error != "":
 		error = "the escape was refused: %s" % state.error
 		print("%s: %s" % [LOG_PREFIX, error])
 		return
-	var changed: bool = false
+	var banked: Dictionary[String, int] = {}
 	if not counts.is_empty():
 		var problem: String = RunBanking.bank_escape(profile, counts)
 		if problem != "":
 			error = problem
 			print("%s: %s" % [LOG_PREFIX, problem])
 		else:
-			changed = true
-	if _add_crew(level_index, rescued):
-		changed = true
-	if changed and store != null and not store.save(profile):
+			banked = counts
+	var joined: int = rescued if _add_crew(level_index, rescued) else 0
+	stats.escaped(profile, level_index, joined, banked)
+	if store != null and not store.save(profile):
 		error = store.message
 		print("%s: %s" % [LOG_PREFIX, error])
+		stats.fail("the escape was not saved: %s" % error)
 
 
 ## Adds `rescued` miners from level `level_index` to the crew; true when any

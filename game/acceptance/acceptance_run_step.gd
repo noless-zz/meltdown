@@ -18,6 +18,10 @@ extends RefCounted
 ## `expected_next_level_hash`. It swaps the scene's session, so it must be the
 ## step's last check: the checks before it read the flown level's end.
 ##
+## It also judges the run's profile statistics (#1092, CRW-2): after the
+## press they must count the one run started and the level escaped, and no
+## loss or win (`STATS_AFTER_ESCAPE`).
+##
 ## A level change in one step is all this adds; the press itself (fade, hold,
 ## A button) stays human-checked in the headset (#950). The `shaft_choice`
 ## check (#990, `AcceptanceShaftChoiceCheck`) takes the same fields and goes
@@ -25,6 +29,9 @@ extends RefCounted
 
 const KEY_RUN: String = "run"
 const KEY_NEXT_HASH: String = "expected_next_level_hash"
+## The statistics a run's profile holds once its first level was escaped (#1092).
+const STATS_AFTER_ESCAPE: Dictionary = {"runs_started": 1, "levels_escaped": 1, "deepest_level": 1,
+	"runs_won": 0, "runs_lost": 0}
 ## The checks that press on to the run's next level; a step lists at most one.
 const MOVING_CHECKS: Array[String] = [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE,
 	AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS]
@@ -132,7 +139,14 @@ static func run(step: AcceptanceStep, main: Node, flown: bool, measurements: Dic
 	if ended.sim.outcome() != ExitRule.Outcome.ESCAPED:
 		return [AcceptanceReport.RESULT_FAIL, "the run's level ended %s, not escaped" %
 			AcceptanceStateChecks.outcome_name(ended.sim.outcome())]
+	var run: RunWiring = level_start.run
 	main.call("restart_level")
+	var stats: Dictionary = run.profile.stats.to_dict()
+	measurements["stats"] = JSON.stringify(stats, "", true)
+	for key: String in STATS_AFTER_ESCAPE:
+		if stats[key] != STATS_AFTER_ESCAPE[key]:
+			return [AcceptanceReport.RESULT_FAIL, "the statistics count %s %d, expected %d" % [key, stats[key],
+				STATS_AFTER_ESCAPE[key]]]
 	var want: String = LevelSwitch.SEED_PREFIX + str(plan_for(step.run_seed).level_seed(1))
 	var session: LocalSession = main.get("session")
 	var actual: int = AcceptanceStepLevel.level_hash(session.replay)
@@ -143,4 +157,5 @@ static func run(step: AcceptanceStep, main: Node, flown: bool, measurements: Dic
 	if actual != step.expected_next_level_hash:
 		return [AcceptanceReport.RESULT_FAIL, "next level hash %d, expected %d: the level's data changed" % [
 			actual, step.expected_next_level_hash]]
-	return [AcceptanceReport.RESULT_PASS, "level 2 flies %s, level hash %d" % [want, actual]]
+	return [AcceptanceReport.RESULT_PASS, "level 2 flies %s, level hash %d; the statistics count it" % [
+		want, actual]]
