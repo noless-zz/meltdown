@@ -97,16 +97,20 @@ static func plan_for(run_seed: int) -> RunPlan:
 ## only (no profile is read or saved); any other step flies without a run.
 ## The run has the shipped shafts only for a shaft_choice step (#990); the
 ## run_advances step pins the run's own level order, as a run without a shaft
-## file flies it.
+## file flies it. A step with `next_replay` (#1065) has the shafts and flies
+## with drops on, as does a step with the collected check.
 static func begin(main: Node, step: AcceptanceStep) -> void:
 	var level_start: LevelStart = main.get("level_start") as LevelStart
 	var destroyed: DestroyedWiring = main.get("destroyed") as DestroyedWiring
 	if level_start == null:
 		return
+	var flies_on: bool = step.next_replay_path != ""  # Into a chosen shaft's level (#1065).
 	level_start.run = RunWiring.new(step.run_seed, null, Callable(), "",
-		step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE)) if step.run_seed != AcceptanceStep.NO_SEED else null
+		step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE) or flies_on) \
+		if step.run_seed != AcceptanceStep.NO_SEED else null
 	if level_start.run != null:
-		level_start.run.level_rules = step.has_check(AcceptanceStep.CHECK_COMPONENTS_BANK)  # #1028.
+		level_start.run.level_rules = step.has_check(AcceptanceStep.CHECK_COMPONENTS_BANK) \
+			or step.has_check(AcceptanceStep.CHECK_COLLECTED) or flies_on  # #1028, #1065.
 		level_start.source = level_start.run.level_source()
 	if destroyed != null:
 		destroyed.escape.run = level_start.run

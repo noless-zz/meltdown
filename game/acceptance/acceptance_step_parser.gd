@@ -36,6 +36,9 @@ extends RefCounted
 ## `expected_next_level_hash` goes with the run_advances or shaft_choice check
 ## (`AcceptanceRunStep`, `AcceptanceShaftChoiceCheck`). `expected_banked`
 ## goes with the components_bank check (`AcceptanceComponentsBankCheck`, #1028).
+## `shaft` and `next_replay` (#1065) fly a run step on into a chosen shaft's
+## level (`AcceptanceShaftStep`); `expected_collected` goes with the collected
+## check (`AcceptanceCollectedCheck`).
 ##
 ## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -48,7 +51,8 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptancePresetChanges.KEY, AcceptancePauseCheck.KEY_TICK, AcceptancePauseCheck.KEY_SECONDS,
 	AcceptanceControlsScript.KEY_CONTROLS, AcceptanceControlsScript.KEY_LEFT_HANDED,
 	AcceptanceCustomComfort.KEY, AcceptanceRefresh120.KEY, AcceptanceRunStep.KEY_RUN,
-	AcceptanceRunStep.KEY_NEXT_HASH, AcceptanceComponentsBankCheck.KEY]
+	AcceptanceRunStep.KEY_NEXT_HASH, AcceptanceComponentsBankCheck.KEY, AcceptanceShaftStep.KEY_SHAFT,
+	AcceptanceShaftStep.KEY_NEXT_REPLAY, AcceptanceCollectedCheck.KEY]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -99,7 +103,7 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 				or check == AcceptanceStep.CHECK_MAP_ROUTE or check == AcceptanceStep.CHECK_ESCAPE_CUE
 				or check == AcceptanceStep.CHECK_MAP_MARKERS or check == AcceptanceStep.CHECK_VIGNETTE
 				or check == AcceptanceStep.CHECK_RUN_ADVANCES or check == AcceptanceStep.CHECK_SHAFT_CHOICE
-				or check == AcceptanceStep.CHECK_COMPONENTS_BANK) \
+				or check == AcceptanceStep.CHECK_COMPONENTS_BANK or check == AcceptanceStep.CHECK_COLLECTED) \
 				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)
@@ -129,6 +133,10 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceRunStep.parse_step(data, field, step)  # #989.
 	if problem == "":
 		problem = AcceptanceComponentsBankCheck.parse_step(data, field, step)  # #1028.
+	if problem == "":
+		problem = AcceptanceShaftStep.parse_step(data, field, step)  # #1065.
+	if problem == "":
+		problem = AcceptanceCollectedCheck.parse_step(data, field, step)  # #1065.
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 
