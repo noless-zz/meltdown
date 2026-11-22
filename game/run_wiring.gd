@@ -29,6 +29,13 @@ extends RefCounted
 ## level never flies while a choice is due. A rejected shaft file, or
 ## `with_shafts` false, runs without a choice as #989 did.
 ##
+## An escape also brings the level's rescued miners into the profile's crew
+## (#1032, CRW-1, SLV-3): `CrewRoster.add_rescued` gives each a role seeded by
+## the run seed and the escaped level's index, and the profile is saved once
+## with the banked components. A lost ship adds nobody, and crew from earlier
+## escapes stays (RUN-7). A rejected roles file logs one line at the start and
+## then escapes add no crew; the run flies on.
+##
 ## It sits beside `main.gd` because it reads the `net/` session's outcome and
 ## the sim's `collected` counts; it only reads them and hands back a level
 ## source for `main.gd` to load, as `EscapeEndWiring` hands back a restart (MP-2).
@@ -60,6 +67,10 @@ var escape_taken: bool = false
 ## (`RunLevelRules`, #1028). The game keeps it on; an acceptance run step
 ## turns it off unless it checks them, so its pinned hashes stand.
 var level_rules: bool = true
+## The roles rescued miners are given (#1032); one with `error` set adds no crew.
+var roles: CrewRoles = null
+## Why the last escape added no crew although miners were rescued; empty otherwise.
+var crew_error: String = ""
 
 
 ## A run for `run_seed`. `p_store` is read for the profile and written after
@@ -76,6 +87,7 @@ func _init(run_seed: int, p_store: ProfileStore = null, p_pick_seed: Callable = 
 		if shafts.error != "":
 			print("%s: %s rejected, flying without a shaft choice: %s" % [LOG_PREFIX, SHAFTS_FILE, shafts.error])
 			shafts = null
+	use_roles(_read(CrewRoles.ROLES_FILE))
 	profile = store.load_profile() if store != null else Profile.new()
 	if store != null and store.message != "":
 		print("%s: %s" % [LOG_PREFIX, store.message])
@@ -97,6 +109,20 @@ func start(run_seed: int) -> bool:
 	print("%s %d: %d levels, flying level 1 (seed %d)" % [LOG_PREFIX, run_seed, plan.level_count(),
 		state.current_level_seed()])
 	return true
+
+
+## Reads the crew roles from `text`, the roles file's text (tests hand in
+## their own). A rejected file logs one line; escapes then add no crew.
+func use_roles(text: String) -> void:
+	roles = CrewRoles.parse_json(text)
+	if roles.error != "":
+		print("%s: %s rejected, rescued miners will not join the crew: %s" % [LOG_PREFIX,
+			CrewRoles.ROLES_FILE, roles.error])
+
+
+## How many miners `sim` has rescued so far; 0 when it flies without rescue.
+static func rescued_in(sim: Sim) -> int:
+	return sim.rescue.rescued if sim.rescue != null else 0
 
 
 ## Whether a run is being flown.
@@ -136,12 +162,14 @@ func choice_due_after_escape() -> bool:
 
 
 ## The escape screen's press after a level that leads to a choice: moves the
-## run on and banks `collected` now, and returns the shafts offered, in
-## `RunState.offer()` order. Empty, changing nothing, when no choice is due.
-func escape_for_choice(collected: Dictionary) -> Array[String]:
+## run on, banks `collected` and adds the `rescued` miners to the crew now, and
+## returns the shafts offered, in `RunState.offer()` order. Empty, changing
+## nothing, when no choice is due.
+func escape_for_choice(collected: Dictionary, rescued: int = 0) -> Array[String]:
 	if not choice_due_after_escape():
 		return []
-	_bank(state.advance(collected))
+	var escaped_index: int = state.level_index
+	_bank(state.advance(collected), escaped_index, rescued)
 	escape_taken = true
 	return state.offer()
 
@@ -161,17 +189,18 @@ static func ends_level(outcome: int, hull: float) -> bool:
 	return outcome == ExitRule.Outcome.ESCAPED or hull <= 0.0
 
 
-## Called on the restart press with the ended session's outcome, ship hull and
-## `collected` counts. Moves the run on as the class comment says and returns
-## the level source to fly next.
-func after_level(outcome: int, hull: float, collected: Dictionary) -> String:
+## Called on the restart press with the ended session's outcome, ship hull,
+## `collected` counts and `rescued` miners. Moves the run on as the class
+## comment says and returns the level source to fly next.
+func after_level(outcome: int, hull: float, collected: Dictionary, rescued: int = 0) -> String:
 	if not active():
 		return ""
 	if outcome == ExitRule.Outcome.ESCAPED and escape_taken:
 		escape_taken = false
 		_settle_choice()
 	elif outcome == ExitRule.Outcome.ESCAPED:
-		_bank(state.advance(collected))
+		var escaped_index: int = state.level_index
+		_bank(state.advance(collected), escaped_index, rescued)
 		_settle_choice()
 		if state.won:
 			print("%s %d won after %d levels; banked %s" % [LOG_PREFIX, state.plan.run_seed,
@@ -193,7 +222,8 @@ func after_level(outcome: int, hull: float, collected: Dictionary) -> String:
 ## The source after a session ended with `session`: the run's next level when
 ## it ended its level, otherwise the current one again.
 func after_session(session: LocalSession) -> String:
-	return after_level(session.sim.outcome(), session.current_ship().hull, session.sim.collected.duplicate())
+	return after_level(session.sim.outcome(), session.current_ship().hull, session.sim.collected.duplicate(),
+		rescued_in(session.sim))
 
 
 ## Leaves the run: the dev menu chose another level.
@@ -212,19 +242,43 @@ func _settle_choice() -> void:
 		choose(offered[0])
 
 
-func _bank(counts: Dictionary[String, int]) -> void:
+## Banks an escape of level `level_index`: its `counts` and its `rescued`
+## miners, then one save for both.
+func _bank(counts: Dictionary[String, int], level_index: int, rescued: int) -> void:
 	if state.error != "":
 		error = "the escape was refused: %s" % state.error
 		print("%s: %s" % [LOG_PREFIX, error])
 		return
-	if counts.is_empty():
-		return
-	var problem: String = RunBanking.bank_escape(profile, counts)
-	if problem == "" and store != null and not store.save(profile):
-		problem = store.message
-	if problem != "":
-		error = problem
-		print("%s: %s" % [LOG_PREFIX, problem])
+	var changed: bool = false
+	if not counts.is_empty():
+		var problem: String = RunBanking.bank_escape(profile, counts)
+		if problem != "":
+			error = problem
+			print("%s: %s" % [LOG_PREFIX, problem])
+		else:
+			changed = true
+	if _add_crew(level_index, rescued):
+		changed = true
+	if changed and store != null and not store.save(profile):
+		error = store.message
+		print("%s: %s" % [LOG_PREFIX, error])
+
+
+## Adds `rescued` miners from level `level_index` to the crew; true when any
+## joined. A refusal is logged and leaves the crew as it was; the run goes on.
+func _add_crew(level_index: int, rescued: int) -> bool:
+	crew_error = ""
+	if rescued <= 0:
+		return false
+	if roles == null or roles.error != "":
+		crew_error = "no crew roles"  # Logged once when the roles file was read.
+		return false
+	crew_error = CrewRoster.add_rescued(profile, roles, state.plan.run_seed, level_index, rescued)
+	if crew_error != "":
+		print("%s: %d rescued miners did not join the crew: %s" % [LOG_PREFIX, rescued, crew_error])
+		return false
+	print("%s %d: %d rescued miners joined the crew" % [LOG_PREFIX, state.plan.run_seed, rescued])
+	return true
 
 
 func _new_seed() -> int:

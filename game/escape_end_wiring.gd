@@ -58,7 +58,7 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), seconds_left(session), xr_running,
 			run_won())
 	if due and escaped and run != null and run.choice_due_after_escape() \
-			and choice.open(run, session.sim.collected.duplicate()):
+			and choice.open(run, session.sim.collected.duplicate(), RunWiring.rescued_in(session.sim)):
 		return choice.update(run, session.paused, head_point, xr_running)
 	return due
 
