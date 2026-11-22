@@ -97,7 +97,7 @@ func _ready() -> void:
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
 	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
-	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed)
+	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed, null, hub.is_open)
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 

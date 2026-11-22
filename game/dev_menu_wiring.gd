@@ -14,8 +14,10 @@ extends RefCounted
 ## state: a level or restart goes through `main.gd`'s `restart_level`, a new
 ## session from the start, behind a fade (MP-2, ARC-3, CMF-8).
 ##
-## The tap does nothing during the first-launch flight test or while the
-## destroyed or escape screen is up, and closes a menu left open then. The
+## The tap does nothing during the first-launch flight test, while the
+## destroyed or escape screen is up or while the hub is open, and closes a
+## menu left open then; the hub also drops a level the menu was fading to, so
+## nothing flies hidden behind it (#1170, decision record 0009). The
 ## break prompt (#716) still takes a tap first, through `UpdateWiring.tap_taker`.
 ## A newer build that waits is an entry in the menu, and choosing it does
 ## what the tap did before (`UpdateWiring.choose_waiting`).
@@ -86,6 +88,8 @@ var _update: UpdateWiring = null
 var _level_start: LevelStart = null
 var _flight_test: FlightTestWiring = null
 var _destroyed: DestroyedWiring = null
+## True while the hub is open (`HubWiring.is_open`); unset, there is no hub.
+var _hub_open: Callable = Callable()
 
 
 func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = null,
@@ -108,11 +112,14 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
 ## `level_start.source` again from its start; the flight test and the end
-## screens say when the tap is ignored. Calling it again adds nothing.
+## screens say when the tap is ignored, and so does `hub_open` (#1170).
+## Calling it again adds nothing.
 func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart: Callable,
-		flight_test: FlightTestWiring, destroyed: DestroyedWiring, p_menu: DevMenu = null) -> void:
+		flight_test: FlightTestWiring, destroyed: DestroyedWiring, p_menu: DevMenu = null,
+		hub_open: Callable = Callable()) -> void:
 	if menu != null:
 		return
+	_hub_open = hub_open
 	_update = update
 	_level_start = level_start
 	_flight_test = flight_test
@@ -131,14 +138,23 @@ func is_open() -> bool:
 	return menu != null and menu.visible
 
 
-## Whether the tap is ignored now: the flight test runs or an end screen is up.
+## Whether the tap is ignored now: the flight test runs, the hub is open or
+## an end screen is up.
 func blocked() -> bool:
 	if _flight_test != null and _flight_test.running():
+		return true
+	if hub_is_open():
 		return true
 	if _destroyed == null:
 		return false
 	return _destroyed.fade_alpha() > 0.0 or _destroyed.sequence.line_shown() \
 		or _destroyed.escape.sequence.line_shown()
+
+
+## True while the hub is open. The hub has its own controls and its launch
+## leaves it, so a tap over it is ignored rather than closing it (#1170).
+func hub_is_open() -> bool:
+	return _hub_open.is_valid() and bool(_hub_open.call())
 
 
 ## The helper serving `kind` in `dev_menu.json`, or null.
@@ -155,6 +171,8 @@ func entry_for(kind: String) -> DevMenuEntry:
 func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictionary:
 	if _update != null:
 		_update.step()
+	if hub_is_open():
+		_restarts.cancel()  # A level picked before the hub opened must not fly behind it.
 	_restarts.advance(now)
 	var tapped: bool = tap.feed(ResetHold.is_held(values), now)
 	if tapped and _update != null and _update.tap_taker.is_valid() and bool(_update.tap_taker.call()):
