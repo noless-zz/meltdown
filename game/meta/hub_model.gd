@@ -2,7 +2,7 @@ class_name HubModel
 extends RefCounted
 
 ## What the hub lists and what its actions do (CRW-2, CRF-3, CRF-4, CRW-1, #1033),
-## with no scene: four pages (crew, store, craft, fit) in the order of
+## with no scene: five pages (crew, stats, store, craft, fit) in the order of
 ## `data/hub/hub.json`, and the craft, fit and launch actions.
 ##
 ## The actions change only the profile and fitting this model was given; they
@@ -58,6 +58,15 @@ func crew() -> Array[Dictionary]:
 			"amount": roles.benefit_amount(role),
 		})
 	return members
+
+
+## The profile's seven lifetime counters (#1095), keyed as `ProfileStats.KEYS`
+## and in that order. A profile read from a file older than version 3 has no
+## stats on disk; `Profile` gives it zeros, and so does a missing stats object.
+func stats() -> Dictionary:
+	if profile.stats == null:
+		return ProfileStats.new().to_dict()
+	return profile.stats.to_dict()
 
 
 ## Banked components, tier first then id: `id`, `name`, `tier`, `count`. A kind

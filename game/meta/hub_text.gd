@@ -99,6 +99,8 @@ func _rows() -> Array[Dictionary]:
 	match page_id():
 		HubConfig.CREW:
 			return _crew_rows()
+		HubConfig.STATS:
+			return _stats_rows()
 		HubConfig.STORE:
 			return _store_rows()
 		HubConfig.CRAFT:
@@ -123,6 +125,21 @@ func _crew_rows() -> Array[Dictionary]:
 			"amount": member["amount"], "stat": _words().stat_name(member["stat"])})))
 	if rows.is_empty():
 		rows.append(_shown(model.config.empty_crew))
+	return rows
+
+
+## One line per counter, none selectable; above them the empty-profile line
+## while every counter is still 0.
+func _stats_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var counters: Dictionary = model.stats()
+	var any: bool = false
+	for key: String in ProfileStats.KEYS:
+		any = any or int(counters.get(key, 0)) != 0
+	if not any:
+		rows.append(_shown(_words().row("stats_empty")))
+	for key: String in ProfileStats.KEYS:
+		rows.append(_shown(_words().row(HubWords.STATS_ROW_PREFIX + key, {"count": int(counters.get(key, 0))})))
 	return rows
 
 

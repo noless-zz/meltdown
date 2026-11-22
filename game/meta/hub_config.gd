@@ -8,11 +8,13 @@ extends RefCounted
 
 const CONFIG_PATH: String = "res://data/hub/hub.json"
 const CREW: String = "crew"
+## The Logbook: the profile's lifetime counters (#1095).
+const STATS: String = "stats"
 const STORE: String = "store"
 const CRAFT: String = "craft"
 const FIT: String = "fit"
 ## Every page the model knows; the file must list each exactly once.
-const PAGE_IDS: Array[String] = [CREW, STORE, CRAFT, FIT]
+const PAGE_IDS: Array[String] = [CREW, STATS, STORE, CRAFT, FIT]
 const KEY_PAGES: String = "pages"
 const KEY_EMPTY_CREW: String = "empty_crew"
 const KEY_EMPTY_STORE: String = "empty_store"
