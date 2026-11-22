@@ -11,13 +11,10 @@ extends RefCounted
 ## the module changes the flight, not that it feels right (#1117 stays a headset
 ## check). The cone and range are those `aim_assist.json` ships.
 ##
-## The issue asked for at least as many robot hits with the module as without.
-## On this replay there are fewer (28 against 30): `AimAssist.bend` turns a shot
-## to a moving robot's current centre, which drops the lead the plain ship's
-## nose already had (first at tick 31, a hit at tick 55 becomes a miss), and the
-## flights diverge from there. #1192 puts the fix to the owner; until then the
-## counts are pinned so a change to aim assist shows here. Once #1192 lands,
-## replace the pin with "at least as many" and re-record the hash.
+## #1159 found fewer hits with the module (28 against 30): the bend aimed at a
+## moving robot's current centre and dropped the lead the plain ship's nose
+## already had. Since #1192 the bend leads the robot, and the test asks for at
+## least as many hits with the module as without.
 ## Re-recording the final hash after an intended change, from the repository root:
 ##
 ##     MELTDOWN_RECORD_M4=aim_assist_fitted godot --headless --path game -s res://tests/run_tests.gd
@@ -31,9 +28,6 @@ const RECORD_SWITCH: String = "MELTDOWN_RECORD_M4"
 const RecordSwitch := preload("res://tests/record_switch.gd")
 ## The replay takes about 7,200 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 20000
-## Robot hits measured on this replay with and without the module (#1192).
-const PINNED_HITS_ASSISTED: int = 28
-const PINNED_HITS_PLAIN: int = 30
 
 var _quit_codes: Array[int] = []
 
@@ -121,8 +115,8 @@ func test_the_step_flies_the_module_on_run_advances_inputs() -> String:
 
 
 ## Both ships on the same replay, each as the headset flies it: each passes its
-## pinned hash and outcome, the hashes differ, and each lands its pinned number
-## of robot hits (see the top of this file and #1192).
+## pinned hash and outcome, the hashes differ, and the module's shots hit robots
+## at least as often as the plain ship's (#1192).
 func test_the_module_changes_the_flight() -> String:
 	var flights: Array[Dictionary] = []
 	for flying: AcceptanceStep in [step(), plain_step()]:
@@ -142,9 +136,8 @@ func test_the_module_changes_the_flight() -> String:
 		assisted["hash"], assisted["hits"], plain["hash"], plain["hits"]])
 	if assisted["hash"] == plain["hash"]:
 		return "the flights with and without aim assist both end on hash %d" % plain["hash"]
-	if int(assisted["hits"]) != PINNED_HITS_ASSISTED or int(plain["hits"]) != PINNED_HITS_PLAIN:
-		return "robot hits %d with aim assist and %d without, pinned %d and %d (#1192)" % [assisted["hits"],
-			plain["hits"], PINNED_HITS_ASSISTED, PINNED_HITS_PLAIN]
+	if int(assisted["hits"]) < int(plain["hits"]):
+		return "aim assist hit robots %d times, the plain ship %d (#1192)" % [assisted["hits"], plain["hits"]]
 	return ""
 
 

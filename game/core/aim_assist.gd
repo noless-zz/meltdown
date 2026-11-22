@@ -63,10 +63,16 @@ static func parse_json(text: String) -> AimAssist:
 
 
 ## The direction a shot from `origin` aimed along `direction` (world space, any
-## non-zero length) leaves in: towards the centre of the nearest live robot of
-## `robots` inside the cone and range, or `direction` itself, unchanged, when
-## there is none.
-func bend(origin: Vector3, direction: Vector3, robots: Array[RobotState]) -> Vector3:
+## non-zero length) leaves in: towards the nearest live robot of `robots` whose
+## centre is inside the cone and range, or `direction` itself, unchanged, when
+## there is none. With `shot_speed` (metres per second) the shot leads that
+## robot: it heads for where the robot's current velocity carries it by the time
+## the shot gets there (#1192), so a pilot's own lead on a moving robot is kept
+## rather than replaced by none. A still robot, a `shot_speed` of 0, or a robot
+## the shot can never catch gets the centre aim. Which robots are eligible is
+## decided on their current centres either way.
+func bend(origin: Vector3, direction: Vector3, robots: Array[RobotState],
+		shot_speed: float = 0.0) -> Vector3:
 	if direction.is_zero_approx():
 		return direction
 	var aim: Vector3 = direction.normalized()
@@ -87,7 +93,39 @@ func bend(origin: Vector3, direction: Vector3, robots: Array[RobotState]) -> Vec
 		best_distance = distance
 	if best < 0:
 		return direction
-	return (robots[best].position - origin).normalized()
+	return (aim_point(origin, robots[best], shot_speed) - origin).normalized()
+
+
+## Where a shot from `origin` at `shot_speed` meets `robot` if the robot keeps
+## its current velocity: the earliest positive time t with
+## |offset + velocity t| = shot_speed t. The robot's centre when it is still,
+## when `shot_speed` is not positive, or when no such time exists (the robot
+## outruns the shot), so those cases bend exactly as before #1192.
+static func aim_point(origin: Vector3, robot: RobotState, shot_speed: float) -> Vector3:
+	var velocity: Vector3 = robot.velocity
+	if shot_speed <= 0.0 or velocity.is_zero_approx():
+		return robot.position
+	var offset: Vector3 = robot.position - origin
+	# a t^2 + b t + c = 0, from squaring both sides.
+	var a: float = velocity.dot(velocity) - shot_speed * shot_speed
+	var b: float = 2.0 * offset.dot(velocity)
+	var c: float = offset.dot(offset)
+	var t: float = -1.0
+	if absf(a) < 0.000001:
+		if b < 0.0:
+			t = -c / b
+	else:
+		var discriminant: float = b * b - 4.0 * a * c
+		if discriminant >= 0.0:
+			var root: float = sqrt(discriminant)
+			var first: float = (-b - root) / (2.0 * a)
+			var second: float = (-b + root) / (2.0 * a)
+			var low: float = minf(first, second)
+			var high: float = maxf(first, second)
+			t = low if low > 0.0 else high
+	if t <= 0.0:
+		return robot.position
+	return robot.position + velocity * t
 
 
 static func _rejected(message: String) -> AimAssist:

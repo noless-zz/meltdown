@@ -175,3 +175,66 @@ func test_aim_assist_is_set_before_the_first_tick_only() -> String:
 		return "a good assist was refused before the first tick"
 	sim.step([ShipInput.new(Vector3i.ZERO, Vector3i.ZERO, false, false, false)] as Array[ShipInput])
 	return "" if sim.set_aim_assist(AimAssist.new()) != "" else "an assist was accepted after a tick"
+
+
+## ROBOT_HIT events from one shot of ship 0 at a drone at `robot_at` moving at
+## `velocity`, the drone moving each tick as the sim moves robots.
+static func _moving_hits(robot_at: Vector3, velocity: Vector3, utility: Array[String]) -> int:
+	var sim: Sim = _sim(robot_at, utility)
+	sim.robots[0].velocity = velocity
+	ProjectileHits.fire(sim, 0, true)
+	var events: Array[SimEvent] = []
+	var killers: Dictionary = {}
+	for i: int in FLIGHT_TICKS:
+		ProjectileHits.advance(sim, events, killers)
+		sim.robots[0].position += velocity * ShipState.TICK_DT
+	var hits: int = 0
+	for event: SimEvent in events:
+		if event.kind == SimEvent.Kind.ROBOT_HIT:
+			hits += 1
+	return hits
+
+
+## #1192: a drone 3 degrees off the nose at 50 m crossing at its top speed is
+## hit by the assisted shot, which leads it; aimed at its centre the same shot
+## would pass behind it, and without the module the shot misses too.
+func test_a_crossing_robot_is_hit_by_the_assisted_shot() -> String:
+	var at: Vector3 = _off_aim(3.0, 50.0)
+	var crossing: Vector3 = Vector3(8.0, 0.0, 0.0)
+	var with_module: int = _moving_hits(at, crossing, [ShipLoadout.AIM_ASSIST_MODULE, ""] as Array[String])
+	var without: int = _moving_hits(at, crossing, ["", ""] as Array[String])
+	if with_module != 1 or without != 0:
+		return "hits with and without the module: %d, %d, want 1, 0" % [with_module, without]
+	# The centre aim that the module gave before #1192 misses this robot.
+	var robot: RobotState = RobotState.new(RobotDef.parse_json(FileAccess.get_file_as_string(DRONE)), at)
+	robot.velocity = crossing
+	var centre: Vector3 = AimAssist.new().bend(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), [robot] as Array[RobotState])
+	var led: Vector3 = AimAssist.new().bend(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), [robot] as Array[RobotState], 120.0)
+	if centre != at.normalized() or led.is_equal_approx(centre):
+		return "centre aim %s, led aim %s: the lead changed nothing" % [centre, led]
+	return ""
+
+
+## A still robot is aimed at exactly as before #1192, whatever the shot speed.
+func test_a_still_robot_gets_the_same_bend_as_before() -> String:
+	var robot: RobotState = RobotState.new(RobotDef.parse_json(FileAccess.get_file_as_string(DRONE)), _off_aim(3.0, 30.0))
+	var robots: Array[RobotState] = [robot]
+	var aim: Vector3 = Vector3(0.0, 0.0, -1.0)
+	var before: Vector3 = (robot.position - Vector3.ZERO).normalized()
+	for speed: float in [0.0, 120.0, 400.0]:
+		var bent: Vector3 = AimAssist.new().bend(Vector3.ZERO, aim, robots, speed)
+		if bent != before:
+			return "at shot speed %s the still robot's bend is %s, before #1192 %s" % [speed, bent, before]
+	return ""
+
+
+## A robot fleeing faster than the shot can never be reached: centre aim.
+func test_an_outrunning_robot_falls_back_to_the_centre() -> String:
+	var robot: RobotState = RobotState.new(RobotDef.parse_json(FileAccess.get_file_as_string(DRONE)), _off_aim(3.0, 30.0))
+	robot.velocity = robot.position.normalized() * 200.0 + Vector3(5.0, 0.0, 0.0)
+	var bent: Vector3 = AimAssist.new().bend(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), [robot] as Array[RobotState], 120.0)
+	if bent != robot.position.normalized():
+		return "the outrun shot bends to %s, want the centre %s" % [bent, robot.position.normalized()]
+	if AimAssist.aim_point(Vector3.ZERO, robot, 120.0) != robot.position:
+		return "aim_point of an outrunning robot is not its centre"
+	return ""
