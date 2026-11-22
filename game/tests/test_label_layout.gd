@@ -88,10 +88,23 @@ func test_text_is_smaller_than_before() -> String:
 
 
 func test_rows_are_further_apart_than_a_line_is_tall() -> String:
+	# Every part at one height, the worst case: the rows must still stack.
 	var height: float = ControlLabelSet.text_size("Ay").y
-	if ControlLabelSet.ROW_PITCH <= height:
-		return "rows %.1f mm apart but a line is %.1f mm tall" % [
-			ControlLabelSet.ROW_PITCH * 1000.0, height * 1000.0]
+	var heights: Dictionary = {}
+	var points: Dictionary = {}
+	for control: String in ControlLabelLayout.CONTROLS:
+		heights[control] = height
+		points[control] = Vector3.ZERO
+	var layout: Dictionary = ControlLabelLayout.load_file()
+	if float(layout["row_gap_m"]) <= 0.0:
+		return "no gap between rows"
+	var spots: Dictionary = ControlLabelLayout.place(layout, heights, points, [] as Array[String])
+	for i: int in range(1, ControlLabelLayout.CONTROLS.size()):
+		var above: Vector3 = spots[ControlLabelLayout.CONTROLS[i - 1]]
+		var below: Vector3 = spots[ControlLabelLayout.CONTROLS[i]]
+		if above.y - below.y <= height:
+			return "rows %.1f mm apart but a line is %.1f mm tall" % [
+				(above.y - below.y) * 1000.0, height * 1000.0]
 	return ""
 
 
@@ -142,12 +155,14 @@ func test_each_label_has_a_short_leader_to_its_control() -> String:
 			var label_end: Vector3 = ends[0]
 			var control_end: Vector3 = ends[1]
 			var point: Vector3 = labels.mirror(ControlLabelSet.control_point(str(control), ControllerModel.CONTROL_POINTS))
-			var anchor: Vector3 = labels.label_for(str(control)).position
+			var label: Label3D = labels.label_for(str(control))
+			var anchor: Vector3 = label.position
+			var start: Vector3 = labels.leader_start(str(control), anchor, ControlLabelSet.text_size(label.text).y)
 			if not control_end.is_equal_approx(point):
 				message = "%s %s leader ends at %s, not the control at %s" % [hand, control, control_end, point]
-			elif label_end.distance_to(anchor) > ControlLabelSet.LEADER_GAP + 0.0001:
-				message = "%s %s leader starts %s from its label" % [hand, control, label_end.distance_to(anchor)]
-			elif absf(label_end.x) > absf(anchor.x):
+			elif not label_end.is_equal_approx(start):
+				message = "%s %s leader starts at %s, not its label's edge %s" % [hand, control, label_end, start]
+			elif not ControlLabelSet.CENTRED.has(str(control)) and absf(label_end.x) > absf(anchor.x):
 				message = "%s %s leader crosses into its text" % [hand, control]
 			elif label_end.distance_to(control_end) > MAX_LEADER_M:
 				message = "%s %s leader is %.0f mm long" % [hand, control, label_end.distance_to(control_end) * 1000.0]
@@ -170,10 +185,12 @@ func test_text_runs_away_from_the_other_hand() -> String:
 		for control: Variant in labels.texts():
 			var label: Label3D = labels.label_for(str(control))
 			if ControlLabelSet.CENTRED.has(str(control)):
-				# The cross's lines are centred; its block is moved outward instead.
+				# The cross is centred over the stick (#1212).
+				var stick: Vector3 = labels.mirror(ControlLabelSet.control_point(str(control),
+					ControllerModel.CONTROL_POINTS))
 				if label.horizontal_alignment != HORIZONTAL_ALIGNMENT_CENTER \
-						or (label.offset.x < 0.0) != (hand == "left"):
-					message = "%s %s cross should be centred and moved outward" % [hand, control]
+						or not is_equal_approx(label.position.x, stick.x) or label.position.y <= stick.y:
+					message = "%s %s cross should be centred over the stick" % [hand, control]
 			elif label.horizontal_alignment != want[hand]:
 				message = "%s %s text should run outward" % [hand, control]
 			elif (label.position.x < 0.0) != (hand == "left"):

@@ -5,41 +5,37 @@ extends Node3D
 ## bound control with a short leader line to the control on the model.
 ##
 ## The first labels sat around the controller head and ran into each other
-## and into the other hand's labels (#147). Now every label of a hand sits in
-## one column on the outer side of that hand, a row per control in the order
-## the controls sit on the controller, top to bottom, and its text runs
-## outward. Two hands held side by side therefore never share space, and
-## within a hand the rows are further apart than a line of text is tall.
+## and into the other hand's labels (#147). Then every label of a hand sat in
+## one fixed column on the outer side of that hand, which on the Quest 3 model
+## put them far from their buttons, on long lines, and over the status panel
+## (#1212). Now each label floats just beside the part it names: the stick's
+## cross over the stick, every other label just outside the controller at its
+## part's height, pushed down only as far as the row above needs
+## (`ControlLabelLayout`, a data file). Text still runs outward, so two hands
+## held side by side never share space.
 ##
-## The labels are billboarded, so the line always meets the text's inner edge.
+## The labels are billboarded, so the line always meets the text's edge.
 ## Nothing here reads or writes input or ship state (ARC-3).
 
-## Hand-local anchor of each control's label on the right hand, in metres.
-## -z points ahead along the controller, +y up, +x to the right; the left hand
-## mirrors x. The text starts at the anchor and runs away from the controller.
-## A stick's cross (#606) is three lines tall: it is centred on the top row,
-## where the stick's two axis rows were, and its top line rises one row above.
+const OVER: String = "over"
+const COLUMN: String = "column"
+## Every labelled control and how its label is placed: `OVER` centred over
+## its part, `COLUMN` just outside the controller. Where exactly comes from
+## `ControlLabelLayout.place`.
 const LABEL_POSITIONS: Dictionary = {
-	"stick": Vector3(COLUMN_X, TOP_ROW_Y, COLUMN_Z),
-	"stick_click": Vector3(COLUMN_X, TOP_ROW_Y - 2.0 * ROW_PITCH, COLUMN_Z),
-	"button_upper": Vector3(COLUMN_X, TOP_ROW_Y - 3.0 * ROW_PITCH, COLUMN_Z),
-	"button_lower": Vector3(COLUMN_X, TOP_ROW_Y - 4.0 * ROW_PITCH, COLUMN_Z),
-	"menu": Vector3(COLUMN_X, TOP_ROW_Y - 5.0 * ROW_PITCH, COLUMN_Z),
-	"trigger": Vector3(COLUMN_X, TOP_ROW_Y - 6.0 * ROW_PITCH, COLUMN_Z),
-	"grip": Vector3(COLUMN_X, TOP_ROW_Y - 7.0 * ROW_PITCH, COLUMN_Z),
+	"stick": OVER,
+	"stick_click": COLUMN,
+	"button_upper": COLUMN,
+	"button_lower": COLUMN,
+	"menu": COLUMN,
+	"trigger": COLUMN,
+	"grip": COLUMN,
 }
 ## Labels whose leader ends at another control's point: the cross names the
 ## stick as a whole, whose top is where the stick click's leader ends too.
 const POINT_OF: Dictionary = {"stick": "stick_click"}
 ## Labels whose lines are centred on each other, as a cross must be.
 const CENTRED: Array[String] = ["stick"]
-const TOP_ROW_Y: float = 0.080
-## Just outside the controller head (half width 25 mm) and the runtime models.
-const COLUMN_X: float = 0.045
-const COLUMN_Z: float = -0.02
-## One row per control. A line of text is about 14 mm tall with its outline
-## (see `LABEL_PIXEL_SIZE`), so 17 mm leaves a visible gap between rows.
-const ROW_PITCH: float = 0.017
 
 ## Font size in pixels of the label texture; with `LABEL_PIXEL_SIZE` this sets
 ## the size in the world. 32 px keeps the glyphs sharp after filtering.
@@ -60,6 +56,8 @@ const LEADER_PREFIX: String = "Leader_"
 
 ## `"left"` or `"right"`; picks which way the column mirrors.
 var hand: String = "right"
+## Where the labels go (`ControlLabelLayout`); public so tests can swap it.
+var layout: Dictionary = ControlLabelLayout.load_file()
 
 ## Control -> [label end, control end] of its leader line, hand-local.
 var _leaders: Dictionary = {}
@@ -83,10 +81,17 @@ func set_labels(labels: Dictionary, control_points: Dictionary) -> void:
 	_leader_material = _make_leader_material()
 	var controls: Array = labels.keys()
 	controls.sort()
+	var heights: Dictionary = {}
+	var points: Dictionary = {}
+	for control: Variant in controls:
+		if LABEL_POSITIONS.has(control):
+			heights[control] = text_size(str(labels[control])).y
+			points[control] = control_point(str(control), control_points)
+	var spots: Dictionary = ControlLabelLayout.place(layout, heights, points, over_controls())
 	for control: Variant in controls:
 		if not LABEL_POSITIONS.has(control):
 			continue
-		var anchor: Vector3 = mirror(LABEL_POSITIONS[control])
+		var anchor: Vector3 = mirror(spots[control])
 		var label: Label3D = Label3D.new()
 		label.name = str(control)
 		label.text = str(labels[control])
@@ -99,17 +104,15 @@ func set_labels(labels: Dictionary, control_points: Dictionary) -> void:
 		label.modulate = LABEL_COLOR
 		label.horizontal_alignment = text_alignment()
 		if CENTRED.has(str(control)):
-			# Centre the lines on each other, then move the block so its inner
-			# edge still sits at the anchor like every other row.
+			# Centred on the part below it, so the cross sits over the stick.
 			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			var half_width_px: float = 0.5 * _glyph_width_px(label.text)
-			label.offset = Vector2(-half_width_px if hand == "left" else half_width_px, 0.0)
 		# Labels must stay readable when a hand or the cockpit is in front.
 		label.no_depth_test = true
 		add_child(label)
 		var point_name: String = str(POINT_OF.get(control, control))
 		if control_points.has(point_name):
-			_add_leader(str(control), anchor, mirror(control_points[point_name]))
+			var start: Vector3 = leader_start(str(control), anchor, float(heights[control]))
+			_add_leader(str(control), start, mirror(control_points[point_name]))
 	set_alpha(_alpha)
 
 
@@ -169,18 +172,30 @@ static func control_point(control: String, control_points: Dictionary) -> Vector
 	return control_points.get(POINT_OF.get(control, control), Vector3.ZERO)
 
 
-static func _glyph_width_px(text: String) -> float:
-	var font: Font = ThemeDB.fallback_font
-	return font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_FONT_SIZE).x
+## The controls whose label is centred over their part.
+static func over_controls() -> Array[String]:
+	var over: Array[String] = []
+	for control: String in LABEL_POSITIONS:
+		if LABEL_POSITIONS[control] == OVER:
+			over.append(control)
+	return over
+
+
+## Where `control`'s leader leaves its label at `anchor` (hand-local) whose
+## text is `height` metres tall: just under a label over its part, just
+## inside the inner edge of a column label, so it never runs into a letter.
+func leader_start(control: String, anchor: Vector3, height: float) -> Vector3:
+	if LABEL_POSITIONS.get(control, COLUMN) == OVER:
+		return anchor - Vector3(0.0, 0.5 * height + LEADER_GAP, 0.0)
+	var inward: float = 1.0 if hand == "left" else -1.0
+	return anchor + Vector3(inward * LEADER_GAP, 0.0, 0.0)
 
 
 func mirror(offset: Vector3) -> Vector3:
 	return Vector3(-offset.x, offset.y, offset.z) if hand == "left" else offset
 
 
-func _add_leader(control: String, anchor: Vector3, point: Vector3) -> void:
-	var inward: float = 1.0 if hand == "left" else -1.0
-	var start: Vector3 = anchor + Vector3(inward * LEADER_GAP, 0.0, 0.0)
+func _add_leader(control: String, start: Vector3, point: Vector3) -> void:
 	var line: ImmediateMesh = ImmediateMesh.new()
 	line.surface_begin(Mesh.PRIMITIVE_LINES, _leader_material)
 	line.surface_add_vertex(start)
