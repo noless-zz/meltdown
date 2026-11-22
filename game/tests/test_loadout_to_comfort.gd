@@ -113,3 +113,26 @@ func test_handing_the_loadout_leaves_the_session_alone() -> String:
 	if session.sim.state_hash() != before or session.replay.to_text() != replay_before:
 		return "handing the loadout changed the session"
 	return ""
+
+
+## The launch with no level, or a rejected one, keeps flying the tunnel's
+## session (#1050 review): its ship's look-aim module still reaches preset 3.
+func test_a_launch_into_the_tunnel_hands_its_loadout() -> String:
+	var rig: Node3D = _rig()
+	var world: Node3D = Node3D.new()
+	var input: LatestInputSource = LatestInputSource.new()
+	var comfort: ComfortWiring = _comfort(rig, input)
+	var start: LevelStart = LevelStart.new(comfort)
+	var tunnel: LocalSession = LocalSession.new(0, input, null, _tuning(["look_aim"]))
+	var kept_empty: LocalSession = start.start_or_keep(world, "", input, tunnel)
+	var on_empty: bool = comfort.look_aim.enabled
+	comfort.set_loadout(ShipLoadout.new())
+	var kept_rejected: LocalSession = start.start_or_keep(world, "res://no_such_level.json", input, tunnel)
+	var on_rejected: bool = comfort.look_aim.enabled
+	world.free()
+	rig.free()
+	if kept_empty != tunnel or kept_rejected != tunnel:
+		return "the launch did not keep the tunnel's session"
+	if not on_empty or not on_rejected:
+		return "look-aim at preset 3 after a tunnel launch: no level %s, rejected level %s" % [on_empty, on_rejected]
+	return ""

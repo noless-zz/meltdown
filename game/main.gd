@@ -198,9 +198,9 @@ func _end_one_tick_if_flown() -> void:
 ## level drawn where the tunnel was. Call it before the first frame. Returns
 ## false, leaving the tunnel and its session, for "" or a rejected file.
 func use_level(path: String) -> bool:
-	var fresh: LocalSession = level_start.session_for(self, path, input_source)  # A run's level drops components (#1028).
-	session = fresh if fresh != null else session
-	return fresh != null
+	var kept: LocalSession = session  # A run's level drops components (#1028); the tunnel's loadout too (#1050).
+	session = level_start.start_or_keep(self, path, input_source, kept)
+	return session != kept
 
 
 ## Flies the level, or a run's next one, from its start (#616) through the launch's loading path (MP-2).

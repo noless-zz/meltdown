@@ -63,6 +63,15 @@ func session_for(world: Node3D, path: String, input: ShipInputSource) -> LocalSe
 	return hand_loadout(level_session(world, path, input, run_rules(path)))
 
 
+## The launch's start (#1050): `session_for(path)`, or, for "" or a rejected
+## file, `kept` (the test tunnel's session) with its loadout handed too, so a
+## ship file launched straight into the tunnel still fits its modules.
+func start_or_keep(world: Node3D, path: String, input: ShipInputSource,
+		kept: LocalSession) -> LocalSession:
+	var fresh: LocalSession = session_for(world, path, input)
+	return fresh if fresh != null else hand_loadout(kept)
+
+
 ## The local ship's loadout in `session` (CMB-8, #1050): the one the session
 ## equipped, else its ship file's; an empty loadout without either, so a module
 ## from an earlier level never sticks. The caller only reads it (MP-2).
