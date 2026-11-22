@@ -1,0 +1,9 @@
+{
+	"text": "Trapped miner: hold near to rescue",
+	"sight_distance_m": 25,
+	"show_seconds": 6,
+	"height_above_m": 1.6,
+	"font_size": 96,
+	"pixel_size": 0.0035,
+	"color": [0.85, 1.0, 0.9]
+}

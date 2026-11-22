@@ -100,7 +100,7 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 		session.interpolation_fraction, session.current_ship(), session.sim.salvage_rules)
 	# Heaps and miners do not move; the views read the sim's lists and write nothing.
 	component_view.show_heaps(session.sim)
-	miner_view.show_miners(session.sim.rescue, session.current_ship())
+	miner_view.show_miners(session.sim.rescue, session.current_ship(), session.sim.walls, delta)
 
 
 ## Takes in the events of one session advance and `ship`, the local ship (0)
