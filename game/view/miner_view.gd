@@ -45,11 +45,14 @@ var _fill_material: StandardMaterial3D = null
 var _markers: Array[Node3D] = []
 ## The fill each marker's ring was last built for, 0..1, by marker index.
 var _fills: Array[float] = []
+## Says what a miner is, the first time it comes into sight (#1220).
+var label: MinerLabel = MinerLabel.new()
 
 
 func _init() -> void:
 	name = NODE_NAME
 	load_look()
+	add_child(label)
 
 
 ## Parses the text of a look file: `{"beacon": {"radius", "height", "color",
@@ -114,7 +117,9 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 
 ## Draws a marker per miner of `rescue.trapped`, its ring filled by how long a
 ## ship has held at it, facing `ship`; none when `rescue` is null (rescue off).
-func show_miners(rescue: MinerRescue, ship: ShipState) -> void:
+## A miner first in sight through `walls` gets its label for a while (#1220).
+func show_miners(rescue: MinerRescue, ship: ShipState, walls: BoxUnion = null, delta: float = 0.0) -> void:
+	label.show_labels(rescue, ship, walls, delta)
 	var count: int = rescue.trapped.size() if rescue != null else 0
 	while _markers.size() < count:
 		_add_marker()
