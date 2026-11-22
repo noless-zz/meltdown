@@ -38,6 +38,14 @@ static func build(offered: Array[String], shafts: ShaftOffer, look: Dictionary) 
 	return model
 
 
+## Adds a row after the shafts that is not a shaft, such as suspending the run
+## (#1107): confirming it answers `kind`, which the caller tells apart.
+func add_row(kind: String, label: String, detail: String) -> void:
+	kinds.append(kind)
+	labels.append(label)
+	details.append(detail)
+
+
 ## Takes one frame's named actions (held true or false). Returns the
 ## highlighted kind on the frame confirm is pressed, otherwise "".
 func update(actions: Dictionary) -> String:

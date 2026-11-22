@@ -17,8 +17,14 @@ extends RefCounted
 ## chosen shaft's level; the view stays dark until then, so the level changes
 ## behind the fade (CMF-8). Comfort settings are neither read nor changed. It
 ## sits beside `main.gd` because it reads `RunWiring`.
+##
+## A run with a save store gets one more row after the shafts, "Suspend run"
+## (#1107, RUN-8, `RunSuspend`): confirming it saves the run and answers the
+## restart too, and `HubWiring.open_after` then opens the hub instead of a level.
 
 var look: Dictionary = ShaftPanelLook.load_file()
+## The suspend row's words (`data/run/suspend.json`).
+var suspend_words: Dictionary = RunSuspend.words()
 ## Under the rig origin once `attach` has run, null before.
 var panel: ShaftPanel = null
 ## The open panel's model; null while closed.
@@ -47,6 +53,8 @@ func open(run: RunWiring, collected: Dictionary, rescued: int = 0) -> bool:
 	if offered.is_empty():
 		return false
 	model = ShaftPanelModel.build(offered, run.shafts, look)
+	if run.saves != null:
+		model.add_row(RunSuspend.ROW_KIND, suspend_words["row_text"], suspend_words["detail_text"])
 	_actions = {}
 	return true
 
@@ -61,13 +69,16 @@ func read(values: Dictionary) -> Dictionary:
 
 
 ## Once per frame after the ticks, while open. Returns true on the frame a
-## confirmed shaft is taken and its level should fly.
+## confirmed shaft is taken and its level should fly, or the run is suspended.
 func update(run: RunWiring, paused: bool, head_point: Transform3D, xr_running: bool) -> bool:
 	if not is_open():
 		return false
 	if not paused and not _actions.is_empty():  # No frame read since opening: nothing pressed yet.
 		var kind: String = model.update(_actions)
-		if kind != "" and run != null and run.choose(kind):
+		var taken: bool = false
+		if kind != "" and run != null:
+			taken = run.suspend() if kind == RunSuspend.ROW_KIND else run.choose(kind)
+		if taken:
 			close()
 			return true
 	if panel != null:

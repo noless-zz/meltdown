@@ -127,6 +127,7 @@ func choose(p_source: String, profiles: ProfileStore = null) -> RunWiring:
 		run = RunWiring.new(LevelSwitch.seed_from(p_source.substr(LevelSwitch.RUN_PREFIX.length())),
 			profiles if profiles != null else ProfileStore.new())
 		run.ship.fittings = FittingStore.new()  # The hub's fitting, beside the profile (#1057).
+		run.saves = RunSaveStore.new()  # The shaft panel can suspend the run (#1107).
 		source = run.level_source()
 	return run
 

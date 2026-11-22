@@ -135,6 +135,11 @@ const CHECK_CREW_JOINS: String = "crew_joins"
 ## step's scratch profile and launches, and the run flies it (#1093, CRF-4;
 ## `AcceptanceCraftAndFitCheck`). Must be the step's last check.
 const CHECK_CRAFT_AND_FIT: String = "craft_and_fit"
+## The run step's escape is suspended at the shaft panel into a scratch store,
+## a second save is killed before its rename, and a fresh store resumes level
+## 2 with the pinned level hash (#1107, RUN-8; `AcceptanceSuspendResumeCheck`).
+## Must be the step's last check.
+const CHECK_SUSPEND_RESUME: String = "suspend_resume"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
@@ -142,7 +147,7 @@ const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_N
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
 	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE, CHECK_COMPONENTS_BANK,
-	CHECK_COLLECTED, CHECK_CREW_JOINS, CHECK_CRAFT_AND_FIT]
+	CHECK_COLLECTED, CHECK_CREW_JOINS, CHECK_CRAFT_AND_FIT, CHECK_SUSPEND_RESUME]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,

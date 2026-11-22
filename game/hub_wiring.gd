@@ -13,7 +13,12 @@ extends RefCounted
 ## fitting check refuses shows its reason on the panel and stays in the hub.
 ##
 ## Single levels never open it, nor does an escape that leads to a shaft
-## choice or the next level: only the end of a run. A `--run` launch still
+## choice or the next level: only the end of a run, or the shaft panel's
+## "Suspend run" row (#1107, RUN-8). While a suspended run waits in the run's
+## `RunSaveStore`, the hub offers to resume it: the save is taken (so it resumes
+## once only), the run rebuilt and its next level flown through the same fade.
+## A save that will not resume is discarded with one logged line and the hub
+## stays open. A launch discards a waiting save, as the hub's note says. A `--run` launch still
 ## starts straight into a run, so the acceptance suites and replays fly as
 ## before.
 ##
@@ -37,6 +42,10 @@ var run: RunWiring = null
 var fitting: Fitting = null
 ## Where component files are read; tests may point it elsewhere.
 var components_dir: String = ComponentList.COMPONENTS_DIR
+
+## The scene's level start, kept by `open_after` so a launch or resume can
+## name the level to fly; null when opened by `open_for` alone (tests).
+var level_start: LevelStart = null
 
 var _actions: Dictionary = {}
 
@@ -68,15 +77,29 @@ static func ends_run(level_start: LevelStart, session: LocalSession) -> bool:
 ## moves the run on, opens the hub and returns true; the caller then waits for
 ## `update` instead of restarting. False, changing nothing, otherwise, and also
 ## when the hub's data cannot be read, so the next run flies at once as before.
-func open_after(level_start: LevelStart, session: LocalSession) -> bool:
-	if not ends_run(level_start, session):
+func open_after(p_level_start: LevelStart, session: LocalSession) -> bool:
+	if p_level_start.run != null and p_level_start.run.suspended:
+		p_level_start.run.suspended = false
+		level_start = p_level_start
+		return open_for(p_level_start.run)
+	if not ends_run(p_level_start, session):
 		return false
+	level_start = p_level_start
 	var config: HubConfig = HubConfig.load_shipped()
 	if config.error != "":
 		print("%s the hub cannot open, flying the next run: %s" % [LOG_PREFIX, config.error])
 		return false
 	level_start.source = level_start.run.after_session(session)
 	return open_for(level_start.run, config)
+
+
+## The run waiting in `saves`, or null when there is none or it does not read
+## back; a temporary file left by a killed save is never offered.
+static func waiting_save(saves: RunSaveStore) -> RunSave:
+	if saves == null or not saves.has_save():
+		return null
+	var saved: RunSave = RunSave.parse_json(FileAccess.get_file_as_string(saves.path))
+	return saved if saved.error == "" else null
 
 
 ## Opens the hub on `p_run`'s profile, crew roles and fitting, with the hub
@@ -95,8 +118,10 @@ func open_for(p_run: RunWiring, config: HubConfig = null) -> bool:
 	# A stale slot would make every fit fail the check; the run drops it anyway.
 	fitting = FittingStore.valid_for(stored, tree, run.profile.crafted, ship_data)
 	var roles: CrewRoles = run.roles if run.roles != null else CrewRoles.parse_json("")
-	text = HubText.new(HubModel.create(config, run.profile, roles,
-		ComponentList.parse(RunShip.upgrade_texts(components_dir)), tree, fitting, ship_data))
+	var model: HubModel = HubModel.create(config, run.profile, roles,
+		ComponentList.parse(RunShip.upgrade_texts(components_dir)), tree, fitting, ship_data)
+	model.set_waiting(waiting_save(run.saves))
+	text = HubText.new(model)
 	if panel == null:
 		panel = HubPanel.new()
 	panel.open(text)
@@ -133,12 +158,51 @@ func update(paused: bool, head_point: Transform3D) -> bool:
 		HubText.ACTION_FIT:
 			save_fitting()
 		HubText.ACTION_LAUNCH:
-			save_profile()
-			save_fitting()
-			close()
-			print("%s launching from the hub" % LOG_PREFIX)
+			launch()
 			return true
+		HubText.ACTION_RESUME:
+			return resume_run()
 	return false
+
+
+## The launch row: saves, discards a waiting run, starts a new run after a
+## suspend, and closes; the caller flies the run's current level.
+func launch() -> void:
+	save_profile()
+	save_fitting()
+	if run.saves != null and run.saves.has_save():
+		print("%s a new run scraps the suspended one" % LOG_PREFIX)
+		if not run.saves.discard():
+			print("%s %s" % [LOG_PREFIX, run.saves.message])
+	if not run.active():
+		run.start_new()
+	if level_start != null:
+		level_start.source = run.level_source()
+	close()
+	print("%s launching from the hub" % LOG_PREFIX)
+
+
+## The resume row: takes the waiting save and rebuilds the run on it. True,
+## with the hub closed, when the caller should fly the run's level; false,
+## with one logged line, the save discarded and the hub open, otherwise.
+func resume_run() -> bool:
+	var saves: RunSaveStore = run.saves if run != null else null
+	var saved: RunSave = saves.take() if saves != null else null
+	if saved == null or not run.resume(saved):
+		var reason: String = "no save store" if saves == null else (saves.message if saved == null else run.error)
+		print("%s the suspended run cannot resume, discarding it: %s" % [LOG_PREFIX, reason])
+		if saves != null:
+			saves.discard()
+		if text != null:
+			text.model.set_waiting(null)
+			text.move(0)
+		return false
+	save_profile()
+	save_fitting()
+	if level_start != null:
+		level_start.source = run.level_source()
+	close()
+	return true
 
 
 ## The fade's opacity: dark while the hub is open.
