@@ -54,31 +54,36 @@ func test_a_bolt_fired_straight_ahead_never_passes_near_the_eye() -> String:
 	return ""
 
 
-func test_the_first_bolt_starts_at_the_left_muzzle() -> String:
+func test_a_slot_1_bolt_starts_at_the_right_muzzle() -> String:
 	var view: ProjectileView = ProjectileView.new()
 	var pose: Transform3D = Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(5.0, 1.0, -3.0))
 	view.show_projectiles([_ship_shot(pose.origin, -pose.basis.z)] as Array[Projectile], 0.0, _poses(pose))
 	var drawn: Vector3 = view.bolt(0).position
-	var left: Vector3 = view.muzzles.point(0)
+	var right: Vector3 = view.muzzles.for_slot(0)
 	view.free()
-	if not drawn.is_equal_approx(pose * left):
-		return "first bolt drawn at %s, the left muzzle is at %s" % [drawn, pose * left]
-	if left.x >= 0.0 or left.y >= 0.0 or left.z >= 0.0:
-		return "muzzle 0 at %s is not low left ahead" % left
+	if not drawn.is_equal_approx(pose * right):
+		return "slot 1 bolt drawn at %s, the right muzzle is at %s" % [drawn, pose * right]
+	if right.x <= 0.0 or right.y >= 0.0 or right.z >= 0.0:
+		return "slot 1's muzzle at %s is not low right ahead" % right
 	return ""
 
 
-func test_shots_alternate_between_the_muzzles() -> String:
+## Both slots fire together (#1261): each slot's bolts leave its own gun,
+## slot 1 right and slot 2 left, however many shots go before.
+func test_each_slot_fires_from_its_own_muzzle() -> String:
 	var view: ProjectileView = ProjectileView.new()
 	var shots: Array[Projectile] = []
 	var sides: Array[float] = []
-	for shot_index: int in 4:
-		shots.append(_ship_shot())
+	for slot: int in [0, 0, 1, 0, 1, 1]:
+		var shot: Projectile = _ship_shot()
+		shot.slot = slot
+		shots.append(shot)
 		view.show_projectiles(shots, 0.0, _poses(Transform3D.IDENTITY))
 		sides.append(view.bolt(shots.size() - 1).position.x)
 	view.free()
-	if not (sides[0] < 0.0 and sides[1] > 0.0 and sides[2] < 0.0 and sides[3] > 0.0):
-		return "four shots were drawn at x %s, not left, right, left, right" % [sides]
+	if not (sides[0] > 0.0 and sides[1] > 0.0 and sides[2] < 0.0 and sides[3] > 0.0
+			and sides[4] < 0.0 and sides[5] < 0.0):
+		return "slots 1, 1, 2, 1, 2, 2 were drawn at x %s, not right, right, left, right, left, left" % [sides]
 	return ""
 
 
@@ -89,7 +94,7 @@ func test_a_bolt_converges_onto_the_simulated_line() -> String:
 	view.show_projectiles(shots, 0.0, _poses(Transform3D.IDENTITY))
 	var result: String = ""
 	var last_gap: float = INF
-	var offset: float = view.muzzles.point(0).length()
+	var offset: float = view.muzzles.for_slot(0).length()
 	var converge: float = view.muzzles.converge_m
 	for tick: int in 6:
 		shot.advance()
@@ -131,14 +136,14 @@ func test_a_muzzle_flash_shows_at_the_muzzle_and_rides_with_the_ship() -> String
 	var shown: Array[MeshInstance3D] = view.muzzle_flashes.shown()
 	if shown.size() != 1:
 		result = "%d muzzle flashes after one shot" % shown.size()
-	elif not shown[0].position.is_equal_approx(view.muzzles.point(0)):
+	elif not shown[0].position.is_equal_approx(view.muzzles.for_slot(0)):
 		result = "the muzzle flash is at %s, not the muzzle" % shown[0].position
 	elif shown[0].position.length() <= EYE_CLEARANCE_M:
 		result = "the muzzle flash is at the eye"
 	if result == "":
 		var moved: Transform3D = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, -0.5))
 		view.show_projectiles(shots, 0.5, _poses(moved))
-		if not shown[0].position.is_equal_approx(moved * view.muzzles.point(0)):
+		if not shown[0].position.is_equal_approx(moved * view.muzzles.for_slot(0)):
 			result = "the muzzle flash stayed behind when the ship moved"
 	if result == "":
 		view.muzzle_flashes.age(view.muzzle_flashes.lifetime_s)

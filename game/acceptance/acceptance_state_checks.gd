@@ -9,7 +9,8 @@ extends RefCounted
 ## (#615), whether a destroyed ship stayed still and silent (#601), whether
 ## wall hits bounced the ship rather than stopping it (#686), and whether a
 ## reset brought the ship back to its start (#776), and whether fire burnt
-## the ship (#517, `FireBurnCheck`). Kept apart from
+## the ship (#517, `FireBurnCheck`), and whether both primary slots fired
+## (#1261). Kept apart from
 ## `AcceptanceRunner`, which drives the frames, so that file stays short. Each
 ## check only reads the session.
 
@@ -44,6 +45,8 @@ static func run(check: String, step: AcceptanceStep, session: LocalSession, flow
 			return no_hidden_hits(session.replay, measurements)
 		AcceptanceStep.CHECK_PART_HELD:
 			return part_held(session.sim, measurements)
+		AcceptanceStep.CHECK_BOTH_PRIMARIES_FIRED:
+			return both_primaries_fired(session.sim, measurements)
 		AcceptanceStep.CHECK_SHIP_DESTROYED_INERT:
 			return AcceptanceWreckCheck.run(session.replay, measurements)
 		AcceptanceStep.CHECK_WALL_BOUNCED:
@@ -88,6 +91,25 @@ static func part_held(sim: Sim, measurements: Dictionary) -> Array:
 	if held == "":
 		return [AcceptanceReport.RESULT_FAIL, "the ship's hold is empty"]
 	return [AcceptanceReport.RESULT_PASS, "holds %s" % held]
+
+
+## Ship 0's primary slots are both filled and shots of each are in flight
+## (#1261): the replay ends while the trigger is held, so a slot that never
+## fired has no shot left in the air.
+static func both_primaries_fired(sim: Sim, measurements: Dictionary) -> Array:
+	var shots: Array[int] = [0, 0]
+	for projectile: Projectile in sim.projectiles:
+		if projectile.owner_index == 0 and projectile.slot < shots.size():
+			shots[projectile.slot] += 1
+	var filled: int = 0 if sim.ships.is_empty() \
+		else sim.ships[0].primary_slots.filter(func(w: WeaponDef) -> bool: return w != null).size()
+	measurements["primary_shots_by_slot"] = shots
+	measurements["primary_slots_filled"] = filled
+	if filled < 2:
+		return [AcceptanceReport.RESULT_FAIL, "%d primary slots filled, not 2" % filled]
+	if shots[0] == 0 or shots[1] == 0:
+		return [AcceptanceReport.RESULT_FAIL, "shots in flight by slot %s" % [shots]]
+	return [AcceptanceReport.RESULT_PASS, "shots in flight by slot %s" % [shots]]
 
 
 static func ship_alive(sim: Sim, measurements: Dictionary) -> Array:

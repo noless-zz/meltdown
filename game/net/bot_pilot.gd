@@ -221,13 +221,13 @@ func _target_in_level(ship: ShipState, nearest: RobotState) -> RobotState:
 	return best if best != null else nearest
 
 
-## Whether a shot from `ship`'s selected primary weapon, fired straight at
+## Whether a shot from `ship`'s longest-reaching primary weapon, fired straight at
 ## `point`, would reach it inside the walls: a shot ends where it leaves open
 ## space (`ProjectileHits`, `LineOfSight`), so this checks the same line. An
 ## intact reactor in the way takes the shot, so a robot behind it is out of
 ## reach too. An empty slot never reaches anything.
 func shot_reaches(ship: ShipState, point: Vector3) -> bool:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	var weapon: WeaponDef = ship.aim_primary()
 	if weapon == null:
 		return false
 	if _sim.reactor != null and _sim.reactor.segment_entry(ship.position, point) >= 0.0:

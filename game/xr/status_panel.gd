@@ -213,10 +213,10 @@ func hold_message_seconds_left() -> float:
 
 
 ## Shows one row per primary slot: `names` holds each slot's weapon name, ""
-## for an empty slot, and `selected` is the slot that fires. A slot filled
-## this frame shows this frame. Safe to call every frame.
-func show_weapons(names: Array[String], selected: int) -> void:
-	if weapon_rows.show_slots(names, selected):
+## for an empty slot. Every filled slot fires (#1261) and carries the mark. A
+## slot filled this frame shows this frame. Safe to call every frame.
+func show_weapons(names: Array[String]) -> void:
+	if weapon_rows.show_slots(names):
 		weapon_rows.place_all(self)  # A ship with another slot count: the rows below move.
 
 

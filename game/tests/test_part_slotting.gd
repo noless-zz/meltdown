@@ -70,24 +70,25 @@ func test_slots_into_the_first_empty_primary() -> String:
 	return ""
 
 
-func test_both_full_replaces_the_selected_and_drops_the_old() -> String:
+## Until the pilot can choose (#1262), a part slotted with both full replaces
+## slot 1, the slot that was always selected before both fired (#1261).
+func test_both_full_replaces_slot_1_and_drops_the_old() -> String:
 	var sim: Sim = _sim(["pulse_cannon", "needle_gun"], ["arc_lance"], "arc_lance")
 	var ship: ShipState = sim.ships[0]
-	ship.selected_primary = 1
 	ship.velocity = Vector3(1.0, 2.0, -6.0)
 	_step(sim, true, FORWARD)
-	if ship.primary_ids != (["pulse_cannon", "arc_lance"] as Array[String]):
+	if ship.primary_ids != (["arc_lance", "needle_gun"] as Array[String]):
 		return "slots hold %s" % [ship.primary_ids]
-	if ship.primary_slots[1] != sim.part("arc_lance"):
-		return "slot 2 is not the catalogue's arc lance"
+	if ship.primary_slots[0] != sim.part("arc_lance"):
+		return "slot 1 is not the catalogue's arc lance"
 	if sim.salvage.size() != 1:
-		return "%d items floating, expected the needle gun" % sim.salvage.size()
+		return "%d items floating, expected the pulse cannon" % sim.salvage.size()
 	var item: SalvageItem = sim.salvage[0]
-	if item.part_id != "needle_gun" or item.position != ship.position or item.velocity != ship.velocity:
+	if item.part_id != "pulse_cannon" or item.position != ship.position or item.velocity != ship.velocity:
 		return "dropped %s at %s moving %s; ship at %s moving %s" % [
 			item.part_id, item.position, item.velocity, ship.position, ship.velocity]
 	var events: Array[SimEvent] = _slotted(sim)
-	var expected: SimEvent = SimEvent.new(SimEvent.Kind.PART_SLOTTED, 0, 1, ship.position)
+	var expected: SimEvent = SimEvent.new(SimEvent.Kind.PART_SLOTTED, 0, 0, ship.position)
 	expected.dropped = true
 	if events.size() != 1 or not events[0].equals(expected):
 		return "events %s, expected %s dropped" % [events, expected]
@@ -149,8 +150,7 @@ func test_the_slotted_weapon_fires_on_the_same_tick() -> String:
 	return ""
 
 
-## Kills a drone, flies through its cannon, slots it over the selected
-## primary and flies on; the replay of all that must end on the live hash.
+## Kills a drone, flies through its cannon, slots it over slot 1 and flies on; the replay of all that must end on the live hash.
 func test_a_replayed_slotting_run_matches_the_live_hash() -> String:
 	var replay: Replay = Replay.new(11, 1)
 	replay.loadout = _loadout(["pulse_cannon", "needle_gun"])

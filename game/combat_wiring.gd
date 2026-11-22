@@ -80,7 +80,7 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 			panel.flash_bar(false, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.SHIELD))
 			panel.flash_bar(true, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.HULL))
 		panel.show_hold(held_part(ship))
-		panel.show_weapons(weapon_names(ship), ship.selected_primary)
+		panel.show_weapons(weapon_names(ship))
 		panel.show_hold_message(hold_messages.update(ship.hold, ship.primary_ids))
 	if projectile_view == null:
 		return
@@ -176,22 +176,13 @@ static func weapon_names(ship: ShipState) -> Array[String]:
 	return names
 
 
-## The part id of the weapon in `ship`'s selected primary slot, or "" when
-## that slot is empty.
-static func active_weapon(ship: ShipState) -> String:
-	var slot: int = ship.selected_primary
-	if slot < 0 or slot >= ship.primary_slots.size() or ship.primary_slots[slot] == null:
-		return ""
-	return ship.primary_ids[slot] if slot < ship.primary_ids.size() else ""
-
-
-## How far a shot from `ship`'s selected primary weapon flies, in metres:
-## its speed times its lifetime, or 0 when the slot is empty.
+## How far a shot from `ship`'s longest-reaching primary weapon flies, in
+## metres: its speed times its lifetime, or 0 with both slots empty. Both slots
+## fire together (#1261), so the reticle reaches as far as the furthest shot.
 static func weapon_range(ship: ShipState) -> float:
-	var slot: int = ship.selected_primary
-	if slot < 0 or slot >= ship.primary_slots.size() or ship.primary_slots[slot] == null:
+	var weapon: WeaponDef = ship.aim_primary()
+	if weapon == null:
 		return 0.0
-	var weapon: WeaponDef = ship.primary_slots[slot]
 	return weapon.projectile_speed * weapon.lifetime
 
 

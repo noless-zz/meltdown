@@ -2,7 +2,7 @@ extends RefCounted
 
 ## The panel's weapon rows after the owner's playtest (#1210, SLV-1, CMB-1,
 ## PLT-2): one row per primary slot with a readable name from the weapon's
-## file, the slot that fires marked, a slotted part shown on the frame it is
+## file, every slot that fires marked (#1261), a slotted part shown on the frame it is
 ## slotted, and pickup and slot messages that last the look's time.
 
 const PULSE: String = "res://data/weapons/pulse_cannon.json"
@@ -21,17 +21,17 @@ static func _y(panel: StatusPanel, node_name: String) -> float:
 	return (panel.get_node(node_name) as Node3D).position.y
 
 
-func test_an_empty_second_slot_filled_shows_on_row_two_with_the_mark_on_row_one() -> String:
+func test_an_empty_second_slot_filled_shows_on_row_two_marked_as_firing() -> String:
 	var ship: ShipState = ShipState.new()
 	ship.primary_slots[0] = _weapon(PULSE)
 	ship.primary_ids[0] = "pulse_cannon"
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_weapons(CombatWiring.weapon_names(ship), ship.selected_primary)
+	panel.show_weapons(CombatWiring.weapon_names(ship))
 	var before: String = _text(panel, 1)
 	# What `PartSlotting.slot_held` does with a free slot: the part takes it.
 	ship.primary_slots[1] = _weapon(NEEDLE)
 	ship.primary_ids[1] = "needle_gun"
-	panel.show_weapons(CombatWiring.weapon_names(ship), ship.selected_primary)
+	panel.show_weapons(CombatWiring.weapon_names(ship))
 	var first: String = _text(panel, 0)
 	var second: String = _text(panel, 1)
 	var first_color: Color = (panel.get_node(StatusPanelWeaponRows.node_name(0)) as Label3D).modulate
@@ -41,21 +41,27 @@ func test_an_empty_second_slot_filled_shows_on_row_two_with_the_mark_on_row_one(
 		return "an empty second slot reads %s" % before
 	if first != "> 1 Pulse Cannon":
 		return "row 1 reads %s, not the marked pulse cannon" % first
-	if second != StatusPanelWeaponRows.IDLE_MARK + "2 Needle Gun":
-		return "row 2 reads %s right after slotting" % second
-	if first_color == second_color:
-		return "the slot that fires is not brighter than the other"
+	if second != "> 2 Needle Gun":
+		return "row 2 reads %s right after slotting, not the marked needle gun" % second
+	if first_color != second_color:
+		return "two slots that both fire are not equally bright"
 	return ""
 
 
-func test_the_mark_follows_the_selected_slot() -> String:
+## The right trigger fires every filled slot (#1261): the mark and the bright
+## colour are on each filled slot and on no empty one.
+func test_the_mark_is_on_every_filled_slot() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_weapons(["Pulse Cannon", "Needle Gun"] as Array[String], 1)
+	panel.show_weapons(["", "Needle Gun"] as Array[String])
 	var first: String = _text(panel, 0)
 	var second: String = _text(panel, 1)
+	var first_color: Color = (panel.get_node(StatusPanelWeaponRows.node_name(0)) as Label3D).modulate
+	var second_color: Color = (panel.get_node(StatusPanelWeaponRows.node_name(1)) as Label3D).modulate
 	panel.free()
 	if first.begins_with(StatusPanelWeaponRows.FIRE_MARK) or not second.begins_with(StatusPanelWeaponRows.FIRE_MARK):
-		return "with slot 2 selected the rows read %s / %s" % [first, second]
+		return "with only slot 2 filled the rows read %s / %s" % [first, second]
+	if first_color == second_color:
+		return "the empty slot is as bright as the one that fires"
 	return ""
 
 
@@ -64,19 +70,19 @@ func test_the_row_count_follows_the_ships_slots_and_the_hold_moves_under_them() 
 	var rows_new: int = panel.weapon_rows.shown_count()
 	var hold_two: float = _y(panel, StatusPanel.HOLD_NAME)
 	var level_two: float = _y(panel, StatusPanel.LEVEL_NAME)
-	panel.show_weapons(["Pulse Cannon", "", "Arc Lance"] as Array[String], 0)
+	panel.show_weapons(["Pulse Cannon", "", "Arc Lance"] as Array[String])
 	var rows_three: int = panel.weapon_rows.shown_count()
 	var third_y: float = _y(panel, "Weapon3")
 	var hold_three: float = _y(panel, StatusPanel.HOLD_NAME)
 	var third: String = _text(panel, 2)
-	panel.show_weapons(["Pulse Cannon", ""] as Array[String], 0)
+	panel.show_weapons(["Pulse Cannon", ""] as Array[String])
 	var rows_back: int = panel.weapon_rows.shown_count()
 	var hold_back: float = _y(panel, StatusPanel.HOLD_NAME)
 	var level_back: float = _y(panel, StatusPanel.LEVEL_NAME)
 	panel.free()
 	if rows_new != ShipState.new().primary_slots.size():
 		return "a new panel has %d weapon rows, not the ship's %d slots" % [rows_new, ShipState.new().primary_slots.size()]
-	if rows_three != 3 or third != StatusPanelWeaponRows.IDLE_MARK + "3 Arc Lance":
+	if rows_three != 3 or third != "> 3 Arc Lance":
 		return "three slots give %d rows, the third reading %s" % [rows_three, third]
 	if not is_equal_approx(hold_three, third_y - StatusPanel.ROW_PITCH):
 		return "with three slots the hold is at %.3f, not one row under the third at %.3f" % [hold_three, third_y]
@@ -87,7 +93,7 @@ func test_the_row_count_follows_the_ships_slots_and_the_hold_moves_under_them() 
 
 func test_every_weapon_row_draws_only_with_the_weapon_row() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_weapons(["Pulse Cannon", "", "Arc Lance"] as Array[String], 0)
+	panel.show_weapons(["Pulse Cannon", "", "Arc Lance"] as Array[String])
 	var drawn: bool = true
 	for label: Label3D in panel.weapon_rows.labels:
 		drawn = drawn and label.layers == StatusPanelRowList.DRAWN_LAYERS
@@ -151,7 +157,7 @@ func test_the_panel_never_changes_the_ship() -> String:
 	var before: int = ship.state_hash()
 	var panel: StatusPanel = StatusPanel.new()
 	for frame: int in 10:
-		panel.show_weapons(CombatWiring.weapon_names(ship), ship.selected_primary)
+		panel.show_weapons(CombatWiring.weapon_names(ship))
 	panel.free()
 	if ship.state_hash() != before:
 		return "showing the weapon rows changed the ship"

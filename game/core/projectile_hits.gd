@@ -43,26 +43,33 @@ static func advance(sim: Sim, hit_events: Array[SimEvent], killers: Dictionary) 
 	sim.projectiles = kept
 
 
-## Fires ship `index`'s primary weapon if it is held and ready. The shot
-## leaves along the ship's gun direction (the nose unless look-aim turned it,
-## CMB-6), bent by `Sim.aim_assist` when the ship has the aim assist module
-## fitted (CMB-7, #1096), at the weapon's speed, without the ship's own
-## velocity, so a weapon's range is exactly what its data file says.
+## Fires every primary slot of ship `index` that is held and ready, slot 1
+## first (#1261). Each shot leaves along the ship's gun direction (the nose
+## unless look-aim turned it, CMB-6), bent by `Sim.aim_assist` when the ship has
+## the aim assist module fitted (CMB-7, #1096), at its weapon's speed, without
+## the ship's own velocity, so a weapon's range is exactly what its data file
+## says. The simulation has no gun points: every shot leaves the ship's centre,
+## and the view draws it from its slot's gun.
 static func fire(sim: Sim, index: int, held: bool) -> void:
 	var ship: ShipState = sim.ships[index]
-	var weapon: WeaponDef = ship.fire_primary(held)
-	if weapon == null:
+	var fired: Array[int] = ship.fire_primary(held)
+	if fired.is_empty():
 		return
 	# On the nose, exactly the direction shots took before look-aim, so
 	# recorded runs keep their hashes (CMB-6).
-	var forward: Vector3 = -ship.orientation.z.normalized()
+	var gun: Vector3 = -ship.orientation.z.normalized()
 	if ship.gun_direction != LookAim.NOSE:
-		forward = (ship.orientation * ship.gun_direction).normalized()
-	# Only with the module, so a ship without it fires exactly as before (#1096).
-	if ship.utility_slots.has(ShipLoadout.AIM_ASSIST_MODULE):
-		forward = sim.aim_assist.bend(ship.position, forward, sim.robots, weapon.projectile_speed)
-	sim.projectiles.append(Projectile.new(ship.position, forward * weapon.projectile_speed,
-		index, weapon.lifetime_ticks(), weapon.damage))
+		gun = (ship.orientation * ship.gun_direction).normalized()
+	for slot: int in fired:
+		var weapon: WeaponDef = ship.primary_slots[slot]
+		var forward: Vector3 = gun
+		# Only with the module, so a ship without it fires exactly as before (#1096).
+		if ship.utility_slots.has(ShipLoadout.AIM_ASSIST_MODULE):
+			forward = sim.aim_assist.bend(ship.position, gun, sim.robots, weapon.projectile_speed)
+		var shot: Projectile = Projectile.new(ship.position, forward * weapon.projectile_speed,
+			index, weapon.lifetime_ticks(), weapon.damage)
+		shot.slot = slot
+		sim.projectiles.append(shot)
 
 
 ## Applies `projectile`'s damage to the first live robot or intact reactor its

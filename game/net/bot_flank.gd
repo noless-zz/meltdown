@@ -50,7 +50,7 @@ func _init(sim: Sim, walls: BoxUnion, route: LevelRoute) -> void:
 ## the bot is already on its way to a firing point for it. A point is kept
 ## while it still serves, so the bot does not hop between near-equal ones.
 func point_for(ship: ShipState, target: RobotState, in_sight: bool) -> Vector3:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	var weapon: WeaponDef = ship.aim_primary()
 	if target == null or in_sight or weapon == null or _sim.reactor == null \
 			or _sim.reactor.destroyed:
 		_target = null

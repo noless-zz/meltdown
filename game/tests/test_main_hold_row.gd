@@ -140,18 +140,17 @@ func test_the_weapon_rows_name_every_primary_slot() -> String:
 	var shown: Array[String] = []
 	for slot: int in names.size():
 		shown.append(String(panel.texts()[StatusPanelWeaponRows.node_name(slot)]))
-	var selected: int = ship.selected_primary
 	main.free()
 	for slot: int in names.size():
-		var want: String = StatusPanelWeaponRows.row_text(slot, names[slot], slot == selected)
+		var want: String = StatusPanelWeaponRows.row_text(slot, names[slot], names[slot] != "")
 		if shown[slot] != want:
 			return "slot %d reads %s, not %s" % [slot + 1, shown[slot], want]
 	return ""
 
 
 ## #1210: the owner's needle gun went into the empty second slot and showed
-## nowhere. On the very frame the slot fills, row 2 names it and row 1, the
-## slot that fires, keeps the mark.
+## nowhere. On the very frame the slot fills, its row names it and carries
+## the mark, as every filled slot fires (#1261).
 func test_a_slotted_part_shows_on_its_row_on_the_frame_it_is_slotted() -> String:
 	var main: Node = _main()
 	var id: String = _take_first_part(main)
@@ -174,8 +173,8 @@ func test_a_slotted_part_shows_on_its_row_on_the_frame_it_is_slotted() -> String
 	if id == "" or rows.is_empty():
 		return "part %s was not slotted within 6 frames (%s)" % [id, frame_ids]
 	var at: int = frame_ids.find(id)
-	if rows[at] != StatusPanelWeaponRows.row_text(at, names[at], at == ship.selected_primary):
+	if rows[at] != StatusPanelWeaponRows.row_text(at, names[at], true):
 		return "on the slotting frame row %d reads %s" % [at + 1, rows[at]]
-	if not rows[ship.selected_primary].begins_with(StatusPanelWeaponRows.FIRE_MARK):
-		return "the fire mark is not on row %d: %s" % [ship.selected_primary + 1, rows]
+	if not rows[at].begins_with(StatusPanelWeaponRows.FIRE_MARK):
+		return "the fire mark is not on row %d: %s" % [at + 1, rows]
 	return ""

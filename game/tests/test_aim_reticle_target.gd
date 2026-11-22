@@ -107,14 +107,21 @@ func test_the_target_follows_the_gun_direction_not_the_nose() -> String:
 	return ""
 
 
-func test_the_weapon_range_is_speed_times_lifetime_of_the_selected_slot() -> String:
+func test_the_weapon_range_is_speed_times_lifetime_of_the_longest_reaching_slot() -> String:
 	var ship: ShipState = ShipState.new()
 	if CombatWiring.weapon_range(ship) != 0.0:
 		return "an empty slot has range %s" % CombatWiring.weapon_range(ship)
 	var weapon: WeaponDef = WeaponDef.new()
 	weapon.projectile_speed = 80.0
 	weapon.lifetime = 1.25
-	ship.primary_slots[ship.selected_primary] = weapon
+	ship.primary_slots[0] = weapon
 	if not is_equal_approx(CombatWiring.weapon_range(ship), 100.0):
 		return "range %s, expected 100" % CombatWiring.weapon_range(ship)
+	# Both slots fire (#1261): the reticle reaches as far as the furthest shot.
+	var longer: WeaponDef = WeaponDef.new()
+	longer.projectile_speed = 120.0
+	longer.lifetime = 1.25
+	ship.primary_slots[1] = longer
+	if not is_equal_approx(CombatWiring.weapon_range(ship), 150.0):
+		return "with a longer gun in slot 2 the range is %s, expected 150" % CombatWiring.weapon_range(ship)
 	return ""

@@ -79,10 +79,10 @@ var primary_ids: Array[String] = ["", ""]
 ## Utility slots (CRF-5): module id of each, "" when empty. Separate from the
 ## weapon slots; their count comes from the ship file through `ShipLoadout`.
 var utility_slots: Array[String] = []
-## Index into `primary_slots` of the weapon `fire_primary` uses.
-var selected_primary: int = 0
-## Ticks until the selected primary may fire again; 0 means ready.
-var fire_cooldown: int = 0
+## Ticks until each primary slot may fire again, by slot; 0 means ready.
+## Every filled slot fires on the primary trigger, each on its own interval
+## (decision record 0011, #1261), so each counts down on its own.
+var fire_cooldowns: Array[int] = [0, 0]
 
 ## Salvage hold (SLV-1). Parts taken from the mine wait here, by id, until
 ## they are slotted. One part, as it is pulled into the cockpit.
@@ -188,24 +188,47 @@ func apply_damage(amount: float) -> void:
 	hull = maxf(hull - (amount - absorbed), 0.0)
 
 
-## Counts the fire interval down and, if `held`, fires the selected primary
-## weapon when it is ready and the pool holds its energy cost. Returns the
-## weapon that fired, or null. Call once per tick, after `step`, so a shot
-## spends what is left after the afterburner and the shield. A destroyed ship
-## never fires, and its cooldown stays where it was.
-func fire_primary(held: bool) -> WeaponDef:
+## Counts every primary slot's fire interval down and, if `held`, fires each
+## filled slot that is ready and whose energy cost the pool still holds, slot 1
+## first (decision record 0011, #1261). A slot that is not ready or short of
+## energy does not stop the other. Returns the slots that fired, in order.
+## Call once per tick, after `step`, so shots spend what is left after the
+## afterburner and the shield. A destroyed ship never fires, and its cooldowns
+## stay where they were.
+func fire_primary(held: bool) -> Array[int]:
+	var fired: Array[int] = []
 	if is_destroyed():
-		return null
-	if fire_cooldown > 0:
-		fire_cooldown -= 1
-	if not held or fire_cooldown > 0:
-		return null
-	var weapon: WeaponDef = primary_slots[selected_primary]
-	if weapon == null or energy < weapon.energy_cost:
-		return null
-	energy -= weapon.energy_cost
-	fire_cooldown = weapon.fire_interval_ticks
-	return weapon
+		return fired
+	for slot: int in primary_slots.size():
+		if slot >= fire_cooldowns.size():
+			fire_cooldowns.append(0)
+		if fire_cooldowns[slot] > 0:
+			fire_cooldowns[slot] -= 1
+		if not held or fire_cooldowns[slot] > 0:
+			continue
+		var weapon: WeaponDef = primary_slots[slot]
+		if weapon == null or energy < weapon.energy_cost:
+			continue
+		energy -= weapon.energy_cost
+		fire_cooldowns[slot] = weapon.fire_interval_ticks
+		fired.append(slot)
+	return fired
+
+
+## The filled primary weapon whose shots fly furthest, or null with both
+## slots empty; on equal range the lower slot. Bots aim and judge reach with
+## it, as both slots fire together (#1261).
+func aim_primary() -> WeaponDef:
+	var best: WeaponDef = null
+	for weapon: WeaponDef in primary_slots:
+		if weapon != null and (best == null or range_of(weapon) > range_of(best)):
+			best = weapon
+	return best
+
+
+## How far a shot from `weapon` flies, in metres, over its whole lifetime.
+static func range_of(weapon: WeaponDef) -> float:
+	return weapon.projectile_speed * float(weapon.lifetime_ticks()) * TICK_DT
 
 
 ## Hull at zero: the ship is lost (RUN-7). It takes no input, fires, picks up
@@ -247,11 +270,17 @@ func state_hash() -> int:
 		parts.append(["shield", shield])
 	# Weapons join only once a slot is filled or a cooldown runs, so ships
 	# that never carried a weapon keep their hashes.
-	var weapons: Array = ["weapons", selected_primary, fire_cooldown]
-	var armed: bool = fire_cooldown != 0
+	# The 0 stands where the selected slot was hashed; it was always 0, so
+	# recorded runs keep their hashes. Slot 2's cooldown joins only once it
+	# runs, which it never did before both slots fired (#1261).
+	var weapons: Array = ["weapons", 0, fire_cooldowns[0]]
+	var armed: bool = fire_cooldowns.any(func(ticks: int) -> bool: return ticks != 0)
 	for slot: WeaponDef in primary_slots + secondary_slots:
 		weapons.append(slot.values_hash() if slot != null else 0)
 		armed = armed or slot != null
+	for slot: int in range(1, fire_cooldowns.size()):
+		if fire_cooldowns[slot] != 0:
+			weapons.append(["cooldown", slot, fire_cooldowns[slot]])
 	if armed:
 		parts.append(weapons)
 	# Joins only off the nose, so runs that never aimed keep their hashes.

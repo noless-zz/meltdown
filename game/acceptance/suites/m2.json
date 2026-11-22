@@ -22,6 +22,12 @@
 			"expected_hash": 1553106945
 		},
 		{
+			"id": "both_primaries_fire",
+			"replay": "res://acceptance/replays/both_primaries_fire.replay",
+			"checks": ["final_hash", "both_primaries_fired", "ship_alive"],
+			"expected_hash": 1302297426
+		},
+		{
 			"id": "bot_clears_g2_level",
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_level.replay",

@@ -176,11 +176,11 @@ func exit_point() -> Vector3:
 	return _sim.start_positions[_ship_index]
 
 
-## Whether a shot from `ship`'s selected primary weapon, fired at the intact
+## Whether a shot from `ship`'s longest-reaching primary weapon, fired at the intact
 ## reactor's centre, gets to its surface inside the walls. Like
 ## `BotPilot.shot_reaches`, but the reactor is the target, not an obstacle.
 func reactor_shot_reaches(ship: ShipState) -> bool:
-	var weapon: WeaponDef = ship.primary_slots[ship.selected_primary]
+	var weapon: WeaponDef = ship.aim_primary()
 	var reactor: ReactorState = _sim.reactor
 	if weapon == null or reactor == null or reactor.destroyed:
 		return false

@@ -18,6 +18,11 @@ var owner_index: int = 0
 var ticks_left: int = 0
 ## Damage it deals to what it hits.
 var damage: float = 0.0
+## The primary slot of the ship's gun that fired it (0 is slot 1, the right
+## gun); 0 for a robot's shot. Both slots fire together (#1261), and the view
+## draws each slot's bolts from its own gun. Not hashed: it changes nothing a
+## shot does, and the position, velocity and damage are hashed already.
+var slot: int = 0
 
 
 func _init(p_position: Vector3 = Vector3.ZERO, p_velocity: Vector3 = Vector3.ZERO,
