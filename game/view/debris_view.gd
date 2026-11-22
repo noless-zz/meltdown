@@ -23,7 +23,9 @@ extends Node3D
 ## A fire entry (#496) is drawn in its own shape and size, see-through and
 ## glowing in the `fire_*` look, from its fall tick on (`BURNING`). Before that it
 ## shows the sphere warning look, so every coming danger warns alike; a held fire
-## is not drawn. Its glow flickers with the tick it is handed, never with the
+## is not drawn. A burning fire sphere is drawn as a faceted upward cone, a
+## flame, filling the sphere's height: a glowing ball there was taken for the
+## reactor core (#1208). Its glow flickers with the tick it is handed, never with the
 ## clock, so a paused session draws the same frame (CMF-8). The view adds no
 ## collision and no full-screen pass (GFX-6).
 
@@ -40,6 +42,7 @@ var mesh_builds: int = 0
 var _look: Dictionary = DebrisLook.FALLBACK
 var _rock_mesh: SphereMesh
 var _cracked_mesh: SphereMesh
+var _flame_mesh: CylinderMesh
 var _solid_material: StandardMaterial3D
 var _warn_material: StandardMaterial3D
 var _held_material: StandardMaterial3D
@@ -68,6 +71,13 @@ func _init() -> void:
 	_cracked_mesh = _build_mesh(5, 3)
 	_slab_mesh = BoxMesh.new()
 	_slab_mesh.size = Vector3.ONE
+	mesh_builds += 1
+	_flame_mesh = CylinderMesh.new()
+	_flame_mesh.top_radius = 0.0
+	_flame_mesh.bottom_radius = 1.0
+	_flame_mesh.height = 2.0
+	_flame_mesh.radial_segments = 5
+	_flame_mesh.rings = 0
 	mesh_builds += 1
 	load_look()
 
@@ -154,6 +164,8 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 			entry.material_override = material_for(state)
 		if is_fire:
 			entry.material_override = fire_material_for(state)
+			if not is_box and state == EntryState.BURNING:
+				entry.mesh = _flame_mesh
 	if tick != _fire_tick:
 		_fire_tick = tick
 		_fire_material.emission_energy_multiplier = DebrisLook.fire_energy_at(_look, tick)
@@ -250,12 +262,12 @@ func entry_is_fire(index: int) -> bool:
 	return _fires[index]
 
 
-## Radius of the drawn sphere of entry `index`, metres; zero for a box.
+## Radius of the drawn sphere (or a burning fire's flame) of entry `index`,
+## metres; zero for a box. Every round mesh is of unit radius, scaled.
 func entry_radius(index: int) -> float:
 	if _boxes[index]:
 		return 0.0
-	var sphere: SphereMesh = _entries[index].mesh
-	return sphere.radius * _entries[index].scale.x
+	return _entries[index].scale.x
 
 
 ## Full size of the drawn slab of entry `index`, metres; zero for a sphere.

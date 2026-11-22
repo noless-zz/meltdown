@@ -13,7 +13,7 @@
 	"slab_warn_color": [1.0, 0.8, 0.1],
 	"slab_warn_energy": 1.5,
 	"slab_warn_alpha": 0.3,
-	"fire_color": [1.0, 0.35, 0.05],
+	"fire_color": [0.3, 0.55, 1.0],
 	"fire_energy": 2.0,
 	"fire_alpha": 0.4,
 	"fire_flicker": 0.2
