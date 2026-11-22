@@ -51,6 +51,7 @@ var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch fligh
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
 var vignette: VignetteWiring = VignetteWiring.new()  # Comfort vignette from the shown motion, CMF-1 (#931).
 var dev_menu: DevMenuWiring = DevMenuWiring.new(scheme, mapping, comfort, break_prompt, refresh_rate, foveation)  # #763, #852, #871.
+var hub: HubWiring = HubWiring.new()  # The hub between runs: craft, fit, launch (#1093).
 
 
 func _ready() -> void:
@@ -91,6 +92,7 @@ func _ready() -> void:
 	map.attach($XRRig, mapping)
 	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
 	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
+	hub.attach($XRRig)
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
@@ -111,8 +113,7 @@ func _process(delta: float) -> void:
 		get_tree().quit()
 
 
-## This frame's raw values: the controllers while an XR session runs, the
-## keyboard otherwise (PLT-4).
+## This frame's raw values: the controllers while an XR session runs, else the keyboard (PLT-4).
 func sample_controls() -> Dictionary:
 	if _xr_running and controllers != null:
 		return controllers.sample()
@@ -129,7 +130,7 @@ func sample_controls() -> Dictionary:
 ## Maps raw values through the comfort filter to the input every tick flies
 ## until the next frame. Public so tests can feed values without a device.
 func apply_controls(values: Dictionary) -> void:
-	values = destroyed.escape.read(dev_menu.read(values))  # An open menu or shaft panel takes the controls.
+	values = hub.read(destroyed.escape.read(dev_menu.read(values)))  # An open menu or panel takes the controls.
 	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
 	comfort.read_preset_button(buttons)
 	if comfort.read_label_button(buttons):
@@ -160,10 +161,14 @@ func advance_frame(delta_seconds: float) -> void:
 		_end_one_tick_if_flown()
 	# A paused view holds still (CMF-8), shake included.
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
-	if destroyed.update(session, delta_seconds, head_recentre, _xr_running):
+	if hub.is_open():  # The end screens wait behind the hub, dark (#1093).
+		if hub.update(session.paused, RigViews.head_point(head_recentre)):
+			restart_level(true)
+	elif destroyed.update(session, delta_seconds, head_recentre, _xr_running) \
+			and not hub.open_after(level_start, session):
 		restart_level()
 	if fade_overlay != null:
-		fade_overlay.set_alpha(maxf(maxf(reset_hold.alpha, destroyed.fade_alpha()), dev_menu.alpha))
+		fade_overlay.set_alpha(maxf(maxf(reset_hold.alpha, destroyed.fade_alpha()), maxf(dev_menu.alpha, hub.alpha())))
 	boost_haptics.update(session.current_ship().afterburner_active, mapping, _xr_running)  # #146, #170.
 	place_rig()
 	vignette.update(comfort, session, delta_seconds, get_node_or_null("XRRig"))  # View only (ARC-3).
@@ -204,15 +209,15 @@ func use_level(path: String) -> bool:
 
 
 ## Flies the level, or a run's next one, from its start (#616) through the launch's loading path (MP-2).
-func restart_level() -> void:
+## `moved_on` when the run already moved on from the ended session (the hub's launch, #1093).
+func restart_level(moved_on: bool = false) -> void:
 	var paused: bool = session.paused
-	session = level_start.fresh_session(self, input_source, session)  # A run moves on first (#989).
+	session = level_start.fresh_session(self, input_source, null if moved_on else session)  # A run moves on first (#989).
 	session.paused = paused
 	meltdown.attach(self, session)
 	head_recentre.request()
 
 
-## Moves the drawn tunnel to `TUNNEL_OFFSET`, where the session's walls are.
 func place_tunnel() -> void:
 	var tunnel: Node3D = get_node_or_null("TestTunnel") as Node3D
 	if tunnel != null:
@@ -229,14 +234,12 @@ func attach_cockpit_frame() -> void:
 		RigViews.place(head_recentre, comfort.cockpit_frame, status_panel)
 
 
-## Puts the fade quad under the rig's camera; the rig scene stays as it is.
 func attach_fade_overlay() -> void:
 	if fade_overlay == null:
 		fade_overlay = RigViews.add_fade_overlay(get_node_or_null("XRRig") as Node3D)
 
 
-## Puts the status panel under the rig origin, not the camera, so it stays in
-## the cockpit while the head turns; `place_rig` places it.
+## Under the rig origin, not the camera, so it stays in the cockpit as the head turns.
 func attach_status_panel() -> void:
 	if status_panel == null:
 		status_panel = RigViews.add_status_panel(get_node_or_null("XRRig") as Node3D)
@@ -250,11 +253,9 @@ func update_status_panel(delta_seconds: float) -> void:
 			comfort.preset.display_name, refresh_rate.beside(build_info.describe()), delta_seconds, level_start.source)
 
 
-## Puts the rig at the ship's pose for this frame, offset so the head sits at
-## the ship's centre. The headset camera and controllers are tracked relative
-## to the rig, so they ride along. A requested recentre takes the head pose here.
-## The hit shake goes on after the pose, in the cockpit's own frame. The
-## cockpit frame and panel follow the head point, so a recentre moves both.
+## Puts the rig at the ship's pose, offset so the head sits at the ship's centre; the tracked
+## camera and controllers ride along. A requested recentre takes the head pose here. The hit
+## shake goes on after the pose; the cockpit frame and panel follow the head point.
 func place_rig() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig == null:
@@ -289,7 +290,6 @@ func on_session_focussed() -> void:
 	_resume_frame = true
 
 
-## The runtime is about to lose the session; nothing should move meanwhile.
 func on_session_loss_pending() -> void:
 	session.paused = true
 

@@ -108,7 +108,7 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 				or check == AcceptanceStep.CHECK_MAP_MARKERS or check == AcceptanceStep.CHECK_VIGNETTE
 				or check == AcceptanceStep.CHECK_RUN_ADVANCES or check == AcceptanceStep.CHECK_SHAFT_CHOICE
 				or check == AcceptanceStep.CHECK_COMPONENTS_BANK or check == AcceptanceStep.CHECK_COLLECTED \
-				or check == AcceptanceStep.CHECK_CREW_JOINS) \
+				or check == AcceptanceStep.CHECK_CREW_JOINS or check == AcceptanceStep.CHECK_CRAFT_AND_FIT) \
 				and step.replay_path == "":
 			return "%s.replay: needed by the %s check" % [field, check]
 	problem = _parse_expected_hash(data, field, step)
@@ -146,6 +146,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceFittedStart.parse_step(data, field, step)  # #1057.
 	if problem == "":
 		problem = AcceptanceCrewJoinsCheck.parse_step(data, field, step)  # #1084.
+	if problem == "":
+		problem = AcceptanceCraftAndFitCheck.parse_step(field, step)  # #1093.
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 
