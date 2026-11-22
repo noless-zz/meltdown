@@ -14,7 +14,7 @@ const LOG_PREFIX: String = DevMenuRestart.LOG_PREFIX
 
 ## The fade's opacity, 0 (clear) to 1 (black), for the fade quad.
 var alpha: float = 0.0
-## Set by `DevMenuWiring.attach`; any of them null in tests without a scene.
+## Set by `wire`; any of them null in tests without a scene.
 var level_start: LevelStart = null
 var hub: HubWiring = null
 var destroyed: DestroyedWiring = null
@@ -27,6 +27,17 @@ var _fade_from: float = -1.0
 
 func _init() -> void:
 	super([DevMenuSpec.KIND_RETURN], [DevMenuModel.RETURN], true)
+
+
+## Called by `DevMenuWiring.attach` with what it was given. The hub is the
+## object of `hub_open`, which is `HubWiring.is_open` in the game, so `main.gd`
+## hands nothing new; another callable (tests) leaves no hub.
+func wire(p_level_start: LevelStart, p_restart: Callable, p_destroyed: DestroyedWiring,
+		hub_open: Callable) -> void:
+	level_start = p_level_start
+	restart = p_restart
+	destroyed = p_destroyed
+	hub = hub_open.get_object() as HubWiring if hub_open.is_valid() else null
 
 
 ## Before the menu opens: the row shows only while a run's level flies.

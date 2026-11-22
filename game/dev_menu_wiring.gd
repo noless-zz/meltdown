@@ -30,12 +30,10 @@ extends RefCounted
 ## corner to `DevMenuCorner`, Controls, Hands and Pitch to `DevMenuControls`,
 ## Comfort to `DevMenuComfort`, Break reminder to `DevMenuBreak`, Refresh to
 ## `DevMenuRefresh`, Swivel chair to `DevMenuSwivel`, Foveation to
-## `DevMenuFoveation` (#871), the update to
-## `DevMenuUpdate`, Level, Restart level and Flight test to
-## `DevMenuRestart`, which owns the fade, and Return to base to
-## `DevMenuReturn` (#1246), which fades to the hub. A new entry adds one helper and one
-## line in `_init`. It sits beside `main.gd` because it restarts the `net/`
-## session and reads the flight test and the end screens.
+## `DevMenuFoveation` (#871), the update to `DevMenuUpdate`, Level, Restart level and
+## Flight test to `DevMenuRestart`, which owns the fade, and Return to base to
+## `DevMenuReturn` (#1246). A new entry adds one helper and one line in `_init`. It
+## sits beside `main.gd` because it restarts the `net/` session and reads the flight test and end screens.
 
 ## A stick pushed this far counts as a menu step; well past drift, short of the rim.
 const STICK_STEP: float = 0.6
@@ -143,10 +141,7 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 	_restarts.restart = restart
 	_restarts.flight_test = flight_test
 	_restarts.rig = rig
-	_return.level_start = level_start
-	_return.restart = restart
-	_return.destroyed = destroyed
-	_return.hub = hub_open.get_object() as HubWiring if hub_open.is_valid() else null  # `hub.is_open`'s hub.
+	_return.wire(level_start, restart, destroyed, hub_open)
 	menu = p_menu if p_menu != null else DevMenu.new()
 	info = DevMenuInfo.new(menu.model.spec.info_title_text)  # The panel's development lines (#1207).
 	info.source = rig

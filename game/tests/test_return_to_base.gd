@@ -206,8 +206,11 @@ func test_abandon_without_a_run_changes_nothing() -> String:
 	return ""
 
 
-func test_the_row_fades_to_the_hub() -> String:
+## Also from the menu that pauses solo play (#1245): the session is held while
+## the menu is open and let go when the confirming press closes it.
+func test_the_row_fades_to_the_hub_from_the_paused_menu() -> String:
 	var problems: Array[String] = []
+	var session: LocalSession = LocalSession.new(7, LatestInputSource.new())
 	var run: RunWiring = _run()
 	var level_start: LevelStart = _flying(run)
 	var hub: HubWiring = HubWiring.new()
@@ -216,7 +219,7 @@ func test_the_row_fades_to_the_hub() -> String:
 	var wiring: DevMenuWiring = DevMenuWiring.new()
 	wiring.corner_store = PanelCorner.new(_path("panel"))
 	wiring.attach(null, null, level_start, func(moved_on: bool) -> void: calls.append(moved_on), null,
-		destroyed, DevMenu.new(DevMenuSpec.load_file(), []), hub.is_open)
+		destroyed, DevMenu.new(DevMenuSpec.load_file(), []), hub.is_open, func() -> LocalSession: return session)
 	var now: float = 1.0
 	wiring.read(_values({ControllerSampler.MENU_BUTTON: true}), now)
 	now = _idle(wiring, now + 0.2, 0.1)
@@ -228,11 +231,13 @@ func test_the_row_fades_to_the_hub() -> String:
 			break
 		wiring.read(_values({}, Vector2(0.0, -1.0)), now)
 		now = _idle(wiring, now + FRAME, FRAME)
+	if not session.paused_by(LocalSession.PAUSE_MENU):
+		problems.append("the open menu did not pause the session")
 	for press: int in 2:
 		wiring.read(_values({"right_button_lower": true}), now)
 		now = _idle(wiring, now + FRAME, FRAME)
-	if wiring.is_open():
-		problems.append("the confirming press left the menu open")
+	if wiring.is_open() or session.paused_by(LocalSession.PAUSE_MENU):
+		problems.append("the confirming press left the menu open or the session paused")
 	var last: float = -1.0
 	while now < 3.0 and not hub.is_open():
 		wiring.read(_values(), now)
