@@ -102,6 +102,16 @@ static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
 	return result
 
 
+## The sweep's `fly_level`: the bot flies each level of `levels` (built with
+## robots and debris) in `tuning`, or the ship file's when null. Shared with
+## the pinned full run (#1118) so it flies exactly as the sweep does.
+static func bot_flies(levels: Levels, tuning: ShipTuning = null) -> Callable:
+	var flown_tuning: ShipTuning = tuning if tuning != null else levels.tuning
+	return func(_run_seed: int, _index: int, level_seed: int) -> EscapeSweep.SeedResult:
+		return EscapeSweep.fly(level_seed, levels.level_of(levels.generate(level_seed)),
+				flown_tuning)
+
+
 ## Run seeds `first_seed` to `first_seed + count - 1`. With no `fly_level` the
 ## bot flies each level with robots and debris on, in `tuning`, or the ship
 ## file's when null. The result holds "runs", "completed", "rate",
@@ -124,10 +134,7 @@ static func run(first_seed: int, count: int, fly_level: Callable = Callable(),
 		if broken != "":
 			result["errors"].append(broken)
 			return result
-		var flown_tuning: ShipTuning = tuning if tuning != null else levels.tuning
-		fly_level = func(_run_seed: int, _index: int, level_seed: int) -> EscapeSweep.SeedResult:
-			return EscapeSweep.fly(level_seed, levels.level_of(levels.generate(level_seed)),
-					flown_tuning)
+		fly_level = bot_flies(levels, tuning)
 	for run_seed: int in range(first_seed, first_seed + count):
 		var flown: RunResult = fly_run(run_seed, run_text, shafts, fly_level)
 		if flown.error != "":
