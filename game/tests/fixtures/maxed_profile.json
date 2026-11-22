@@ -1,0 +1,86 @@
+{
+	"banked": {},
+	"crafted": [
+		"arc_lance",
+		"baffled_emitter",
+		"fused_bulkhead",
+		"glass_core_shield",
+		"keel_brace",
+		"lattice_shield",
+		"layered_plating",
+		"look_aim",
+		"mesh_ward",
+		"mine_scanner",
+		"needle_gun",
+		"ribbed_frame",
+		"shield_capacitor",
+		"slug_thrower",
+		"surge_manifold",
+		"swept_intakes",
+		"torsion_drive",
+		"trim_vanes",
+		"tuned_thrusters",
+		"vectored_thrusters",
+		"wide_radar"
+	],
+	"crew": [
+		{
+			"id": "crew-1",
+			"role": "surveyor"
+		},
+		{
+			"id": "crew-2",
+			"role": "shield_tech"
+		},
+		{
+			"id": "crew-3",
+			"role": "shield_tech"
+		},
+		{
+			"id": "crew-4",
+			"role": "shield_tech"
+		},
+		{
+			"id": "crew-5",
+			"role": "shield_tech"
+		},
+		{
+			"id": "crew-6",
+			"role": "shield_tech"
+		},
+		{
+			"id": "crew-7",
+			"role": "cargo_rigger"
+		},
+		{
+			"id": "crew-8",
+			"role": "cargo_rigger"
+		},
+		{
+			"id": "crew-9",
+			"role": "reactor_hand"
+		},
+		{
+			"id": "crew-10",
+			"role": "reactor_hand"
+		},
+		{
+			"id": "crew-11",
+			"role": "reactor_hand"
+		},
+		{
+			"id": "crew-12",
+			"role": "reactor_hand"
+		}
+	],
+	"stats": {
+		"components_banked": 0,
+		"deepest_level": 0,
+		"levels_escaped": 0,
+		"miners_rescued": 0,
+		"runs_lost": 0,
+		"runs_started": 0,
+		"runs_won": 0
+	},
+	"version": 3
+}

@@ -68,6 +68,9 @@ class SeedResult extends RefCounted:
 	var destroyed: bool = false
 	## Robots alive and awake where the flight stopped (#534).
 	var awake: int = 0
+	## The ship's hull where the flight stopped; the run sweep compares it
+	## between a plain and a fitted ship (#1091, CRW-3).
+	var hull: float = 0.0
 
 	func line() -> String:
 		return "seed %d: %s at tick %d: %s" % [level_seed, outcome, tick, reason]
@@ -125,6 +128,7 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 			alive += 1
 	result.robots_destroyed = spawned - alive
 	result.destroyed = sim.ships[0].hull <= 0.0
+	result.hull = maxf(sim.ships[0].hull, 0.0)
 	result.awake = Losses.awake_robots(sim)
 	result.escaped = outcome == ExitRule.Outcome.ESCAPED
 	if result.escaped:
