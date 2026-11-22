@@ -126,7 +126,8 @@ func test_a_fresh_session_has_no_salvage() -> String:
 
 ## The owner could not pick up a part (#600): destroy a robot, stop the ship
 ## 3.3 m from its part, beyond the old 2.5 m reach, and the shipped salvage
-## file has it pulled in and taken, with the hold row naming it.
+## file has it pulled in and taken, with the hold row naming it once the
+## part's drop delay (#1217) has run out.
 func test_a_part_three_metres_off_is_taken_and_the_hold_row_names_it() -> String:
 	var main: Node = _main()
 	_destroy_first_robot(main)
@@ -135,7 +136,7 @@ func test_a_part_three_metres_off_is_taken_and_the_hold_row_names_it() -> String
 	var ship: ShipState = session.sim.ships[0]
 	ship.position = part.position + Vector3(0.0, 0.0, 3.3)
 	ship.velocity = Vector3.ZERO
-	_fly(main, 30, ShipInput.new())
+	_fly(main, 30 + session.sim.salvage_rules.drop_delay_ticks, ShipInput.new())
 	var hold: Array[String] = session.current_ship().hold.duplicate()
 	var panel: StatusPanel = main.get("status_panel")
 	var row: String = (panel.get_node(StatusPanel.HOLD_NAME) as Label3D).text if panel != null else ""

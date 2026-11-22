@@ -28,7 +28,7 @@ part arc_lance {"fire_interval_ticks":20,"projectile_speed":300.0,"lifetime":0.4
 part needle_gun {"fire_interval_ticks":4,"projectile_speed":180.0,"lifetime":0.8,"damage":3.0,"energy_cost":1.0}
 part pulse_cannon {"fire_interval_ticks":15,"projectile_speed":120.0,"lifetime":1.5,"damage":8.0,"energy_cost":5.5}
 part slug_thrower {"fire_interval_ticks":40,"projectile_speed":60.0,"lifetime":3.0,"damage":30.0,"energy_cost":6.0}
-salvage {"pickup_reach":2.5,"pull_reach":9.0,"pull_speed":8.0,"swap_drop_distance":4.0}
+salvage {"pickup_reach":2.5,"pull_reach":9.0,"pull_speed":8.0,"swap_drop_distance":4.0,"drop_delay_ticks":45}
 inputs
 865 16 -501 187 -375 0 0 0 1 0
 862 14 -507 169 -318 0 0 0 1 0

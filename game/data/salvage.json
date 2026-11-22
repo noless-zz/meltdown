@@ -2,5 +2,6 @@
 	"pickup_reach": 2.5,
 	"pull_reach": 9.0,
 	"pull_speed": 8.0,
-	"swap_drop_distance": 4.0
+	"swap_drop_distance": 4.0,
+	"drop_delay_ticks": 45
 }

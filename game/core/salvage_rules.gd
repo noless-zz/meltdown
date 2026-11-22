@@ -29,9 +29,19 @@ var pull_speed: float = 0.0
 ## dropped, metres, 0..20. Behind, so the pilot sees a different object from
 ## the one just taken and the ship does not sit on it.
 var swap_drop_distance: float = 0.0
+## Ticks a part dropped by a destroyed robot floats before any ship may take or
+## pull it, 0..MAX_DROP_DELAY_TICKS (#1217). A robot killed at point-blank range
+## would otherwise hand its part over inside the explosion, unseen. 0 is the
+## behaviour before the key existed.
+var drop_delay_ticks: int = 0
 
-## Every key of the data file, in the order the file lists them.
+## Every required key of the data file, in the order the file lists them.
 const KEYS: Array[String] = ["pickup_reach", "pull_reach", "pull_speed", "swap_drop_distance"]
+## Keys a file may leave out, each read as its default above, so salvage lines
+## recorded before the key existed still parse and fly as they did.
+const OPTIONAL_KEYS: Array[String] = ["drop_delay_ticks"]
+## Ten seconds at 60 Hz: longer would leave a part untouchable in plain sight.
+const MAX_DROP_DELAY_TICKS: int = 600
 
 ## Allowed range of each key, inclusive. A String bound names another key.
 const RANGES: Dictionary = {
@@ -58,7 +68,7 @@ static func parse_json(text: String) -> SalvageRules:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)):
 			return _rejected("unknown key \"%s\"" % str(key))
 	var rules: SalvageRules = SalvageRules.new()
 	for key: String in KEYS:
@@ -76,6 +86,15 @@ static func parse_json(text: String) -> SalvageRules:
 		var value: float = rules.get(key)
 		if value < low or value > high:
 			return _rejected("key \"%s\" is %s, must be %s to %s" % [key, value, low, high])
+	if data.has("drop_delay_ticks"):
+		var delay: Variant = data["drop_delay_ticks"]
+		if typeof(delay) != TYPE_FLOAT and typeof(delay) != TYPE_INT:
+			return _rejected("key \"drop_delay_ticks\" must be a number")
+		var ticks: float = float(delay)
+		if ticks != floorf(ticks) or ticks < 0.0 or ticks > MAX_DROP_DELAY_TICKS:
+			return _rejected("key \"drop_delay_ticks\" is %s, must be a whole number 0 to %d"
+				% [ticks, MAX_DROP_DELAY_TICKS])
+		rules.drop_delay_ticks = int(ticks)
 	return rules
 
 
@@ -85,10 +104,17 @@ func to_json() -> String:
 	var data: Dictionary = {}
 	for key: String in KEYS:
 		data[key] = get(key)
+	# Written only when set, so rules without a delay keep the line and hash
+	# recorded before the key existed.
+	if drop_delay_ticks > 0:
+		data["drop_delay_ticks"] = drop_delay_ticks
 	return JSON.stringify(data, "", false, true)
 
 
 func values_hash() -> int:
+	if drop_delay_ticks > 0:
+		return hash([pickup_reach, pull_reach, pull_speed, swap_drop_distance,
+			"drop_delay_ticks", drop_delay_ticks])
 	return hash([pickup_reach, pull_reach, pull_speed, swap_drop_distance])
 
 
