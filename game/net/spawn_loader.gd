@@ -123,7 +123,10 @@ static func load_parts(weapon_dir: String = WEAPON_DIR) -> Dictionary[String, We
 ## two machines would start the same session differently (ARC-1, MP-2, #381).
 ## A file that is rejected, or whose name is not a valid id, is left out after
 ## printing why: one broken weapon should not stop every other part from
-## slotting.
+## slotting. A weapon marked `crafted_only` is left out quietly: robots never
+## drop it, and keeping it out of the catalogue keeps every session hash as it
+## was when a crafted weapon file is added (#1105, SLV-1, ARC-2). A ship fitted
+## with one still gets it; see `LocalSession`.
 static func parts_from_files(weapon_dir: String, names: PackedStringArray) -> Dictionary[String, WeaponDef]:
 	var parts: Dictionary[String, WeaponDef] = {}
 	var files: PackedStringArray = names.duplicate()
@@ -141,8 +144,35 @@ static func parts_from_files(weapon_dir: String, names: PackedStringArray) -> Di
 			print("Meltdown: part %s rejected (%s); it cannot be slotted"
 				% [weapon_dir.path_join(file), problem])
 			continue
+		if weapon.crafted_only:
+			continue
 		parts[id] = weapon
 	return parts
+
+
+## `parts` plus every weapon `loadout` names that `parts` lacks, so a fitted
+## crafted-only weapon (#1105), which the salvage catalogue leaves out, can be
+## slotted again after it is dropped and picked up. An empty catalogue stays
+## empty: a session without one slots nothing, and its hash must not change.
+static func with_loadout_weapons(parts: Dictionary[String, WeaponDef],
+		loadout: ShipLoadout) -> Dictionary[String, WeaponDef]:
+	if parts.is_empty() or loadout == null:
+		return parts
+	var all: Dictionary[String, WeaponDef] = parts
+	var copied: bool = false
+	for kind: String in ShipLoadout.KINDS:
+		var ids: Array[String] = loadout.ids_of(kind)
+		var weapons: Array[WeaponDef] = loadout.weapons_of(kind)
+		for slot: int in mini(ids.size(), weapons.size()):
+			var id: String = ids[slot]
+			if id == "" or all.has(id) or weapons[slot] == null:
+				continue
+			# Copied once, so the caller's catalogue is never changed under it.
+			if not copied:
+				all = parts.duplicate()
+				copied = true
+			all[id] = weapons[slot]
+	return all
 
 
 ## Reads the salvage data file (`SalvageRules`, #600). Returns null, after
