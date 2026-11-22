@@ -6,14 +6,13 @@ extends RefCounted
 ## everything else, and the flight must end on `bot_generated_escape`'s hash.
 
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
+const M3Run := preload("res://tests/m3_suite_run.gd")
 const STEP_ID: String = "meltdown_pause"
 const ESCAPE_ID: String = "bot_generated_escape"
 ## The tick the reactor dies on in the seed 43 replay; the pause comes three
 ## seconds later.
 const DEATH_TICK: int = 4162
 const PAUSE_TICK: int = 4342
-## The escape takes a few thousand ticks plus the hold; one per frame.
-const FRAME_LIMIT: int = 40000
 
 
 func test_the_step_flies_the_escape_and_pauses_in_the_meltdown() -> String:
@@ -37,34 +36,18 @@ func test_the_step_flies_the_escape_and_pauses_in_the_meltdown() -> String:
 	return ""
 
 
-## The shipped step, flown by the runner in a main scene built as on the
+## The shipped step, flown in the shared m3 run (`m3_suite_run.gd`, #1139) by
+## the runner in a main scene built as on the
 ## headset: every check passes, five seconds of frames are held with the
 ## countdown showing, and the flight resumes on the next tick.
 func test_the_step_passes_headless() -> String:
-	var only: AcceptanceSuite = AcceptanceSuite.new()
-	only.name = "m3"
-	only.steps.append(SeedPick.find_step(STEP_ID))
-	var suites: Array[AcceptanceSuite] = [only]
-	var runner: AcceptanceRunner = AcceptanceRunner.new()
-	runner.quit_callback = func(_code: int) -> void: pass
-	runner.setup(_main(), suites, null)
-	var frames: int = 0
-	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
-		frames += 1
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
+	var problem: String = M3Run.step_problem(STEP_ID)
+	if problem == "":
+		var measured: Dictionary = M3Run.step(STEP_ID)["measurements"]
 		var shown: String = str(measured.get("pause_countdown", ""))
 		if int(measured.get("paused_frames", 0)) != 300 or int(measured.get("pause_tick", -1)) != PAUSE_TICK \
 				or int(measured.get("resume_tick", -1)) != PAUSE_TICK + 1 or not shown.contains("Meltdown 0:"):
 			problem = "measured %s" % measured
-	for path: String in runner.report_paths:
-		DirAccess.remove_absolute(path)
-	runner.main.free()
-	runner.free()
 	return problem
 
 

@@ -19,8 +19,7 @@ const REPLAY_PATH: String = "res://acceptance/replays/bot_generated_door_marked.
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M3"
 const RecordSwitch := preload("res://tests/record_switch.gd")
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
-## The escape takes a few thousand ticks; the runner flies one per frame.
-const FRAME_LIMIT: int = 40000
+const M3Run := preload("res://tests/m3_suite_run.gd")
 ## What `map_route` must say of a door whose cross it saw drawn, and must not.
 const MARKED: String = "of its marks drawn"
 const UNMARKED: String = "outside the explored boxes"
@@ -32,8 +31,6 @@ const REPLAY_HEADER: String = """# The bot pilot's escape from the m3 suite's do
 # itself. Records this step only:
 #     MELTDOWN_RECORD_M3=bot_generated_door_marked godot --headless --path game -s res://tests/run_tests.gd
 """
-
-var _quit_codes: Array[int] = []
 
 
 ## Off unless RECORD_SWITCH is `1` or lists STEP_ID; see the top of this file.
@@ -104,15 +101,13 @@ func test_only_an_escape_with_a_marked_door_qualifies() -> String:
 	return "" if str(none.get("error", "")).contains("explored boxes") else "no seed gave %s" % none
 
 
-## The step alone, as the headset flies it: every check passes, and
+## The step in the m3 suite, as the headset flies it (flown once for every
+## m3 test, `m3_suite_run.gd`, #1139): every check passes, and
 ## `map_route` says the fallen door's marks were drawn, at least one of them.
 func test_the_runner_passes_the_step_with_the_door_marked() -> String:
-	var runner: AcceptanceRunner = _run()
-	var problem: String = ""
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	else:
-		var step: Dictionary = runner.reports[0].steps[0]
+	var problem: String = M3Run.step_problem(STEP_ID)
+	if problem == "":
+		var step: Dictionary = M3Run.step(STEP_ID)
 		var measured: Dictionary = step["measurements"]
 		var message: String = str(step.get("message", ""))
 		if measured.get("outcome") != "ESCAPED" or int(measured.get("map_route_door_marks", 0)) < 1:
@@ -123,40 +118,4 @@ func test_the_runner_passes_the_step_with_the_door_marked() -> String:
 			var marks: RegExMatch = RegEx.create_from_string("all (\\d+) of its marks drawn").search(message)
 			if marks == null or int(marks.get_string(1)) < 1:
 				problem = "no mark count in: %s" % message
-	_done(runner)
 	return problem
-
-
-func _on_quit(code: int) -> void:
-	_quit_codes.append(code)
-
-
-## Flies a suite holding only this step.
-func _run() -> AcceptanceRunner:
-	_quit_codes.clear()
-	var only: AcceptanceSuite = AcceptanceSuite.new()
-	only.name = "m3"
-	only.steps.append(SeedPick.find_step(STEP_ID))
-	var suites: Array[AcceptanceSuite] = [only]
-	var runner: AcceptanceRunner = AcceptanceRunner.new()
-	runner.quit_callback = _on_quit
-	var scene: PackedScene = load("res://main.tscn") as PackedScene
-	# Built and readied as on the headset, so the map in the hand that
-	# `map_route` reads is there (#884).
-	var main: Node = scene.instantiate()
-	main.get_node("XRRig").call("build")
-	main.call("_ready")
-	runner.setup(main, suites, null)
-	var frames: int = 0
-	while not runner.finished and frames < FRAME_LIMIT:
-		runner.process_frame()
-		frames += 1
-	return runner
-
-
-func _done(runner: AcceptanceRunner) -> void:
-	for path: String in runner.report_paths:
-		DirAccess.remove_absolute(path)
-	if runner.main != null:
-		runner.main.free()
-	runner.free()

@@ -10,6 +10,7 @@ extends RefCounted
 ## numbers.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const MIN_SECONDS: float = 45.0
 const MAX_SECONDS: float = 180.0
 ## Countdown over the flying time at the validator's escape speed (#417).
@@ -56,10 +57,13 @@ func test_every_seed_gets_a_fair_countdown_in_range() -> String:
 	var validator: LevelValidator = SeedSweep.load_validator()
 	if plan.error != "" or validator.error != "":
 		return "data: %s %s" % [plan.error, validator.error]
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
+	var radius: float = SeedSweep.ship_radius()
+	var robot_plan: RobotPlan = SeedSweep.load_robot_plan()
 	var countdowns: Array[float] = []
 	for level_seed: int in SEEDS:
-		var level: LevelDef = _level(level_seed, modules, plan)
+		# The shipped generator, shared with the seed sweeps
+		# (`seed_level_cache.gd`, #1139); the level built as `_level` builds it.
+		var level: LevelDef = SeedLevelCache.generator(level_seed).to_level_def(plan, radius, robot_plan)
 		if level.error != "" or level.reactor == null:
 			return "seed %d: no level with a reactor (%s)" % [level_seed, level.error]
 		var path_mm: int = _path_mm(level)

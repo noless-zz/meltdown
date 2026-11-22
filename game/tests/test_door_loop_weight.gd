@@ -9,6 +9,7 @@ extends RefCounted
 ## shipped doors against the validator and `DebrisRouteGuard`.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
 const SAME_SEEDS: int = 200
@@ -149,16 +150,15 @@ static func _robots_before_531() -> RobotPlan:
 ## guard holds, and a checksum of where and when they fall.
 func _doors(plan: DebrisPlan, count: int, robots: RobotPlan = null) -> Dictionary:
 	var robot_plan: RobotPlan = robots if robots != null else SeedSweep.load_robot_plan()
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
 	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
 	var radius: float = SeedSweep.ship_radius()
 	var placed: int = 0
 	var held: int = 0
 	var checksum: int = 0
 	for level_seed: int in count:
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules,
-				SeedSweep.MODULE_COUNT, bridges)
+		# The shipped generator for the seed, shared with the seed sweeps
+		# (`seed_level_cache.gd`, #1139); only the level built from it is ours.
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
 		var level: LevelDef = generator.to_level_def(reactor_plan, radius, robot_plan, plan)
 		if level.debris == null:
 			continue

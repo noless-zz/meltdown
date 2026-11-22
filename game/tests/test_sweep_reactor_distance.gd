@@ -7,6 +7,7 @@ extends RefCounted
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
 const ReactorDistance := preload("res://tests/sweep_reactor_distance.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const SEEDS: int = 1000
 ## A seed whose level is checked by hand below; any generated level would do.
 const SEED: int = 31
@@ -85,15 +86,13 @@ func test_a_reactor_in_or_next_to_the_start_module_is_counted() -> String:
 	return "" if stats[ReactorDistance.NEAR] == 1 else "add counted %d" % stats[ReactorDistance.NEAR]
 
 
-## Builds each level from the generators the sweeps share (#903), so only the
-## building is this test's own time.
+## Reads the shipped levels the sweeps share (#903, #1139), so only the
+## measuring is this test's own time.
 func test_seeds_0_to_999_have_no_reactor_near_the_start() -> String:
-	var inputs: SeedLevel = SeedLevel.load_inputs()
-	var generators: Array[MineGenerator] = SeedSweep.shared_generators(0, SEEDS)
 	var started: int = Time.get_ticks_msec()
 	var stats: Dictionary = ReactorDistance.empty()
 	for level_seed: int in SEEDS:
-		ReactorDistance.add(stats, inputs.level_of(generators[level_seed]))
+		ReactorDistance.add(stats, SeedLevelCache.level(level_seed))
 	print("  reactor distance over seeds 0..%d in %d ms%s" % [SEEDS - 1, Time.get_ticks_msec() - started,
 			ReactorDistance.summary_part(stats)])
 	if stats[ReactorDistance.PATHS].size() != SEEDS:

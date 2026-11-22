@@ -7,6 +7,7 @@ extends RefCounted
 ## same robots on every run.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const SEEDS: int = 1000
 const REPEAT_SEEDS: int = 100
 ## Largest allowed drop in the average robots per level, as a fraction.
@@ -30,15 +31,17 @@ func _uncapped_plan() -> RobotPlan:
 
 ## Levels are built with the shipped loop bridges, as `seed_sweep.gd` and the
 ## player's levels are.
-func _levels(plan: RobotPlan, first: int, count: int) -> Array[LevelDef]:
-	var modules: Array[ModuleDef] = SeedSweep.load_modules()
+func _levels(plan: RobotPlan, first: int, count: int, shared: bool = true) -> Array[LevelDef]:
+	var inputs: SeedLevel = SeedLevelCache.inputs()
 	var reactor_plan: ReactorPlan = SeedSweep.load_reactor_plan()
-	var bridges: LoopBridges = SeedSweep.load_loop_bridges()
 	var ship_radius: float = SeedSweep.ship_radius()
 	var levels: Array[LevelDef] = []
 	for level_seed: int in range(first, first + count):
-		var generator: MineGenerator = MineGenerator.generate(level_seed, modules,
-				SeedSweep.MODULE_COUNT, bridges)
+		# The shipped generator, shared with the seed sweeps
+		# (`seed_level_cache.gd`, #1139) unless `shared` is false; only the
+		# level built from it is ours.
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed) if shared \
+				else inputs.generate(level_seed)
 		levels.append(generator.to_level_def(reactor_plan, ship_radius, plan))
 	return levels
 
@@ -105,7 +108,8 @@ func test_cap_of_zero_keeps_every_robot_out_of_the_near_zone() -> String:
 func test_same_seeds_same_robots_on_every_run() -> String:
 	var plan: RobotPlan = _plan(_shipped_text())
 	var first: Array[LevelDef] = _levels(plan, 0, REPEAT_SEEDS)
-	var second: Array[LevelDef] = _levels(plan, 0, REPEAT_SEEDS)
+	# Generated afresh, so the second run repeats the generator too.
+	var second: Array[LevelDef] = _levels(plan, 0, REPEAT_SEEDS, false)
 	for index: int in REPEAT_SEEDS:
 		var a: Array[RobotSpawn] = first[index].robots.spawns
 		var b: Array[RobotSpawn] = second[index].robots.spawns

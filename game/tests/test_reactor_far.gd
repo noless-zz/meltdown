@@ -8,6 +8,7 @@ extends RefCounted
 ## the start or short of the fraction; and `EscapePath.lengths_mm` gives
 ## `length_mm`'s lengths.
 
+const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const FIRST_SEED: int = 0
 const SEEDS: int = 1000
 const VALID: Dictionary = {"radius": 2.5, "hull": 400, "meltdown_seconds": 90, "min_hops": 2,
@@ -101,7 +102,9 @@ func test_thousand_seeds_put_the_reactor_far_from_the_start() -> String:
 	var before: Array[int] = []
 	var after: Array[int] = []
 	for level_seed: int in range(FIRST_SEED, FIRST_SEED + SEEDS):
-		var generator: MineGenerator = inputs.generate(level_seed)
+		# The shipped generator, shared with the seed sweeps
+		# (`seed_level_cache.gd`, #1139).
+		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
 		var level: LevelDef = _level(inputs, generator)
 		if level.reactor == null:
 			return "seed %d: %s" % [level_seed, generator.reactor_note]
