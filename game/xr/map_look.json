@@ -17,12 +17,15 @@
 	"distance_color": [0.95, 0.95, 0.95],
 	"distance_height_m": 0.008,
 	"distance_offset_m": 0.012,
-	"fire_color": [1.0, 1.0, 0.0],
+	"fire_color": [0.2, 0.4, 1.0],
 	"fire_size_m": 0.012,
 	"min_zoom": 0.5,
 	"max_zoom": 3.0,
 	"zoom_per_second": 1.5,
 	"fires_explored_only": true,
-	"miner_color": [0.6, 0.45, 1.0],
-	"miner_size_m": 0.01
+	"miner_color": [0.7, 0.3, 1.0],
+	"miner_size_m": 0.01,
+	"reactor_shape": "diamond",
+	"miner_shape": "pin",
+	"fire_shape": "flame"
 }

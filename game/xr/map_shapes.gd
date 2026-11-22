@@ -2,8 +2,8 @@ class_name MapShapes
 extends RefCounted
 
 ## The map hologram's shared geometry: the fit from level space into the
-## hologram, the glow-only material and the small marker ball. Split out of
-## `MapHologram` (#519) so the node stays under the size limit as it gains
+## hologram, the glow-only material, the exit cube and the reactor marker.
+## Split out of `MapHologram` (#519) so the node stays under the size limit as it gains
 ## marker kinds.
 
 
@@ -36,19 +36,8 @@ static func glow(color: Color, energy: float) -> StandardMaterial3D:
 	return material
 
 
-## A small glowing ball; a dot this small needs few triangles (PRF-2).
-static func ball(color: Color, radius: float, energy: float) -> SphereMesh:
-	var sphere: SphereMesh = SphereMesh.new()
-	sphere.radius = radius
-	sphere.height = radius * 2.0
-	sphere.radial_segments = 8
-	sphere.rings = 4
-	sphere.material = glow(color, energy)
-	return sphere
-
-
-## Render priority of the reactor ball: above the see-through exit cube's 0, so
-## where the two overlap the ball is drawn last, over the cube (#913).
+## Render priority of the reactor marker: above the see-through exit cube's 0, so
+## where the two overlap the reactor is drawn last, over the cube (#913).
 const REACTOR_PRIORITY: int = 1
 
 
@@ -69,16 +58,22 @@ static func exit_cube(look: Dictionary) -> BoxMesh:
 	return cube
 
 
-## The reactor marker: `reactor_color`, or `reactor_dead_color` once it is
-## destroyed. It ignores depth and draws after the exit cube, so the exit never
-## hides it however close the two sit (#913).
-static func reactor_ball(look: Dictionary, destroyed: bool, energy: float) -> SphereMesh:
+## Height of the reactor marker as a multiple of the look's `reactor_radius_m`:
+## the diamond is half as wide as it is tall, so at three radii it is about as
+## wide as the old ball and taller, which shows its points (#1219).
+const REACTOR_HEIGHT_PER_RADIUS: float = 3.0
+
+
+## The reactor marker in the look's `reactor_shape`: `reactor_color`, or
+## `reactor_dead_color` once it is destroyed. It ignores depth and draws after
+## the exit cube, so the exit never hides it however close the two sit (#913).
+static func reactor_marker(look: Dictionary, destroyed: bool, energy: float) -> ArrayMesh:
 	var color: Color = look["reactor_dead_color"] if destroyed else look["reactor_color"]
-	var sphere: SphereMesh = ball(color, float(look["reactor_radius_m"]), energy)
-	var material: StandardMaterial3D = sphere.material as StandardMaterial3D
+	var material: StandardMaterial3D = glow(color, energy)
 	material.no_depth_test = true
 	material.render_priority = REACTOR_PRIORITY
-	return sphere
+	var height: float = float(look["reactor_radius_m"]) * REACTOR_HEIGHT_PER_RADIUS
+	return MapMarkerShapes.mesh(look["reactor_shape"], height, material)
 
 
 ## The explored outline `points` (segment pairs, level space) fitted into a cube

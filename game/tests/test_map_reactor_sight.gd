@@ -48,7 +48,7 @@ func _stop_at(session: LocalSession, wiring: MapWiring, at: Vector3) -> void:
 
 func _reactor_color(wiring: MapWiring) -> Color:
 	var reactor: MeshInstance3D = wiring.hologram.marker_nodes()[1]
-	return ((reactor.mesh as SphereMesh).material as StandardMaterial3D).emission
+	return (reactor.mesh.surface_get_material(0) as StandardMaterial3D).emission
 
 
 func test_the_level_is_as_the_tests_need() -> String:
@@ -130,7 +130,7 @@ func test_the_dead_colour_survives_a_rebuild() -> String:
 	map.set_markers(level.start_position(), REACTOR_AT, true, true)
 	map.build(level.union, [0, 1])
 	var reactor: MeshInstance3D = map.marker_nodes()[1]
-	var colour: Color = ((reactor.mesh as SphereMesh).material as StandardMaterial3D).emission
+	var colour: Color = (reactor.mesh.surface_get_material(0) as StandardMaterial3D).emission
 	var want: Color = map.look()["reactor_dead_color"]
 	map.free()
 	if colour != want:
@@ -147,7 +147,7 @@ func test_the_exit_is_see_through_and_no_bigger_than_before() -> String:
 	var reactor: MeshInstance3D = map.marker_nodes()[1]
 	var look: Dictionary = map.look()
 	var cube: BoxMesh = exit.mesh as BoxMesh
-	var ball: StandardMaterial3D = (reactor.mesh as SphereMesh).material as StandardMaterial3D
+	var ball: StandardMaterial3D = reactor.mesh.surface_get_material(0) as StandardMaterial3D
 	map.free()
 	if cube == null:
 		return "the exit marker is not a cube"
@@ -163,7 +163,7 @@ func test_the_exit_is_see_through_and_no_bigger_than_before() -> String:
 	if material.depth_draw_mode != BaseMaterial3D.DEPTH_DRAW_DISABLED:
 		return "the exit cube writes depth, so it can hide lines behind it"
 	if not ball.no_depth_test or ball.render_priority <= material.render_priority:
-		return "the reactor ball is not drawn over the exit (no depth test %s, priority %d vs %d)" % [
+		return "the reactor marker is not drawn over the exit (no depth test %s, priority %d vs %d)" % [
 			ball.no_depth_test, ball.render_priority, material.render_priority]
 	return ""
 
