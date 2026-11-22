@@ -66,6 +66,9 @@ var salvage_rules: SalvageRules = SalvageRules.new()
 ## `set_look_aim`. Not part of the hash, like the salvage rules: what it does
 ## shows in each ship's gun direction.
 var look_aim: LookAim = LookAim.new()
+## How shots of ships with the aim assist module bend (CMB-7, #1096); see
+## `set_aim_assist`. Not part of the hash, like `look_aim`.
+var aim_assist: AimAssist = AimAssist.new()
 ## This tick's projectile hit events, found before the ships move but reported after.
 var _hit_events: Array[SimEvent] = []
 ## Robot index to the ship whose shot destroyed it, for the tick being stepped.
@@ -260,6 +263,16 @@ func set_look_aim(aim: LookAim) -> String:
 	if aim == null or aim.error != "":
 		return "look-aim is not resolved"
 	look_aim = aim
+	return ""
+
+
+## Sets the aim assist cone and range (`AimAssist`, CMB-7), before the first tick only, as `set_look_aim`.
+func set_aim_assist(assist: AimAssist) -> String:
+	if tick != 0 or _stepping:
+		return "aim assist is set before the first tick"
+	if assist == null or assist.error != "":
+		return "aim assist is not resolved"
+	aim_assist = assist
 	return ""
 
 
