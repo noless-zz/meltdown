@@ -57,7 +57,7 @@ var expected: Dictionary[String, Dictionary] = {
 		"display_name": "Pilot",
 		"yaw_mode": Yaw.SMOOTH, "snap_angle_deg": 30.0, "yaw_rate_cap_deg_per_s": NONE,
 		"pitch_mode": Pitch.SMOOTH, "pitch_rate_cap_deg_per_s": NONE, "pitch_limit_deg": NONE,
-		"roll_mode": Roll.MANUAL, "auto_level": true,
+		"roll_mode": Roll.MANUAL, "auto_level": false,
 		"auto_level_rate_deg_per_s": 30.0, "auto_level_snap_threshold_deg": NONE,
 		"vignette_strength": 0.25, "vignette_trigger": Trigger.FAST_ROTATION,
 		"cockpit_frame": Frame.OPEN_CANOPY,

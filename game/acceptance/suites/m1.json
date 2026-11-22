@@ -203,6 +203,11 @@
 			"preset": 4,
 			"checks": ["vignette", "final_hash", "no_script_errors"],
 			"expected_hash": 3139276631
+		},
+		{
+			"id": "auto_level_option",
+			"preset": 4,
+			"checks": ["auto_level_option", "no_script_errors"]
 		}
 	]
 }

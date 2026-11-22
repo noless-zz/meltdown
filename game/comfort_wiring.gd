@@ -55,6 +55,8 @@ var swivel: SwivelWiring = SwivelWiring.new()
 var look_aim: LookAimHead = LookAimHead.new()
 ## The dev menu's Swivel chair choice (#853), a `SwivelChoice` UNSET, OFF or ON.
 var swivel_choice: int = SwivelChoice.UNSET
+## The dev menu's Auto-level choice (#1247), an `AutoLevelChoice` UNSET, OFF or ON.
+var auto_level_choice: int = AutoLevelChoice.UNSET
 
 var _input_source: LatestInputSource
 ## Where the custom comfort file is read (#806); tests point it at a scratch file.
@@ -85,7 +87,7 @@ func set_preset(p_number: int) -> void:
 		custom_notice.refused(custom())
 		p_number = number
 	number = p_number
-	preset = SwivelChoice.applied(preset_for(p_number), p_number, swivel_choice)
+	preset = _chosen(p_number)
 	filter = ComfortInputFilter.new(preset)
 	one_tick_pending = false
 	latest_tick_snapped = false
@@ -113,6 +115,23 @@ func set_swivel_choice(on: bool) -> void:
 	swivel_choice = SwivelChoice.ON if on else SwivelChoice.OFF
 	preset = SwivelChoice.applied(preset, number, swivel_choice)
 	swivel.set_preset(preset)
+
+
+## Sets auto-level on the active preset and every later one (#1247). Only the
+## filter's preset changes, so a snap axis keeps its armed state; a pending
+## auto-level roll snap is still dropped after the tick that flies it.
+func set_auto_level_choice(on: bool) -> void:
+	auto_level_choice = AutoLevelChoice.ON if on else AutoLevelChoice.OFF
+	preset = _chosen(number)
+	filter.preset = preset
+	swivel.set_preset(preset)
+	print("Meltdown: auto-level %s on preset %d" % ["on" if on else "off", number])
+
+
+## Preset `p_number` with the menu's swivel and auto-level choices applied.
+func _chosen(p_number: int) -> ComfortPreset:
+	var chosen: ComfortPreset = SwivelChoice.applied(preset_for(p_number), p_number, swivel_choice)
+	return AutoLevelChoice.applied(chosen, auto_level_choice)
 
 
 ## The preset numbered `p_number`; the custom file's for `CUSTOM_NUMBER`.

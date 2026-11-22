@@ -29,6 +29,9 @@ extends RefCounted
 ## and `refresh_note_text` after it while the active preset does not allow 120 Hz.
 ## The `swivel` entry (#853) shows `swivel_on_text` / `swivel_off_text`, with
 ## `swivel_custom_text` after it while the custom file decides; each optional.
+## The `auto_level` entry (#1247) shows `auto_level_on_text` /
+## `auto_level_off_text`, with `auto_level_preset_text` after it while the
+## preset always levels; each optional.
 ## The `foveation` entry (#871) shows `foveation_off_text` or the level, with
 ## `foveation_dynamic_text` after it when dynamic and `foveation_note_text` last.
 ## `distance_m` (a number over 0) and `offset_m` (`[right, up]`) say where the
@@ -53,16 +56,17 @@ const KIND_FLIGHT_TEST: String = "flight_test"
 const KIND_REFRESH: String = "refresh"
 const KIND_SWIVEL: String = "swivel"
 const KIND_FOVEATION: String = "foveation"
+const KIND_AUTO_LEVEL: String = "auto_level"
 const KIND_RETURN: String = "return"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
 	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK, KIND_FLIGHT_TEST,
-	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_RETURN]
+	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_AUTO_LEVEL, KIND_RETURN]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
 	"break_on_text", "break_off_text", "custom_text", "refresh_90_text", "refresh_120_text",
 	"refresh_note_text", "swivel_on_text", "swivel_off_text", "swivel_custom_text",
 	"foveation_off_text", "foveation_dynamic_text", "foveation_note_text", "info_title_text",
-	"confirm_return_text"]
+	"auto_level_on_text", "auto_level_off_text", "auto_level_preset_text", "confirm_return_text"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
@@ -78,6 +82,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_REFRESH: "Refresh",
 	KIND_SWIVEL: "Swivel chair",
 	KIND_FOVEATION: "Foveation",
+	KIND_AUTO_LEVEL: "Auto-level",
 	KIND_RETURN: "Return to base",
 }
 const PLACE_KEYS: Array[String] = ["distance_m", "offset_m"]
@@ -105,6 +110,9 @@ var refresh_note_text: String = "(preset 4 only)"
 var swivel_on_text: String = "On"
 var swivel_off_text: String = "Off"
 var swivel_custom_text: String = "(custom file)"
+var auto_level_on_text: String = "On"
+var auto_level_off_text: String = "Off"
+var auto_level_preset_text: String = "(preset)"
 var foveation_off_text: String = "Off"
 var foveation_dynamic_text: String = "dynamic"
 var foveation_note_text: String = "(this session)"

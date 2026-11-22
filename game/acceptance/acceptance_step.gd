@@ -140,6 +140,10 @@ const CHECK_CRAFT_AND_FIT: String = "craft_and_fit"
 ## 2 with the pinned level hash (#1107, RUN-8; `AcceptanceSuspendResumeCheck`).
 ## Must be the step's last check.
 const CHECK_SUSPEND_RESUME: String = "suspend_resume"
+## On the step's preset with the menu's Auto-level option on, a scripted roll
+## to 60 degrees and release comes back to level; with it off the bank stays
+## (#1247, CMF-1, CMF-5; `AcceptanceAutoLevelCheck`). Flies no replay.
+const CHECK_AUTO_LEVEL_OPTION: String = "auto_level_option"
 ## The run step's escape banks, then on level 2 the menu's Return to base call
 ## abandons the run: `expected_banked` stays, the loss is counted, the hub opens
 ## (#1246, RUN-7; `AcceptanceAbandonRunCheck`). Must be the step's last check.
@@ -152,7 +156,7 @@ const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_N
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
 	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE, CHECK_COMPONENTS_BANK,
 	CHECK_COLLECTED, CHECK_CREW_JOINS, CHECK_CRAFT_AND_FIT, CHECK_SUSPEND_RESUME,
-	CHECK_ABANDON_RUN]
+	CHECK_AUTO_LEVEL_OPTION, CHECK_ABANDON_RUN]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,

@@ -143,6 +143,8 @@ func _check(index: int, preset: ComfortPreset, filter: ComfortInputFilter, raw: 
 		var level_cap: int = ComfortInputFilter.cap_q(preset.auto_level_rate_deg_per_s)
 		if r.z != 0 and t.z != r.z:
 			found["roll"] = "manual roll %d became %d" % [r.z, t.z]
+		elif r.z == 0 and not preset.levels_roll() and t.z != 0:
+			found["roll"] = "auto-level is off by default (#1247), yet it rolled %d" % t.z
 		elif r.z == 0 and level_cap >= 0 and absi(t.z) > level_cap:
 			found["roll"] = "auto-level roll %d, cap %d" % [t.z, level_cap]
 	else:
