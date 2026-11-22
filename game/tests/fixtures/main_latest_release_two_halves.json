@@ -1,0 +1,61 @@
+{
+	"html_url": "https://github.com/noless-zz/meltdown/releases/tag/main-latest",
+	"tag_name": "main-latest",
+	"target_commitish": "d0b568b9357991d4da3ff8dbd757110b41e917a9",
+	"name": "Builds (main)",
+	"draft": false,
+	"prerelease": true,
+	"created_at": "2026-11-22T06:58:05Z",
+	"published_at": "2026-11-14T19:39:02Z",
+	"body": "Latest dedicated server build from main, commit d0b568b9357991d4da3ff8dbd757110b41e917a9. Replaced on every push; not a versioned release.\n\nBuilt: 2026-11-22 06:58 UTC (2026-11-22 08:58 Asia/Jerusalem)",
+	"assets": [
+		{
+			"name": "meltdown-desktop.x86_64",
+			"content_type": "application/octet-stream",
+			"size": 73821400,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-desktop.x86_64",
+			"created_at": "2026-11-22T06:43:26Z",
+			"updated_at": "2026-11-22T06:43:26Z"
+		},
+		{
+			"name": "meltdown-desktop.x86_64.sha256",
+			"content_type": "application/octet-stream",
+			"size": 90,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-desktop.x86_64.sha256",
+			"created_at": "2026-11-22T06:43:27Z",
+			"updated_at": "2026-11-22T06:43:27Z"
+		},
+		{
+			"name": "meltdown-quest-debug.apk",
+			"content_type": "application/vnd.android.package-archive",
+			"size": 85544898,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-quest-debug.apk",
+			"created_at": "2026-11-22T06:43:22Z",
+			"updated_at": "2026-11-22T06:43:22Z"
+		},
+		{
+			"name": "meltdown-quest-debug.apk.sha256",
+			"content_type": "application/octet-stream",
+			"size": 91,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-quest-debug.apk.sha256",
+			"created_at": "2026-11-22T06:43:23Z",
+			"updated_at": "2026-11-22T06:43:23Z"
+		},
+		{
+			"name": "meltdown-server.x86_64",
+			"content_type": "application/octet-stream",
+			"size": 73821448,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-server.x86_64",
+			"created_at": "2026-11-22T06:57:58Z",
+			"updated_at": "2026-11-22T06:57:58Z"
+		},
+		{
+			"name": "meltdown-server.x86_64.sha256",
+			"content_type": "application/octet-stream",
+			"size": 89,
+			"browser_download_url": "https://github.com/noless-zz/meltdown/releases/download/main-latest/meltdown-server.x86_64.sha256",
+			"created_at": "2026-11-22T06:57:59Z",
+			"updated_at": "2026-11-22T06:57:59Z"
+		}
+	]
+}

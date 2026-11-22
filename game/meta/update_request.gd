@@ -80,7 +80,7 @@ static func notice_text(result: Dictionary, asked: bool) -> String:
 			var latest: BuildInfo = BuildInfo.new()
 			latest.commit = str(result.get("commit", BuildInfo.UNKNOWN))
 			return NOTICE_UP_TO_DATE % latest.short_commit()
-		UpdateCheck.STATUS_UNKNOWN:
+		UpdateCheck.STATUS_UNKNOWN, UpdateCheck.STATUS_NOT_READY:
 			return NOTICE_UNKNOWN % reason
 	return NOTICE_ERROR % reason
 
