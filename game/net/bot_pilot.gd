@@ -76,6 +76,8 @@ var _cover: BotCover = null
 var _waited_ticks: int = 0
 ## Stalled (#658), the bot neither weaves nor turns to the robot; null without a level.
 var _stall: BotStall = null
+## A miner to hold at before the reactor (#1084); null unless a recording sets one.
+var _rescue: BotRescue = null
 
 
 ## With a `level`, the bot routes through its boxes rather than flying into
@@ -97,6 +99,12 @@ func _init(sim: Sim, ship_index: int = 0, level: LevelDef = null) -> void:
 func set_goal(point: Vector3) -> void:
 	_goal = point
 	_has_goal = true
+
+
+## Before the reactor, hold at `miner` (millimetres, from `MinerRescue.trapped`)
+## until it is rescued (#1084, `BotRescue`). Needs a level; without one it is ignored.
+func set_rescue_goal(miner: Vector3i) -> void:
+	_rescue = BotRescue.new(_sim, _route, miner) if _route != null else null
 
 
 ## Reads the sim as it stands before tick `tick` and returns the input to fly.
@@ -152,6 +160,8 @@ func _routed_input(ship: ShipState, target: RobotState) -> ShipInput:
 		_retreating = true
 	var in_sight: bool = target != null and shot_reaches(ship, target.position)
 	if _escape.takes_over(self, ship):
+		if _rescue != null and not _sim.reactor.destroyed and _rescue.active():
+			return _rescue.next_input(ship)
 		return _escape.next_input(ship, target, in_sight)
 	var flank_point: Vector3 = _flank.point_for(ship, target, in_sight)
 	var flanking: bool = flank_point != Vector3.INF

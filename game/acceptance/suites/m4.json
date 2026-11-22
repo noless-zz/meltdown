@@ -58,6 +58,15 @@
 			"fitting": "res://acceptance/fittings/fitted_start_fitting.json",
 			"checks": ["level_hash", "no_script_errors"],
 			"expected_level_hash": 1969209597
+		},
+		{
+			"id": "crew_joins",
+			"run": 12345,
+			"replay": "res://acceptance/replays/crew_joins.replay",
+			"checks": ["final_hash", "outcome", "no_script_errors", "crew_joins"],
+			"expected_hash": 3375022947,
+			"expected_outcome": "ESCAPED",
+			"expected_crew": 1
 		}
 	]
 }
