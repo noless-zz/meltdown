@@ -2,5 +2,7 @@
 	"distance_m": 25.0,
 	"radius_m": 0.5,
 	"thickness_m": 0.04,
+	"cone_degrees": 4.0,
+	"dim_alpha": 0.35,
 	"color": [0.4, 1.0, 0.55, 0.85]
 }
