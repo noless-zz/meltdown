@@ -25,7 +25,17 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"fit_option_row": ["name"],
 	"clear_row": [],
 	"launch_row": [],
+	"stats_empty": [],
+	"stats_runs_started": ["count"],
+	"stats_runs_won": ["count"],
+	"stats_runs_lost": ["count"],
+	"stats_levels_escaped": ["count"],
+	"stats_deepest_level": ["count"],
+	"stats_miners_rescued": ["count"],
+	"stats_components_banked": ["count"],
 }
+## Logbook rows (#1095) are `STATS_ROW_PREFIX` + a `ProfileStats` counter key.
+const STATS_ROW_PREFIX: String = "stats_"
 const KEY_SLOT_NAMES: String = "slot_names"
 const KEY_STAT_NAMES: String = "stat_names"
 ## Slot kinds a slot name is needed for: `Fitting.KEYS`, then `Fitting.PART_KEYS`.

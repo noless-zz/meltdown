@@ -48,18 +48,18 @@ func test_the_shipped_data_loads() -> String:
 
 func test_pages_come_in_the_file_order_with_their_titles() -> String:
 	var model: HubModel = _model()
-	if model.pages() != ["crew", "store", "craft", "fit"]:
+	if model.pages() != ["crew", "stats", "store", "craft", "fit"]:
 		return "pages are %s" % [model.pages()]
 	for id: String in model.pages():
 		if model.page_title(id) == "":
 			return "page %s has no title" % id
 	var config: HubConfig = HubConfig.parse_json(JSON.stringify({
 		"pages": [{"id": "fit", "title": "F"}, {"id": "craft", "title": "C"},
-			{"id": "store", "title": "S"}, {"id": "crew", "title": "W"}],
+			{"id": "store", "title": "S"}, {"id": "crew", "title": "W"}, {"id": "stats", "title": "L"}],
 		"empty_crew": "none", "empty_store": "none",
 		"text": JSON.parse_string(FileAccess.get_file_as_string(HubConfig.CONFIG_PATH))["text"],
 	}))
-	if config.error != "" or config.pages != ["fit", "craft", "store", "crew"] or config.title("crew") != "W":
+	if config.error != "" or config.pages != ["fit", "craft", "store", "crew", "stats"] or config.title("crew") != "W":
 		return "reordered file read as %s (%s)" % [config.pages, config.error]
 	return ""
 
@@ -217,7 +217,7 @@ func test_config_errors_name_the_key() -> String:
 	var cases: Dictionary = {
 		"missing key \"empty_store\"": func(d: Dictionary) -> void: d.erase("empty_store"),
 		"unknown key \"extra\"": func(d: Dictionary) -> void: d["extra"] = 1,
-		"is missing page \"fit\"": func(d: Dictionary) -> void: (d["pages"] as Array).remove_at(3),
+		"is missing page \"fit\"": func(d: Dictionary) -> void: (d["pages"] as Array).remove_at(4),
 		"repeats page \"crew\"": func(d: Dictionary) -> void: d["pages"][1]["id"] = "crew",
 		"\"pages[2].id\" must be one of": func(d: Dictionary) -> void: d["pages"][2]["id"] = "bar",
 		"\"pages[0].title\" must be a non-empty string": func(d: Dictionary) -> void: d["pages"][0]["title"] = " ",
