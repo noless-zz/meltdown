@@ -1,0 +1,9 @@
+{
+	"id": "trim_vanes",
+	"name": "Trim Vanes",
+	"kind": "engine",
+	"stats": {
+		"acceleration": 1.1,
+		"afterburner_acceleration": 1.1
+	}
+}

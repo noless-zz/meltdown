@@ -1,0 +1,9 @@
+{
+	"id": "mesh_ward",
+	"name": "Mesh Ward",
+	"kind": "shield",
+	"stats": {
+		"max_shield": 0.9,
+		"shield_recharge": 1.25
+	}
+}

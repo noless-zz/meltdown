@@ -1,0 +1,15 @@
+{
+	"id": "surge_manifold",
+	"name": "Surge Manifold",
+	"branch": "engines",
+	"kind": "engine",
+	"tier": 3,
+	"requires": [
+		"swept_intakes"
+	],
+	"cost": {
+		"circuit_shards": 2,
+		"core_glass": 3
+	},
+	"grants": "surge_manifold"
+}
