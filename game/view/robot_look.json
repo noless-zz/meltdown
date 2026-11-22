@@ -2,7 +2,7 @@
 	"default": {"shape": "sphere", "scale": 1.0, "emission_color": [0.8, 0.8, 0.8]},
 	"robots": {
 		"drone": {
-			"shape": "sphere", "scale": 1.0, "emission_color": [1.0, 0.2, 0.15],
+			"shape": "sphere", "scale": 0.66, "emission_color": [1.0, 0.2, 0.15],
 			"stretch": [0.6, 0.6, 0.6],
 			"parts": [
 				{"shape": "torus", "size": [1.5, 0.5, 1.5], "offset": [0.0, 0.0, 0.0]},
@@ -13,7 +13,7 @@
 			"skin": {"pattern": "rings", "accent_color": [0.3, 0.04, 0.02], "scale": 5.0, "width": 0.35, "face_color": [0.08, 0.03, 0.02], "face_depth": 0.4}
 		},
 		"glider": {
-			"shape": "box", "scale": 1.0, "emission_color": [0.1, 0.85, 1.0],
+			"shape": "box", "scale": 0.48, "emission_color": [0.1, 0.85, 1.0],
 			"stretch": [0.3, 0.25, 1.1],
 			"parts": [
 				{"shape": "box", "size": [1.9, 0.05, 0.45], "offset": [0.0, 0.0, 0.25]},
@@ -27,7 +27,7 @@
 			"skin": {"pattern": "chevrons", "accent_color": [0.04, 0.18, 0.5], "scale": 2.5, "width": 0.3, "face_color": [0.02, 0.06, 0.12], "face_depth": 0.7}
 		},
 		"hauler": {
-			"shape": "box", "scale": 0.9, "emission_color": [1.0, 0.6, 0.1],
+			"shape": "box", "scale": 0.54, "emission_color": [1.0, 0.6, 0.1],
 			"stretch": [0.7, 0.5, 1.15],
 			"parts": [
 				{"shape": "box", "size": [0.22, 0.38, 0.95], "offset": [-1.0, 0.0, 0.1]},
@@ -40,20 +40,20 @@
 			"skin": {"pattern": "checks", "accent_color": [0.12, 0.1, 0.08], "scale": 2.0, "face_color": [0.06, 0.04, 0.02], "face_depth": 0.8}
 		},
 		"needler": {
-			"shape": "box", "scale": 1.4, "emission_color": [1.0, 0.2, 0.9],
-			"stretch": [0.22, 0.22, 1.2],
+			"shape": "box", "scale": 0.5, "emission_color": [1.0, 0.2, 0.9],
+			"stretch": [0.1375, 0.1375, 0.75],
 			"parts": [
-				{"shape": "box", "size": [0.04, 0.04, 1.0], "offset": [0.0, 0.0, -2.2]},
-				{"shape": "box", "size": [0.7, 0.04, 0.2], "offset": [0.0, 0.0, 1.0]},
-				{"shape": "box", "size": [0.04, 0.7, 0.2], "offset": [0.0, 0.0, 1.0]},
-				{"shape": "sphere", "size": [0.2, 0.2, 0.2], "offset": [0.0, 0.0, -1.2], "eye": true}
+				{"shape": "sphere", "size": [0.025, 0.025, 0.625], "offset": [0.0, 0.0, -1.375]},
+				{"shape": "box", "size": [0.4375, 0.025, 0.125], "offset": [0.0, 0.0, 0.625]},
+				{"shape": "box", "size": [0.025, 0.4375, 0.125], "offset": [0.0, 0.0, 0.625]},
+				{"shape": "sphere", "size": [0.125, 0.125, 0.125], "offset": [0.0, 0.0, -0.75], "eye": true}
 			],
 			"eye_color": [1.0, 0.9, 1.0],
 			"tell": {"pitch_deg_per_mps": 3.0, "roll_deg_per_mps": 0.5, "max_deg": 35.0},
-			"skin": {"pattern": "bands", "accent_color": [0.35, 0.0, 0.45], "scale": 2.5, "width": 0.35, "face_color": [0.08, 0.02, 0.1], "face_depth": 0.85}
+			"skin": {"pattern": "bands", "accent_color": [0.35, 0.0, 0.45], "scale": 4.0, "width": 0.35, "face_color": [0.08, 0.02, 0.1], "face_depth": 0.53125}
 		},
 		"skimmer": {
-			"shape": "cylinder", "scale": 1.0, "emission_color": [0.95, 0.95, 0.15],
+			"shape": "cylinder", "scale": 0.61, "emission_color": [0.95, 0.95, 0.15],
 			"stretch": [1.4, 0.12, 1.4],
 			"parts": [
 				{"shape": "sphere", "size": [0.5, 0.3, 0.5], "offset": [0.0, 0.15, 0.0]},
@@ -65,7 +65,7 @@
 			"skin": {"pattern": "stripes", "accent_color": [0.18, 0.14, 0.0], "scale": 2.5, "width": 0.4, "face_color": [0.06, 0.06, 0.02], "face_depth": 0.9}
 		},
 		"warden": {
-			"shape": "box", "scale": 0.9, "emission_color": [0.2, 1.0, 0.3],
+			"shape": "box", "scale": 0.45, "emission_color": [0.2, 1.0, 0.3],
 			"stretch": [0.85, 1.4, 0.85],
 			"parts": [
 				{"shape": "cylinder", "size": [0.35, 0.5, 0.35], "offset": [-1.2, 0.3, 0.0]},
