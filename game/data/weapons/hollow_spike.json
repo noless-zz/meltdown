@@ -1,0 +1,8 @@
+{
+	"fire_interval_ticks": 75,
+	"projectile_speed": 600.0,
+	"lifetime": 0.5,
+	"damage": 60.0,
+	"energy_cost": 15.0,
+	"crafted_only": true
+}

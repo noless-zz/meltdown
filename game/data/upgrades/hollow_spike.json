@@ -1,0 +1,15 @@
+{
+	"id": "hollow_spike",
+	"name": "Hollow Spike",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 3,
+	"requires": [
+		"arc_lance"
+	],
+	"cost": {
+		"circuit_shards": 3,
+		"core_glass": 2
+	},
+	"grants": "hollow_spike"
+}

@@ -1,0 +1,15 @@
+{
+	"id": "drift_mortar",
+	"name": "Drift Mortar",
+	"branch": "weapons",
+	"kind": "weapon",
+	"tier": 2,
+	"requires": [
+		"slug_thrower"
+	],
+	"cost": {
+		"cell_salts": 2,
+		"circuit_shards": 4
+	},
+	"grants": "drift_mortar"
+}
