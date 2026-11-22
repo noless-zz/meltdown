@@ -13,15 +13,22 @@ extends RefCounted
 ##   so no weapon upgrade is of the secondary kind.
 ## - A `module` upgrade fits a utility slot, and only once core knows its module
 ##   (`ShipLoadout.UTILITY_MODULE_KINDS`), since the run would reject it otherwise.
-## - Upgrades of kind `shield`, `hull` or `engine` are refused as "not fittable
-##   yet" until a later issue gives them stats.
+## - A `shield`, `hull` or `engine` upgrade fits only the part slot of its own
+##   kind, one each, held in `parts`. These slots are separate from the weapon
+##   and utility slots, so defence and engine upgrades never compete with
+##   modules for space; `RunStartShip` applies their part files to the ship's
+##   numbers. Weapon, secondary and utility slots refuse them.
 
 const PRIMARY: String = "primary"
 const SECONDARY: String = "secondary"
 const UTILITY: String = "utility"
+## Slot kinds held as lists of upgrade ids (weapons and modules).
 const KEYS: Array[String] = [PRIMARY, SECONDARY, UTILITY]
-## Upgrade kinds that have no stats to fit yet.
-const NOT_FITTABLE_YET: Array[String] = ["shield", "hull", "engine"]
+## Key of the part slots in the JSON text. A text without it (written before part
+## slots existed) reads with every part slot empty.
+const PARTS: String = "parts"
+## Part slot names, one slot each; each takes only upgrades of the same kind.
+const PART_KEYS: Array[String] = ["shield", "hull", "engine"]
 ## Most utility slots a fitting can name, as `ShipTuning.UTILITY_SLOTS_MAX`.
 const UTILITY_MAX: int = ShipTuning.UTILITY_SLOTS_MAX
 
@@ -31,6 +38,8 @@ var secondary: Array[String] = ["", ""]
 ## Upgrade id per utility slot, in slot order; may be shorter than the ship's
 ## slot count.
 var utility: Array[String] = []
+## Upgrade id per part slot (`PART_KEYS`), "" when empty.
+var parts: Dictionary[String, String] = {"shield": "", "hull": "", "engine": ""}
 ## Set by `parse_json` when the text was rejected; the fitting is then empty.
 var error: String = ""
 
@@ -59,6 +68,17 @@ static func check(fitting: Fitting, tree: UpgradeTree, crafted: Array[String], s
 			var reason: String = _slot_reason(kind, tree.get_upgrade(id))
 			if reason != "":
 				return "%s: %s" % [field, reason]
+	for slot: String in PART_KEYS:
+		var id: String = fitting.parts[slot]
+		if id == "":
+			continue
+		if not tree.has_upgrade(id):
+			return "%s: unknown upgrade \"%s\"" % [slot, id]
+		if not crafted.has(id):
+			return "%s: \"%s\" is not crafted" % [slot, id]
+		var upgrade: UpgradeDef = tree.get_upgrade(id)
+		if upgrade.kind != slot:
+			return "%s: \"%s\" is kind %s, only %s upgrades fit the %s slot" % [slot, id, upgrade.kind, slot, slot]
 	return ""
 
 
@@ -104,13 +124,22 @@ func ids_of(kind: String) -> Array[String]:
 	return utility
 
 
+## The fitted part upgrade ids in `PART_KEYS` order, empty slots left out.
+func part_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for slot: String in PART_KEYS:
+		if parts[slot] != "":
+			ids.append(parts[slot])
+	return ids
+
+
 ## True when no slot names an upgrade.
 func is_empty() -> bool:
 	for kind: String in KEYS:
 		for id: String in ids_of(kind):
 			if id != "":
 				return false
-	return true
+	return part_ids().is_empty()
 
 
 ## JSON text with sorted keys, so an unchanged fitting writes the same bytes.
@@ -119,6 +148,7 @@ func to_json() -> String:
 		PRIMARY: primary.duplicate(),
 		SECONDARY: secondary.duplicate(),
 		UTILITY: utility.duplicate(),
+		PARTS: parts.duplicate(),
 	}
 	return JSON.stringify(data, "\t", true) + "\n"
 
@@ -133,7 +163,7 @@ static func parse_json(text: String) -> Fitting:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == PARTS):
 			return _rejected("unknown key \"%s\"" % str(key))
 	var fitting: Fitting = Fitting.new()
 	for key: String in KEYS:
@@ -141,6 +171,10 @@ static func parse_json(text: String) -> Fitting:
 			return _rejected("missing key \"%s\"" % key)
 		var most: int = UTILITY_MAX if key == UTILITY else ShipLoadout.SLOTS_PER_KIND
 		var problem: String = _read_ids(key, data[key], most, fitting.ids_of(key))
+		if problem != "":
+			return _rejected(problem)
+	if data.has(PARTS):
+		var problem: String = _read_parts(data[PARTS], fitting.parts)
 		if problem != "":
 			return _rejected(problem)
 	return fitting
@@ -169,10 +203,30 @@ static func _read_ids(key: String, value: Variant, most: int, into: Array[String
 	return ""
 
 
+## Fills `into` from `value`, an object of part slot to upgrade id or "". A
+## missing slot stays empty.
+static func _read_parts(value: Variant, into: Dictionary[String, String]) -> String:
+	if typeof(value) != TYPE_DICTIONARY:
+		return "key \"%s\" must be an object" % PARTS
+	var slots: Dictionary = value
+	for slot: Variant in slots:
+		if typeof(slot) != TYPE_STRING or not PART_KEYS.has(slot):
+			return "key \"%s\" has unknown slot \"%s\"" % [PARTS, str(slot)]
+		if typeof(slots[slot]) != TYPE_STRING:
+			return "key \"%s.%s\" must be a string" % [PARTS, slot]
+		var id: String = slots[slot]
+		if id != "":
+			var message: String = ShipLoadout.check_id("%s.%s" % [PARTS, slot], id)
+			if message != "":
+				return "key %s" % message
+		into[slot] = id
+	return ""
+
+
 ## Why `upgrade` cannot go in a slot of `kind`, or "".
 static func _slot_reason(kind: String, upgrade: UpgradeDef) -> String:
-	if NOT_FITTABLE_YET.has(upgrade.kind):
-		return "\"%s\" is a %s upgrade, not fittable yet" % [upgrade.id, upgrade.kind]
+	if PART_KEYS.has(upgrade.kind):
+		return "\"%s\" is kind %s, it fits only the %s slot" % [upgrade.id, upgrade.kind, upgrade.kind]
 	if kind == SECONDARY:
 		return "\"%s\" cannot go in a secondary slot: there are no secondary weapons yet" % upgrade.id
 	if kind == PRIMARY and upgrade.kind != "weapon":

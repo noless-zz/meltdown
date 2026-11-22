@@ -11,9 +11,11 @@ extends RefCounted
 ## On disk the fitting sits under a version number, because `Fitting` itself has
 ## none and refuses unknown keys: a later build that adds a slot kind raises the
 ## version, and this build then leaves that file alone instead of saving over it.
+## Version 2 added the shield, hull and engine part slots (#1055); a version-1
+## file still reads, with those slots empty.
 
 const DEFAULT_PATH: String = "user://meltdown_fitting.json"
-const VERSION: int = 1
+const VERSION: int = 2
 const KEY_VERSION: String = "version"
 const KEY_FITTING: String = "fitting"
 const LOG_PREFIX: String = "[meltdown fitting]"
@@ -105,7 +107,8 @@ static func to_file_text(fitting: Fitting) -> String:
 
 ## A copy of `fitting` without the slots `Fitting.check` would refuse on this
 ## profile and ship (an upgrade no longer known or not crafted here, a second
-## copy of one upgrade, a utility slot the ship lacks, a wrong kind), so a stale
+## copy of one upgrade, a utility slot the ship lacks, a wrong kind, part slots
+## included), so a stale
 ## file never stops a run. Each dropped slot logs one line and, when `notes` is
 ## given, is appended to it. Slots are judged in slot order, so of two slots
 ## holding the same upgrade the first is kept. Never changes `fitting`.
@@ -125,6 +128,16 @@ static func valid_for(fitting: Fitting, tree: UpgradeTree, crafted: Array[String
 				var line: String = "dropped %s" % reason
 				notes.append(line)
 				print("%s %s" % [LOG_PREFIX, line])
+	for slot: String in Fitting.PART_KEYS:
+		if fitting.parts[slot] == "":
+			continue
+		kept.parts[slot] = fitting.parts[slot]
+		var reason: String = Fitting.check(kept, tree, crafted, ship_data)
+		if reason != "":
+			kept.parts[slot] = ""
+			var line: String = "dropped %s" % reason
+			notes.append(line)
+			print("%s %s" % [LOG_PREFIX, line])
 	return kept
 
 

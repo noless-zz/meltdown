@@ -169,11 +169,11 @@ func test_refused_for_the_same_upgrade_in_two_slots() -> String:
 		"primary[1]: \"needle_gun\" is already fitted in primary[0]")
 
 
-func test_shield_hull_and_engine_are_not_fittable_yet() -> String:
+func test_shield_hull_and_engine_refuse_the_utility_slot() -> String:
 	var crafted: Array[String] = _all_crafted(_tree())
 	for id: String in ["lattice_shield", "layered_plating", "tuned_thrusters"]:
 		var reason: String = Fitting.check(_fitting(["", ""], ["", ""], [id]), _tree(), crafted, _ship_data())
-		if not reason.ends_with("not fittable yet") or not reason.contains(id):
+		if not reason.begins_with("utility[0]: \"%s\"" % id) or not reason.contains("fits only the"):
 			return "%s: '%s'" % [id, reason]
 	return ""
 
