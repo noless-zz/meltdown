@@ -2,8 +2,9 @@ extends RefCounted
 
 ## The hub offers to resume a suspended run (RUN-8, CRW-2, ARC-4, #1106): with no
 ## waiting run the launch page has no resume row and `resume` refuses with the
-## reason; with one, the page's first row shows the saved level and seed and
-## `resume` gives the action, and the launch row's discard note shows only then.
+## reason; with one, the row directly above the launch row (#1172) shows the
+## saved level and seed and `resume` gives the action, and the launch row's
+## discard note shows only then.
 
 const SHIP_PATH: String = "res://data/ships/default_ship.json"
 const ROLES_PATH: String = "res://data/crew/roles.json"
@@ -77,22 +78,75 @@ func test_no_waiting_run_has_no_resume_row_and_resume_refuses() -> String:
 	return ""
 
 
-func test_a_waiting_run_shows_level_and_seed_first_and_resumes() -> String:
+## Moves the selection onto the line `line` of `hub.lines()`; false if it never gets there.
+static func _select_line(hub: HubText, line: int) -> bool:
+	hub.move(-1000)
+	for i: int in hub.lines().size():
+		if hub.selected_line() == line:
+			return true
+		hub.move(1)
+	return hub.selected_line() == line
+
+
+func test_a_waiting_run_shows_level_and_seed_above_the_launch_row() -> String:
 	var hub: HubText = _hub(_save())
 	var lines: Array[String] = hub.lines()
 	var expected: String = _words().row("resume_row", {"level": LEVEL, "seed": SEED})
-	if lines.size() < 2 or lines[1] != expected:
-		return "first row was %s, expected \"%s\"" % [str(lines.slice(1, 2)), expected]
+	var resume: int = lines.find(expected)
+	var launch: int = lines.find(_words().row("launch_row"))
+	if resume < 0 or launch < 0:
+		return "no resume row \"%s\" or launch row in %s" % [expected, str(lines)]
+	if resume != launch - 1:
+		return "the resume row is line %d, the launch row line %d: %s" % [resume, launch, str(lines)]
+	if launch + 1 >= lines.size() or lines[launch + 1] != _words().row("launch_discard_note"):
+		return "the discard note does not follow the launch row: %s" % str(lines)
 	if not expected.contains(str(LEVEL)) or not expected.contains(str(SEED)):
 		return "the row \"%s\" lacks the level or the seed" % expected
-	if hub.selected() != {"action": HubText.ACTION_RESUME}:
-		return "the first selected row acts %s" % str(hub.selected())
-	var result: Variant = hub.model.resume()
-	if typeof(result) != TYPE_DICTIONARY or result != {"resume": true}:
-		return "resume gave %s" % str(result)
+	return ""
+
+
+func test_the_selection_starts_on_the_first_fitting_row() -> String:
+	var hub: HubText = _hub(_save())
+	var plain: HubText = _hub(null)
+	if hub.selected_line() != 1 or hub.selected() == {"action": HubText.ACTION_RESUME}:
+		return "the selection starts on line %d acting %s" % [hub.selected_line(), str(hub.selected())]
+	if hub.lines()[1] != plain.lines()[1]:
+		return "the first row is \"%s\", without a waiting run \"%s\"" % [hub.lines()[1], plain.lines()[1]]
+	return ""
+
+
+func test_pressing_the_resume_row_resumes() -> String:
+	var hub: HubText = _hub(_save())
+	var resume: int = hub.lines().find(_words().row("resume_row", {"level": LEVEL, "seed": SEED}))
+	if not _select_line(hub, resume) or hub.selected() != {"action": HubText.ACTION_RESUME}:
+		return "the resume row at line %d acts %s" % [resume, str(hub.selected())]
 	var reason: String = hub.press()
-	if reason != "" or hub.resumed != {"resume": true}:
-		return "pressing resume gave reason \"%s\", resumed %s" % [reason, str(hub.resumed)]
+	if reason != "" or hub.resumed != {"resume": true} or not hub.launched.is_empty():
+		return "pressing resume gave reason \"%s\", resumed %s, launched %s" % [reason, str(hub.resumed), str(hub.launched)]
+	return ""
+
+
+func test_pressing_the_launch_row_launches_while_a_run_waits() -> String:
+	var hub: HubText = _hub(_save())
+	var plain: HubText = _hub(null)
+	var launch: int = hub.lines().find(_words().row("launch_row"))
+	if not _select_line(hub, launch) or hub.selected() != {"action": HubText.ACTION_LAUNCH}:
+		return "the launch row at line %d acts %s" % [launch, str(hub.selected())]
+	var reason: String = hub.press()
+	if reason != "" or hub.launched.is_empty() or hub.launched != plain.model.launch() or not hub.resumed.is_empty():
+		return "pressing launch gave reason \"%s\", launched %s, resumed %s" % [reason, str(hub.launched), str(hub.resumed)]
+	return ""
+
+
+func test_no_waiting_run_leaves_the_page_as_before() -> String:
+	var hub: HubText = _hub(null)
+	var lines: Array[String] = hub.lines()
+	if lines.has(_words().row("resume_row", {"level": LEVEL, "seed": SEED})):
+		return "a resume row with no waiting run: %s" % str(lines)
+	for i: int in lines.size():
+		if hub.selected() == {"action": HubText.ACTION_RESUME}:
+			return "a selectable resume row with no waiting run"
+		hub.move(1)
 	return ""
 
 
