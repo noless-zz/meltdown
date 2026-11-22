@@ -103,6 +103,8 @@ var large_seconds_left: float:
 	get:
 		return preset_row.seconds_left if preset_row != null else 0.0
 
+## The gauges last shown (`show_gauges`); full and no countdown at first.
+var gauges: ShipGauges = ShipGauges.new()
 ## The rows the panel draws, from the look file's `rows` (#1207).
 var rows: Array[String] = []
 ## The preset row; `RigViews.show_swivel` tags it (#792).
@@ -145,9 +147,9 @@ func _init() -> void:
 	_energy_bar = PanelBar.new(self, ENERGY_TRACK_NAME, ENERGY_BAR_NAME, BAR_COLOR, ENERGY_Y, RENDER_PRIORITY)
 	_shield_bar = PanelBar.new(self, SHIELD_TRACK_NAME, SHIELD_BAR_NAME, SHIELD_COLOR, SHIELD_Y, RENDER_PRIORITY)
 	_hull_bar = PanelBar.new(self, HULL_TRACK_NAME, HULL_BAR_NAME, HULL_COLOR, HULL_Y, RENDER_PRIORITY)
-	# Full until `show_defence` is first called, so an unwired panel does not
-	# look like a dying ship.
-	show_defence(1.0, 1.0)
+	# Full until the first gauges arrive, so an unwired panel does not look
+	# like a dying ship.
+	show_gauges(gauges)
 	weapon_rows.place_all(self)
 	show_rows(StatusPanelLook.shared()["rows"])
 
@@ -163,28 +165,31 @@ func show_rows(p_rows: Array[String]) -> void:
 ## `BOOST_RECHARGING`. A preset number different from the last one shows the
 ## preset large for `PRESET_LARGE_SECONDS`.
 func show_values(preset_number: int, preset_name: String, speed_mps: float,
-		energy_fraction: float, boost: String, build_text: String) -> void:
+		boost: String, build_text: String) -> void:
 	preset_row.show(preset_number, preset_name, build_text)
 	StatusPanelLabels.set_text(_speed, "Speed %d m/s" % roundi(speed_mps))
 	StatusPanelLabels.set_text(_boost, boost)
 	_boost.modulate = RECHARGING_COLOR if boost == BOOST_RECHARGING else BOOST_COLOR
-	_energy_bar.set_fraction(energy_fraction)
 
 
-## Shows the shield and hull as fractions of their maximums, each clamped to
-## 0..1. A hull at or below the look's `low_hull_fraction` (#616) turns the hull label and bar
-## `HULL_WARNING_COLOR`.
-func show_defence(shield_fraction: float, hull_fraction: float) -> void:
-	_shield_bar.set_fraction(shield_fraction)
+## Shows this frame's `ShipGauges` (#1216): the only way the hull, shield and
+## energy bars and the countdown row get their values. A hull at or below the
+## look's `low_hull_fraction` (#616) turns the hull label and bar
+## `HULL_WARNING_COLOR`; no countdown hides its row (#315). Safe every frame.
+func show_gauges(p_gauges: ShipGauges) -> void:
+	gauges = p_gauges
+	_energy_bar.set_fraction(gauges.energy)
+	_shield_bar.set_fraction(gauges.shield)
 	_shield_bar.set_color(SHIELD_COLOR)  # Undoes last frame's hit flash (#618).
-	var hull: float = _hull_bar.set_fraction(hull_fraction)
+	var hull: float = _hull_bar.set_fraction(gauges.hull)
 	var low: bool = hull <= float(StatusPanelLook.shared()["low_hull_fraction"])
 	_hull_label.modulate = HULL_WARNING_COLOR if low else TEXT_COLOR
 	_hull_bar.set_color(HULL_WARNING_COLOR if low else HULL_COLOR)
+	_meltdown_row.show(gauges.countdown)
 
 
 ## Mixes `color` over the hull bar (`hull`) or the shield bar by `amount`,
-## 0..1, for a hit (#618). Call it after `show_defence`, which undoes it.
+## 0..1, for a hit (#618). Call it after `show_gauges`, which undoes it.
 func flash_bar(hull: bool, color: Color, amount: float) -> void:
 	var bar: PanelBar = _hull_bar if hull else _shield_bar
 	bar.set_color(bar.color().lerp(color, clampf(amount, 0.0, 1.0)))
@@ -213,12 +218,6 @@ func hold_message_seconds_left() -> float:
 func show_weapons(names: Array[String], selected: int) -> void:
 	if weapon_rows.show_slots(names, selected):
 		weapon_rows.place_all(self)  # A ship with another slot count: the rows below move.
-
-
-## Shows the meltdown countdown (#315); a negative value hides the row. See
-## `StatusPanelMeltdownRow.show`. Safe to call every frame.
-func show_meltdown(seconds_left: float) -> void:
-	_meltdown_row.show(seconds_left)
 
 
 func meltdown_visible() -> bool:

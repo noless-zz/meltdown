@@ -103,6 +103,9 @@ const SHAPE_DISTANCE_KEYS: Array[String] = ["ledge_distance_m", "pillar_distance
 ## The surfaces' pattern, edge highlight and light: the file's `"look"`
 ## object (#659).
 var look: CockpitLook = CockpitLook.new()
+## The instruments the file declares (#1216); its optional `"instruments"`
+## list, empty without one. None is drawn yet (M6).
+var instruments: Array[CockpitInstrument] = []
 
 ## Set when the text was rejected; empty otherwise.
 var error: String = ""
@@ -110,7 +113,8 @@ var error: String = ""
 
 ## Parses the text of a cockpit data file: one JSON object holding every key
 ## in `KEYS` as a number in its range, every key in `COLOR_KEYS` as a colour
-## and a `"look"` object for `CockpitLook`, and nothing else. A missing or unknown key is an error, so a typo
+## and a `"look"` object for `CockpitLook`, optionally an `"instruments"`
+## list (`CockpitInstrument`), and nothing else. A missing or unknown key is an error, so a typo
 ## cannot leave a value silently at its default. On failure the returned spec
 ## has `error` set, naming the field, and default values.
 static func parse_json(text: String) -> CockpitSpec:
@@ -121,7 +125,8 @@ static func parse_json(text: String) -> CockpitSpec:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == LOOK_KEY):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == LOOK_KEY
+				or key == CockpitInstrument.LIST_KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	var spec: CockpitSpec = CockpitSpec.new()
 	for key: String in KEYS:
@@ -157,6 +162,11 @@ static func parse_json(text: String) -> CockpitSpec:
 		if spec.get(key) + spec.part_depth_m > spec.frame_distance_m:
 			return _rejected("key \"%s\" is %s; with part_depth_m %s it reaches past frame_distance_m %s" % [
 				key, spec.get(key), spec.part_depth_m, spec.frame_distance_m])
+	if data.has(CockpitInstrument.LIST_KEY):
+		var parsed: Variant = CockpitInstrument.parse_list(data[CockpitInstrument.LIST_KEY])
+		if parsed is String:
+			return _rejected(parsed)
+		spec.instruments = parsed
 	return spec
 
 

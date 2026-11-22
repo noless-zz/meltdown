@@ -23,7 +23,8 @@ func _main() -> Node:
 
 func test_the_panel_shows_the_values_it_is_given() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(3, "Pilot", 19.6, 0.25, StatusPanel.BOOST_ON, "1a2b3c4, built 2026-11-16 10:00 UTC")
+	panel.show_values(3, "Pilot", 19.6, StatusPanel.BOOST_ON, "1a2b3c4, built 2026-11-16 10:00 UTC")
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 0.25))
 	var shown: Dictionary = panel.texts()
 	var bar: float = panel.energy_bar_scale()
 	panel.free()
@@ -44,7 +45,7 @@ func test_boost_recharging_and_nothing() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var seen: Array[String] = []
 	for boost: String in [StatusPanel.BOOST_ON, StatusPanel.BOOST_RECHARGING, ""]:
-		panel.show_values(2, "Guided", 0.0, 1.0, boost, "")
+		panel.show_values(2, "Guided", 0.0, boost, "")
 		seen.append(String(panel.texts()[StatusPanel.BOOST_NAME]))
 	panel.free()
 	if seen != ["BOOST", "recharging", ""]:
@@ -56,7 +57,7 @@ func test_the_energy_bar_follows_the_fraction_and_stays_in_range() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var cases: Dictionary = {0.0: 0.0, 0.5: 0.5, 1.0: 1.0, -0.2: 0.0, 1.5: 1.0}
 	for fraction: float in cases:
-		panel.show_values(2, "Guided", 0.0, fraction, "", "")
+		panel.show_gauges(ShipGauges.of(1.0, 1.0, fraction))
 		if not is_equal_approx(panel.energy_bar_scale(), cases[fraction]):
 			var got: float = panel.energy_bar_scale()
 			panel.free()
@@ -67,18 +68,18 @@ func test_the_energy_bar_follows_the_fraction_and_stays_in_range() -> String:
 
 func test_a_preset_change_shows_large_for_two_seconds() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(2, "Guided", 0.0, 1.0, "", "")
+	panel.show_values(2, "Guided", 0.0, "", "")
 	panel.advance(StatusPanel.PRESET_LARGE_SECONDS + 0.1)
-	panel.show_values(2, "Guided", 0.0, 1.0, "", "")
+	panel.show_values(2, "Guided", 0.0, "", "")
 	var large_without_change: bool = panel.large_preset_visible()
-	panel.show_values(3, "Pilot", 0.0, 1.0, "", "")
+	panel.show_values(3, "Pilot", 0.0, "", "")
 	var large_on_change: bool = panel.large_preset_visible()
 	var large_text: String = panel.texts()[StatusPanel.PRESET_LARGE_NAME]
 	panel.advance(1.9)
-	panel.show_values(3, "Pilot", 0.0, 1.0, "", "")
+	panel.show_values(3, "Pilot", 0.0, "", "")
 	var large_before_two: bool = panel.large_preset_visible()
 	panel.advance(0.2)
-	panel.show_values(3, "Pilot", 0.0, 1.0, "", "")
+	panel.show_values(3, "Pilot", 0.0, "", "")
 	var large_after_two: bool = panel.large_preset_visible()
 	var small_after: bool = (panel.get_node(StatusPanel.PRESET_NAME) as Label3D).visible
 	panel.free()

@@ -20,11 +20,11 @@ static func _y(panel: StatusPanel, node_name: String) -> float:
 func test_the_row_starts_hidden_and_hides_for_negative_values() -> String:
 	var panel: StatusPanel = StatusPanel.new()
 	var at_start: bool = panel.meltdown_visible()
-	panel.show_meltdown(90.0)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, 90.0))
 	var counting: bool = panel.meltdown_visible()
-	panel.show_meltdown(-1.0)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, -1.0))
 	var after_negative: bool = panel.meltdown_visible()
-	panel.show_meltdown(5.0)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, 5.0))
 	var again: bool = panel.meltdown_visible()
 	panel.free()
 	if at_start:
@@ -46,7 +46,7 @@ func test_the_countdown_reads_minutes_and_seconds() -> String:
 	}
 	for seconds: float in expected:
 		var panel: StatusPanel = StatusPanel.new()
-		panel.show_meltdown(seconds)
+		panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, seconds))
 		var shown: String = _meltdown(panel).text
 		var listed: String = String(panel.texts().get(StatusPanel.MELTDOWN_NAME, ""))
 		var visible: bool = panel.meltdown_visible()
@@ -71,7 +71,7 @@ func test_the_warning_colour_shows_under_the_threshold() -> String:
 	}
 	var panel: StatusPanel = StatusPanel.new()
 	for seconds: float in expected:
-		panel.show_meltdown(seconds)
+		panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, seconds))
 		var label: Label3D = _meltdown(panel)
 		var colour: Color = StatusPanel.HULL_WARNING_COLOR if expected[seconds] else StatusPanel.TEXT_COLOR
 		if label.modulate != colour or panel.meltdown_warning_shown() != expected[seconds]:
@@ -85,18 +85,18 @@ func test_the_warning_colour_shows_under_the_threshold() -> String:
 
 func test_calls_within_one_second_do_not_rebuild_the_label() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_meltdown(45.95)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, 45.95))
 	var after_first: int = panel.meltdown_text_changes
 	# A second of frames at 72 Hz, all inside 45.x.
 	var seconds: float = 45.95
 	while seconds > 45.0:
-		panel.show_meltdown(seconds)
+		panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, seconds))
 		seconds -= 1.0 / 72.0
 	var within: int = panel.meltdown_text_changes
-	panel.show_meltdown(44.99)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, 44.99))
 	var next_second: int = panel.meltdown_text_changes
-	panel.show_meltdown(-1.0)
-	panel.show_meltdown(44.5)
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, -1.0))
+	panel.show_gauges(ShipGauges.of(1.0, 1.0, 1.0, 44.5))
 	var after_hide: int = panel.meltdown_text_changes
 	panel.free()
 	if after_first != 1:
@@ -142,13 +142,15 @@ func test_the_row_sits_at_the_top_above_energy() -> String:
 	return ""
 
 
+## Since #1216 the countdown arrives in `ShipGauges` with the bars: a
+## countdown starting, the other gauges unchanged, touches only its own row.
 func test_show_meltdown_leaves_the_other_rows_alone() -> String:
 	var panel: StatusPanel = StatusPanel.new()
-	panel.show_values(2, "Guided", 12.0, 0.5, "", "abc")
-	panel.show_defence(0.6, 0.3)
+	panel.show_values(2, "Guided", 12.0, "", "abc")
+	panel.show_gauges(ShipGauges.of(0.3, 0.6, 0.5))
 	panel.show_hold("Twin Laser")
 	var before: Dictionary = panel.texts()
-	panel.show_meltdown(12.0)
+	panel.show_gauges(ShipGauges.of(0.3, 0.6, 0.5, 12.0))
 	var after: Dictionary = panel.texts()
 	var bars: Vector3 = Vector3(panel.energy_bar_scale(), panel.shield_bar_scale(), panel.hull_bar_scale())
 	var hull_warning: bool = panel.hull_warning_shown()

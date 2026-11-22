@@ -129,7 +129,7 @@ func test_the_build_line_costs_no_row_and_shows_with_the_large_preset() -> Strin
 	var panel: StatusPanel = StatusPanel.new()
 	var build: Label3D = panel.get_node(StatusPanel.BUILD_NAME) as Label3D
 	var before: bool = build.visible
-	panel.show_values(2, "Guided", 0.0, 1.0, "", "abc1234, built 2026-11-19 12:00 UTC")
+	panel.show_values(2, "Guided", 0.0, "", "abc1234, built 2026-11-19 12:00 UTC")
 	var with_large: bool = build.visible
 	panel.advance(StatusPanel.PRESET_LARGE_SECONDS + 0.1)
 	var after: bool = build.visible
