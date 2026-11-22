@@ -31,6 +31,9 @@ extends RefCounted
 ## `swivel_custom_text` after it while the custom file decides; each optional.
 ## The `foveation` entry (#871) shows `foveation_off_text` or the level, with
 ## `foveation_dynamic_text` after it when dynamic and `foveation_note_text` last.
+## `distance_m` (a number over 0) and `offset_m` (`[right, up]`) say where the
+## menu opens from the head (#1206): its centre that far along the head's
+## forward direction, then moved across the view; both optional.
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -71,6 +74,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_SWIVEL: "Swivel chair",
 	KIND_FOVEATION: "Foveation",
 }
+const PLACE_KEYS: Array[String] = ["distance_m", "offset_m"]
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz_"
 
@@ -98,6 +102,8 @@ var swivel_custom_text: String = "(custom file)"
 var foveation_off_text: String = "Off"
 var foveation_dynamic_text: String = "dynamic"
 var foveation_note_text: String = "(this session)"
+var distance_m: float = 1.0
+var offset_m: Vector2 = Vector2.ZERO
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 
@@ -135,7 +141,7 @@ static func parse(text: String) -> DevMenuSpec:
 		return spec
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if not (["entries", "corners", "schemes"] + TEXT_KEYS).has(str(key)):
+		if not (["entries", "corners", "schemes"] + PLACE_KEYS + TEXT_KEYS).has(str(key)):
 			spec.error = "unknown key \"%s\"" % str(key)
 			return spec
 	spec.error = spec._read_entries(data.get("entries"))
@@ -143,6 +149,8 @@ static func parse(text: String) -> DevMenuSpec:
 		spec.error = spec._read_corners(data.get("corners"))
 	if spec.error == "" and data.has("schemes"):
 		spec.error = spec._read_schemes(data["schemes"])
+	if spec.error == "":
+		spec.error = spec._read_place(data)
 	for key: String in TEXT_KEYS:
 		if spec.error == "" and data.has(key):
 			if typeof(data[key]) != TYPE_STRING or (data[key] as String).strip_edges() == "":
@@ -198,4 +206,20 @@ func _read_schemes(value: Variant) -> String:
 			return "scheme %s is not one of %s or given twice" % [
 				str(item), ", ".join(ControlSchemeSwitch.SCHEMES)]
 		schemes.append(scheme)
+	return ""
+
+
+func _read_place(data: Dictionary) -> String:
+	if data.has("distance_m"):
+		var distance: Variant = data["distance_m"]
+		if not (distance is float or distance is int) or float(distance) <= 0.0:
+			return "\"distance_m\" must be a number over 0"
+		distance_m = float(distance)
+	if data.has("offset_m"):
+		var offset: Variant = data["offset_m"]
+		if typeof(offset) != TYPE_ARRAY or (offset as Array).size() != 2 \
+				or not ((offset as Array)[0] is float or (offset as Array)[0] is int) \
+				or not ((offset as Array)[1] is float or (offset as Array)[1] is int):
+			return "\"offset_m\" must be [right, up] in metres"
+		offset_m = Vector2(float(offset[0]), float(offset[1]))
 	return ""
