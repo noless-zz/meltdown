@@ -20,10 +20,12 @@
 		"slot_upgrade": "{name}",
 		"slot_part": "{part} (stock)",
 		"slot_empty": "nothing mounted",
+		"slot_stock": "stock",
 		"fit_option_row": "Mount {name}",
 		"clear_row": "Strip this slot back to stock",
 		"launch_row": "Drop into the mine",
-		"slot_names": {"primary": "Primary {number}", "secondary": "Secondary {number}", "utility": "Utility {number}"},
+		"slot_names": {"primary": "Primary {number}", "secondary": "Secondary {number}", "utility": "Utility {number}",
+			"shield": "Shield", "hull": "Hull", "engine": "Engine"},
 		"stat_names": {
 			"map_reveal": "map reveal",
 			"shield_max": "shield",

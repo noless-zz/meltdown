@@ -106,9 +106,11 @@ func crafted() -> Array[String]:
 	return ids
 
 
-## Every weapon slot, then each utility slot the ship has: `slot` (as `fit`
-## takes it), `kind`, `index`, the fitted `upgrade` ("" for none) and the ship
-## file's `part` in that slot ("" for none).
+## Every weapon slot, then each utility slot the ship has, then the shield,
+## hull and engine part slots (#1094): `slot` (as `fit` takes it), `kind`,
+## `index`, the fitted `upgrade` ("" for none, which for a part slot means the
+## ship's stock numbers) and the ship file's `part` in that slot ("" for none;
+## always "" for a part slot, whose stock is numbers, not a part id).
 func fit_slots() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	var base: Dictionary = {}
@@ -130,6 +132,8 @@ func fit_slots() -> Array[Dictionary]:
 				"upgrade": ids[index] if index < ids.size() else "",
 				"part": str(parts[index]) if index < parts.size() else "",
 			})
+	for kind: String in Fitting.PART_KEYS:
+		rows.append({"slot": kind, "kind": kind, "index": 0, "upgrade": fitting.parts[kind], "part": ""})
 	return rows
 
 
@@ -138,17 +142,22 @@ func craft(id: String) -> String:
 	return Crafting.craft(profile, tree, id)
 
 
-## Puts upgrade `id` in `slot` ("primary[0]", "utility[1]", ...), or empties it
-## when `id` is "". Returns `Fitting.check`'s reason unchanged and leaves the
-## fitting as it was on a refusal; "" on success. A slot name that is not one of
-## the fitting's slots is refused before the check.
+## Puts upgrade `id` in `slot` ("primary[0]", "utility[1]", ..., or a part
+## slot "shield", "hull", "engine"), or empties it when `id` is "" (a part slot
+## then goes back to stock). Returns `Fitting.check`'s reason unchanged and
+## leaves the fitting as it was on a refusal; "" on success, keeping every other
+## slot, parts included. A slot name that is not one of the fitting's slots is
+## refused before the check.
 func fit(slot: String, id: String) -> String:
+	var candidate: Fitting = _copy(fitting)
+	if Fitting.PART_KEYS.has(slot):
+		candidate.parts[slot] = id
+		return _take(candidate)
 	var parsed: Array = _parse_slot(slot)
 	if parsed.is_empty():
 		return "unknown slot \"%s\"" % slot
 	var kind: String = parsed[0]
 	var index: int = parsed[1]
-	var candidate: Fitting = _copy(fitting)
 	var ids: Array[String] = candidate.ids_of(kind)
 	while ids.size() <= index:
 		ids.append("")
@@ -157,13 +166,7 @@ func fit(slot: String, id: String) -> String:
 		# The fitting file lists utility slots up to the last used one.
 		while not ids.is_empty() and ids[ids.size() - 1] == "":
 			ids.remove_at(ids.size() - 1)
-	var reason: String = Fitting.check(candidate, tree, profile.crafted, ship_data)
-	if reason != "":
-		return reason
-	fitting.primary = candidate.primary
-	fitting.secondary = candidate.secondary
-	fitting.utility = candidate.utility
-	return ""
+	return _take(candidate)
 
 
 ## Why the current fitting cannot start a run, or "" (`Fitting.check`).
@@ -177,6 +180,19 @@ func launch() -> Dictionary:
 	if launch_check() != "":
 		return {}
 	return Fitting.loadout(fitting, tree, ship_data)
+
+
+## Copies `candidate` into the fitting when `Fitting.check` passes it; returns
+## the check's reason unchanged.
+func _take(candidate: Fitting) -> String:
+	var reason: String = Fitting.check(candidate, tree, profile.crafted, ship_data)
+	if reason != "":
+		return reason
+	fitting.primary = candidate.primary
+	fitting.secondary = candidate.secondary
+	fitting.utility = candidate.utility
+	fitting.parts = candidate.parts
+	return ""
 
 
 ## The tree's upgrades ordered as `Crafting.available` orders them.
@@ -207,4 +223,5 @@ static func _copy(source: Fitting) -> Fitting:
 	copy.primary = source.primary.duplicate()
 	copy.secondary = source.secondary.duplicate()
 	copy.utility = source.utility.duplicate()
+	copy.parts = source.parts.duplicate()
 	return copy
