@@ -129,7 +129,7 @@ func test_a_preset_change_mid_run_takes_effect_from_the_next_input() -> String:
 	var on_three: Vector3i = _flown_aim(comfort)
 	comfort.set_preset(2)
 	var on_two: Vector3i = _flown_aim(comfort)
-	comfort.read_preset_button({comfort.preset_button(): true})  # 2 > 3 with the button.
+	comfort.set_preset(comfort.next_number())  # 2 > 3 through the switch the menu uses (#1260).
 	var after_button: Vector3i = _flown_aim(comfort)
 	rig.free()
 	if on_one == ShipInput.NOSE_AIM_Q:
@@ -139,7 +139,7 @@ func test_a_preset_change_mid_run_takes_effect_from_the_next_input() -> String:
 	if on_two != on_one:
 		return "after switching back to preset 2 the aim was %s, expected %s" % [on_two, on_one]
 	if comfort.number != 3 or after_button != ShipInput.NOSE_AIM_Q:
-		return "the preset button to %d left the aim at %s" % [comfort.number, after_button]
+		return "stepping to preset %d left the aim at %s" % [comfort.number, after_button]
 	return ""
 
 

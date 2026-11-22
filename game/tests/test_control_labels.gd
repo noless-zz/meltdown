@@ -13,10 +13,9 @@ const DEFAULT_LABELS: Dictionary = {
 	"right_stick": "nose up\nleft  <  yaw  >  right\nnose down",
 	"left_grip": "roll left",
 	"right_grip": "roll right",
-	# Down on Y mirrors up on B; X is the comfort preset (#613).
+	# Down on Y mirrors up on B; X is free and unlabelled (decision record 0011, #1260).
 	"left_button_upper": "down",
 	"right_button_upper": "up",
-	"left_button_lower": "comfort preset",
 	"right_button_lower": "boost",
 	"right_trigger": "fire",
 	"right_stick_click": "click: slot held part",
@@ -56,7 +55,6 @@ func test_unbound_controls_get_no_label() -> String:
 			return "%s is unbound but labelled '%s'" % [control, got[control]]
 	var zero: Dictionary = ControlLabels.for_layout({"lift": {"right_trigger": 0.0}})
 	var only_fixed: Dictionary = ControlLabels.FIXED_LABELS.duplicate()
-	only_fixed[ThumbstickMapping.PRESET_BUTTON] = ControlLabels.PRESET_WORD
 	only_fixed[ThumbstickMapping.LABEL_BUTTON] = ControlLabels.LABEL_TOGGLE_WORD
 	if zero != only_fixed:
 		return "a zero weight should give no label, got %s" % zero
@@ -75,9 +73,9 @@ func test_left_handed_moves_labels_to_the_other_hand() -> String:
 		return message
 	if got.get("left_button_lower", "") != "boost" or got.get("left_trigger", "") != "fire":
 		return "left-handed boost should be on X and fire on the left trigger: %s" % got
-	if got.get("right_button_lower", "") != "comfort preset" or got.get("left_button_upper", "") != "up" \
+	if got.has("right_button_lower") or got.get("left_button_upper", "") != "up" \
 			or got.get("right_button_upper", "") != "down":
-		return "left-handed: Y up, B down, A comfort preset, got %s" % got
+		return "left-handed: Y up, B down, A unlabelled, got %s" % got
 	return ""
 
 
@@ -127,7 +125,7 @@ func test_labels_split_by_hand() -> String:
 	if left.size() + right.size() != labels.size():
 		return "hands should share all %d labels, got %d + %d" % [labels.size(), left.size(), right.size()]
 	if left.get("button_upper", "") != "down" or right.get("button_upper", "") != "up" \
-			or left.get("button_lower", "") != "comfort preset" \
+			or left.has("button_lower") \
 			or right.get("trigger", "") != "fire" or left.has("trigger"):
 		return "labels per hand wrong: %s / %s" % [left, right]
 	return ""
@@ -199,9 +197,9 @@ func test_rig_rebuilds_labels_on_remap_and_left_handed() -> String:
 		var left: ControllerModel = rig.call("model_for", "left") as ControllerModel
 		if left.label_texts().get("stick_click", "") != "up, click: slot held part":
 			message = "left-handed not shown: %s" % left.label_texts()
-		elif right.label_texts().get("button_lower", "") != "comfort preset" \
+		elif right.label_texts().has("button_lower") \
 				or left.label_texts().get("button_lower", "") != "boost":
-			message = "boost should move to X and the preset to A: %s / %s" % [left.label_texts(), right.label_texts()]
+			message = "boost should move to X and A stay bare: %s / %s" % [left.label_texts(), right.label_texts()]
 	rig.free()
 	return message
 

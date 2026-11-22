@@ -9,7 +9,7 @@ extends RefCounted
 ## It sits beside `main.gd`, like the other wirings, because it reads the
 ## session's pause and hands the comfort layer its input; it never writes
 ## `ShipState` or `Sim` (ARC-3, MP-2). Presets change only through the
-## caller's `set_comfort_preset`, the same path as an X press, so nothing but
+## caller's `set_comfort_preset`, the same path as the menu's Comfort entry, so nothing but
 ## the ship moves the view (CMF-6, CMF-8).
 ##
 ## The dev menu's Flight test entry (#839) runs it again through `run_again`:
@@ -46,7 +46,7 @@ var panel: FlightTestPanel = null
 
 var _comfort: ComfortWiring = null
 var _apply_preset: Callable
-## The preset last saved or applied from the choice, so an X press shows as a change.
+## The preset last saved or applied from the choice, so a menu choice shows as a change.
 var _known_preset: int = 0
 var _buttons_before: Dictionary = {}
 var _menu_held: bool = false
@@ -129,8 +129,8 @@ func running() -> bool:
 
 ## Reads this frame's `buttons` and whether the menu button (or Backspace) is
 ## down. Takes an answer on the frame its button goes down while one is due.
-## Returns the buttons the rest of the frame should read: during the test
-## without the preset button, since the test chooses the preset then.
+## Returns the buttons the rest of the frame should read, all of them: X, which
+## the test once held back, changes no preset any more (decision record 0011).
 func read_buttons(buttons: Dictionary, menu_held: bool) -> Dictionary:
 	var before: Dictionary = _buttons_before
 	_buttons_before = buttons.duplicate()
@@ -144,9 +144,7 @@ func read_buttons(buttons: Dictionary, menu_held: bool) -> Dictionary:
 			_hold_until_release = true
 	if _hold_until_release and not answers.any_held(buttons):
 		_hold_until_release = false
-	var rest: Dictionary = buttons.duplicate()
-	rest.erase(_comfort.preset_button())
-	return rest
+	return buttons
 
 
 ## True while `held` keeps the ship still; the swivel adds nothing then (#819).

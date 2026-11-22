@@ -17,8 +17,9 @@ extends RefCounted
 ##   forward thrust unless the stick is pulled back
 ## - the right stick click slots the part in the hold into a primary slot
 ##   (SLV-1, #312), a stand-in until a hand gesture is designed
-## - X (left lower) is the comfort preset button, read outside the mapping;
-##   the left stick hold shows and hides the labels, also read outside the
+## - X (left lower) is bound to nothing and free for future use; the comfort
+##   preset is chosen in the menu (decision record 0011, #1260)
+## - the left stick hold shows and hides the labels, read outside the
 ##   mapping (#181, #914)
 ## - a click of the left stick opens or closes the map hologram (`show_map`,
 ##   MAP-1, #314, #914, on release); holding it for `MapHologram.HOLD_SECONDS`

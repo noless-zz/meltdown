@@ -227,9 +227,9 @@ func test_lines_follow_left_handed_and_paired_layouts() -> String:
 	return ""
 
 
-func test_preset_on_x_and_down_on_y_in_left_handed_mode() -> String:
-	# Decision record 0004 and #613: the preset sits on X (left lower) and down
-	# on Y (left upper); left-handed mode moves both to A and B.
+func test_x_is_bare_and_down_stays_on_y_in_left_handed_mode() -> String:
+	# Decision record 0011 (#1260): X (left lower) carries no label any more, and
+	# down keeps its place on Y (left upper); left-handed mode moves both to A and B.
 	var table: Dictionary = _anchors().table_points(QUEST3)
 	for left_handed: bool in [false, true]:
 		var labels: Dictionary = ControlLabels.for_layout(ThumbstickMapping.default_layout(), left_handed)
@@ -238,13 +238,15 @@ func test_preset_on_x_and_down_on_y_in_left_handed_mode() -> String:
 		model.build()
 		model.on_vendor_model_loaded()
 		model.set_labels(ControlLabels.for_hand(labels, hand))
-		var lower: String = str(model.label_texts().get("button_lower", ""))
-		var end: Vector3 = (model.label_set().leaders()["button_lower"] as Array)[1]
+		var leaders: Dictionary = model.label_set().leaders()
 		var message: String = ""
-		if not lower.contains(ControlLabels.PRESET_WORD):
-			message = "%s button_lower reads \"%s\", want the preset" % [hand, lower]
-		elif not end.is_equal_approx(model.label_set().mirror(table["button_lower"])):
-			message = "%s preset leader ends at %s, not on the lower button" % [hand, end]
+		if model.label_texts().has("button_lower") or leaders.has("button_lower"):
+			message = "%s button_lower is still labelled: %s" % [hand, model.label_texts()]
+		elif str(model.label_texts().get("button_upper", "")) != "down":
+			message = "%s button_upper reads \"%s\", want down" % [hand, model.label_texts().get("button_upper", "")]
+		elif not ((leaders["button_upper"] as Array)[1] as Vector3).is_equal_approx(
+				model.label_set().mirror(table["button_upper"])):
+			message = "%s down leader no longer ends on the upper button" % hand
 		model.free()
 		if message != "":
 			return message

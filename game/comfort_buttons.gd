@@ -1,13 +1,14 @@
 class_name ComfortButtons
 extends RefCounted
 
-## Press and hold bookkeeping of the two development buttons on the hand that
-## does not turn: the preset switch (#613) and the control-label toggle, which
-## may share its button with the map (#335, #914). Split out of
+## Press and hold bookkeeping of the control-label toggle on the hand that
+## does not turn, which may share its button with the map (#335, #914). X no
+## longer switches the comfort preset (decision record 0011, #1260); the menu's
+## Comfort entry does. Split out of
 ## `comfort_wiring.gd` (#1157): `ComfortWiring` extends this class, so every
 ## caller keeps the names it used, with no forwarding layer.
 ##
-## Neither button is a flight control: nothing here reaches `ShipInput` (ARC-3).
+## The toggle is not a flight control: nothing here reaches `ShipInput` (ARC-3).
 
 ## Seconds on a steady clock; `read_label_button` times a click with it. Tests
 ## replace it so a hold can be timed without waiting.
@@ -19,29 +20,12 @@ var click_hold: ClickHold = ClickHold.new()
 
 ## Read for which hand carries each button.
 var _mapping: ThumbstickMapping
-## The preset switch acts once per press, not once per frame it is held.
-var _preset_button_held: bool = false
-## The label toggle, likewise, flips once per click.
+## The label toggle flips once per click, not once per frame it is held.
 var _label_button_held: bool = false
 
 
 func _init(p_mapping: ThumbstickMapping) -> void:
 	_mapping = p_mapping
-
-
-## The development preset switch: the lower face button of the hand that does
-## not turn (X, or A when left-handed; #613). Read here rather than bound in
-## the layout, since it is not a flight control and a settings menu replaces it.
-func preset_button() -> String:
-	return _mapping.preset_button()
-
-
-## True on the one frame the preset button goes down.
-func preset_pressed(buttons: Dictionary) -> bool:
-	var pressed: bool = bool(buttons.get(preset_button(), false))
-	var went_down: bool = pressed and not _preset_button_held
-	_preset_button_held = pressed
-	return went_down
 
 
 ## The control-label toggle: the stick click of the hand that does not turn

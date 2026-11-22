@@ -52,19 +52,19 @@ func test_each_preset_shows_its_own_frame() -> String:
 	return message
 
 
-func test_the_preset_button_swaps_the_frame_at_once() -> String:
+## Through `set_comfort_preset`, the path the menu's Comfort entry takes since
+## X stopped changing the preset (decision record 0011, #1260).
+func test_a_preset_change_swaps_the_frame_at_once() -> String:
 	var main: Node = Scene.new_main()
 	main.call("attach_cockpit_frame")
 	main.call("set_comfort_preset", 1)
 	var comfort: ComfortWiring = main.get("comfort")
 	var frame_before: CockpitFrame = comfort.cockpit_frame
 	var spec_before: CockpitSpec = frame_before.spec
-	var values: Dictionary = ControllerSampler.idle_values()
-	values["buttons"] = {"left_button_lower": true}
-	main.call("apply_controls", values)
+	main.call("set_comfort_preset", 2)
 	var message: String = ""
 	if comfort.number != 2:
-		message = "X on preset 1 gave preset %d" % comfort.number
+		message = "changing preset 1 to 2 gave preset %d" % comfort.number
 	elif comfort.cockpit_frame != frame_before:
 		message = "the switch replaced the frame node instead of rebuilding it"
 	elif comfort.cockpit_frame.spec == spec_before:
