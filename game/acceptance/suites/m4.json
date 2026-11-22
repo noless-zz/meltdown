@@ -60,6 +60,16 @@
 			"expected_level_hash": 1969209597
 		},
 		{
+			"id": "fitted_flight",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"profile": "res://acceptance/fittings/fitted_start_profile.json",
+			"fitting": "res://acceptance/fittings/fitted_start_fitting.json",
+			"checks": ["final_hash", "outcome", "no_script_errors"],
+			"expected_hash": 3851150116,
+			"expected_outcome": "RUNNING"
+		},
+		{
 			"id": "crew_joins",
 			"run": 12345,
 			"replay": "res://acceptance/replays/crew_joins.replay",
