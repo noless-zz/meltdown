@@ -24,18 +24,51 @@ playing further is not in M4's scope: "home base was very basic graphic and im m
 good sound and graphic touch to keep playing... menus were overwhelming because of the
 text". He cannot test tonight and does not want the Builders idle while G4 waits for him.
 
-## What the owner wants first in M6
+## What M6 is for: game feel
 
-From the same message, in this order:
+Refined by the owner the same evening: "its not just hub and menu... overall graphic of
+ship and surrounding environment should be added in M6. revisit all graphics assets
+including designing a home base... now focus this gate on game feel... look/sound/speed
+as stated in gate."
 
-1. **The hub and the menus.** Less text on screen at once, clear visual grouping, and a
-   look that belongs to a game rather than a test panel (CRW-2, PLT-2, GFX). This is his
-   main complaint.
-2. **Sound.** Core events audible: weapons, hits taken and given, pickups, the reactor,
-   the countdown, the menu (AUD-1).
-3. **Materials, lighting and effects** in the mine (GFX-2 and after).
+So M6 is judged as gate G6 says, "quality accepted in the headset", and covers all of:
 
-Music and the optimisation steps follow.
+- **Look.** Every graphic asset is revisited, not only the walls: the ship and its
+  cockpit, the robots, weapons and their effects, pickups, miners, fire, the reactor, the
+  mine itself (materials, lighting, GFX-2 and after), and the menus (less text on screen
+  at once; "menus were overwhelming because of the text").
+- **Sound.** Core events audible and placed in space (AUD-1), then music.
+- **Speed.** The frame and memory budgets hold with all of the above (PRF).
+- **The home base as a 3D place** (see below).
+
+His sharpest complaint is the home base and the menus, so they should not come last,
+but M6 is not a hub milestone: the gate is about how the whole game looks, sounds and
+runs.
+
+## The home base becomes a 3D room with terminals
+
+CRW-2 already calls the hub "a small room". In M6 it becomes one: a modelled space the
+pilot is in, with a terminal (a station) for each task the flat panel pages do today:
+craft, fit, crew, logbook, resume, launch. The pages' rules and data do not change; what
+changes is where and how they are shown.
+
+Constraints for the Planner:
+
+- It must work seated and at every comfort preset. Moving about the room may not use
+  smooth locomotion on presets 1 and 2 (CMF-1, CMF-3); terminals arranged within reach or
+  pointing distance of one spot is an acceptable first version. If a movement scheme is
+  needed, ask the owner before building it.
+- Presentation only: the room reads and changes the same profile and fitting through the
+  same code paths (ARC-3, MP-2).
+- Build it so a terminal can later hold more than a list.
+
+## Direction noted for later (not M6 scope)
+
+The owner wants the base to grow into something played, not read: "mini games and real
+in game crafting and mounting/maintaining/rebuilding the ship and its components". That
+is hands-on work at the terminals and on the ship itself. It is recorded here so the 3D
+room is planned to support it; it needs its own requirement wording, merged by the
+owner, before any of it is built.
 
 ## Consequences
 
