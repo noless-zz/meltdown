@@ -10,6 +10,10 @@ const EscapeSweep := preload("res://tests/bot_escape_sweep.gd")
 ## Run seed 12345's shafts under the first-offered rule, pinned.
 const PINNED_SEED: int = 12345
 const PINNED_SHAFTS: Array[String] = ["deep", "hot", "deep", "steady"]
+## Run seed 12345 flown by the plain ship file, as printed before #1091 added
+## the fitted ship: the plain report must not move (#1091).
+const PINNED_PLAIN_LINE: String = 'MELTDOWN_BOT_RUN {"seed":12345,"planned":5,"flown":3,"escaped":2,"ended":"LOST ship destroyed"}'
+const PINNED_PLAIN_SUMMARY: String = 'MELTDOWN_BOT_RUNS {"runs":1,"completed":0,"rate":0.0000,"levels_flown":3,"levels_escaped":2}'
 
 
 static func _result(escaped: bool) -> EscapeSweep.SeedResult:
@@ -98,6 +102,9 @@ func test_same_run_seed_twice_gives_the_same_line() -> String:
 		return "errors: %s" % [first["errors"]]
 	if first["lines"].size() != 1 or first["lines"] != second["lines"]:
 		return "lines %s then %s" % [first["lines"], second["lines"]]
+	if first["lines"][0] != PINNED_PLAIN_LINE or RunSweep.summary(first) != PINNED_PLAIN_SUMMARY:
+		return "plain report %s %s, pinned %s %s" % [first["lines"][0], RunSweep.summary(first),
+				PINNED_PLAIN_LINE, PINNED_PLAIN_SUMMARY]
 	print("  bot run sweep: %s" % first["lines"][0])
 	return ""
 

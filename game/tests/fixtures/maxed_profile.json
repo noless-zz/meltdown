@@ -1,6 +1,7 @@
 {
 	"banked": {},
 	"crafted": [
+		"aim_assist",
 		"arc_lance",
 		"baffled_emitter",
 		"fused_bulkhead",
