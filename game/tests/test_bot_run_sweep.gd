@@ -11,8 +11,10 @@ const EscapeSweep := preload("res://tests/bot_escape_sweep.gd")
 const PINNED_SEED: int = 12345
 const PINNED_SHAFTS: Array[String] = ["deep", "hot", "deep", "steady"]
 ## Run seed 12345 flown by the plain ship file, as printed before #1091 added
-## the fitted ship: the plain report must not move (#1091).
-const PINNED_PLAIN_LINE: String = 'MELTDOWN_BOT_RUN {"seed":12345,"planned":5,"flown":3,"escaped":2,"ended":"LOST ship destroyed"}'
+## the fitted ship: the plain report must not move (#1091). #1173 builds levels
+## 2 and 3 with the deep and hot shafts' robot scales; the outcome did not move,
+## the line gained `robot_scales`.
+const PINNED_PLAIN_LINE: String = 'MELTDOWN_BOT_RUN {"seed":12345,"planned":5,"flown":3,"escaped":2,"ended":"LOST ship destroyed","robot_scales":[1.00,1.30,1.10]}'
 const PINNED_PLAIN_SUMMARY: String = 'MELTDOWN_BOT_RUNS {"runs":1,"completed":0,"rate":0.0000,"levels_flown":3,"levels_escaped":2}'
 
 
@@ -33,9 +35,23 @@ static func _shafts() -> ShaftOffer:
 	return ShaftOffer.build(FileAccess.get_file_as_string(RunSweep.SHAFTS_FILE))
 
 
+## The robot scales of the first `count` levels of `run_seed` under the
+## first-offered rule, as a run line writes them (#1173).
+static func _scales(run_seed: int, count: int) -> String:
+	var state: RunState = RunState.new(_plan(run_seed), _shafts())
+	var written: PackedStringArray = []
+	for index: int in count:
+		if state.needs_choice():
+			state.choose(state.offer()[0])
+		written.append("%.2f" % float(state.current_risk()["robot_count"]))
+		state.advance()
+	return ",".join(written)
+
+
 func test_stubbed_runs_escaped_escaped_lost_give_the_summary() -> String:
 	# Run seeds 1 and 2 escape every level; run seed 3 is lost on its first.
-	var stub: Callable = func(run_seed: int, _index: int, _level_seed: int) -> EscapeSweep.SeedResult:
+	var stub: Callable = func(run_seed: int, _index: int, _level_seed: int,
+			_robot_scale: float) -> EscapeSweep.SeedResult:
 		return _result(run_seed != 3)
 	var result: Dictionary = RunSweep.run(1, 3, stub)
 	if not result["errors"].is_empty():
@@ -48,9 +64,12 @@ func test_stubbed_runs_escaped_escaped_lost_give_the_summary() -> String:
 	if RunSweep.summary(result) != expected:
 		return "summary %s, expected %s" % [RunSweep.summary(result), expected]
 	var lines: Array[String] = [
-		'MELTDOWN_BOT_RUN {"seed":1,"planned":%d,"flown":%d,"escaped":%d,"ended":"completed"}' % [first, first, first],
-		'MELTDOWN_BOT_RUN {"seed":2,"planned":%d,"flown":%d,"escaped":%d,"ended":"completed"}' % [second, second, second],
-		'MELTDOWN_BOT_RUN {"seed":3,"planned":%d,"flown":1,"escaped":0,"ended":"RUNNING ship destroyed"}' % _plan(3).level_count(),
+		'MELTDOWN_BOT_RUN {"seed":1,"planned":%d,"flown":%d,"escaped":%d,"ended":"completed","robot_scales":[%s]}' \
+				% [first, first, first, _scales(1, first)],
+		'MELTDOWN_BOT_RUN {"seed":2,"planned":%d,"flown":%d,"escaped":%d,"ended":"completed","robot_scales":[%s]}' \
+				% [second, second, second, _scales(2, second)],
+		'MELTDOWN_BOT_RUN {"seed":3,"planned":%d,"flown":1,"escaped":0,"ended":"RUNNING ship destroyed","robot_scales":[1.00]}' \
+				% _plan(3).level_count(),
 	]
 	if result["lines"] != lines:
 		return "lines %s, expected %s" % [result["lines"], lines]
@@ -60,7 +79,8 @@ func test_stubbed_runs_escaped_escaped_lost_give_the_summary() -> String:
 func test_each_level_flown_is_the_runs_next_level() -> String:
 	var seeds: Array[int] = []
 	var indices: Array[int] = []
-	var stub: Callable = func(_run_seed: int, index: int, level_seed: int) -> EscapeSweep.SeedResult:
+	var stub: Callable = func(_run_seed: int, index: int, level_seed: int,
+			_robot_scale: float) -> EscapeSweep.SeedResult:
 		indices.append(index)
 		seeds.append(level_seed)
 		return _result(true)
@@ -80,7 +100,8 @@ func test_each_level_flown_is_the_runs_next_level() -> String:
 
 
 func test_first_offered_shaft_is_taken_pinned_for_12345() -> String:
-	var stub: Callable = func(_run_seed: int, _index: int, _level_seed: int) -> EscapeSweep.SeedResult:
+	var stub: Callable = func(_run_seed: int, _index: int, _level_seed: int,
+			_robot_scale: float) -> EscapeSweep.SeedResult:
 		return _result(true)
 	var plan: RunPlan = _plan(PINNED_SEED)
 	var shafts: ShaftOffer = _shafts()
@@ -110,7 +131,8 @@ func test_same_run_seed_twice_gives_the_same_line() -> String:
 
 
 func test_broken_run_file_is_an_error() -> String:
-	var stub: Callable = func(_run_seed: int, _index: int, _level_seed: int) -> EscapeSweep.SeedResult:
+	var stub: Callable = func(_run_seed: int, _index: int, _level_seed: int,
+			_robot_scale: float) -> EscapeSweep.SeedResult:
 		return _result(true)
 	var flown: RunSweep.RunResult = RunSweep.fly_run(1, "{}", _shafts(), stub)
 	if not flown.error.contains("run.json") or flown.flown != 0:

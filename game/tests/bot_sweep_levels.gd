@@ -60,6 +60,16 @@ func generate(level_seed: int) -> MineGenerator:
 	return MineGenerator.generate(level_seed, modules, SeedSweep.MODULE_COUNT, bridges)
 
 
-## The level `generator` gives with these inputs.
-func level_of(generator: MineGenerator) -> LevelDef:
-	return generator.to_level_def(plan, radius, robot_plan, debris_plan)
+## The level `generator` gives with these inputs, its robot count range scaled
+## by `robot_scale` exactly as the game scales a run level after a shaft
+## (`SeedLevel.level_of`, `RobotPlan.scaled`, #1011, #1173). A bad scale gives
+## a level whose `error` says so.
+func level_of(generator: MineGenerator, robot_scale: float = 1.0) -> LevelDef:
+	var robots: RobotPlan = robot_plan
+	if robots != null and robot_scale != 1.0:
+		robots = robot_plan.scaled(robot_scale, generator.placements.size())
+		if robots.error != "":
+			var rejected: LevelDef = LevelDef.new()
+			rejected.error = robots.error
+			return rejected
+	return generator.to_level_def(plan, radius, robots, debris_plan)

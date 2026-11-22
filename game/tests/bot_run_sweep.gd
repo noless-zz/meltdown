@@ -11,26 +11,32 @@ extends SceneTree
 ##     godot --headless --path game -s res://tests/bot_run_sweep.gd -- --runs=100 --first=1
 ##
 ## Options: `--runs=N` (default 100), `--first=S` (first run seed, default 1),
-## and `--profile=<path>` with `--fitting=<path>` (#1091, CRW-3): with both,
+## `--shaft=<index>` (#1173, default 0), and `--profile=<path>` with
+## `--fitting=<path>` (#1091, CRW-3): with both,
 ## the same run seeds are flown twice, first by the plain ship file and then by
 ## the ship that profile and fitting start a run with (`bot_sweep_ship.gd`, as
 ## `RunShip` builds it for a run level), and one `MELTDOWN_BOT_SHIP` line each
 ## sets them side by side: runs finished, level-1 escapes, mean hull left on
 ## level 1. That comparison is reported, never judged. Without them the sweep
 ## flies the ship file and prints exactly what it printed before.
-## Where the run waits for a shaft choice the sweep takes the first shaft
-## offered, so a run seed always flies the same levels. An escape calls
+## Where the run waits for a shaft choice the sweep takes the shaft at
+## position `--shaft` in the offer (0, the first offered, by default; the last
+## offered when the offer is shorter), so a run seed always flies the same
+## levels. The offer's order is drawn per level from `shafts.json`, so a
+## position is not a fixed shaft. Each level after the first is built with the
+## chosen shaft's `risk.robot_count`, as the game builds it
+## (`RunWiring.level_robot_scale`, `RobotPlan.scaled`), and level 1 at 1.0. An escape calls
 ## `advance`; anything else (ship destroyed, countdown run out, still flying at
 ## the tick limit, or a level that could not be flown) calls `lose` and ends
 ## the run. A run is complete once `is_over` after its last escape.
 ##
-## Prints one `MELTDOWN_BOT_RUN` line per run, then
+## Prints one `MELTDOWN_BOT_RUN` line per run, its `robot_scales` the scale
+## each flown level was built with, then
 ## `MELTDOWN_BOT_RUNS {"runs":N,"completed":C,"rate":r,"levels_flown":L,"levels_escaped":E}`.
 ## The fitted ship's lines carry `FITTED_SUFFIX` on both tags.
 ## The gate has no bar for this rate yet, so it is reported, not judged: the
 ## exit code is 0 unless a run seed fails to build (a broken data file) or the
-## summary cannot be printed. A shaft's robot-count risk is not applied yet;
-## every level is built at the shipped robot counts.
+## summary cannot be printed.
 
 const EscapeSweep := preload("res://tests/bot_escape_sweep.gd")
 const Levels := preload("res://tests/bot_sweep_levels.gd")
@@ -54,6 +60,8 @@ class RunResult extends RefCounted:
 	var ended: String = ""
 	## The shaft taken into each level after the first, in order.
 	var shafts: Array[String] = []
+	## The robot count scale each flown level was built with, in order.
+	var scales: Array[float] = []
 	## Why the run seed could not be built; empty when it was.
 	var error: String = ""
 	## Whether level 1 was escaped, and the hull left where it stopped.
@@ -64,14 +72,18 @@ class RunResult extends RefCounted:
 		return ended == "completed"
 
 	func line(tag: String = RUN_TAG) -> String:
-		return '%s {"seed":%d,"planned":%d,"flown":%d,"escaped":%d,"ended":"%s"}' % [
-				tag, run_seed, planned, flown, escaped, ended]
+		var written: PackedStringArray = []
+		for scale: float in scales:
+			written.append("%.2f" % scale)
+		return '%s {"seed":%d,"planned":%d,"flown":%d,"escaped":%d,"ended":"%s","robot_scales":[%s]}' % [
+				tag, run_seed, planned, flown, escaped, ended, ",".join(written)]
 
 
-## Flies one run. `fly_level` takes (run seed, level index, level seed) and
-## returns an `EscapeSweep.SeedResult`; the sweep passes the bot, a test a stub.
+## Flies one run, taking the shaft at `shaft_index` in each offer. `fly_level`
+## takes (run seed, level index, level seed, robot scale) and returns an
+## `EscapeSweep.SeedResult`; the sweep passes the bot, a test a stub.
 static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
-		fly_level: Callable) -> RunResult:
+		fly_level: Callable, shaft_index: int = 0) -> RunResult:
 	var result: RunResult = RunResult.new()
 	result.run_seed = run_seed
 	var plan: RunPlan = RunPlan.build(run_seed, run_text)
@@ -82,11 +94,14 @@ static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
 	var state: RunState = RunState.new(plan, shafts)
 	while not state.is_over():
 		if state.needs_choice():
-			var kind: String = state.offer()[0]
+			var offered: Array[String] = state.offer()
+			var kind: String = offered[mini(shaft_index, offered.size() - 1)]
 			state.choose(kind)
 			result.shafts.append(kind)
+		var scale: float = float(state.current_risk()["robot_count"])
+		result.scales.append(scale)
 		var flown: EscapeSweep.SeedResult = fly_level.call(run_seed, state.level_index,
-				state.current_level_seed())
+				state.current_level_seed(), scale)
 		result.flown += 1
 		if result.flown == 1:
 			result.first_escaped = flown.escaped
@@ -103,12 +118,14 @@ static func fly_run(run_seed: int, run_text: String, shafts: ShaftOffer,
 
 
 ## The sweep's `fly_level`: the bot flies each level of `levels` (built with
-## robots and debris) in `tuning`, or the ship file's when null. Shared with
+## robots, scaled by the shaft's robot scale, and debris) in `tuning`, or the
+## ship file's when null. Shared with
 ## the pinned full run (#1118) so it flies exactly as the sweep does.
 static func bot_flies(levels: Levels, tuning: ShipTuning = null) -> Callable:
 	var flown_tuning: ShipTuning = tuning if tuning != null else levels.tuning
-	return func(_run_seed: int, _index: int, level_seed: int) -> EscapeSweep.SeedResult:
-		return EscapeSweep.fly(level_seed, levels.level_of(levels.generate(level_seed)),
+	return func(_run_seed: int, _index: int, level_seed: int,
+			robot_scale: float) -> EscapeSweep.SeedResult:
+		return EscapeSweep.fly(level_seed, levels.level_of(levels.generate(level_seed), robot_scale),
 				flown_tuning)
 
 
@@ -119,7 +136,7 @@ static func bot_flies(levels: Levels, tuning: ShipTuning = null) -> Callable:
 ## over the runs), "lines" (one `MELTDOWN_BOT_RUN` line per run, or `tag`'s)
 ## and "errors" (why a run seed or a data file could not be built).
 static func run(first_seed: int, count: int, fly_level: Callable = Callable(),
-		tuning: ShipTuning = null, tag: String = RUN_TAG) -> Dictionary:
+		tuning: ShipTuning = null, tag: String = RUN_TAG, shaft_index: int = 0) -> Dictionary:
 	var result: Dictionary = {"runs": count, "completed": 0, "rate": 0.0, "levels_flown": 0,
 			"levels_escaped": 0, "level1_escapes": 0, "level1_hull": 0.0,
 			"lines": [] as Array[String], "errors": [] as Array[String]}
@@ -136,7 +153,7 @@ static func run(first_seed: int, count: int, fly_level: Callable = Callable(),
 			return result
 		fly_level = bot_flies(levels, tuning)
 	for run_seed: int in range(first_seed, first_seed + count):
-		var flown: RunResult = fly_run(run_seed, run_text, shafts, fly_level)
+		var flown: RunResult = fly_run(run_seed, run_text, shafts, fly_level, shaft_index)
 		if flown.error != "":
 			result["errors"].append("run seed %d: %s" % [run_seed, flown.error])
 			continue
@@ -168,22 +185,25 @@ static func ship_line(ship: String, result: Dictionary) -> String:
 			float(result["level1_hull"]) / float(runs)]
 
 
-## The options in `arguments`: "runs", "first", "profile" and "fitting", or
+## The options in `arguments`: "runs", "first", "shaft", "profile" and "fitting", or
 ## "error" naming what is wrong. Profile and fitting come together or not at all.
 static func parse_options(arguments: PackedStringArray) -> Dictionary:
-	var options: Dictionary = {"runs": 100, "first": 1, "profile": "", "fitting": "", "error": ""}
+	var options: Dictionary = {"runs": 100, "first": 1, "shaft": 0, "profile": "", "fitting": "",
+			"error": ""}
 	for argument: String in arguments:
 		var parts: PackedStringArray = argument.trim_prefix("--").split("=", true, 1)
 		var known: bool = parts.size() == 2 and options.has(parts[0]) and parts[0] != "error"
 		if known and (parts[0] == "profile" or parts[0] == "fitting") and parts[1] != "":
 			options[parts[0]] = parts[1]
-		elif known and (parts[0] == "runs" or parts[0] == "first") and parts[1].is_valid_int():
+		elif known and (parts[0] in ["runs", "first", "shaft"]) and parts[1].is_valid_int():
 			options[parts[0]] = parts[1].to_int()
 		else:
-			options["error"] = "unknown option %s; expected --runs=N, --first=S, --profile=<path> or --fitting=<path>" % argument
+			options["error"] = "unknown option %s; expected --runs=N, --first=S, --shaft=<index>, --profile=<path> or --fitting=<path>" % argument
 			return options
 	if options["runs"] < 1:
 		options["error"] = "--runs must be at least 1"
+	elif options["shaft"] < 0:
+		options["error"] = "--shaft must be 0 or more"
 	elif (options["profile"] == "") != (options["fitting"] == ""):
 		options["error"] = "--profile and --fitting go together"
 	return options
@@ -217,13 +237,14 @@ func _init() -> void:
 			quit(2)
 			return
 		fitted = built["tuning"]
-	var plain: Dictionary = run(options["first"], options["runs"])
+	var plain: Dictionary = run(options["first"], options["runs"], Callable(), null, RUN_TAG,
+			options["shaft"])
 	var ok: bool = _print(plain, RUN_TAG, SUMMARY_TAG)
 	if fitted == null:
 		quit(0 if ok else 1)
 		return
 	var with_fitting: Dictionary = run(options["first"], options["runs"], Callable(), fitted,
-			RUN_TAG + FITTED_SUFFIX)
+			RUN_TAG + FITTED_SUFFIX, options["shaft"])
 	ok = _print(with_fitting, RUN_TAG + FITTED_SUFFIX, SUMMARY_TAG + FITTED_SUFFIX) and ok
 	print(ship_line("plain", plain))
 	print(ship_line("fitted", with_fitting))

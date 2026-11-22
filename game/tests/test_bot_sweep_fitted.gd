@@ -108,7 +108,8 @@ func test_profile_and_fitting_options_go_together() -> String:
 func test_level_one_escape_and_hull_reach_the_ship_line() -> String:
 	# Run seed 1 escapes level 1 with 80 hull and every level after; run seed 2
 	# is destroyed on level 1.
-	var stub: Callable = func(run_seed: int, _index: int, _level_seed: int) -> EscapeSweep.SeedResult:
+	var stub: Callable = func(run_seed: int, _index: int, _level_seed: int,
+			_robot_scale: float) -> EscapeSweep.SeedResult:
 		return _result(run_seed == 1, 80.0 if run_seed == 1 else 0.0)
 	var result: Dictionary = RunSweep.run(1, 2, stub, null, RunSweep.RUN_TAG + RunSweep.FITTED_SUFFIX)
 	var expected: String = 'MELTDOWN_BOT_SHIP {"ship":"fitted","runs":2,"finished":1,"level1_escapes":1,"level1_mean_hull":40.00}'
