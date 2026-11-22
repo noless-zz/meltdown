@@ -81,7 +81,8 @@ func _ready() -> void:
 	boost_haptics.right_controller = get_node_or_null("XRRig/RightHand") as XRController3D
 	controllers = ControllerSampler.for_controllers(
 		boost_haptics.left_controller, boost_haptics.right_controller)
-	destroyed.escape.run = level_start.choose(LevelSwitch.requested_path())  # --level, --seed or --run (#291, #382, #989).
+	var opens_hub: bool = StartChoice.opens_hub(self)  # A normal start opens the hub on a new run (#1171).
+	destroyed.escape.run = level_start.choose(StartChoice.source(opens_hub, LevelSwitch.requested_path()))  # #291, #989.
 	if not use_level(level_start.source): level_start.source = ""  # The tunnel flies; the panel says so (#747).
 	place_tunnel()
 	attach_cockpit_frame()
@@ -93,6 +94,7 @@ func _ready() -> void:
 	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
 	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
 	hub.attach($XRRig)
+	if opens_hub: StartChoice.open_hub(hub, level_start, destroyed)  # After `destroyed` and the hub attach.
 	place_rig()
 	InstallerProbe.run_if_requested()  # Debug builds, only when asked (#130).
 	update.attach(self, status_panel, build_info)
@@ -127,8 +129,7 @@ func sample_controls() -> Dictionary:
 	return values
 
 
-## Maps raw values through the comfort filter to the input every tick flies
-## until the next frame. Public so tests can feed values without a device.
+## Maps raw values through the comfort filter to the input ticks fly until the next frame; public for tests.
 func apply_controls(values: Dictionary) -> void:
 	values = hub.read(destroyed.escape.read(dev_menu.read(values)))  # An open menu or panel takes the controls.
 	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
@@ -150,14 +151,14 @@ func advance_frame(delta_seconds: float) -> void:
 	var resuming: bool = _resume_frame
 	_resume_frame = false
 	var to_tick: float = (1.0 - session.interpolation_fraction) * ShipState.TICK_DT
-	if comfort.one_tick_pending and not session.paused and delta_seconds > to_tick:
+	if comfort.one_tick_pending and not session.paused and not hub.is_open() and delta_seconds > to_tick:
 		session.advance(to_tick)
 		_end_one_tick_if_flown()
 		# The session limits a resumed frame to one tick; the split must too.
 		session.advance(0.0 if resuming else delta_seconds - to_tick)
 		_end_one_tick_if_flown()  # A later tick ends the snap's showing.
 	else:
-		session.advance(delta_seconds)
+		session.advance(0.0 if hub.is_open() else delta_seconds)  # Nothing flies behind the hub (#1171).
 		_end_one_tick_if_flown()
 	# A paused view holds still (CMF-8), shake included.
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
@@ -224,9 +225,8 @@ func place_tunnel() -> void:
 		tunnel.position = TUNNEL_OFFSET
 
 
-## Puts the active preset's cockpit frame under the rig origin, at the head
-## point with the status panel, so the head turns inside it (#478); every
-## preset change rebuilds it there (`ComfortWiring.set_preset`).
+## Puts the active preset's cockpit frame under the rig origin, at the head point with the status
+## panel, so the head turns inside it (#478); every preset change rebuilds it there (`ComfortWiring.set_preset`).
 func attach_cockpit_frame() -> void:
 	var rig: Node3D = get_node_or_null("XRRig") as Node3D
 	if rig != null:
