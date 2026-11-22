@@ -9,6 +9,13 @@ extends RefCounted
 ## never write simulation state (MP-2). Saving them is the caller's job, through
 ## `ProfileStore` and `FittingStore`. Every refusal is the reason `Crafting` or
 ## `Fitting` gave, unchanged, so the hub and the tests read the same words.
+##
+## A suspended run (RUN-8, #949) is handed in as its `RunSave` through
+## `set_waiting`; the model opens no save file itself (#1106). Starting a new run
+## while one waits is allowed: the caller discards the waiting save.
+
+## `resume`'s reason when no suspended run waits.
+const NO_RUN_WAITING: String = "no suspended run is waiting"
 
 var config: HubConfig
 var profile: Profile
@@ -18,6 +25,8 @@ var roles: CrewRoles
 var components: ComponentList
 ## The parsed ship file; read only.
 var ship_data: Dictionary = {}
+## The suspended run waiting to resume, or null; read only.
+var waiting_run: RunSave = null
 
 
 static func create(p_config: HubConfig, p_profile: Profile, p_roles: CrewRoles, p_components: ComponentList,
@@ -176,6 +185,31 @@ func fit(slot: String, id: String) -> String:
 		while not ids.is_empty() and ids[ids.size() - 1] == "":
 			ids.remove_at(ids.size() - 1)
 	return _take(candidate)
+
+
+## Tells the model which suspended run waits (`RunSaveStore`'s save), or null for none.
+func set_waiting(save: RunSave) -> void:
+	waiting_run = save
+
+
+## Whether a suspended run waits to be resumed.
+func run_waits() -> bool:
+	return waiting_run != null
+
+
+## The waiting run's `level` (the 1-based depth it resumes on) and `seed`, or {}.
+func waiting() -> Dictionary:
+	if waiting_run == null:
+		return {}
+	return {"level": waiting_run.next_level, "seed": waiting_run.run_seed}
+
+
+## `{"resume": true}` when a suspended run waits; otherwise `NO_RUN_WAITING`.
+## The caller resumes it through `RunResume`; the model changes nothing.
+func resume() -> Variant:
+	if waiting_run == null:
+		return NO_RUN_WAITING
+	return {"resume": true}
 
 
 ## Why the current fitting cannot start a run, or "" (`Fitting.check`).
