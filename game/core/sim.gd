@@ -13,22 +13,24 @@ var run_seed: int = 0
 ## Number of ticks simulated so far.
 var tick: int = 0
 var ships: Array[ShipState] = []
-## Walls everything flies inside, or null for open space (GEN-5). Not hashed: fixed
-## for the run. Set by the constructor from one box, or by `set_walls`.
-var walls: BoxUnion = null
+## What the run fixes before its first tick (`SimRules`): the walls, the rule
+## sets and the part catalogue. Filled by the constructor and the setters below.
+var rules: SimRules = SimRules.new()
+## Walls everything flies inside, or null for open space (GEN-5). Read-only.
+var walls: BoxUnion:
+	get: return rules.walls
 ## The first box of `walls`, or null, for older single-box callers. Read-only.
-var bounds: BoxBounds = null
+var bounds: BoxBounds:
+	get: return rules.bounds
 ## What happened on the last tick only, in the order `SimEvent.Kind` describes.
 ## Output for haptics, shake and sound (PLT-6): not hashed, replaced every `step`.
 var last_events: Array[SimEvent] = []
 ## Where each ship returns on a `reset_to_start` input, read-only here; see
 ## `ShipReset`. Change them with `set_start_pose`.
 var start_positions: Array[Vector3]:
-	get:
-		return _reset.positions
+	get: return _reset.positions
 var start_orientations: Array[Basis]:
-	get:
-		return _reset.orientations
+	get: return _reset.orientations
 ## Every live projectile, oldest first (CMB-1). Part of the hash.
 var projectiles: Array[Projectile] = []
 ## Every robot, in spawn order (CMB-3). Part of the hash while there are any.
@@ -47,28 +49,16 @@ var component_rules: ComponentPickup = null
 var robot_serials: Dictionary = {}
 ## Miner rescue (SLV-3): rules and run state, or null when off. See `set_rescue_rules`.
 var rescue: MinerRescue = null
-## The level's reactor (RUN-2), or null. Set before the first tick by
-## `set_reactor`. Part of the hash only when there is one.
+## The level's reactor (RUN-2), or null; see `set_reactor`. Hashed when there is one.
 var reactor: ReactorState = null
-## Debris that falls once the reactor dies (RUN-4), or null. Set before the
-## first tick by `set_debris`. Part of the hash only when there is some.
+## Debris that falls once the reactor dies (RUN-4), or null; see `set_debris`. Hashed if any.
 var debris: MeltdownDebris = null
-## The part catalogue: part id to the weapon that part is, each resolved by the
-## caller since core opens no files (SLV-1, ARC-4). Set before the first tick
-## by `set_parts` and read-only afterwards, through `part`. Part of the hash
-## while non-empty.
-var _parts: Dictionary[String, WeaponDef] = {}
-## How parts are picked up, pulled and dropped; see `set_salvage_rules`. Not
-## part of the hash: fixed for the run and recorded in the replay's header,
-## like the walls; what they do to the parts shows in the parts' own state.
-var salvage_rules: SalvageRules = SalvageRules.new()
-## How far and how fast ships' guns follow their aim (CMB-6); see
-## `set_look_aim`. Not part of the hash, like the salvage rules: what it does
-## shows in each ship's gun direction.
-var look_aim: LookAim = LookAim.new()
-## How shots of ships with the aim assist module bend (CMB-7, #1096); see
-## `set_aim_assist`. Not part of the hash, like `look_aim`.
-var aim_assist: AimAssist = AimAssist.new()
+var salvage_rules: SalvageRules:
+	get: return rules.salvage_rules
+var look_aim: LookAim:
+	get: return rules.look_aim
+var aim_assist: AimAssist:
+	get: return rules.aim_assist
 ## This tick's projectile hit events, found before the ships move but reported after.
 var _hit_events: Array[SimEvent] = []
 ## Robot index to the ship whose shot destroyed it, for the tick being stepped.
@@ -147,12 +137,10 @@ func step(inputs: Array[ShipInput]) -> bool:
 	return true
 
 
-## Adds a robot of type `def` at rest and returns its index in `robots`.
-## `weapon` is `def.weapon` resolved by the caller, since core opens no files;
-## without one the robot never fires.
-## Allowed before the first tick or between ticks; during `step` it changes
-## nothing and returns -1, because a robot appearing mid-tick would depend on
-## the order things happen to be advanced in.
+## Adds a robot of type `def` at rest and returns its index in `robots`. `weapon`
+## is `def.weapon` resolved by the caller (core opens no files); without one the
+## robot never fires. During `step` it changes nothing and returns -1, because a
+## robot appearing mid-tick would depend on the order things are advanced in.
 func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis,
 		weapon: WeaponDef = null) -> int:
 	if _stepping:
@@ -167,18 +155,9 @@ func spawn_robot(def: RobotDef, position: Vector3, orientation: Basis,
 	return robots.size() - 1
 
 
-## Sets the walls to `p_walls`, a union of one or more boxes, or null for open
-## space. Only before the first tick, so a replay can rebuild the same level
-## from its header (ARC-2). Returns false, changing nothing, once the run has
-## started or for a union with no boxes (no space to fly in at all).
+## Sets the walls to `p_walls`, or null for open space; see `SimRules.set_walls`.
 func set_walls(p_walls: BoxUnion) -> bool:
-	if tick != 0 or _stepping:
-		return false
-	if p_walls != null and p_walls.boxes.is_empty():
-		return false
-	walls = p_walls
-	bounds = null if p_walls == null else p_walls.boxes[0]
-	return true
+	return rules.set_walls(p_walls, tick != 0 or _stepping)
 
 
 ## Gives the run `p_reactor` (null for none). Only before the first tick: false once started.
@@ -197,10 +176,8 @@ func set_debris(p_debris: MeltdownDebris) -> bool:
 	return true
 
 
-## Fills the weapon slots of every ship from `loadout`'s resolved weapons.
-## Only before the first tick: a run starts armed or not, and a replay must be
-## able to do the same from its header alone (ARC-2). Returns false, changing
-## nothing, once the run has started.
+## Fills every ship's weapon slots from `loadout`. Only before the first tick, so
+## a replay can arm the same from its header (ARC-2); false, changing nothing, after.
 func equip(loadout: ShipLoadout) -> bool:
 	if tick != 0 or _stepping:
 		return false
@@ -209,84 +186,44 @@ func equip(loadout: ShipLoadout) -> bool:
 	return true
 
 
-## Sets the part catalogue from `parts`, a Dictionary from part id to its
-## resolved `WeaponDef`. Only before the first tick, so a replay can set the
-## same catalogue from its header alone (ARC-2). Returns "" on success, or a
-## problem naming the part; on any problem the catalogue is left unchanged.
+## Sets the part catalogue, part id to resolved `WeaponDef`; see `SimRules`.
 func set_parts(parts: Dictionary) -> String:
-	if tick != 0 or _stepping:
-		return "the part catalogue is set before the first tick"
-	var checked: Dictionary[String, WeaponDef] = {}
-	for id: Variant in parts:
-		if typeof(id) != TYPE_STRING:
-			return "part id %s is not a string" % str(id)
-		var id_problem: String = ShipLoadout.check_id("part id", id)
-		if id_problem != "":
-			return id_problem
-		var weapon: Variant = parts[id]
-		if not weapon is WeaponDef or (weapon as WeaponDef).error != "":
-			return "part \"%s\" is not a resolved weapon" % id
-		checked[id] = weapon
-	_parts = checked
-	return ""
+	return rules.set_parts(parts, tick != 0 or _stepping)
 
 
 ## Sets how parts are picked up, pulled and dropped (`SalvageRules`, #600).
-## Only before the first tick, like the catalogue, so a replay can set the same
-## rules from its header. Returns "" on success, or the problem, changing nothing.
-func set_salvage_rules(rules: SalvageRules) -> String:
-	if tick != 0 or _stepping:
-		return "the salvage rules are set before the first tick"
-	if rules == null or rules.error != "":
-		return "the salvage rules are not resolved"
-	salvage_rules = rules
-	return ""
+func set_salvage_rules(p_rules: SalvageRules) -> String:
+	return rules.set_salvage_rules(p_rules, tick != 0 or _stepping)
 
 
-## Switches component drops on with `rules` (`ComponentPickup`, CRF-1). Only
-## before the first tick, like the salvage rules. Returns "" or the problem.
-func set_component_rules(rules: ComponentPickup) -> String:
-	return ComponentPickup.install(self, rules, tick != 0 or _stepping)
+## Switches component drops on with `p_rules` (`ComponentPickup`, CRF-1).
+func set_component_rules(p_rules: ComponentPickup) -> String:
+	return ComponentPickup.install(self, p_rules, tick != 0 or _stepping)
 
 
 ## Switches miner rescue on (`MinerRescue`, SLV-3), trapping `miners` in mm as `LevelDef.miners`.
-func set_rescue_rules(rules: MinerRescue, miners: Array[Vector3i] = []) -> String:
-	return MinerRescue.install(self, rules, miners, tick != 0 or _stepping)
+func set_rescue_rules(p_rules: MinerRescue, miners: Array[Vector3i] = []) -> String:
+	return MinerRescue.install(self, p_rules, miners, tick != 0 or _stepping)
 
 
-## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6). Only before the
-## first tick, like the salvage rules, so a replay can set the same values from
-## its header. Returns "" on success, or the problem, changing nothing.
+## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6).
 func set_look_aim(aim: LookAim) -> String:
-	if tick != 0 or _stepping:
-		return "look-aim is set before the first tick"
-	if aim == null or aim.error != "":
-		return "look-aim is not resolved"
-	look_aim = aim
-	return ""
+	return rules.set_look_aim(aim, tick != 0 or _stepping)
 
 
-## Sets the aim assist cone and range (`AimAssist`, CMB-7), before the first tick only, as `set_look_aim`.
+## Sets the aim assist cone and range (`AimAssist`, CMB-7).
 func set_aim_assist(assist: AimAssist) -> String:
-	if tick != 0 or _stepping:
-		return "aim assist is set before the first tick"
-	if assist == null or assist.error != "":
-		return "aim assist is not resolved"
-	aim_assist = assist
-	return ""
+	return rules.set_aim_assist(assist, tick != 0 or _stepping)
 
 
 ## The weapon part `id` is, or null if the catalogue has no such part.
 func part(id: String) -> WeaponDef:
-	return _parts.get(id, null)
+	return rules.part(id)
 
 
 ## Every part id in the catalogue, sorted, so callers and the hash see one order.
 func part_ids() -> Array[String]:
-	var ids: Array[String] = []
-	ids.assign(_parts.keys())
-	ids.sort()
-	return ids
+	return rules.part_ids()
 
 
 ## How the run stands (RUN-3, RUN-7): running, escaped or lost. Read-only.
@@ -294,8 +231,7 @@ func outcome() -> ExitRule.Outcome:
 	return ExitRule.outcome(self)
 
 
-## The live ship (hull above zero, not escaped) nearest to `point`, or null if there
-## is none. Ties go to the lower index.
+## The live ship (hull above zero, not escaped) nearest `point`, or null; ties go low.
 func nearest_live_ship(point: Vector3) -> ShipState:
 	var best: ShipState = null
 	var best_distance: float = INF
