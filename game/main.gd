@@ -133,7 +133,6 @@ func sample_controls() -> Dictionary:
 func apply_controls(values: Dictionary) -> void:
 	values = hub.read(destroyed.escape.read(dev_menu.read(values)))  # An open menu or panel takes the controls.
 	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
-	comfort.read_preset_button(buttons)
 	if comfort.read_label_button(buttons):
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
 	map.buttons = buttons

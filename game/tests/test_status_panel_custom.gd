@@ -2,11 +2,12 @@ extends RefCounted
 
 ## The status panel's preset row for the custom comfort mode (CMF-1, #807):
 ## "Custom (base N)" while it is active, "Custom file rejected: <field>" for
-## the look's 10 s when a rejected file kept it away at start or at the preset
-## button, and the numbered presets as before. View only (ARC-3).
+## the look's 10 s when a rejected file kept it away at start, and the numbered
+## presets as before. View only (ARC-3). The X button that once stepped into a
+## rejected file is retired (decision record 0011, #1260); the menu offers the
+## custom mode only with an accepted file.
 
 const SCRATCH_DIR: String = "user://test_status_panel_custom"
-const X: String = "left_button_lower"
 const CUSTOM: int = ComfortPresetFiles.CUSTOM_NUMBER
 const FRAME: float = 1.0 / 90.0
 
@@ -41,9 +42,9 @@ static func _after(panel: StatusPanel, comfort: ComfortWiring, seconds: float) -
 	return shown
 
 
-static func _press(comfort: ComfortWiring) -> void:
-	comfort.read_preset_button({X: true})
-	comfort.read_preset_button({})
+## The next preset, set through the comfort switch.
+static func _step(comfort: ComfortWiring) -> void:
+	comfort.set_preset(comfort.next_number())
 
 
 func test_the_shipped_look_holds_the_custom_words() -> String:
@@ -92,28 +93,6 @@ func test_a_file_rejected_at_start_names_the_field_for_ten_seconds() -> String:
 	return ""
 
 
-func test_the_preset_button_reaching_a_rejected_file_shows_it_again() -> String:
-	var comfort: ComfortWiring = _comfort("{\"base\": 2, \"snap_angle_deg\": \"wide\"}", "bad_field.json")
-	comfort.set_preset(3)
-	var panel: StatusPanel = StatusPanel.new()
-	_frame(panel, comfort)
-	var cleared: String = _after(panel, comfort, 11.0)
-	_press(comfort)  # 3 > 4: the custom file is not reached.
-	var at_four: String = _frame(panel, comfort)
-	_press(comfort)  # 4 > Custom, rejected: 1.
-	var shown: String = _frame(panel, comfort)
-	var number: int = comfort.number
-	var later: String = _after(panel, comfort, 10.5)
-	panel.free()
-	if not cleared.begins_with("Preset 3 ") or not at_four.begins_with("Preset 4 "):
-		return "before the custom place the row shows \"%s\", then \"%s\"" % [cleared, at_four]
-	if shown != "Custom file rejected: snap_angle_deg" or number != 1:
-		return "the button past preset 4 shows \"%s\" on preset %d" % [shown, number]
-	if not later.begins_with("Preset 1 "):
-		return "10.5 s later the row shows \"%s\"" % later
-	return ""
-
-
 func test_the_launch_switch_asking_for_a_rejected_file_shows_it_once() -> String:
 	var comfort: ComfortWiring = _comfort("{\"base\": 2, \"unknown\": 1}", "unknown.json")
 	comfort.set_preset(CUSTOM)  # As `--comfort=custom` does before the first frame.
@@ -137,10 +116,10 @@ func test_numbered_presets_are_unchanged_without_a_custom_file() -> String:
 		comfort.set_preset(number)
 		shown.append(_frame(panel, comfort))
 		expected.append("Preset %d %s" % [number, comfort.preset.display_name])
-	_press(comfort)
-	_press(comfort)
-	_press(comfort)
-	_press(comfort)  # 4 > 1, no file: nothing to report.
+	_step(comfort)
+	_step(comfort)
+	_step(comfort)
+	_step(comfort)  # 4 > 1, no file: nothing to report.
 	var reports: int = comfort.custom_notice.reports
 	panel.free()
 	if shown != expected:

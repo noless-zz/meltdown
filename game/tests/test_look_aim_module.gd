@@ -75,8 +75,7 @@ func test_cycling_presets_keeps_look_aim_on_with_the_module() -> String:
 		var seen: Array[String] = []
 		for number: int in range(1, 5):
 			if number > 1:
-				comfort.read_preset_button({comfort.preset_button(): false})
-				comfort.read_preset_button({comfort.preset_button(): true})  # The X button.
+				comfort.set_preset(comfort.next_number())  # The switch the menu uses (#1260).
 			var on: bool = _flown_aim(comfort) != ShipInput.NOSE_AIM_Q
 			var expected: bool = fitted or TABLE[number - 1]
 			if comfort.number != number or on != expected or comfort.look_aim.enabled != expected:

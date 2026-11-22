@@ -106,8 +106,8 @@ func test_y_boosts_and_x_does_not() -> String:
 		_values(LEFT_GRAB, RIGHT_GRAB, 1.0, 0.0, {"left_button_lower": true}), thumbs)
 	if not y.afterburner or x.afterburner:
 		return "Y boosts %s, X boosts %s" % [y.afterburner, x.afterburner]
-	if sampler.afterburner_button() == thumbs.preset_button():
-		return "the afterburner shares the preset button"
+	if sampler.afterburner_button() == "left_button_lower":
+		return "the afterburner sits on X, the free button (decision record 0011)"
 	return ""
 
 

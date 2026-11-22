@@ -18,12 +18,12 @@ extends RefCounted
 ## so the way the controller happens to point at the grab does not matter.
 ##
 ## Buttons, right-handed (left-handed mode swaps each with its twin):
-## - afterburner on the throttle hand's upper face button, Y. X stays the
-##   comfort preset button (decision record 0004, #613), and the upper button
-##   is free in this scheme because lift comes from moving the throttle.
+## - afterburner on the throttle hand's upper face button, Y, which is free in
+##   this scheme because lift comes from moving the throttle. X does nothing
+##   (decision record 0011, #1260).
 ## - fire on the stick hand's trigger, as in the thumbsticks scheme.
-## The menu-button reset, the preset and the label toggle are read by the
-## caller from the same values, as for the thumbsticks.
+## The menu-button reset and the label toggle are read by the caller from the
+## same values, as for the thumbsticks.
 
 ## The afterburner, right-handed. The one place this scheme names it.
 const AFTERBURNER_BUTTON: String = "left_button_upper"

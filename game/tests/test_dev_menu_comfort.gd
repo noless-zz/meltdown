@@ -146,18 +146,19 @@ func test_a_confirmed_preset_is_applied_and_saved_like_the_button_s() -> String:
 	return problem
 
 
-func test_the_entry_opens_on_the_preset_the_button_chose() -> String:
+## Changed straight through the comfort switch, as the X button did until
+## decision record 0011 (#1260).
+func test_the_entry_opens_on_the_preset_chosen_elsewhere() -> String:
 	var comfort: ComfortWiring = _comfort()
 	comfort.set_preset(1)
 	var wiring: DevMenuWiring = _wiring(comfort)
-	comfort.read_preset_button({comfort.preset_button(): true})
-	comfort.read_preset_button({})
+	comfort.set_preset(comfort.next_number())
 	_open(wiring, 10.0)
 	var line: String = _comfort_line(wiring.menu)
 	var number: int = wiring.menu.model.comfort_number()
 	wiring.menu.free()
 	if comfort.number != 2 or number != 2:
-		return "after the button chose preset %d the menu opened on %d" % [comfort.number, number]
+		return "after the switch chose preset %d the menu opened on %d" % [comfort.number, number]
 	return "" if line == "Comfort: < %s >" % _name(2) else "the entry reads \"%s\"" % line
 
 
@@ -183,7 +184,7 @@ func _fly(main: Node, frames: int) -> void:
 
 
 ## Flies a main scene, changes the preset to the next one mid-flight through
-## the menu (`by_menu`) or the preset button, flies on, and returns its state
+## the menu (`by_menu`) or the comfort switch directly, flies on, and returns its state
 ## hash and rig transform.
 func _flown(by_menu: bool) -> Array:
 	var main: Node = _main()
@@ -192,7 +193,7 @@ func _flown(by_menu: bool) -> Array:
 	if by_menu:
 		(main.get("dev_menu") as DevMenuWiring).apply("comfort:%d" % comfort.next_number())
 	else:
-		comfort.read_preset_button({comfort.preset_button(): true})
+		comfort.set_preset(comfort.next_number())
 	_fly(main, 60)
 	var result: Array = [(main.get("session") as LocalSession).sim.state_hash(),
 		(main.get_node("XRRig") as Node3D).transform, comfort.number]
@@ -200,7 +201,7 @@ func _flown(by_menu: bool) -> Array:
 	return result
 
 
-func test_a_menu_change_matches_the_button_and_leaves_the_simulation_alone() -> String:
+func test_a_menu_change_matches_the_switch_and_leaves_the_simulation_alone() -> String:
 	var plain: Node = _main()
 	_fly(plain, 90)
 	var plain_hash: int = (plain.get("session") as LocalSession).sim.state_hash()
@@ -208,9 +209,9 @@ func test_a_menu_change_matches_the_button_and_leaves_the_simulation_alone() -> 
 	var menu: Array = _flown(true)
 	var button: Array = _flown(false)
 	if menu[2] != button[2]:
-		return "the menu chose preset %d, the button %d" % [menu[2], button[2]]
+		return "the menu chose preset %d, the switch %d" % [menu[2], button[2]]
 	if menu[0] != plain_hash or button[0] != plain_hash:
 		return "a preset change changed the state hash"
 	if not (menu[1] as Transform3D).is_equal_approx(button[1]):
-		return "the view after a menu change differs from the button's"
+		return "the view after a menu change differs from the switch's"
 	return ""
