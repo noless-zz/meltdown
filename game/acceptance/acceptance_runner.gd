@@ -1,14 +1,11 @@
 class_name AcceptanceRunner
 extends Node
 
-## Flies an acceptance suite inside the running game and quits with its result
-## (DEV-6, PLT-1, PLT-4, #165). `main.gd` adds one only when the launch switch
-## is set, so a normal start never sees it.
-##
-## Each step sets its comfort preset, switches to its level (#334) or builds its seed's
-## level (#460), flies its replay through the scene's `advance_frame` (one tick per frame,
-## replay inputs in place of the controllers), takes its screenshots (#718), runs its checks
-## and records them in an `AcceptanceReport` in `user://acceptance/` and the log. Exit 0 if all pass.
+## Flies an acceptance suite inside the running game and quits with its result (DEV-6, PLT-1,
+## PLT-4, #165). `main.gd` adds one only when the launch switch is set, so a normal start never sees it.
+## Each step sets its comfort preset, switches to its level (#334) or builds its seed's level (#460), flies
+## its replay through the scene's `advance_frame` (one tick per frame, replay inputs in place of the controllers),
+## takes screenshots (#718), runs its checks and records them in an `AcceptanceReport` and the log. Exit 0 if all pass.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
 const ARG_PREFIX: String = "--acceptance="
@@ -40,8 +37,11 @@ var messages: PackedStringArray = PackedStringArray()
 var seed_overrides: Dictionary = {}
 var finished: bool = false
 var exit_code: int = -1
-## Read by `AcceptanceChecks`: the script error log, whether the OpenXR session
-## began and how many frames the step has waited for the headset.
+## Read by `AcceptanceChecks`: the script error log, whether the OpenXR session began and how many
+## frames the step has waited for the headset. `AcceptanceShaftStep` swaps the step's replay source
+## and sets why its level could not be flown, or "" (#1065).
+var replay_source: ReplayInputSource = null
+var level_problem: String = ""
 var errors: AcceptanceErrorLog = AcceptanceErrorLog.new()
 var xr_begun: bool = false
 var xr_waited: int = 0
@@ -50,10 +50,7 @@ var _logging: bool = false
 var _suite_index: int = 0
 var _step_index: int = 0
 var _step_started: bool = false
-var _source: ReplayInputSource = null
-var _level_problem: String = ""  # Why the step's level or custom comfort file could not be flown, or "".
 var _checks: AcceptanceChecks = null  # The step's samplers and check dispatch (#817).
-var _next_started: bool = false  # The step's `next_replay` has been started (#1065).
 
 
 ## The suite asked for, or "" when the switch is off. A command-line argument
@@ -136,9 +133,8 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 func _start_step(step: AcceptanceStep) -> void:
 	_step_started = true
 	xr_waited = 0
-	_source = null
-	_level_problem = ""
-	_next_started = false
+	replay_source = null
+	level_problem = ""
 	_checks = AcceptanceChecks.begin(step, xr_available(), on_headset, screenshots.grab)
 	_checks.errors_at_start = errors.count()
 	_say("%s: step %s" % [LOG_PREFIX, step.id])
@@ -146,42 +142,42 @@ func _start_step(step: AcceptanceStep) -> void:
 	AcceptanceStepLevel.clear_end_screens(main)  # Before any screenshot or frame of the step (#917).
 	if step.preset != AcceptanceStep.NO_PRESET:
 		main.call("set_comfort_preset", step.preset)
-	_level_problem = AcceptanceCustomComfort.apply(main, step)  # #836.
+	level_problem = AcceptanceCustomComfort.apply(main, step)  # #836.
 	_checks.begin_scene(step, main)
-	if step.replay_path == "" or _level_problem != "":
+	if step.replay_path == "" or level_problem != "":
 		return
 	# The scene draws the level and drops the tunnel, as `--level=` does; the
 	# session it builds is replaced by the replay's below.
 	if step.level != "" and not main.call("use_level", LevelSwitch.path_for(step.level)):
-		_level_problem = "level %s: the scene could not switch to it" % step.level
+		level_problem = "level %s: the scene could not switch to it" % step.level
 		return
 	var replay: Replay = Replay.load_file(step.replay_path)
 	if replay.error != "" or replay.ship_count != 1:
 		return  # `replay_problem` reports it when the step is recorded.
-	_source = AcceptanceControlsScript.source_for(step, replay, main)  # Its inputs, or scripted controls (#818).
+	replay_source = AcceptanceControlsScript.source_for(step, replay, main)  # Its inputs, or scripted controls (#818).
 	if step.level_seed == AcceptanceStep.NO_SEED:
-		main.set("session", _source.new_session())
+		main.set("session", replay_source.new_session())
 	else:
-		_level_problem = AcceptanceStepLevel.fly_seed(main, step.level_seed, replay, _source, seed_overrides)
-		if _level_problem != "":
-			_source.finish()
-			_source = null
+		level_problem = AcceptanceStepLevel.fly_seed(main, step.level_seed, replay, replay_source, seed_overrides)
+		if level_problem != "":
+			replay_source.finish()
+			replay_source = null
 			return
 	main.set_process(false)  # The runner drives the frames until the replay ends.
 
 
 ## False while the step still needs frames: replay, sampling, or the OpenXR session.
 func _step_ready(step: AcceptanceStep) -> bool:
-	if _source != null:
+	if replay_source != null:
 		var session: LocalSession = main.get("session")
-		screenshots.take(session.sim.tick, _source.tick_count())
-		if session.sim.tick < _source.tick_count() or AcceptanceLoopReplay.keeps_flying(step, _checks.frames):
+		screenshots.take(session.sim.tick, replay_source.tick_count())
+		if session.sim.tick < replay_source.tick_count() or AcceptanceLoopReplay.keeps_flying(step, _checks.frames):
 			_checks.before_tick(main, session.sim.tick)
 			main.call("advance_frame", ShipState.TICK_DT)
 			_checks.after_tick(main)
 			return false
-		_source.finish()
-		if _flies_next(step):
+		replay_source.finish()
+		if AcceptanceShaftStep.flies_on(self, step, _checks):  # Level 2 of a shaft step (#1065).
 			return false
 		main.set_process(true)
 	if _checks.sampling():
@@ -192,27 +188,12 @@ func _step_ready(step: AcceptanceStep) -> bool:
 	return true
 
 
-## Once the first replay of a step with `next_replay` ends, takes its shaft
-## and flies that replay on the chosen shaft's level (#1065,
-## `AcceptanceShaftStep`). True while the second replay is to be flown.
-func _flies_next(step: AcceptanceStep) -> bool:
-	if step.next_replay_path == "" or _next_started or _level_problem != "":
-		return false
-	_next_started = true
-	var next: Array = AcceptanceShaftStep.fly_next(main, step)
-	_level_problem = next[0]
-	if next[1] == null:
-		return false
-	_source = next[1]
-	return true
-
-
 func _record_step(step: AcceptanceStep) -> void:
 	var outcomes: Array[String] = []
 	var notes: PackedStringArray = PackedStringArray()
 	var measurements: Dictionary = {}
-	var problem: String = _level_problem if _level_problem != "" \
-		else AcceptanceStepLevel.replay_problem(step, _source)
+	var problem: String = level_problem if level_problem != "" \
+		else AcceptanceStepLevel.replay_problem(step, replay_source)
 	if problem != "":
 		outcomes.append(AcceptanceReport.RESULT_FAIL)
 		notes.append(problem)
@@ -232,7 +213,7 @@ func xr_available() -> bool:
 
 ## Whether the step's replay was loaded and flown; a check that reads its end fails without it.
 func flown() -> bool:
-	return _source != null
+	return replay_source != null
 
 
 func _on_xr_session_begun() -> void:

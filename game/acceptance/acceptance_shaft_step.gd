@@ -68,6 +68,21 @@ static func offer_for(run_seed: int) -> Array[String]:
 	return state.offer()
 
 
+## Called by `runner` once the step's current replay ends: true, with the
+## runner flying `next_replay`, the first time for a step that has one. A
+## problem goes to `runner.level_problem`, and the step is then recorded.
+static func flies_on(runner: AcceptanceRunner, step: AcceptanceStep, checks: AcceptanceChecks) -> bool:
+	if step.next_replay_path == "" or checks.next_started or runner.level_problem != "":
+		return false
+	checks.next_started = true
+	var next: Array = fly_next(runner.main, step)
+	runner.level_problem = next[0]
+	if next[1] == null:
+		return false
+	runner.replay_source = next[1]
+	return true
+
+
 ## After the step's first replay: takes the step's shaft and gives `main` a
 ## session on its level fed by `next_replay`. Returns [problem, source]: "" and
 ## the source flying it, or why it cannot fly and null.

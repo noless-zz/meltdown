@@ -230,7 +230,7 @@ func test_shipped_replays_keep_their_pinned_hashes() -> String:
 	return ""
 
 
-## Replay paths of suite steps that fly a generated level (a `seed` or `run` key).
+## Replay paths of suite steps that fly a generated level (a `seed` or `run` key, or `next_replay`).
 static func _replays_flown_on_levels() -> Array[String]:
 	var paths: Array[String] = []
 	var suites: String = "res://acceptance/suites"
@@ -244,4 +244,6 @@ static func _replays_flown_on_levels() -> Array[String]:
 		for step: Variant in steps:
 			if step is Dictionary and (step.has("seed") or step.has("run")) and step.has("replay"):
 				paths.append(str(step["replay"]))
+			if step is Dictionary and step.has("next_replay"):  # A run's next level (#1065).
+				paths.append(str(step["next_replay"]))
 	return paths

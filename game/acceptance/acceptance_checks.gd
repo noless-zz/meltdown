@@ -29,6 +29,8 @@ var vignette: AcceptanceVignetteCheck = null  # The comfort vignette shown (#850
 ## Script errors logged before the step started, set by the runner once the
 ## samplers above exist; no_script_errors counts the rest.
 var errors_at_start: int = 0
+## True once a shaft step's `next_replay` has been started (#1065, `AcceptanceShaftStep.flies_on`).
+var next_started: bool = false
 
 
 ## The samplers that start with the step, before its comfort preset is set.
