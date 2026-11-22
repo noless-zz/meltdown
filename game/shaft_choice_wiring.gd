@@ -39,10 +39,11 @@ func is_open() -> bool:
 	return model != null
 
 
-## Opens the panel on `run`'s offer after an escape with `collected` picked up.
-## False, opening nothing, when the run has no choice due.
-func open(run: RunWiring, collected: Dictionary) -> bool:
-	var offered: Array[String] = run.escape_for_choice(collected) if run != null else []
+## Opens the panel on `run`'s offer after an escape with `collected` picked up
+## and `rescued` miners aboard (#1032). False, opening nothing, when the run
+## has no choice due.
+func open(run: RunWiring, collected: Dictionary, rescued: int = 0) -> bool:
+	var offered: Array[String] = run.escape_for_choice(collected, rescued) if run != null else []
 	if offered.is_empty():
 		return false
 	model = ShaftPanelModel.build(offered, run.shafts, look)
