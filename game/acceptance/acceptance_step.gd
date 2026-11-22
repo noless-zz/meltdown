@@ -127,6 +127,10 @@ const CHECK_COMPONENTS_BANK: String = "components_bank"
 ## `expected_collected` (#1065, CRF-7; `AcceptanceCollectedCheck`). With
 ## `next_replay` that is the chosen shaft's level (`AcceptanceShaftStep`).
 const CHECK_COLLECTED: String = "collected"
+## The run step's level flies with miner rescue on, and the escape's restart
+## press leaves the run's profile with `expected_crew` crew (#1084, CRW-1,
+## SLV-3; `AcceptanceCrewJoinsCheck`). Must be the step's last check.
+const CHECK_CREW_JOINS: String = "crew_joins"
 const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_NO_SCRIPT_ERRORS,
 	CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE, CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH,
 	CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS, CHECK_REFRESH_RATE, CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD,
@@ -134,7 +138,7 @@ const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_N
 	CHECK_VIEW_NOT_FLAT, CHECK_AFTERBURNER, CHECK_FLIGHT_TEST_RESULT, CHECK_AT_START,
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
 	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE, CHECK_COMPONENTS_BANK,
-	CHECK_COLLECTED]
+	CHECK_COLLECTED, CHECK_CREW_JOINS]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
@@ -151,6 +155,7 @@ const NO_OUTCOME: int = -1
 const NO_SEED: int = -1
 const NO_PAUSE: int = -1
 const NO_SHAFT: int = -1
+const NO_CREW: int = -1
 
 ## Unique within its suite; names the step in the report.
 var id: String = ""
@@ -181,6 +186,8 @@ var profile_path: String = ""
 var fitting_path: String = ""
 ## Component counts the sim must have collected, for the collected check.
 var expected_collected: Dictionary[String, int] = {}
+## Crew the run's profile must hold after the escape, for the crew_joins check, or NO_CREW.
+var expected_crew: int = NO_CREW
 ## Comfort preset to fly under, or NO_PRESET.
 var preset: int = NO_PRESET
 ## Names from KNOWN_CHECKS, in the order the suite lists them.
