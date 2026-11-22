@@ -74,6 +74,14 @@
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
 			"checks": ["no_script_errors", "craft_and_fit"]
+		},
+		{
+			"id": "suspend_resume",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"checks": ["outcome", "no_script_errors", "suspend_resume"],
+			"expected_outcome": "ESCAPED",
+			"expected_next_level_hash": 3631980707
 		}
 	]
 }

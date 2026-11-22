@@ -165,6 +165,7 @@ func _judges() -> Dictionary[String, Callable]:
 		AcceptanceStep.CHECK_COLLECTED: _collected,
 		AcceptanceStep.CHECK_CREW_JOINS: _crew_joins,
 		AcceptanceStep.CHECK_CRAFT_AND_FIT: _craft_and_fit,
+		AcceptanceStep.CHECK_SUSPEND_RESUME: _suspend_resume,
 	}
 
 
@@ -251,3 +252,7 @@ func _crew_joins(step: AcceptanceStep, runner: AcceptanceRunner, measurements: D
 
 func _craft_and_fit(_step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	return AcceptanceCraftAndFitCheck.run(runner.main, runner.flown(), measurements)
+
+
+func _suspend_resume(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	return AcceptanceSuspendResumeCheck.run(step, runner.main, runner.flown(), measurements)

@@ -58,6 +58,10 @@ var crew_error: String = ""
 var ship: RunShip = RunShip.new()
 ## Records the run's events in the profile's statistics (#1092).
 var stats: RunStatsRecorder = RunStatsRecorder.new()
+## Where a suspended run is saved (#1107); null offers no suspend row.
+var saves: RunSaveStore = null
+## True from `suspend` until the hub opens on the suspended run.
+var suspended: bool = false
 
 
 ## A run for `run_seed`. `p_store` is read for the profile and written after
@@ -209,6 +213,40 @@ func after_level(outcome: int, hull: float, collected: Dictionary, rescued: int 
 func after_session(session: LocalSession) -> String:
 	return after_level(session.sim.outcome(), session.current_ship().hull, session.sim.collected.duplicate(),
 		rescued_in(session.sim))
+
+
+## The shaft panel's suspend row (#1107, RUN-8): saves the run at its choice
+## through `RunSuspend` and leaves it, so the hub opens. False, changing
+## nothing, when the save is refused.
+func suspend() -> bool:
+	if not RunSuspend.save(self):
+		return false
+	suspended = true
+	escape_taken = false
+	state = null
+	return true
+
+
+## Flies `saved`, a run `saves` handed out, from the level it was suspended
+## before (#1107); its choice still due takes the first offered shaft. False,
+## with `error` set, when the save does not fit the run file or shafts.
+func resume(saved: RunSave) -> bool:
+	var resumed: RunState = RunSuspend.rebuild(self, saved)
+	if resumed == null:
+		return false
+	state = resumed
+	error = ""
+	escape_taken = false
+	suspended = false
+	_settle_choice()
+	print("%s %d resumed on level %d (seed %d)" % [LOG_PREFIX, state.plan.run_seed, state.current_depth(),
+		state.current_level_seed()])
+	return true
+
+
+## Starts a new run with a newly picked seed: the hub's launch after a suspend.
+func start_new() -> bool:
+	return start(_new_seed())
 
 
 ## Leaves the run: the dev menu chose another level.
