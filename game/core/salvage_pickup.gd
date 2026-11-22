@@ -17,8 +17,13 @@ extends RefCounted
 ## the rest, and each adds a SALVAGE_COLLECTED event to `sim.last_events`.
 ## An item's `ignored_ship` cannot take it; once that ship's centre ends a tick
 ## out of reach of the item (pickup or pull, whichever is further), the item
-## forgets it.
+## forgets it. An item still in its `pickup_delay` cannot be taken; the delay
+## counts down first, so a part dropped with a delay of N is taken at the
+## earliest on the Nth tick after the one its robot died on (#1217).
 static func collect(sim: Sim, from: Array[Vector3]) -> void:
+	for item: SalvageItem in sim.salvage:
+		if item.pickup_delay > 0:
+			item.pickup_delay -= 1
 	_take(sim, from)
 	_release_ignored(sim)
 
@@ -62,7 +67,7 @@ static func _first_reached(salvage: Array[SalvageItem], taken: Array[bool],
 	var best: int = -1
 	var best_t: float = INF
 	for k: int in salvage.size():
-		if taken[k] or salvage[k].ignored_ship == ship_index:
+		if taken[k] or salvage[k].ignored_ship == ship_index or not salvage[k].is_takeable():
 			continue
 		var t: float = Projectile.segment_entry(start, ship.position, salvage[k].position,
 			ship.radius + reach)
@@ -118,7 +123,7 @@ static func _puller(sim: Sim, item: SalvageItem, reach: float) -> ShipState:
 	for i: int in sim.ships.size():
 		var ship: ShipState = sim.ships[i]
 		if ship.hull <= 0.0 or ship.escaped or not ship.hold_has_room() \
-				or item.ignored_ship == i:
+				or item.ignored_ship == i or not item.is_takeable():
 			continue
 		var distance: float = item.position.distance_to(ship.position)
 		if distance <= ship.radius + reach and distance < best_distance:

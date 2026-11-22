@@ -26,6 +26,9 @@ var velocity: Vector3 = Vector3.ZERO
 ## take it back until its centre has left pickup range (`SalvagePickup`); -1
 ## for none. Part of the hash only while set, so earlier replays keep theirs.
 var ignored_ship: int = -1
+## Ticks left before any ship may take or pull this part (#1217), counted down
+## by `SalvagePickup.collect`; 0 for none. Part of the hash only while set.
+var pickup_delay: int = 0
 
 
 func _init(p_part_id: String = "", p_position: Vector3 = Vector3.ZERO,
@@ -35,12 +38,15 @@ func _init(p_part_id: String = "", p_position: Vector3 = Vector3.ZERO,
 	velocity = p_velocity
 
 
-## The item `robot` leaves where it died, moving as it was, or null if its
-## type carries no salvage.
-static func dropped_by(robot: RobotState) -> SalvageItem:
+## The item `robot` leaves where it died, moving as it was and untouchable
+## for `delay` ticks (`SalvageRules.drop_delay_ticks`), or null if its type
+## carries no salvage.
+static func dropped_by(robot: RobotState, delay: int = 0) -> SalvageItem:
 	if robot.def.salvage.is_empty():
 		return null
-	return SalvageItem.new(robot.def.salvage, robot.position, robot.velocity)
+	var item: SalvageItem = SalvageItem.new(robot.def.salvage, robot.position, robot.velocity)
+	item.pickup_delay = delay
+	return item
 
 
 ## Moves one tick, slows towards rest and, with `bounds`, stays inside the
@@ -78,7 +84,15 @@ func is_at_rest() -> bool:
 	return velocity == Vector3.ZERO
 
 
+## Whether a ship may take or pull this part yet.
+func is_takeable() -> bool:
+	return pickup_delay <= 0
+
+
 func state_hash() -> int:
-	if ignored_ship < 0:
-		return hash([part_id, position, velocity])
-	return hash([part_id, position, velocity, "ignored_ship", ignored_ship])
+	var parts: Array = [part_id, position, velocity]
+	if ignored_ship >= 0:
+		parts.append_array(["ignored_ship", ignored_ship])
+	if pickup_delay > 0:
+		parts.append_array(["pickup_delay", pickup_delay])
+	return hash(parts)

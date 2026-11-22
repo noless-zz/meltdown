@@ -8,7 +8,7 @@ extends RefCounted
 const STEP_ID: String = "bot_generated_door_escape"
 const EXPECTED_HASH: int = 854268051
 ## The replay header written as format version 17 since #922.
-const EXPECTED_LEVEL_HASH: int = 174792129
+const EXPECTED_LEVEL_HASH: int = 3403894836
 const SeedPick := preload("res://tests/m3_seed_pick.gd")
 const M3Run := preload("res://tests/m3_suite_run.gd")
 const GRACE: int = MapRouteWiring.ROUTE_EVERY_TICKS

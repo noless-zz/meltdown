@@ -44,7 +44,8 @@ static func remove_destroyed(sim: Sim, killers: Dictionary) -> void:
 		if robot.is_alive():
 			kept.append(robot)
 			continue
-		var item: SalvageItem = SalvageItem.dropped_by(robot)
+		var item: SalvageItem = SalvageItem.dropped_by(robot,
+			sim.salvage_rules.drop_delay_ticks)
 		if item != null:
 			sim.salvage.append(item)
 			sim.last_events.append(SimEvent.new(SimEvent.Kind.SALVAGE_DROPPED,
