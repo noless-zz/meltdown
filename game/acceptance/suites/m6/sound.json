@@ -1,3 +1,14 @@
 {
-	"steps": []
+	"steps": [
+		{
+			"id": "sound_cues",
+			"replay": "res://acceptance/replays/both_primaries_fire.replay",
+			"checks": [
+				"final_hash",
+				"sound_cues_in_order",
+				"ship_alive"
+			],
+			"expected_hash": 1302297426
+		}
+	]
 }

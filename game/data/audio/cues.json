@@ -1,0 +1,147 @@
+{
+	"max_voices": 16,
+	"quiet_db": -6.0,
+	"cues": {
+		"SHOT_FIRED": {
+			"sound": "res://data/audio/shot_pulse_cannon.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:pulse_cannon": {
+			"sound": "res://data/audio/shot_pulse_cannon.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:slug_thrower": {
+			"sound": "res://data/audio/shot_slug_thrower.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:quill_battery": {
+			"sound": "res://data/audio/shot_quill_battery.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:drift_mortar": {
+			"sound": "res://data/audio/shot_drift_mortar.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:hollow_spike": {
+			"sound": "res://data/audio/shot_hollow_spike.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:needle_gun": {
+			"sound": "res://data/audio/shot_needle_gun.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:ember_coil": {
+			"sound": "res://data/audio/shot_ember_coil.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:arc_lance": {
+			"sound": "res://data/audio/shot_arc_lance.wav",
+			"volume_db": -8.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SHOT_FIRED:robot": {
+			"sound": "res://data/audio/shot_robot.wav",
+			"volume_db": -6.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.1
+		},
+		"BOLT_IMPACT": {
+			"sound": "res://data/audio/bolt_impact.wav",
+			"volume_db": -10.0,
+			"pitch_min": 0.85,
+			"pitch_max": 1.15
+		},
+		"WALL_IMPACT": {
+			"sound": "res://data/audio/wall_impact.wav",
+			"volume_db": -4.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.1,
+			"min_magnitude": 0.5
+		},
+		"ROBOT_HIT": {
+			"sound": "res://data/audio/robot_hit.wav",
+			"volume_db": -3.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.1
+		},
+		"ROBOT_DESTROYED": {
+			"sound": "res://data/audio/robot_destroyed.wav",
+			"volume_db": 0.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.05
+		},
+		"SHIP_HIT": {
+			"sound": "res://data/audio/ship_hit.wav",
+			"volume_db": 0.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05
+		},
+		"SALVAGE_COLLECTED": {
+			"sound": "res://data/audio/pickup.wav",
+			"volume_db": -4.0,
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
+		},
+		"COMPONENT_COLLECTED": {
+			"sound": "res://data/audio/pickup.wav",
+			"volume_db": -6.0,
+			"pitch_min": 1.1,
+			"pitch_max": 1.1
+		},
+		"MINER_RESCUED": {
+			"sound": "res://data/audio/pickup.wav",
+			"volume_db": -4.0,
+			"pitch_min": 0.8,
+			"pitch_max": 0.8
+		},
+		"PART_SLOTTED": {
+			"sound": "res://data/audio/part_slotted.wav",
+			"volume_db": -6.0,
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
+		},
+		"REACTOR_DESTROYED": {
+			"sound": "res://data/audio/meltdown_start.wav",
+			"volume_db": 2.0,
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
+		},
+		"SHIP_ESCAPED": {
+			"sound": "res://data/audio/ship_escaped.wav",
+			"volume_db": 0.0,
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
+		},
+		"SHIP_DESTROYED": {
+			"sound": "res://data/audio/ship_destroyed.wav",
+			"volume_db": 2.0,
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
+		}
+	},
+	"silent": [
+		"AFTERBURNER_STARTED",
+		"AFTERBURNER_STOPPED",
+		"ENERGY_DEPLETED",
+		"SALVAGE_DROPPED",
+		"SHIP_LOST_IN_MELTDOWN",
+		"DEBRIS_HELD"
+	]
+}

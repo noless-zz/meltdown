@@ -24,6 +24,9 @@ var component_view: ComponentView = null
 var miner_view: MinerView = null
 ## Says on the hold row what was just picked up or slotted (#605).
 var hold_messages: HoldMessages = HoldMessages.new()
+## The positional sound cues (#1290), beside the bolts once `attach` has run.
+var sound_cues: SoundCues = null
+var _sound_sim: Sim = null
 ## The hit cue on every preset (#618): which side and bar flash. Null when its
 ## file was rejected; the pulses still go.
 var hit_flash: HitFlash = load_hit_flash(HitFlash.DEFAULT_FILE)
@@ -48,6 +51,8 @@ func attach(world: Node3D) -> void:
 	if camera != null and hit_flash != null:
 		hit_overlay = HitFlashOverlay.new(hit_flash)
 		camera.add_child(hit_overlay)
+	sound_cues = SoundCues.new()
+	world.add_child(sound_cues)
 	projectile_view = ProjectileView.new()
 	world.add_child(projectile_view)
 	robot_view = RobotView.new()
@@ -103,6 +108,19 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	# Heaps and miners do not move; the views read the sim's lists and write nothing.
 	component_view.show_heaps(session.sim)
 	miner_view.show_miners(session.sim.rescue, session.current_ship(), session.sim.walls, delta)
+	feed_sound(session)
+
+
+## Plays the cues of the session's last advance (#1290). A new simulation is a
+## new level, so the old one's bolts are forgotten rather than heard ending.
+func feed_sound(session: LocalSession) -> void:
+	if sound_cues == null:
+		return
+	if session.sim != _sound_sim:
+		sound_cues.reset()
+		_sound_sim = session.sim
+	sound_cues.feed(session.frame_events(), session.current_projectiles(),
+		[session.current_ship()] as Array[ShipState])
 
 
 ## Takes in the events of one session advance and `ship`, the local ship (0)
