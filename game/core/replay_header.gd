@@ -16,7 +16,7 @@ extends RefCounted
 ## to 9 no part lines, versions 1 to 12 no reactor line, versions 1 to 13 no
 ## start line, versions 1 to 14 no debris line, versions 1 to 15 no salvage
 ## line, versions 1 to 16 no aim line and no aim columns, versions 1 to 17 no
-## components or rescue line. Version 8 robot lines hold the robot's data file alone, with no
+## components or rescue line, versions 1 to 18 no slot choice in the slot column. Version 8 robot lines hold the robot's data file alone, with no
 ## "robot" or "weapon" key, and read as unarmed.
 
 

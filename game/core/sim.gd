@@ -118,9 +118,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 		if ship.afterburner_locked and not was_locked:
 			last_events.append(SimEvent.new(SimEvent.Kind.ENERGY_DEPLETED, i))
 		ShipContact.apply(self, i, last_events)
-		if inputs[i].slot_held and not ship.slot_was_held:
-			PartSlotting.slot_held(self, i, slot_drops)
-		ship.slot_was_held = inputs[i].slot_held
+		PartSlotting.apply(self, i, inputs[i], slot_drops)
 		look_aim.turn_gun(ship, inputs[i].aim())
 		ProjectileHits.fire(self, i, inputs[i].fire_primary)
 	last_events.append_array(_hit_events)

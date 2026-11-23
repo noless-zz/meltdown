@@ -35,9 +35,11 @@ func _sim(primaries: Array[String], catalogue: Array[String], held: String) -> S
 	return sim
 
 
-func _step(sim: Sim, slot: bool, thrust: Vector3i = Vector3i.ZERO, fire: bool = false) -> void:
-	var inputs: Array[ShipInput] = [
-		ShipInput.new(thrust, Vector3i.ZERO, false, false, fire, slot)]
+func _step(sim: Sim, slot: bool, thrust: Vector3i = Vector3i.ZERO, fire: bool = false,
+		choice: int = ShipInput.SLOT_CHOICE_NONE) -> void:
+	var input: ShipInput = ShipInput.new(thrust, Vector3i.ZERO, false, false, fire, slot)
+	input.slot_choice = choice
+	var inputs: Array[ShipInput] = [input]
 	sim.step(inputs)
 
 
@@ -70,13 +72,12 @@ func test_slots_into_the_first_empty_primary() -> String:
 	return ""
 
 
-## Until the pilot can choose (#1262), a part slotted with both full replaces
-## slot 1, the slot that was always selected before both fired (#1261).
+## With both full the pilot chooses the slot in the popup (#1262); here slot 1.
 func test_both_full_replaces_slot_1_and_drops_the_old() -> String:
 	var sim: Sim = _sim(["pulse_cannon", "needle_gun"], ["arc_lance"], "arc_lance")
 	var ship: ShipState = sim.ships[0]
 	ship.velocity = Vector3(1.0, 2.0, -6.0)
-	_step(sim, true, FORWARD)
+	_step(sim, false, FORWARD, false, ShipInput.SLOT_CHOICE_SLOT_1)
 	if ship.primary_ids != (["arc_lance", "needle_gun"] as Array[String]):
 		return "slots hold %s" % [ship.primary_ids]
 	if ship.primary_slots[0] != sim.part("arc_lance"):
@@ -103,7 +104,7 @@ func test_both_full_replaces_slot_1_and_drops_the_old() -> String:
 func test_a_dropped_part_can_be_taken_after_flying_away() -> String:
 	var sim: Sim = _sim(["pulse_cannon", "needle_gun"], ["arc_lance"], "arc_lance")
 	var ship: ShipState = sim.ships[0]
-	_step(sim, true)
+	_step(sim, false, Vector3i.ZERO, false, ShipInput.SLOT_CHOICE_SLOT_1)
 	var dropped_at: Vector3 = sim.salvage[0].position
 	for tick: int in 60:
 		_step(sim, false, FORWARD)
@@ -150,7 +151,7 @@ func test_the_slotted_weapon_fires_on_the_same_tick() -> String:
 	return ""
 
 
-## Kills a drone, flies through its cannon, slots it over slot 1 and flies on; the replay of all that must end on the live hash.
+## Kills a drone, flies through its cannon, chooses slot 1 for it and flies on; the replay of all that must end on the live hash.
 func test_a_replayed_slotting_run_matches_the_live_hash() -> String:
 	var replay: Replay = Replay.new(11, 1)
 	replay.loadout = _loadout(["pulse_cannon", "needle_gun"])
@@ -173,7 +174,7 @@ func test_a_replayed_slotting_run_matches_the_live_hash() -> String:
 			if not live.ships[0].hold.is_empty():
 				phase = 2
 		elif phase == 2:
-			input.slot_held = true
+			input.slot_choice = ShipInput.SLOT_CHOICE_SLOT_1
 			slotted_at = tick
 			phase = 3
 		else:
@@ -191,8 +192,8 @@ func test_a_replayed_slotting_run_matches_the_live_hash() -> String:
 		return "the slotting did not happen: slot 1 %s, %d floating" % [
 			ship.primary_slots[0], live.salvage.size()]
 	var text: String = replay.to_text()
-	if not text.contains("\n0 0 0 0 0 0 0 0 0 1\n"):
-		return "no slot column in the written replay"
+	if not text.contains("\n0 0 0 0 0 0 0 0 0 2\n") or not text.begins_with("meltdown-replay 19\n"):
+		return "no slot choice in the written replay"
 	var reread: Replay = Replay.from_text(text)
 	if reread.error != "":
 		return reread.error
@@ -203,7 +204,7 @@ func test_a_replayed_slotting_run_matches_the_live_hash() -> String:
 		return "the replay ends on %d, the live run on %d" % [replayed.state_hash(), live.state_hash()]
 	# Without the slot column the run must differ, or the test proves nothing.
 	for frame: Array in reread.frames:
-		(frame[0] as ShipInput).slot_held = false
+		(frame[0] as ShipInput).slot_choice = ShipInput.SLOT_CHOICE_NONE
 	if reread.run().state_hash() == live.state_hash():
 		return "dropping the slot input does not change the hash"
 	return ""
@@ -218,7 +219,7 @@ func test_older_formats_read_slot_as_off() -> String:
 		return "a version 10 tick read as slotting"
 	var bad: Replay = Replay.from_text(
 		"meltdown-replay 11\nseed 1\nships 1\ninputs\n0 0 0 0 0 0 0 0 0 2\n")
-	if not bad.error.contains("slot must be 0 or 1"):
+	if not bad.error.contains("slot must be 0 to 1"):
 		return "a slot value of 2 gave '%s'" % bad.error
 	var short: Replay = Replay.from_text(
 		"meltdown-replay 11\nseed 1\nships 1\ninputs\n0 0 0 0 0 0 0 0 0\n")

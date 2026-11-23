@@ -28,6 +28,12 @@
 			"expected_hash": 1302297426
 		},
 		{
+			"id": "slot_choice_replace",
+			"replay": "res://acceptance/replays/slot_choice_replace.replay",
+			"checks": ["final_hash", "slot_choice_applied", "ship_alive"],
+			"expected_hash": 2581100220
+		},
+		{
 			"id": "bot_clears_g2_level",
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_level.replay",

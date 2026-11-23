@@ -12,6 +12,11 @@ extends RefCounted
 ## First format version whose tick lines may carry an aim: three more numbers
 ## for a ship whose aim is off the nose (CMB-6).
 const AIM_VERSION: int = 17
+## First format version whose slot column may carry the slot popup's choice
+## (decision record 0011): the column is the slot click (0 or 1) plus twice
+## `ShipInput.slot_choice`, so 0 to 7. Without a choice it reads 0 or 1, as
+## before.
+const CHOICE_VERSION: int = 19
 ## The two keys of a version 9 robot line's JSON object.
 const ROBOT_LINE_KEYS: Array[String] = ["robot", "weapon"]
 
@@ -211,7 +216,7 @@ static func tick_text(frame: Array) -> String:
 		parts.append("%d %d %d %d %d %d %d %d %d %d" % [
 			t.x, t.y, t.z, r.x, r.y, r.z, 1 if input.afterburner else 0,
 			1 if input.reset_to_start else 0, 1 if input.fire_primary else 0,
-			1 if input.slot_held else 0])
+			slot_column(input)])
 		# Only an aim off the nose is written, so ticks that never aimed read
 		# exactly as before (CMB-6).
 		if input.aims_off_nose():
@@ -251,12 +256,14 @@ static func parse_tick_line(replay: Replay, line: String, version: int) -> Strin
 		if fire != 0 and fire != 1:
 			return "fire must be 0 or 1, found %d" % fire
 		var slot: int = values[9] if expected >= 10 else 0
-		if slot != 0 and slot != 1:
-			return "slot must be 0 or 1, found %d" % slot
+		var slot_max: int = 1 + 2 * ShipInput.SLOT_CHOICE_DUMP if version >= CHOICE_VERSION else 1
+		if slot < 0 or slot > slot_max:
+			return "slot must be 0 to %d, found %d" % [slot_max, slot]
 		var input: ShipInput = ShipInput.new(
 			Vector3i(values[0], values[1], values[2]),
 			Vector3i(values[3], values[4], values[5]),
-			afterburner == 1, reset == 1, fire == 1, slot == 1)
+			afterburner == 1, reset == 1, fire == 1, slot % 2 == 1)
+		input.slot_choice = slot / 2
 		if aimed:
 			var aim: Vector3i = Vector3i(values[expected], values[expected + 1], values[expected + 2])
 			if not ShipInput.aim_q_valid(aim) or aim == ShipInput.NOSE_AIM_Q:
@@ -266,6 +273,22 @@ static func parse_tick_line(replay: Replay, line: String, version: int) -> Strin
 		inputs.append(input)
 	replay.frames.append(inputs)
 	return ""
+
+
+## The slot column of `input`: the click, plus twice the popup's choice.
+static func slot_column(input: ShipInput) -> int:
+	return (1 if input.slot_held else 0) + 2 * input.slot_choice
+
+
+## The version a replay with `frames` needs at least: CHOICE_VERSION when any
+## input carries a slot choice, else 0, so every replay without one is written
+## exactly as before.
+static func frames_version(frames: Array) -> int:
+	for frame: Array in frames:
+		for input: ShipInput in frame:
+			if input.slot_choice != ShipInput.SLOT_CHOICE_NONE:
+				return CHOICE_VERSION
+	return 0
 
 
 ## How many numbers each ship has on a tick line of `version`.

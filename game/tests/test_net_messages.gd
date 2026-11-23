@@ -5,7 +5,8 @@ extends RefCounted
 
 
 func _same_input(a: ShipInput, b: ShipInput) -> String:
-	for field: String in NetMessages.VECTOR_FIELDS + NetMessages.BOOL_FIELDS + [NetMessages.AIM_FIELD]:
+	for field: String in NetMessages.VECTOR_FIELDS + NetMessages.BOOL_FIELDS + [NetMessages.AIM_FIELD,
+			NetMessages.SLOT_CHOICE_FIELD]:
 		if a.get(field) != b.get(field):
 			return "%s: sent %s, received %s" % [field, a.get(field), b.get(field)]
 	return ""
@@ -117,6 +118,7 @@ func test_input_packet_is_at_most_32_bytes() -> String:
 func test_net_messages_carries_every_ship_input_property() -> String:
 	var carried: Array[String] = NetMessages.VECTOR_FIELDS + NetMessages.BOOL_FIELDS
 	carried.append(NetMessages.AIM_FIELD)
+	carried.append(NetMessages.SLOT_CHOICE_FIELD)
 	var declared: Array[String] = []
 	for property: Dictionary in ShipInput.new().get_property_list():
 		if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
@@ -210,3 +212,23 @@ func test_input_with_out_of_range_thrust_or_unknown_flags_is_refused() -> String
 	var flags: PackedByteArray = bytes.duplicate()
 	flags.encode_u8(NetMessages.INPUT_SIZE - 1, 0x80)
 	return _expect_error(flags, "unknown bits")
+
+
+func test_each_slot_choice_travels_with_and_without_an_aim() -> String:
+	for choice: int in range(ShipInput.SLOT_CHOICE_NONE, ShipInput.SLOT_CHOICE_DUMP + 1):
+		for aim: Vector3i in [ShipInput.NOSE_AIM_Q, Vector3i(0, 200, -980)]:
+			var input: ShipInput = ShipInput.new(Vector3i.ZERO, Vector3i.ZERO, false, false, true, true)
+			input.slot_choice = choice
+			input.aim_q = aim
+			var result: String = _round_trip_input(9, 0, input)
+			if not result.is_empty():
+				return "choice %d, aim %s: %s" % [choice, aim, result]
+	return ""
+
+
+func test_encode_input_refuses_an_unknown_slot_choice() -> String:
+	var input: ShipInput = ShipInput.new()
+	input.slot_choice = ShipInput.SLOT_CHOICE_DUMP + 1
+	if not NetMessages.encode_input(1, 0, input).is_empty():
+		return "encoded slot choice %d" % input.slot_choice
+	return ""

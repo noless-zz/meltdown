@@ -11,6 +11,12 @@ extends RefCounted
 const SCALE: int = 1000
 ## Straight ahead along the nose, ship space -z.
 const NOSE_AIM_Q: Vector3i = Vector3i(0, 0, -SCALE)
+## Values of `slot_choice`: the popup's answer when both primary slots are
+## full (decision record 0011). Slot 1 is the right gun, slot 2 the left.
+const SLOT_CHOICE_NONE: int = 0
+const SLOT_CHOICE_SLOT_1: int = 1
+const SLOT_CHOICE_SLOT_2: int = 2
+const SLOT_CHOICE_DUMP: int = 3
 
 ## Ship-space thrust in thousandths: each axis -1000..1000 (x strafe, y lift,
 ## z forward is negative).
@@ -23,12 +29,17 @@ var afterburner: bool = false
 ## A development and solo-play aid for a pilot who has left the mine (#81);
 ## whether co-op allows it is decided in M5.
 var reset_to_start: bool = false
-## Primary fire held: the ship fires its selected primary weapon whenever its
-## fire interval and energy allow (CMB-1).
+## Primary fire held: the ship fires every filled primary slot whenever its
+## fire interval and energy allow (CMB-1, decision record 0011).
 var fire_primary: bool = false
 ## Slot the part in the hold into a primary weapon slot on this tick (SLV-1).
 ## Set by the cockpit's hand gesture; `PartSlotting` decides what it does.
 var slot_held: bool = false
+## The pilot's answer to the slot popup, one of the SLOT_CHOICE_ values;
+## `PartSlotting` decides what it does. One small int so a replay and a
+## network packet carry it as recorded input (ARC-2, MP-2). None, the default,
+## is what every input recorded before the popup reads as.
+var slot_choice: int = SLOT_CHOICE_NONE
 ## Where the pilot asks the guns to point, in ship space, as a direction in
 ## thousandths (CMB-6, decision record 0010). The core keeps the guns inside
 ## the look-aim cone and turns them at its gimbal rate (`LookAim`). Defaults to
@@ -50,6 +61,11 @@ func _init(
 	reset_to_start = p_reset_to_start
 	fire_primary = p_fire_primary
 	slot_held = p_slot_held
+
+
+## Whether `value` is one of the SLOT_CHOICE_ values.
+static func slot_choice_valid(value: int) -> bool:
+	return value >= SLOT_CHOICE_NONE and value <= SLOT_CHOICE_DUMP
 
 
 ## Rounds analogue values (thrust -1..1 per axis, turn in radians per second)

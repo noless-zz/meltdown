@@ -55,20 +55,23 @@ extends RefCounted
 ##     0 0 -1000 0 250 0 1 0 1 0
 ##                              one line per tick: thrust x y z, turn x y z,
 ##                              afterburner, reset to start, fire primary,
-##                              slot held part (0 off, 1 on); from version 17
+##                              slot held part (0 off, 1 on; from version 19
+##                              plus twice the slot popup's choice: 1 slot 1,
+##                              2 slot 2, 3 dump); from version 17
 ##                              then aim x y z only when it is off the nose
 ##     0 0 -1000 0 0 0 0 0 0 0 | ...
 ##                              further ships follow after " | "
 ##
 ## Older versions lack some columns and lines; `ReplayHeader` lists which.
 ## Files are written as the current version, except that a replay without
-## version 18's lines is written as 17 (`ReplayRulesLine.format_version`).
+## version 18's lines is written as 17 (`ReplayRulesLine.format_version`) and
+## one without a slot choice as 18 or 17 (`ReplayLines.frames_version`).
 ##
 ## Numbers are the integers of `ShipInput`, so saving and loading is exact.
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 18
+const FORMAT_VERSION: int = 19
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -241,7 +244,8 @@ func walls() -> BoxUnion:
 
 func to_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
-	lines.append("%s %d" % [FORMAT_NAME, ReplayRulesLine.format_version(self)])
+	lines.append("%s %d" % [FORMAT_NAME,
+		maxi(ReplayRulesLine.format_version(self), ReplayLines.frames_version(frames))])
 	lines.append("seed %d" % run_seed)
 	lines.append("ships %d" % ship_count)
 	if expected_hash != NO_HASH:

@@ -42,6 +42,9 @@ const CHECK_PART_HELD: String = "part_held"
 ## Both primary slots are filled when the replay ends and shots from each are
 ## in flight: the right trigger fires both (#1261, CMB-1).
 const CHECK_BOTH_PRIMARIES_FIRED: String = "both_primaries_fired"
+## Every slot popup choice in the replay replaced or dumped as recorded, at
+## least one of each (#1262, decision record 0011, SLV-1).
+const CHECK_SLOT_CHOICE_APPLIED: String = "slot_choice_applied"
 ## The display runs at no less than the active comfort preset's refresh rate
 ## (#598, CMF-1, PRF-1); skipped without an OpenXR runtime.
 const CHECK_REFRESH_RATE: String = "refresh_rate"
@@ -159,13 +162,13 @@ const KNOWN_CHECKS: Array[String] = [CHECK_XR_SESSION, CHECK_FINAL_HASH, CHECK_N
 	CHECK_HELD_WHILE_PAUSED, CHECK_HIT_VIEW_MOTION, CHECK_MAP_ROUTE, CHECK_FIRE_BURNED, CHECK_ESCAPE_CUE,
 	CHECK_MAP_MARKERS, CHECK_VIGNETTE, CHECK_RUN_ADVANCES, CHECK_SHAFT_CHOICE, CHECK_COMPONENTS_BANK,
 	CHECK_COLLECTED, CHECK_CREW_JOINS, CHECK_CRAFT_AND_FIT, CHECK_SUSPEND_RESUME,
-	CHECK_AUTO_LEVEL_OPTION, CHECK_ABANDON_RUN, CHECK_BOTH_PRIMARIES_FIRED]
+	CHECK_AUTO_LEVEL_OPTION, CHECK_ABANDON_RUN, CHECK_BOTH_PRIMARIES_FIRED, CHECK_SLOT_CHOICE_APPLIED]
 ## Checks that read the state the replay ended in, so a step listing one must
 ## fly a replay.
 const REPLAY_CHECKS: Array[String] = [CHECK_FINAL_HASH, CHECK_ROBOTS_CLEARED, CHECK_SHIP_ALIVE,
 	CHECK_OUTCOME, CHECK_DEBRIS_FALLEN, CHECK_LEVEL_HASH, CHECK_DOOR_FALLEN, CHECK_NO_HIDDEN_HITS,
 	CHECK_SHIP_DESTROYED_INERT, CHECK_PART_HELD, CHECK_WALL_BOUNCED, CHECK_AFTERBURNER, CHECK_AT_START,
-	CHECK_FIRE_BURNED, CHECK_BOTH_PRIMARIES_FIRED]
+	CHECK_FIRE_BURNED, CHECK_BOTH_PRIMARIES_FIRED, CHECK_SLOT_CHOICE_APPLIED]
 
 ## Comfort presets are numbered 1..4 (CMF-3); 0 means the step sets none.
 const NO_PRESET: int = 0
