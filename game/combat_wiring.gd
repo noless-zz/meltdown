@@ -100,9 +100,16 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 		return
 	if camera != null:
 		projectile_view.set_viewer(point_in(projectile_view, camera))
+		# Blasts keep clear of the eye (#1309); the burst node is the robot view's own.
+		var bursts: RobotBursts = robot_view.get_node_or_null(RobotBursts.NODE_NAME) as RobotBursts
+		if bursts != null:
+			bursts.set_viewer(point_in(bursts, camera))
 	# The eye sits at the ship's centre, so the muzzles hang off this frame's pose.
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction)
+	# Read only: the weapons tell each bolt's look, the rest where it ended (#1309).
+	projectile_view.set_scene([session.current_ship()] as Array[ShipState], session.previous_robots(),
+		session.sim.walls)
 	projectile_view.show_projectiles(session.current_projectiles(), session.interpolation_fraction,
 		[pose] as Array[Transform3D])
 	aim_reticle.show_aim(pose, session.current_ship().gun_direction, session.current_robots(),
