@@ -12,6 +12,10 @@ extends Node3D
 ## (MP-2). The pulse runs on the view's own clock. Only light and emission
 ## change; nothing moves, so the meltdown never moves the view (CMF-3).
 ##
+## With a `machine` in the look (#1310) the core is drawn smaller, at
+## `core_scale_r` of the radius, inside a `ReactorMachine` that becomes a
+## breached, burning wreck once destroyed; without one it is the bare sphere.
+##
 ## The light counts toward the 8-light budget (GFX-4) and casts no shadow:
 ## only the player's headlight does. The look lives in
 ## `res://view/reactor_look.json` (`ReactorLook`, ARC-4).
@@ -33,7 +37,11 @@ var pulse_phase: float = 0.0
 ## While true the view's own clock stops: `_process` leaves the pulse where
 ## it is, so a paused session holds the reactor still with everything else
 ## (CMF-8, PLT-7). Clearing it resumes from the same phase, with no jump.
-var frozen: bool = false
+var frozen: bool = false:
+	set(value):
+		frozen = value
+		if _machine != null:
+			_machine.set_frozen(value)
 
 var _look: Dictionary = ReactorLook.FALLBACK
 var _core: MeshInstance3D
@@ -43,6 +51,9 @@ var _radius: float = 1.0
 var _hull_fraction: float = 1.0
 var _destroyed: bool = false
 var _seconds_left: float = 0.0
+var _machine: ReactorMachine = null
+## The walls last handed to `fit_pipes`, so a new look refits its pipes.
+var _walls: BoxUnion = null
 
 
 func _init() -> void:
@@ -85,6 +96,8 @@ func load_look(path: String = ReactorLook.DEFAULT_FILE) -> String:
 	else:
 		_look = values
 	_light.omni_range = float(_look["light_range"])
+	_build_machine()
+	_place()
 	_apply()
 	return look_error
 
@@ -104,8 +117,31 @@ func show_state(position_m: Vector3, radius: float, hull_fraction: float, destro
 	_hull_fraction = clampf(hull_fraction, 0.0, 1.0)
 	_destroyed = destroyed
 	_seconds_left = maxf(meltdown_seconds_left, 0.0)
-	_core.scale = Vector3.ONE * maxf(_radius, 0.001)
+	_place()
 	_apply()
+
+
+## Runs the machine's pipes out to `walls`, the level's, read only. Call it
+## once the reactor is placed; nothing changes without a machine.
+func fit_pipes(walls: BoxUnion) -> void:
+	_walls = walls
+	if _machine != null and walls != null:
+		_machine.set_pipe_reach(ReactorMachine.reach_in(walls, _machine.look(), position, _radius))
+
+
+## The machine around the core, or null when the look has none.
+func machine() -> ReactorMachine:
+	return _machine
+
+
+## The reactor's radius as last shown, metres.
+func radius() -> float:
+	return _radius
+
+
+## The drawn core's radius as a fraction of the reactor's.
+func core_scale() -> float:
+	return float(_machine.look()["core_scale_r"]) if _machine != null else 1.0
 
 
 ## Seconds per pulse (intact) or flicker (destroyed) for the current state.
@@ -149,6 +185,29 @@ func light() -> OmniLight3D:
 
 func material() -> StandardMaterial3D:
 	return _material
+
+
+func _place() -> void:
+	_core.scale = Vector3.ONE * maxf(_radius * core_scale(), 0.001)
+	if _machine != null:
+		var radius_now: float = maxf(_radius, 0.001)
+		if not is_equal_approx(_machine.scale.x, radius_now):
+			_machine.set_radius(radius_now)
+		if _machine.destroyed() != _destroyed:
+			_machine.set_destroyed(_destroyed)
+
+
+func _build_machine() -> void:
+	if _machine != null:
+		remove_child(_machine)
+		_machine.free()
+		_machine = null
+	if _look.has(ReactorLook.MACHINE_KEY):
+		_machine = ReactorMachine.new(_look[ReactorLook.MACHINE_KEY])
+		add_child(_machine)
+		_machine.set_frozen(frozen)
+		if _walls != null:
+			fit_pipes(_walls)
 
 
 func _apply() -> void:
