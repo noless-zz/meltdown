@@ -9,7 +9,7 @@
 			"expected_hash": 2084410374,
 			"expected_level_hash": 395905380,
 			"expected_outcome": "ESCAPED",
-			"expected_next_level_hash": 1113756741
+			"expected_next_level_hash": 2500254114
 		},
 		{
 			"id": "shaft_choice",
@@ -46,9 +46,9 @@
 			"shaft": 2,
 			"next_replay": "res://acceptance/replays/shaft_rewards_steady.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "collected"],
-			"expected_hash": 2847728389,
+			"expected_hash": 135514920,
 			"expected_outcome": "ESCAPED",
-			"expected_collected": {"scrap_alloy": 2}
+			"expected_collected": {"cell_salts": 1, "scrap_alloy": 2}
 		},
 		{
 			"id": "fitted_start",

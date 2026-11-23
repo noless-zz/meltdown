@@ -13,9 +13,11 @@ const FEW_SEEDS: int = 200
 ## #438, with the shipped `generator.json` of the time (bias did not exist,
 ## so it is the file with `loop_bias` 0) and with no settings at all. #472
 ## reshaped the Z bridges, so the pin with the file moved from 3783710171;
-## levels without bridges are unchanged.
-const PIN_WITH_FILE: int = 2981470496
-const PIN_WITHOUT_SETTINGS: int = 3339467983
+## levels without bridges are unchanged. #1285's minimum wall (`min_wall_m`,
+## and `MineGenerator.MIN_WALL_MM` without settings) rejects flush placements,
+## so both moved again, from 2981470496 and 3339467983.
+const PIN_WITH_FILE: int = 952095456
+const PIN_WITHOUT_SETTINGS: int = 3665614014
 ## `generator.json`'s `loop_bias` in thousandths: 0.6 gives 214 looped seeds of
 ## 0..999 with every level passing the validator (#438).
 const SHIPPED_BIAS_PERMILLE: int = 600
@@ -104,7 +106,7 @@ func test_more_bias_gives_more_loops() -> String:
 func test_facing_needs_opposite_axes_within_gap_and_offset() -> String:
 	var bridges: LoopBridges = LoopBridges.parse_json(JSON.stringify(
 			{"loop_min_m": 6, "loop_max_m": 60, "loop_max_count": 2, "loop_max_offset_m": 10,
-			"dead_end_min_open": 6, "loop_bias": 1}))
+			"dead_end_min_open": 6, "loop_bias": 1, "min_wall_m": 1.0}))
 	if bridges.error != "":
 		return "fixture rejected: %s" % bridges.error
 	var from: ModuleConnector = _connector(Vector3i.ZERO, "+x")

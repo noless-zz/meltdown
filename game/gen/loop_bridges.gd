@@ -9,7 +9,8 @@ extends RefCounted
 ## Read from `data/gen/generator.json`:
 ##
 ##     {"loop_min_m": 10, "loop_max_m": 60, "loop_max_count": 2,
-##      "loop_max_offset_m": 20, "dead_end_min_open": 6, "loop_bias": 0.5}
+##      "loop_max_offset_m": 20, "dead_end_min_open": 6, "loop_bias": 0.5,
+##      "min_wall_m": 1.0}
 ##
 ## `dead_end_min_open` is not about loops but lives in the same file, so this
 ## class reads it too (#421, ARC-4): `MineGenerator.generate` takes it from
@@ -17,7 +18,9 @@ extends RefCounted
 ## without code. So does `loop_bias` (#438): how often the generator, choosing
 ## where to attach the next module, prefers a placement that leaves an open
 ## connector facing another (`LoopBias`). Placement, not the tunnel shape, is
-## what limits the loop rate (#411).
+## what limits the loop rate (#411). So does `min_wall_m` (#1285): the thinnest
+## rock a placement may leave to a tunnel it does not open into
+## (`WallClearance`); 0 turns the check off.
 ##
 ## The gap is the distance between the two openings along their axis; the
 ## offset is how far apart their centres are across it. Openings exactly in
@@ -26,7 +29,8 @@ extends RefCounted
 ## the tunnel boxes plus a doorway box at each end, as `MineGenerator` adds for
 ## a join, so the level stays one piece under `LevelDef.joined`. It is made
 ## only when no tunnel box overlaps a placed box and each doorway overlaps no
-## placed box but those of the module it opens into, and when every two of its
+## placed box but those of the module it opens into, when it leaves no wall
+## thinner than `min_wall_m` to a tunnel it does not open into, and when every two of its
 ## boxes that meet share at least the connector's square (`LoopShapes`, #472).
 ## One open connector is always left for the start.
 ##
@@ -36,10 +40,12 @@ extends RefCounted
 
 const KEYS: Array[String] = [
 	"loop_min_m", "loop_max_m", "loop_max_count", "loop_max_offset_m", "dead_end_min_open",
-	"loop_bias",
+	"loop_bias", "min_wall_m",
 ]
 ## Upper bound on either gap key, metres: longer than any level is wide.
 const MAX_GAP_M: float = 1000.0
+## Upper bound on `min_wall_m`, metres: thicker than any module is wide.
+const MAX_WALL_M: float = 100.0
 ## Upper bound on `dead_end_min_open`: far above any level's open connectors,
 ## so it only keeps the number a plain int.
 const MAX_DEAD_END_MIN_OPEN: int = 1000
@@ -55,6 +61,8 @@ var max_offset_mm: int = 0
 var dead_end_min_open: int = MineGenerator.DEAD_END_MIN_OPEN
 ## `loop_bias` in thousandths, so the draw against it is a whole number (GEN-2).
 var loop_bias_permille: int = 0
+## `min_wall_m` in whole millimetres (`MineGenerator`).
+var min_wall_mm: int = MineGenerator.MIN_WALL_MM
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -139,6 +147,9 @@ func _bridge(generator: MineGenerator, a: int, b: int) -> Array[Vector3i]:
 		return []
 	boxes.append_array(door_a)
 	boxes.append_array(door_b)
+	# A bridge is a tunnel too, so it keeps the same rock to the others (#1285).
+	if not WallClearance.clear(generator, boxes, generator.min_wall_mm):
+		return []
 	# The shapes keep this by construction; the check makes a broken shape a
 	# missing loop rather than a narrow joint in a level (#472).
 	if not LoopShapes.joints_clear(boxes, from.size_mm()):
@@ -184,6 +195,7 @@ func _read(data: Dictionary) -> String:
 	var offset: float = float(data["loop_max_offset_m"])
 	var dead_end: float = float(data["dead_end_min_open"])
 	var bias: float = float(data["loop_bias"])
+	var wall: float = float(data["min_wall_m"])
 	if low <= 0.0 or low > MAX_GAP_M:
 		return "key \"loop_min_m\" must be above 0 and at most %s" % MAX_GAP_M
 	if high < low or high > MAX_GAP_M:
@@ -196,10 +208,13 @@ func _read(data: Dictionary) -> String:
 		return "key \"dead_end_min_open\" must be a whole number, 2..%d" % MAX_DEAD_END_MIN_OPEN
 	if bias < 0.0 or bias > 1.0:
 		return "key \"loop_bias\" must be 0..1"
+	if wall < 0.0 or wall > MAX_WALL_M:
+		return "key \"min_wall_m\" must be 0..%s" % MAX_WALL_M
 	min_gap_mm = roundi(low * RobotSpawn.SCALE)
 	max_gap_mm = roundi(high * RobotSpawn.SCALE)
 	max_count = int(count)
 	max_offset_mm = roundi(offset * RobotSpawn.SCALE)
 	dead_end_min_open = int(dead_end)
 	loop_bias_permille = roundi(bias * LoopBias.SCALE)
+	min_wall_mm = roundi(wall * RobotSpawn.SCALE)
 	return ""

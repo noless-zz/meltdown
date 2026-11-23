@@ -76,6 +76,8 @@ static func load_inputs(validator_text: String = "", overrides: Dictionary = {})
 	inputs.robot_radii = inputs.robot_plan.radii_by_id()
 	# The validator checks the reactor against the plan's own fraction (#912).
 	inputs.validator.min_escape_fraction = inputs.reactor_plan.min_escape_fraction
+	# And its walls against the generator's own minimum (#1285).
+	inputs.validator.min_wall_m = inputs.bridges.min_wall_mm / float(RobotSpawn.SCALE)
 	# Debris is placed so the escape still fits this validator's margin (#493).
 	inputs.debris_plan.escape_validator = inputs.validator
 	return inputs
