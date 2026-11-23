@@ -1,0 +1,15 @@
+{
+	"left_text": "Replace left gun",
+	"right_text": "Replace right gun",
+	"down_text": "Dump",
+	"cancel_text": "Click: cancel",
+	"height_m": 0.06,
+	"spread_m": 0.05,
+	"pixel_size": 0.00025,
+	"choice_font": 32,
+	"cancel_font": 22,
+	"choice_color": [1.0, 0.85, 0.4],
+	"cancel_color": [0.75, 0.85, 0.95],
+	"flick_threshold": 0.7,
+	"rest_threshold": 0.3
+}

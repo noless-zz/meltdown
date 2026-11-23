@@ -33,6 +33,11 @@ var hit_haptics: HitHaptics = HitHaptics.load_shipped()
 var hit_overlay: HitFlashOverlay = null
 ## Where the guns point, on every preset (#923, #1211), beside the bolts once `attach` has run.
 var aim_reticle: AimReticle = null
+## The slot popup's input step (#1263): the stick chooses while it is open.
+var slot_popup_input: SlotPopupInput = SlotPopupInput.from_look(SlotPopupLook.load_file())
+## The popup above the choosing hand's stick, once `attach` found the hands.
+var slot_popup: SlotPopup = null
+var _world: Node3D = null
 
 
 ## Puts the projectile, robot and salvage views under `world`, the node whose space is
@@ -62,6 +67,8 @@ func attach(world: Node3D) -> void:
 	world.add_child(miner_view)
 	aim_reticle = AimReticle.new()
 	world.add_child(aim_reticle)
+	_world = world
+	_place_slot_popup("right")
 
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
@@ -72,6 +79,8 @@ func attach(world: Node3D) -> void:
 ## (#1211); look-aim reaches it only through that simulated direction (#1239).
 func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0) -> void:
 	show_hit_flash(delta)
+	if slot_popup != null:
+		slot_popup.show_open(slot_popup_input.is_open, camera)
 	if panel != null:
 		var ship: ShipState = session.current_ship()
 		# The one snapshot of the gauges this frame (#1216); the reactor is a copy.
@@ -131,6 +140,34 @@ func feed_events(events: Array[SimEvent], ship: ShipState, xr_running: bool) -> 
 		# The normal points back into the tunnel, as a shot from the wall would fly.
 		hit_haptics.wall(HitFlash.side_for(strongest.vector, ship.orientation),
 			strongest.magnitude, xr_running)
+
+
+## The slot popup's step on one frame's mapped `input` (#1263): `values` are
+## the raw controller values the stick is read from, `held` is `ShipHold`'s
+## answer. The choice reaches the core only in the returned input (ARC-3).
+func slot_input(input: ShipInput, values: Dictionary, mapping: ThumbstickMapping,
+		session: LocalSession, held: bool) -> ShipInput:
+	var hand: String = SlotPopupInput.stick_hand(mapping)
+	if slot_popup != null and slot_popup.hand != hand:
+		_place_slot_popup(hand)
+	var stick: Variant = values.get(hand + "_stick", Vector2.ZERO)
+	var ended: bool = session.sim.outcome() != ExitRule.Outcome.RUNNING
+	return slot_popup_input.filter(input, stick if stick is Vector2 else Vector2.ZERO,
+		session.current_ship(), session.sim.tick, held, ended)
+
+
+## Puts the popup under `hand`'s controller, above its stick; nothing without one.
+func _place_slot_popup(hand: String) -> void:
+	var controller: Node3D = _world.get_node_or_null(
+		"XRRig/LeftHand" if hand == "left" else "XRRig/RightHand") as Node3D
+	if controller == null:
+		return
+	if slot_popup == null:
+		slot_popup = SlotPopup.new()
+	elif slot_popup.get_parent() != null:
+		slot_popup.get_parent().remove_child(slot_popup)
+	controller.add_child(slot_popup)
+	slot_popup.place(ControllerAnchors.load_file(), hand)
 
 
 ## Runs the hit flash by `delta` and shows its edge on the overlay.
