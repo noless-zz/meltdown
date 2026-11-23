@@ -138,8 +138,9 @@ func apply_controls(values: Dictionary) -> void:
 	map.buttons = buttons
 	destroyed.read_buttons(buttons)
 	reset_hold.press(ResetHold.is_held(values) and not flight_test.takes_menu_hold())  # Skips the test.
-	comfort.hand_input(flight_test.held(scheme.map_values(mapping, values)),
-		session.current_ship().orientation, reset_hold.reset_due(), ShipHold.is_held(dev_menu, flight_test, session, destroyed))
+	var held: bool = ShipHold.is_held(dev_menu, flight_test, session, destroyed)
+	var input: ShipInput = combat.slot_input(flight_test.held(scheme.map_values(mapping, values)), values, mapping, session, held)  # #1263.
+	comfort.hand_input(input, session.current_ship().orientation, reset_hold.reset_due(), held)
 
 
 ## Runs the simulation for one frame and moves the rig to the ship; public so tests can drive frames.
