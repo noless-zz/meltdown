@@ -11,7 +11,7 @@ var off_choice: String
 var on_text: String
 var off_text: String
 ## Shown after the value while `noted` or `locked`.
-var note_text: String
+var note: String
 var on: bool = false
 ## While locked, left and right leave the value alone (the swivel entry while
 ## the custom comfort file decides it, #853).
@@ -26,13 +26,16 @@ func _init(p_prefix: String, p_on_choice: String, p_off_choice: String, p_on_tex
 	off_choice = p_off_choice
 	on_text = p_on_text
 	off_text = p_off_text
-	note_text = p_note_text
+	note = p_note_text
 	on = p_on
 
 
-func value_text() -> String:
-	var text: String = on_text if on else off_text
-	return "%s %s" % [text, note_text] if noted or locked else text
+func plain_text() -> String:
+	return on_text if on else off_text
+
+
+func note_text() -> String:
+	return note if noted or locked else ""
 
 
 func step(_direction: int) -> void:

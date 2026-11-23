@@ -18,7 +18,9 @@ extends Node3D
 ## under the fade quad's.
 ##
 ## Entries come from `DevMenuSpec` (ARC-4); what each press does is
-## `DevMenuModel`. Neither ever touches the simulation (MP-2, ARC-3).
+## `DevMenuModel`. It shows one list at a time, the top list or a section,
+## and at most `max_rows_visible` of its rows, each with its label and value
+## only; the highlighted row adds its note (#1301, `DevMenuRows`). Neither ever touches the simulation (MP-2, ARC-3).
 
 const NODE_NAME: String = "DevMenu"
 const ENTRY_PREFIX: String = "Entry"
@@ -40,7 +42,7 @@ func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
 		level_paths: Array[String] = DevMenuLevels.files()) -> void:
 	name = NODE_NAME
 	model = DevMenuModel.new(spec, level_paths)
-	for index: int in spec.entries.size():
+	for index: int in spec.max_rows_visible:
 		var line: Label3D = Label3D.new()
 		line.name = "%s%d" % [ENTRY_PREFIX, index]
 		line.position = Vector3(0.0, -index * LINE_PITCH, 0.0)
@@ -91,7 +93,7 @@ static func placement(head: Transform3D, distance_m: float, offset_m: Vector2) -
 ## Hides the menu; it keeps its choices for the next `open`.
 func close() -> void:
 	visible = false
-	model.return_armed = false  # Closing cancels the Return to base confirm step (#1246).
+	model.close()  # Back to the top list; cancels the Return to base confirm step (#1246).
 
 
 ## One frame of named actions while open (see `DevMenuModel.press`).
@@ -120,33 +122,40 @@ func texts() -> Array[String]:
 	return shown
 
 
-## Shown lines close up, so a hidden update entry leaves no gap, and sit
-## centred on the menu's origin, so the middle row is where `place` aimed.
+## The rows on screen fill the lines from the top and sit centred on the
+## menu's origin, so the middle row is where `place` aimed.
 func _refresh() -> void:
-	var shown_rows: int = 0
-	for index: int in _lines.size():
-		if model.is_shown(index):
-			shown_rows += 1
-	var top: float = (shown_rows - 1) * LINE_PITCH * 0.5
-	var row: int = 0
+	var rows: Array[int] = model.rows.visible_rows()
+	var top: float = (rows.size() - 1) * LINE_PITCH * 0.5
 	for index: int in _lines.size():
 		var line: Label3D = _lines[index]
-		line.visible = model.is_shown(index)
+		line.visible = index < rows.size()
 		if not line.visible:
 			continue
-		line.position = Vector3(0.0, top - row * LINE_PITCH, 0.0)
-		row += 1
-		var entry: Dictionary = model.spec.entries[index]
-		var text: String = str(entry["label"])
-		var entry_kind: String = str(entry["kind"])
-		if entry_kind == DevMenuSpec.KIND_UPDATE:
-			text = model.update_text(text)
-		elif entry_kind == DevMenuSpec.KIND_RETURN:
-			text = model.return_text(text)
-		elif model.value(entry_kind) != null:
-			text += ": < %s >" % model.value_text(entry_kind)
-		var chosen: bool = index == model.selected
+		line.position = Vector3(0.0, top - index * LINE_PITCH, 0.0)
+		var chosen: bool = rows[index] == model.selected
+		var text: String = row_text(model, rows[index], chosen)
 		var shown: String = "> %s" % text if chosen else text
 		if line.text != shown:
 			line.text = shown  # Label3D rebuilds its glyphs on every assignment.
 		line.modulate = SELECTED_COLOR if chosen else TEXT_COLOR
+
+
+## The words `row` shows: its label and value only, or, `chosen`, the value
+## between `<` and `>` with any note after it (#1301).
+static func row_text(model: DevMenuModel, row: int, chosen: bool) -> String:
+	var spec: DevMenuSpec = model.spec
+	if row == DevMenuRows.BACK:
+		return spec.back_text
+	if DevMenuRows.section_of(row) != -1:
+		return str(spec.sections[DevMenuRows.section_of(row)]["label"])
+	var text: String = str(spec.entries[row]["label"])
+	match str(spec.entries[row]["kind"]):
+		DevMenuSpec.KIND_UPDATE: return model.update_text(text)
+		DevMenuSpec.KIND_RETURN: return model.return_text(text)
+	var helper: DevMenuValue = model.value(str(spec.entries[row]["kind"]))
+	if helper == null:
+		return text
+	if chosen:
+		return "%s: < %s >" % [text, helper.value_text()]
+	return "%s: %s" % [text, helper.plain_text()]

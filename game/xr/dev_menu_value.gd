@@ -10,8 +10,19 @@ extends RefCounted
 ## simulation (MP-2, ARC-3).
 
 
-## The words after the entry's label, between `<` and `>`.
+## The words after the entry's label, the note included.
 func value_text() -> String:
+	var note: String = note_text()
+	return "%s %s" % [plain_text(), note] if note != "" else plain_text()
+
+
+## The value alone: what every row shows (#1301).
+func plain_text() -> String:
+	return ""
+
+
+## A note such as "(this session)", shown only on the highlighted row (#1301); "" for none.
+func note_text() -> String:
 	return ""
 
 

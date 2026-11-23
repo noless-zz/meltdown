@@ -40,7 +40,7 @@ func number() -> int:
 	return index + 1
 
 
-func value_text() -> String:
+func plain_text() -> String:
 	if index >= preset_names.size():
 		return custom_text.replace("{base}", str(custom_base))
 	return preset_names[index]

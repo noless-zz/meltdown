@@ -40,6 +40,13 @@ extends RefCounted
 ## `info_title_text` heads the read-only Info section (#1207); optional.
 ## The `return` entry (#1246) shows only while a run's level flies; once pressed
 ## it reads `confirm_return_text` until a second press abandons the run.
+## `sections` (#1301, optional) groups entries under a row each:
+## `[{"label": "Comfort", "entries": ["comfort", "break", ...]}, ...]`. Each
+## named kind must be an entry, in at most one section; entries in no section
+## stay on the top list after the section rows. `back_text` labels the row at the
+## top of each section that returns to the top list. `max_rows_visible` rows
+## show at once and the list scrolls with the highlight; a label and its value
+## should fit `max_row_chars` (a check for the shipped file, not a cut).
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -66,7 +73,9 @@ const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "ca
 	"break_on_text", "break_off_text", "custom_text", "refresh_90_text", "refresh_120_text",
 	"refresh_note_text", "swivel_on_text", "swivel_off_text", "swivel_custom_text",
 	"foveation_off_text", "foveation_dynamic_text", "foveation_note_text", "info_title_text",
-	"auto_level_on_text", "auto_level_off_text", "auto_level_preset_text", "confirm_return_text"]
+	"auto_level_on_text", "auto_level_off_text", "auto_level_preset_text", "confirm_return_text",
+	"back_text"]
+const COUNT_KEYS: Array[String] = ["max_rows_visible", "max_row_chars"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
 	KIND_LEVEL: "Level",
@@ -122,6 +131,13 @@ var offset_m: Vector2 = Vector2.ZERO
 var info_title_text: String = "Info"
 ## The Return to base row's text once pressed, before the confirming press (#1246).
 var confirm_return_text: String = "Confirm: abandon run"
+## The row at the top of each section that returns to the top list (#1301).
+var back_text: String = "Back"
+## Each section as `{"label": ..., "kinds": [...]}`, top to bottom (#1301).
+var sections: Array[Dictionary] = []
+## How many rows show at once, and how long a row's label and value may be (#1301).
+var max_rows_visible: int = 6
+var max_row_chars: int = 28
 ## Why the file was rejected; empty when it was read.
 var error: String = ""
 
@@ -159,7 +175,8 @@ static func parse(text: String) -> DevMenuSpec:
 		return spec
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if not (["entries", "corners", "schemes"] + PLACE_KEYS + TEXT_KEYS).has(str(key)):
+		if not (["entries", "corners", "schemes", "sections"] + PLACE_KEYS + TEXT_KEYS
+				+ COUNT_KEYS).has(str(key)):
 			spec.error = "unknown key \"%s\"" % str(key)
 			return spec
 	spec.error = spec._read_entries(data.get("entries"))
@@ -169,6 +186,15 @@ static func parse(text: String) -> DevMenuSpec:
 		spec.error = spec._read_schemes(data["schemes"])
 	if spec.error == "":
 		spec.error = spec._read_place(data)
+	if spec.error == "" and data.has("sections"):
+		spec.error = spec._read_sections(data["sections"])
+	for key: String in COUNT_KEYS:
+		if spec.error == "" and data.has(key):
+			if not (data[key] is float or data[key] is int) or int(data[key]) < 1 \
+					or float(data[key]) != float(int(data[key])):
+				spec.error = "\"%s\" must be a whole number of at least 1" % key
+			else:
+				spec.set(key, int(data[key]))
 	for key: String in TEXT_KEYS:
 		if spec.error == "" and data.has(key):
 			if typeof(data[key]) != TYPE_STRING or (data[key] as String).strip_edges() == "":
@@ -197,6 +223,21 @@ func _read_entries(value: Variant) -> String:
 			return "entry \"%s\" needs a non-empty label" % kind
 		entries.append({"kind": kind, "label": entry["label"]})
 	return ""
+
+
+## The kind of every entry in a section; the rest belong to the top list.
+func sectioned_kinds() -> Array[String]:
+	var kinds: Array[String] = []
+	for section: Dictionary in sections:
+		kinds.append_array(section["kinds"])
+	return kinds
+
+
+func _read_sections(value: Variant) -> String:
+	var listed: Array[String] = []
+	for entry: Dictionary in entries:
+		listed.append(str(entry["kind"]))
+	return DevMenuSections.read(value, listed, sections)
 
 
 func _read_corners(value: Variant) -> String:
