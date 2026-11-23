@@ -12,6 +12,14 @@
 // desktop smoke run environment fog cost about a fifth of the frame rate,
 // this costs nothing measurable (#609). Far walls darken towards the
 // near-black fog colour.
+// On top lies a physically based surface per theme (#1292, GFX-2,
+// `LevelWallMaterial`): value noise in world space, projected on the three
+// axis planes and blended by the normal (triplanar, so the boxes need no UVs),
+// varies colour and roughness and dents the normal; a share of the plates is
+// bare metal; plate edges are chamfered in the normal so seams read as cut
+// edges. With every strength at 0 the walls draw exactly as before. Noise and
+// bevels fade out where they get too small on screen, like the plating, so
+// nothing shimmers far away.
 shader_type spatial;
 
 uniform vec3 tint : source_color = vec3(0.16, 0.15, 0.14);
@@ -28,6 +36,17 @@ uniform float plate_contrast = 0.12;
 uniform float floor_min_up = 0.7071;
 uniform vec3 fog_color : source_color = vec3(0.01, 0.012, 0.016);
 uniform float fog_density = 0.035;
+// Surface per theme (`LevelWallMaterial`); these defaults are its NEUTRAL values.
+uniform float noise_scale = 1.0;
+uniform float albedo_noise = 0.0;
+uniform float roughness_noise = 0.0;
+uniform float metallic_value = 0.0;
+uniform float metal_share = 0.0;
+uniform float metal_roughness = 0.5;
+uniform float normal_strength = 0.0;
+uniform float bevel_strength = 0.0;
+uniform float bevel_width = 0.05;
+uniform float triplanar_sharpness = 4.0;
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -42,14 +61,57 @@ float plate_hash(vec2 cell) {
 	return fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
+// A value in 0..1 per lattice point; sin-free, so it holds up at the large
+// world coordinates of a mine on a phone GPU.
+float lattice_hash(vec2 p) {
+	p = 50.0 * fract(p * 0.3183099 + vec2(0.71, 0.113));
+	return fract(p.x * p.y * (p.x + p.y));
+}
+
+// Value noise and its two derivatives: (value, d/dx, d/dy).
+vec3 value_noise(vec2 x) {
+	vec2 i = floor(x);
+	vec2 f = fract(x);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	vec2 du = 6.0 * f * (1.0 - f);
+	float a = lattice_hash(i);
+	float b = lattice_hash(i + vec2(1.0, 0.0));
+	float c = lattice_hash(i + vec2(0.0, 1.0));
+	float d = lattice_hash(i + vec2(1.0, 1.0));
+	float k = a - b - c + d;
+	return vec3(a + (b - a) * u.x + (c - a) * u.y + k * u.x * u.y,
+			du * vec2(b - a + k * u.y, c - a + k * u.x));
+}
+
+// Three octaves of value noise, centred on 0, with derivatives per noise unit.
+// `footprint` is how many noise units a pixel covers: an octave fades out
+// before its blotches shrink under about three pixels.
+vec3 wear(vec2 x, float footprint) {
+	vec3 sum = vec3(0.0);
+	float amplitude = 0.5;
+	float frequency = 1.0;
+	for (int octave = 0; octave < 3; octave++) {
+		float keep = 1.0 - smoothstep(0.15, 0.35, footprint * frequency);
+		vec3 n = value_noise(x * frequency);
+		sum += amplitude * keep * vec3(n.x - 0.5, n.yz * frequency);
+		amplitude *= 0.5;
+		frequency *= 2.0;
+	}
+	return sum / 0.875;
+}
+
 void fragment() {
 	vec3 facing = abs(world_normal);
 	// The first axis is a horizontal one, so long wall plates lie level.
 	vec2 along = world_position.xy;
+	vec3 axis_u = vec3(1.0, 0.0, 0.0);
+	vec3 axis_v = vec3(0.0, 1.0, 0.0);
 	if (facing.x >= facing.y && facing.x >= facing.z) {
 		along = world_position.zy;
+		axis_u = vec3(0.0, 0.0, 1.0);
 	} else if (facing.y >= facing.z) {
 		along = world_position.xz;
+		axis_v = vec3(0.0, 0.0, 1.0);
 	}
 	// Distance to the nearest grid line on each axis, in metres.
 	vec2 to_line = abs(fract(along / grid_spacing + 0.5) - 0.5) * grid_spacing;
@@ -80,8 +142,50 @@ void fragment() {
 	float plate_tone = 1.0 + plate_contrast * (plate_hash(floor(cell)) - 0.5) * detail;
 	float seam_tone = 1.0 - plate_contrast * 2.0 * on_seam * detail;
 
-	ALBEDO = clamp(tint * plate_tone * seam_tone * mix(1.0, line_factor, on_line), vec3(0.0), vec3(1.0));
-	ROUGHNESS = roughness_value;
+	vec3 unit_normal = normalize(world_normal);
+	// Height slope along the surface, in world axes, for the light only.
+	vec3 slope = vec3(0.0);
+	float grain = 0.0;
+	if (albedo_noise + roughness_noise + normal_strength > 0.0) {
+		vec3 weight = pow(facing, vec3(triplanar_sharpness));
+		weight /= weight.x + weight.y + weight.z;
+		vec3 p = world_position / noise_scale;
+		float footprint = length(fwidth(p));
+		// Axis-aligned faces use one projection; the others are skipped whole.
+		if (weight.x > 0.01) {
+			vec3 n = wear(p.zy, footprint);
+			grain += weight.x * n.x;
+			slope += weight.x * vec3(0.0, n.z, n.y);
+		}
+		if (weight.y > 0.01) {
+			vec3 n = wear(p.xz, footprint);
+			grain += weight.y * n.x;
+			slope += weight.y * vec3(n.y, 0.0, n.z);
+		}
+		if (weight.z > 0.01) {
+			vec3 n = wear(p.xy, footprint);
+			grain += weight.z * n.x;
+			slope += weight.z * vec3(n.y, n.z, 0.0);
+		}
+		slope *= normal_strength;
+	}
+	if (bevel_strength > 0.0) {
+		// Each plate rises from its seams over `bevel_width`: the slope points
+		// into the plate from the nearer edge on each axis.
+		vec2 side = sign(0.5 - fract(cell));
+		vec2 ramp = 1.0 - smoothstep(seam_width * 0.5, seam_width * 0.5 + bevel_width, to_seam);
+		vec2 bevel = side * ramp * bevel_strength * detail;
+		slope += bevel.x * axis_u + bevel.y * axis_v;
+	}
+	bool metal = plate_hash(floor(cell) + vec2(17.0, 31.0)) < metal_share;
+
+	vec3 base = tint * plate_tone * seam_tone * (1.0 + albedo_noise * 2.0 * grain);
+	ALBEDO = clamp(base * mix(1.0, line_factor, on_line), vec3(0.0), vec3(1.0));
+	float rough = metal ? metal_roughness : roughness_value;
+	ROUGHNESS = clamp(rough + roughness_noise * 2.0 * grain, 0.05, 1.0);
+	METALLIC = metal ? metallic_value : 0.0;
+	vec3 bent = normalize(unit_normal - (slope - dot(slope, unit_normal) * unit_normal));
+	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);
 	// VERTEX is the view-space position here, so its length is the distance.
 	FOG = vec4(fog_color, 1.0 - exp(-fog_density * length(VERTEX)));
 }

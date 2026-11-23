@@ -1,0 +1,17 @@
+{
+	"default_theme": "rock",
+	"themes": {
+		"rock": {
+			"noise_scale_m": 1.6,
+			"albedo_noise": 0.4,
+			"roughness_noise": 0.15,
+			"metallic": 0.4,
+			"metal_share": 0.2,
+			"metal_roughness": 0.55,
+			"normal_strength": 0.4,
+			"bevel_strength": 0.5,
+			"bevel_width_m": 0.06,
+			"triplanar_sharpness": 4.0
+		}
+	}
+}

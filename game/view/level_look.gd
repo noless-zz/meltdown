@@ -213,8 +213,9 @@ static func tint_for(look: Dictionary, normal: Vector3) -> Color:
 ## A lit material in `tint` with `look`'s plating, world-space grid and
 ## distance fog. One per surface class; walls of every level share the shader.
 ## Every material carries the plating of all three kinds, since the shader
-## picks one per face from its normal.
-static func wall_material(look: Dictionary, tint: Color) -> ShaderMaterial:
+## picks one per face from its normal. `surface` is a `LevelWallMaterial`
+## theme; empty takes the shipped default theme (GFX-2).
+static func wall_material(look: Dictionary, tint: Color, surface: Dictionary = {}) -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = load(WALL_SHADER) as Shader
 	material.set_shader_parameter("tint", tint)
@@ -230,6 +231,7 @@ static func wall_material(look: Dictionary, tint: Color) -> ShaderMaterial:
 	material.set_shader_parameter("floor_min_up", FLOOR_MIN_UP)
 	material.set_shader_parameter("fog_color", look["fog_color"])
 	material.set_shader_parameter("fog_density", float(look["fog_density"]))
+	LevelWallMaterial.apply(material, surface if not surface.is_empty() else LevelWallMaterial.load_theme())
 	return material
 
 
