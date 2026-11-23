@@ -29,11 +29,19 @@ extends RefCounted
 ## so a killed app keeps it. The hub changes only the profile and fitting it
 ## was handed (MP-2) and reads no comfort setting (ARC-3). It sits beside
 ## `main.gd` because it reads `RunWiring` and the `net/` session's outcome.
+##
+## Around the seated pilot it shows the home base room (#1298, `HubRoom`,
+## decision record 0012), placed at the head point like the panel. While the
+## room shows, the head camera draws only the room, so the mine is not drawn;
+## opening comes after the end screen's fade to black and a launch hands the
+## dark back to the restart's fade (CMF-8). The room is presentation only.
 
 const LOG_PREFIX: String = "[meltdown run]"
 
 ## Under the rig origin once `attach` has run; made unattached by `open_for` in tests.
 var panel: HubPanel = null
+## The home base room under the rig origin once `attach` has run; null in tests without it.
+var room: HubRoom = null
 ## The open hub's text; null while closed.
 var text: HubText = null
 ## The run the hub launches; kept after closing.
@@ -48,14 +56,18 @@ var components_dir: String = ComponentList.COMPONENTS_DIR
 var level_start: LevelStart = null
 
 var _actions: Dictionary = {}
+var _camera: Camera3D = null
 
 
-## Hangs the panel under `rig`. Calling it again adds nothing.
+## Hangs the panel and the room under `rig`. Calling it again adds nothing.
 func attach(rig: Node3D) -> void:
 	if panel != null or rig == null:
 		return
 	panel = HubPanel.new()
 	rig.add_child(panel)
+	room = HubRoom.new()
+	rig.add_child(room)
+	_camera = rig.get_node_or_null("Camera") as Camera3D
 
 
 func is_open() -> bool:
@@ -139,7 +151,8 @@ func read(values: Dictionary) -> Dictionary:
 	return DevMenuWiring.neutral(values)
 
 
-## Once per frame while open, with the panel's place `head_point`. Returns
+## Once per frame while open, with the panel's and the room's place
+## `head_point`; the room shows from the first call after opening. Returns
 ## true on the frame a launch passes: the profile and fitting are saved, the
 ## panel is closed and the caller flies the run's current level. The panel
 ## holds still while the session is paused.
@@ -147,6 +160,10 @@ func update(paused: bool, head_point: Transform3D) -> bool:
 	if not is_open():
 		return false
 	panel.transform = head_point
+	if room != null:
+		room.transform = head_point  # The seat's eye point: only a recentre moves the room.
+		if not room.visible:
+			room.show_for(_camera)  # Placed first, so it never shows a frame at the rig origin.
 	if paused or _actions.is_empty():  # No frame read since opening: nothing pressed yet.
 		return false
 	var result: Dictionary = panel.update(_actions)
@@ -215,6 +232,8 @@ func close() -> void:
 	_actions = {}
 	if panel != null:
 		panel.close()
+	if room != null:
+		room.hide_room()
 
 
 ## Saves the run's profile; a failure is logged and the hub stays usable.
