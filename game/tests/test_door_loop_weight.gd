@@ -17,8 +17,10 @@ const SAME_SEEDS: int = 200
 ## fires and `loop_weight` left out, from `main` before #515 (d1512b0). Taken
 ## again for #912, which moves the reactor away from the start, so the escape
 ## route the doors are placed on moves with it; the doors were not changed.
-const BEFORE_DOORS: int = 210
-const BEFORE_CHECKSUM: int = -727600254
+## Taken again for #1285, whose minimum wall changes about a third of the
+## levels the doors are placed in (was 210 doors, -727600254).
+const BEFORE_DOORS: int = 193
+const BEFORE_CHECKSUM: int = 803977951
 ## Most of the doors the guard may hold at the shipped weight, out of 100.
 const MOST_HELD_PERCENT: int = 20
 ## Fewest doors placed at the shipped weight, out of 100 at weight 1.

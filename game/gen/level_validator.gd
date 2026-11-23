@@ -9,7 +9,8 @@ extends RefCounted
 ## the route guard lets fall is down (`DebrisEscape`, #493), a generated level's
 ## reactor far from the start (`ReactorFar`, #912), and robots with room around them in
 ## reachable boxes outside the start module (`RobotChecks`, #399), and trapped
-## miners in reachable boxes (`MinerChecks`, #938). `validate` returns one message per failure, each starting
+## miners in reachable boxes (`MinerChecks`, #938), and no wall thinner than
+## `min_wall_m` between tunnels that do not connect (`WallClearance`, #1285). `validate` returns one message per failure, each starting
 ## with the check's name (`CHECKS`) and naming the box or boxes; an empty list
 ## means the level passes.
 ##
@@ -46,7 +47,7 @@ const RANGES: Dictionary[String, Array] = {
 	"escape_margin": [0.1, 1.0],
 }
 ## Every check's name, in the order `validate` reports them.
-const CHECKS: Array[String] = ["piece", "passage", "start", "reachable", "reactor", "escape",
+const CHECKS: Array[String] = ["piece", "passage", WallClearance.CHECK, "start", "reachable", "reactor", "escape",
 		"debris_escape", ReactorFar.CHECK, "robots", MinerChecks.CHECK]
 
 ## Narrowest opening allowed, in ship collision diameters.
@@ -60,6 +61,11 @@ var escape_margin: float = 0.8
 ## `min_escape_fraction`, which `SeedLevel` hands over, as it hands the debris
 ## plan this validator.
 var min_escape_fraction: float = 0.0
+## Thinnest wall allowed between boxes that do not open into each other,
+## metres; 0 checks nothing. Not in this file either: it is the generator's
+## `min_wall_m` (`generator.json`), which `SeedLevel` hands over, so the
+## generator and its check cannot disagree (#1285).
+var min_wall_m: float = 0.0
 ## Set by `parse_json` when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -121,8 +127,8 @@ func min_passage(ship_radius: float) -> float:
 ## `start_module` lists the boxes of the module the start is in, and when it is
 ## empty (a hand-built level has no modules) the box holding the start stands
 ## for it. `on_check`, when valid, is called with a check's name each time that
-## check is done ("piece" also covers "passage", "reachable" also "start" and
-## "escape" also "reactor" and "reactor_far", "robots" also "miners_reachable",
+## check is done ("piece" also covers "passage" and "wall", "reachable" also
+## "start" and "escape" also "reactor" and "reactor_far", "robots" also "miners_reachable",
 ## which are worked out together), so a sweep can time
 ## each one (#513); the validator itself never reads a clock (ARC-1).
 func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
@@ -156,6 +162,9 @@ func validate(level: LevelDef, ship_radius: float, check_reactor: bool = true,
 				passable[b].append(a)
 	for index: int in LevelValidator._unreached(0, touching):
 		failures.append("piece: box %d is not connected to box 0" % index)
+	var wall: String = WallClearance.failure(level.union, min_wall_m)
+	if wall != "":
+		failures.append(wall)
 	LevelValidator._done(on_check, "piece")
 	var start_box: int = -1
 	for index: int in boxes.size():

@@ -16,8 +16,10 @@ extends RefCounted
 ## than the doorway inside the module it joins, is rejected and another tried,
 ## as is a dead end while fewer than `dead_end_min_open` connectors are open.
 ## After `MAX_TRIES` rejections in a row the generator stops short and says so
-## in `note`. With `LoopBridges` (#396), facing open connectors are then
-## bridged, and `loops` counts the bridges.
+## in `note`. So is one that leaves a wall thinner than `min_wall_mm` to a
+## tunnel it does not open into (`WallClearance`, #1285). With `LoopBridges`
+## (#396), facing open connectors are then bridged, and `loops` counts the
+## bridges.
 ##
 ## Randomness comes only from a `RandomNumberGenerator` seeded with the given
 ## seed, read through `randi()` (ARC-2): no time, no global random calls.
@@ -38,6 +40,9 @@ const DOOR_DEPTH_MM: int = 3000
 ## clear of the face for any ship up to 3 m across, while every shipped module
 ## is deeper than that at each opening.
 const START_INSET_MM: int = 3000
+## Thinnest rock allowed between tunnels that do not connect, millimetres: the
+## default; `generator.json`'s `min_wall_m` sets the value used with bridges.
+const MIN_WALL_MM: int = 1000
 
 ## The placed modules, in placement order.
 var placements: Array[ModulePlacement] = []
@@ -58,6 +63,9 @@ var loops: int = 0
 ## Open connectors needed before a dead end may join: from `bridges` when
 ## given one without an `error`, else `DEAD_END_MIN_OPEN`.
 var dead_end_min_open: int = DEAD_END_MIN_OPEN
+## Thinnest wall a placement may leave (`WallClearance`): from `bridges` when
+## given one without an `error`, else `MIN_WALL_MM`.
+var min_wall_mm: int = MIN_WALL_MM
 ## Set by `to_level_def`: why a requested reactor was left out, else empty.
 var reactor_note: String = ""
 ## Set by `to_level_def`: the placement holding the reactor, or -1.
@@ -88,6 +96,7 @@ static func generate(level_seed: int, modules: Array[ModuleDef], count: int,
 	var generator: MineGenerator = MineGenerator.new()
 	if bridges != null and bridges.error == "":
 		generator.dead_end_min_open = bridges.dead_end_min_open
+		generator.min_wall_mm = bridges.min_wall_mm
 		generator._bridges = bridges
 	generator._run(level_seed, modules, count)
 	if bridges != null and bridges.error == "" and not generator.placements.is_empty():
@@ -205,7 +214,8 @@ func _draw(usable: Array[ModuleDef]) -> PlacementChoice:
 	var turn: int = turns[_pick(turns.size())]
 	var offset: Vector3i = target.position_mm - ModuleTurns.apply(turn, joining.position_mm)
 	var door: Array[Vector3i] = door_for(target)
-	if not _fits(module, turn, offset, door, open_owner[open_index].x):
+	if not _fits(module, turn, offset, door, open_owner[open_index].x) \
+			or not WallClearance.clear(self, _fit.moved_boxes(module, turn, offset, door), min_wall_mm):
 		return null
 	var choice: PlacementChoice = PlacementChoice.new()
 	choice.module = module

@@ -19,8 +19,9 @@ extends RefCounted
 ## A third box that fills only part of the rock between a pair that is not
 ## joined is not looked at: the gap is the rock beside it.
 ##
-## A measurement only, so that a minimum wall thickness can be decided on
-## evidence (owner's playtest #1225): the generator does not read it.
+## Measured so that a minimum wall thickness could be decided on evidence
+## (owner's playtest #1225). `LevelValidator`'s `wall` check reads it through
+## `WallClearance`, which also keeps the generator to the same rules (#1285).
 ##
 ## Boxes are compared in index order and a pair only replaces a smaller-index
 ## pair with a strictly smaller gap, so the result depends only on the box list

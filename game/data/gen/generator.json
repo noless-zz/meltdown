@@ -4,5 +4,6 @@
 	"loop_max_count": 2,
 	"loop_max_offset_m": 40,
 	"dead_end_min_open": 6,
-	"loop_bias": 0.6
+	"loop_bias": 0.6,
+	"min_wall_m": 1.0
 }

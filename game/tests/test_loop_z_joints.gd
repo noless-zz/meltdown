@@ -18,7 +18,7 @@ const MIN_LOOPED_AT_0_6: int = 200
 func _bridges() -> LoopBridges:
 	return LoopBridges.parse_json(JSON.stringify(
 			{"loop_min_m": 6, "loop_max_m": 60, "loop_max_count": 2, "loop_max_offset_m": 40,
-			"dead_end_min_open": 6, "loop_bias": 0}))
+			"dead_end_min_open": 6, "loop_bias": 0, "min_wall_m": 1.0}))
 
 
 ## Adds a placement to a hand-built level: one box and its open connectors.

@@ -74,6 +74,17 @@ func turned_boxes(module: ModuleDef, turn: int) -> Array[Vector3i]:
 	return corners
 
 
+## The module's boxes turned by `turn` and moved by `offset`, then the
+## doorway `door`, as millimetre corner pairs, for `WallClearance` (#1285).
+func moved_boxes(module: ModuleDef, turn: int, offset: Vector3i, door: Array[Vector3i]) -> Array[Vector3i]:
+	var turned: Array[Vector3i] = turned_boxes(module, turn)
+	var moved: Array[Vector3i] = []
+	for corner: int in turned.size() - 2:
+		moved.append(turned[corner] + offset)
+	moved.append_array(door)
+	return moved
+
+
 ## A module box turned and moved, as millimetre corners [min, max].
 static func turned_box(box: BoxBounds, turn: int, offset: Vector3i) -> Array[Vector3i]:
 	var scale: float = float(RobotSpawn.SCALE)
