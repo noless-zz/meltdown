@@ -37,14 +37,14 @@ func test_nightly_is_every_shipped_suite_but_the_soak() -> String:
 	if AcceptanceSuite.unreadable(found) != "":
 		return AcceptanceSuite.unreadable(found)
 	var names: Array[String] = _names(found)
-	if names != ["m0", "m1", "m2", "m3", "m4"]:
+	if names != ["m0", "m1", "m2", "m3", "m4", "m6"]:
 		return "nightly gave %s" % [names]
 	return ""
 
 
 func test_all_still_includes_the_soak() -> String:
 	var names: Array[String] = _names(AcceptanceSuite.load_named(AcceptanceSuite.ALL))
-	if names != ["m0", "m1", "m2", "m3", "m4", "soak"]:
+	if names != ["m0", "m1", "m2", "m3", "m4", "m6", "soak"]:
 		return "all gave %s" % [names]
 	return ""
 

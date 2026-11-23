@@ -61,7 +61,7 @@ func test_all_returns_every_suite_in_name_order() -> String:
 		if suite.error != "":
 			return suite.error
 		names.append(suite.name)
-	if names != ["m0", "m1", "m2", "m3", "m4", "soak"]:
+	if names != ["m0", "m1", "m2", "m3", "m4", "m6", "soak"]:
 		return "all gave %s" % [names]
 	return ""
 

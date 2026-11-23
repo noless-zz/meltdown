@@ -42,7 +42,7 @@ extends RefCounted
 ## run step at scratch stores (`AcceptanceFittedStart`).
 ## `expected_crew` goes with the crew_joins check (`AcceptanceCrewJoinsCheck`, #1084).
 ##
-## A field a step does not know, a check not in `AcceptanceStep.KNOWN_CHECKS` or
+## A field a step does not know, a check not in `AcceptanceCheckFiles.known_checks()` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
 
 const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_hash", "required",
@@ -173,11 +173,11 @@ static func _parse_checks(raw: Variant, field: String, step: AcceptanceStep) -> 
 	if typeof(raw) != TYPE_ARRAY or (raw as Array).is_empty():
 		return "%s: must be a list of at least one check" % field
 	var raw_checks: Array = raw
+	var known: Array[String] = AcceptanceCheckFiles.known_checks()  # Built in and from check files (#1297).
 	for index: int in raw_checks.size():
 		var check: Variant = raw_checks[index]
-		if typeof(check) != TYPE_STRING or not AcceptanceStep.KNOWN_CHECKS.has(check):
-			return "%s[%d]: unknown check '%s', known: %s" % [
-				field, index, str(check), ", ".join(AcceptanceStep.KNOWN_CHECKS)]
+		if typeof(check) != TYPE_STRING or not known.has(check):
+			return "%s[%d]: unknown check '%s', known: %s" % [field, index, str(check), ", ".join(known)]
 		if step.checks.has(check):
 			return "%s[%d]: '%s' is listed twice" % [field, index, check]
 		step.checks.append(check)

@@ -111,13 +111,13 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 		_finish(EXIT_PASS if AcceptanceReport.all_passed(reports) else EXIT_FAIL)
 		return
 	var suite: AcceptanceSuite = suites[_suite_index]
+	if reports.size() <= _suite_index:  # Before the end test: a suite with no steps still reports (#1297).
+		reports.append(AcceptanceReport.new(suite.name, _build().commit, "%s (%s)" % [OS.get_model_name(), OS.get_name()]))
 	if _step_index >= suite.steps.size():
 		_write_report(reports[_suite_index])
 		_suite_index += 1
 		_step_index = 0
 		return
-	if reports.size() <= _suite_index:
-		reports.append(AcceptanceReport.new(suite.name, _build().commit, "%s (%s)" % [OS.get_model_name(), OS.get_name()]))
 	var step: AcceptanceStep = suite.steps[_step_index]
 	var was_running: bool = _step_started
 	if not _step_started:
