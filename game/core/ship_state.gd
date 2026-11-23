@@ -96,6 +96,9 @@ var hold: Array[String] = []
 ## hashed: it is the last tick's input, which a replay already holds, and a
 ## held control with an empty hold must not change the run.
 var slot_was_held: bool = false
+## The slot popup's answer on the last tick, so a choice acts once per change
+## (`PartSlotting`). Not hashed, for the reason above.
+var slot_choice_was: int = ShipInput.SLOT_CHOICE_NONE
 ## Set by `ExitRule` when the ship leaves through the exit during the meltdown
 ## (RUN-3); `Sim` then stops stepping it and nothing can hit it. Not in this
 ## state's hash: `Sim` hashes it with the reactor, so levels without one keep

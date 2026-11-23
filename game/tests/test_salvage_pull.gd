@@ -18,10 +18,11 @@ func _sim(ships: int = 1, rules: SalvageRules = null) -> Sim:
 	return sim
 
 
-func _step(sim: Sim, slot: bool = false) -> void:
+func _step(sim: Sim, slot: bool = false, choice: int = ShipInput.SLOT_CHOICE_NONE) -> void:
 	var inputs: Array[ShipInput] = []
 	for i: int in sim.ships.size():
 		inputs.append(ShipInput.new(Vector3i.ZERO, Vector3i.ZERO, false, false, false, slot))
+		inputs[i].slot_choice = choice
 	sim.step(inputs)
 
 
@@ -112,8 +113,9 @@ func test_pull_is_deterministic() -> String:
 func test_holding_the_slot_control_through_a_part_does_not_slot_it() -> String:
 	var sim: Sim = _sim()
 	sim.set_parts({"needle_gun": _weapon(NEEDLE_GUN)})
-	sim.ships[0].primary_slots = [_weapon(PULSE_CANNON), _weapon(PULSE_CANNON)]
-	sim.ships[0].primary_ids = ["pulse_cannon", "pulse_cannon"]
+	# Slot 2 empty, so a press slots at once (decision record 0011).
+	sim.ships[0].primary_slots = [_weapon(PULSE_CANNON), null]
+	sim.ships[0].primary_ids = ["pulse_cannon", ""]
 	_step(sim, true)
 	sim.salvage.append(SalvageItem.new("needle_gun", Vector3(0.0, 0.0, -1.0)))
 	for i: int in 30:
@@ -122,7 +124,7 @@ func test_holding_the_slot_control_through_a_part_does_not_slot_it() -> String:
 		return "with the control held the hold is %s, expected the part kept" % [sim.ships[0].hold]
 	_step(sim, false)
 	_step(sim, true)
-	if not sim.ships[0].hold.is_empty() or sim.ships[0].primary_ids[0] != "needle_gun":
+	if not sim.ships[0].hold.is_empty() or sim.ships[0].primary_ids[1] != "needle_gun":
 		return "a fresh press did not slot the part: hold %s, slots %s" % [sim.ships[0].hold,
 			sim.ships[0].primary_ids]
 	return ""
@@ -136,7 +138,8 @@ func test_a_swapped_weapon_drops_behind_the_ship() -> String:
 	sim.ships[0].primary_slots = [_weapon(PULSE_CANNON), _weapon(PULSE_CANNON)]
 	sim.ships[0].primary_ids = ["pulse_cannon", "pulse_cannon"]
 	sim.ships[0].hold.append("needle_gun")
-	_step(sim, true)
+	# Both full: the popup's choice swaps, here slot 1 (#1262).
+	_step(sim, false, ShipInput.SLOT_CHOICE_SLOT_1)
 	if sim.salvage.size() != 1:
 		return "%d parts floating after the swap, expected 1" % sim.salvage.size()
 	var expected: Vector3 = sim.ships[0].position + facing.z * 4.0

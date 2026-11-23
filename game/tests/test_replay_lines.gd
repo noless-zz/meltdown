@@ -89,7 +89,7 @@ func test_rejections_keep_their_messages() -> String:
 
 
 func test_numbers_per_ship_follows_the_format_versions() -> String:
-	var expected: Array[int] = [6, 7, 7, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10]
+	var expected: Array[int] = [6, 7, 7, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10]
 	for version: int in range(1, Replay.FORMAT_VERSION + 1):
 		if ReplayLines.numbers_per_ship(version) != expected[version - 1]:
 			return "version %d: %d numbers" % [version, ReplayLines.numbers_per_ship(version)]

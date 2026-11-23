@@ -14,15 +14,17 @@ extends RefCounted
 ##   (31 bytes; 60 a second is about 15 kbps, far under MP-7's 128 kbps), then,
 ##   only when the aim is off the nose and the flags byte says so, aim 3 x s32
 ##   (43 bytes; CMB-6). A nose aim adds nothing, so most packets stay 31 bytes.
+##   Flags: bits 0 to 3 the `BOOL_FIELDS`, bit 4 the aim follows, bits 5 and 6
+##   the slot popup's choice (decision record 0011), bit 7 unused.
 ## - state_hash: type, tick u32, hash s64.
 ##
 ## `decode` returns either `{"error": String}` or a complete message with a
 ## `"type"` key; a malformed packet never yields a half-filled message.
-## Protocol 3 added the aim (CMB-6).
+## Protocol 3 added the aim (CMB-6), protocol 4 the slot choice.
 
 ## Raised whenever any packet layout changes, so mismatched builds refuse each
 ## other at hello instead of misreading inputs (MP-11).
-const PROTOCOL_VERSION: int = 3
+const PROTOCOL_VERSION: int = 4
 
 const TYPE_HELLO: int = 1
 const TYPE_INPUT: int = 2
@@ -47,6 +49,10 @@ const BOOL_FIELDS: Array[String] = ["afterburner", "reset_to_start", "fire_prima
 ## bit after the `BOOL_FIELDS` says it follows.
 const AIM_FIELD: String = "aim_q"
 const AIM_FLAG: int = 1 << 4
+## `ShipInput.slot_choice`, 0 to 3, in the two flag bits above the aim's.
+const SLOT_CHOICE_FIELD: String = "slot_choice"
+const SLOT_CHOICE_SHIFT: int = 5
+const SLOT_CHOICE_MASK: int = 3 << SLOT_CHOICE_SHIFT
 
 
 ## Empty array if `build` is longer than `MAX_BUILD_BYTES` in UTF-8.
@@ -69,7 +75,8 @@ static func encode_input(tick: int, ship: int, input: ShipInput) -> PackedByteAr
 	if input == null or tick < 0 or tick > MAX_TICK or ship < 0 or ship > MAX_SHIP_INDEX:
 		return PackedByteArray()
 	# Vector3i is 32-bit per axis, so turn always fits its s32 fields.
-	if not _thrust_in_range(input.thrust_q) or not ShipInput.aim_q_valid(input.aim_q):
+	if not _thrust_in_range(input.thrust_q) or not ShipInput.aim_q_valid(input.aim_q) \
+			or not ShipInput.slot_choice_valid(input.slot_choice):
 		return PackedByteArray()
 	var aimed: bool = input.aims_off_nose()
 	var bytes: PackedByteArray = PackedByteArray()
@@ -87,6 +94,7 @@ static func encode_input(tick: int, ship: int, input: ShipInput) -> PackedByteAr
 	for bit: int in BOOL_FIELDS.size():
 		if input.get(BOOL_FIELDS[bit]):
 			flags |= 1 << bit
+	flags |= input.slot_choice << SLOT_CHOICE_SHIFT
 	if aimed:
 		flags |= AIM_FLAG
 		for axis: int in 3:
@@ -157,10 +165,11 @@ static func _decode_input(bytes: PackedByteArray) -> Dictionary:
 	if not _thrust_in_range(input.thrust_q):
 		return _error("input thrust %s outside -%d..%d" % [input.thrust_q, ShipInput.SCALE, ShipInput.SCALE])
 	var flags: int = bytes.decode_u8(offset)
-	if flags & ~((1 << BOOL_FIELDS.size()) - 1) & ~AIM_FLAG != 0:
+	if flags & ~((1 << BOOL_FIELDS.size()) - 1) & ~AIM_FLAG & ~SLOT_CHOICE_MASK != 0:
 		return _error("input flags 0x%02x set unknown bits" % flags)
 	for bit: int in BOOL_FIELDS.size():
 		input.set(BOOL_FIELDS[bit], flags & (1 << bit) != 0)
+	input.slot_choice = (flags & SLOT_CHOICE_MASK) >> SLOT_CHOICE_SHIFT
 	if aimed:
 		var aim: Vector3i = Vector3i(bytes.decode_s32(INPUT_SIZE),
 			bytes.decode_s32(INPUT_SIZE + 4), bytes.decode_s32(INPUT_SIZE + 8))
