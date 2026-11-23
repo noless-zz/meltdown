@@ -4,13 +4,12 @@ extends DevMenuEntry
 ## The dev menu's Comfort entry (#805, #806, #837, CMF-4). Split from
 ## `DevMenuWiring` (#892).
 ##
-## A choice goes through `ComfortWiring.set_preset`, the path the preset button
-## takes, so the cockpit, filter and status panel change as they do for the
-## button, and `FlightTestWiring` saves it in `ComfortChoice` on the next frame
-## as it saves a button change. It changes only this player's view and input
-## handling, never the ship (CMF-6). The entry opens on the active preset, so it
-## follows a button change. With an accepted custom file it also offers the
-## custom mode after preset 4, and opens on it when it is active.
+## A choice goes through `ComfortWiring.set_preset`, so the cockpit, filter and
+## status panel change with it, and `FlightTestWiring` saves it in
+## `ComfortChoice` on the next frame. It changes only this player's view and
+## input handling, never the ship (CMF-6). The entry opens on the active preset.
+## With an accepted custom file it also offers the custom mode after preset 4,
+## and opens on it when it is active.
 
 ## The comfort preset the entry shows and sets; null in tests without one.
 var comfort: ComfortWiring = null
