@@ -37,7 +37,7 @@ var dropped_seconds: float = 0.0
 var ticks_last_advance: int = 0
 ## The headset lost focus (PLT-7); `paused` sets and clears this reason.
 const PAUSE_FOCUS: String = "focus"
-## The dev menu is open in solo play (#1245, `DevMenuWiring.hold_session`).
+## The dev menu is open in solo play (#1245, `DevMenuPause.hold`).
 const PAUSE_MENU: String = "menu"
 
 ## Solo pause (PLT-7). True while any pause reason holds. While true, `advance`

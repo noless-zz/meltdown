@@ -81,76 +81,45 @@ var update_busy: bool = false
 ## press arms it, the second returns `RETURN`, moving or reopening disarms (#1246).
 var run_shown: bool = false
 var return_armed: bool = false
+## Each value entry kind's value helper (#908, split out by #1282).
+var values: DevMenuValues
 ## The valid custom comfort file's base preset (1..4), or 0 when there is none (#837).
 var custom_base: int:
-	get: return _comfort.custom_base
-	set(value): _comfort.custom_base = value
+	get: return values.comfort.custom_base
+	set(value): values.comfort.custom_base = value
 ## Whether the Break reminder entry shows On (#821, CMF-10).
 var break_on: bool:
-	get: return _break.on
-	set(value): _break.on = value
+	get: return values.break_reminder.on
+	set(value): values.break_reminder.on = value
 ## Whether the Refresh entry shows 120 Hz (#852), and whether the active
 ## preset allows it; the wiring sets both (`set_refresh`).
 var refresh_high: bool:
-	get: return _refresh.on
-	set(value): _refresh.on = value
+	get: return values.refresh.on
+	set(value): values.refresh.on = value
 var refresh_allowed: bool:
-	get: return not _refresh.noted
-	set(value): _refresh.noted = not value
+	get: return not values.refresh.noted
+	set(value): values.refresh.noted = not value
 ## Whether the Swivel chair entry shows On, and whether the custom comfort file
 ## decides it so left / right leave it alone (#853); the wiring sets both.
 var swivel_on: bool:
-	get: return _swivel.on
-	set(value): _swivel.on = value
+	get: return values.swivel.on
+	set(value): values.swivel.on = value
 var swivel_locked: bool:
-	get: return _swivel.locked
-	set(value): _swivel.locked = value
+	get: return values.swivel.locked
+	set(value): values.swivel.locked = value
 ## The Foveation entry's setting as a `FoveationSwitch.MENU_STEPS` value (#871).
 var foveation: Vector2i:
-	get: return _foveation.setting
-	set(value): _foveation.setting = value
+	get: return values.foveation.setting
+	set(value): values.foveation.setting = value
 
 var _held: Dictionary = {}
-## Each value entry kind's value helper (#908).
-var _values: Dictionary[String, DevMenuValue] = {}
-var _corner: DevMenuValueList
-var _scheme: DevMenuValueList
-var _hands: DevMenuValueList
-var _pitch: DevMenuValueList
-var _comfort: DevMenuValueComfort
-var _break: DevMenuValueToggle
-var _refresh: DevMenuValueToggle
-var _swivel: DevMenuValueToggle
-var _foveation: DevMenuValueFoveation
 
 
 ## A menu from `spec` offering the level files at `level_paths`.
 func _init(p_spec: DevMenuSpec, level_paths: Array[String]) -> void:
 	spec = p_spec
 	levels = DevMenuLevels.new(level_paths)
-	_corner = DevMenuValueList.new(CORNER_PREFIX, spec.corners)
-	_scheme = DevMenuValueList.new(CONTROLS_PREFIX, spec.schemes)
-	_hands = DevMenuValueList.new(HANDS_PREFIX, HANDS,
-		[spec.right_handed_text, spec.left_handed_text] as Array[String])
-	_pitch = DevMenuValueList.new(PITCH_PREFIX, PITCHES,
-		[spec.normal_pitch_text, spec.inverted_pitch_text] as Array[String])
-	_comfort = DevMenuValueComfort.new(COMFORT_PREFIX, spec.custom_text)
-	_break = DevMenuValueToggle.new(BREAK_PREFIX, BREAK_ON, BREAK_OFF, spec.break_on_text,
-		spec.break_off_text, "", true)
-	_refresh = DevMenuValueToggle.new(REFRESH_PREFIX, REFRESH_HIGH, REFRESH_STANDARD,
-		spec.refresh_120_text, spec.refresh_90_text, spec.refresh_note_text)
-	_swivel = DevMenuValueToggle.new(SWIVEL_PREFIX, SWIVEL_ON, SWIVEL_OFF, spec.swivel_on_text,
-		spec.swivel_off_text, spec.swivel_custom_text)
-	_foveation = DevMenuValueFoveation.new(FOVEATION_PREFIX, spec.foveation_off_text,
-		spec.foveation_dynamic_text, spec.foveation_note_text)
-	_values = {DevMenuSpec.KIND_CORNER: _corner, DevMenuSpec.KIND_CONTROLS: _scheme,
-		DevMenuSpec.KIND_HANDS: _hands, DevMenuSpec.KIND_PITCH: _pitch,
-		DevMenuSpec.KIND_COMFORT: _comfort, DevMenuSpec.KIND_BREAK: _break,
-		DevMenuSpec.KIND_REFRESH: _refresh, DevMenuSpec.KIND_SWIVEL: _swivel,
-		DevMenuSpec.KIND_FOVEATION: _foveation, DevMenuSpec.KIND_AUTO_LEVEL: DevMenuValueToggle.new(
-			AUTO_LEVEL_PREFIX, AUTO_LEVEL_ON, AUTO_LEVEL_OFF, spec.auto_level_on_text,
-			spec.auto_level_off_text, spec.auto_level_preset_text),
-		DevMenuSpec.KIND_LEVEL: DevMenuValueLevel.new(LEVEL_PREFIX, levels, spec)}
+	values = DevMenuValues.new(spec, levels)
 
 
 ## Shows what is in use when the menu opens: the first entry highlighted,
@@ -165,11 +134,11 @@ func open(corner: String, source: String, scheme: String = "", left_handed: bool
 	selected = _step_shown(-1, 1)
 	_held = {}
 	return_armed = false
-	_corner.select(corner)
-	_scheme.select(scheme)
-	_hands.index = 1 if left_handed else 0
-	_pitch.index = 1 if invert_pitch else 0
-	_comfort.open(comfort_number, p_custom_base)
+	values.corner.select(corner)
+	values.scheme.select(scheme)
+	values.hands.index = 1 if left_handed else 0
+	values.pitch.index = 1 if invert_pitch else 0
+	values.comfort.open(comfort_number, p_custom_base)
 	break_on = p_break_on
 	levels.open(source)
 
@@ -193,13 +162,12 @@ func kind() -> String:
 
 ## The value helper of entry kind `entry_kind`, or null for an action entry.
 func value(entry_kind: String) -> DevMenuValue:
-	return _values.get(entry_kind, null)
+	return values.value(entry_kind)
 
 
 ## The words entry kind `entry_kind` shows for its value; "" for an action entry.
 func value_text(entry_kind: String) -> String:
-	var helper: DevMenuValue = value(entry_kind)
-	return helper.value_text() if helper != null else ""
+	return values.value_text(entry_kind)
 
 
 ## Whether entry `index` is on the menu now: every entry but a hidden update
@@ -240,19 +208,19 @@ func update_text(label: String) -> String:
 
 
 # Each value by name, for the wiring and the tests: the choice in use, and the words shown.
-func corner() -> String: return _corner.current()
-func scheme() -> String: return _scheme.current()
-func hands() -> String: return _hands.current()
-func pitch() -> String: return _pitch.current()
+func corner() -> String: return values.corner.current()
+func scheme() -> String: return values.scheme.current()
+func hands() -> String: return values.hands.current()
+func pitch() -> String: return values.pitch.current()
 ## The comfort preset number the comfort entry shows, 1..4 or the custom mode's.
-func comfort_number() -> int: return _comfort.number()
-func comfort_text() -> String: return _comfort.value_text()
-func hands_text() -> String: return _hands.value_text()
-func pitch_text() -> String: return _pitch.value_text()
-func refresh_text() -> String: return _refresh.value_text()
-func swivel_text() -> String: return _swivel.value_text()
-func foveation_text() -> String: return _foveation.value_text()
-func break_text() -> String: return _break.value_text()
+func comfort_number() -> int: return values.comfort.number()
+func comfort_text() -> String: return values.comfort.value_text()
+func hands_text() -> String: return values.hands.value_text()
+func pitch_text() -> String: return values.pitch.value_text()
+func refresh_text() -> String: return values.refresh.value_text()
+func swivel_text() -> String: return values.swivel.value_text()
+func foveation_text() -> String: return values.foveation.value_text()
+func break_text() -> String: return values.break_reminder.value_text()
 
 
 ## Shows the 120 Hz option in use and whether the active preset allows it.
