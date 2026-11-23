@@ -1,0 +1,13 @@
+{
+	"sound_cues": [
+		"SHOT_FIRED:pulse_cannon",
+		"ROBOT_HIT",
+		"SHOT_FIRED:robot",
+		"SHIP_HIT",
+		"ROBOT_DESTROYED",
+		"SALVAGE_COLLECTED",
+		"PART_SLOTTED",
+		"SHOT_FIRED:needle_gun",
+		"BOLT_IMPACT"
+	]
+}
