@@ -29,5 +29,27 @@
 	"guard_distance_m": 0.45,
 	"interior_color": [0.3, 0.33, 0.38],
 	"structure_color": [0.44, 0.47, 0.52],
+	"finish": {
+		"frame": {"roughness": 0.6, "metallic": 0.35, "seam_depth_m": 0.0012, "bolt_height_m": 0, "wear": 0.15},
+		"ledge": {"roughness": 0.5, "metallic": 0.5, "seam_depth_m": 0.0012, "bolt_height_m": 0, "wear": 0.2},
+		"pillars": {"roughness": 0.55, "metallic": 0.45, "seam_depth_m": 0.0012, "bolt_height_m": 0, "wear": 0.15},
+		"rim": {"roughness": 0.55, "metallic": 0.45, "seam_depth_m": 0.0012, "bolt_height_m": 0, "wear": 0.15},
+		"wear_scale_m": 0.06
+	},
+	"dash": [
+		{"shape": "box", "yaw_deg": -19, "pitch_deg": -32.5, "distance_m": 0.335, "size_m": [0.13, 0.04, 0.025], "tone": 0.8},
+		{"shape": "box", "yaw_deg": -24, "pitch_deg": -34.1, "distance_m": 0.329, "size_m": [0.053, 0.004, 0.006], "tone": 0.45},
+		{"shape": "box", "yaw_deg": -24, "pitch_deg": -32.5, "distance_m": 0.329, "size_m": [0.053, 0.004, 0.006], "tone": 0.45},
+		{"shape": "box", "yaw_deg": -24, "pitch_deg": -30.9, "distance_m": 0.329, "size_m": [0.053, 0.004, 0.006], "tone": 0.45},
+		{"shape": "box", "yaw_deg": -14.0, "pitch_deg": -31.7, "distance_m": 0.323, "size_m": [0.008, 0.014, 0.012], "tone": 1.2},
+		{"shape": "box", "yaw_deg": -11.6, "pitch_deg": -31.7, "distance_m": 0.323, "size_m": [0.008, 0.014, 0.012], "tone": 1.2},
+		{"shape": "box", "yaw_deg": -9.2, "pitch_deg": -31.7, "distance_m": 0.323, "size_m": [0.008, 0.014, 0.012], "tone": 1.2},
+		{"shape": "box", "yaw_deg": -14, "pitch_deg": -34.7, "distance_m": 0.331, "size_m": [0.01, 0.006, 0.004], "tone": 0.6, "lamp_color": [0.2, 0.9, 0.35]},
+		{"shape": "box", "yaw_deg": -11.6, "pitch_deg": -34.7, "distance_m": 0.331, "size_m": [0.01, 0.006, 0.004], "tone": 0.6, "lamp_color": [1.0, 0.6, 0.15]},
+		{"shape": "knob", "yaw_deg": -37, "pitch_deg": -32.5, "distance_m": 0.344, "size_m": [0.024, 0.024, 0.016], "tone": 0.7},
+		{"shape": "knob", "yaw_deg": -43, "pitch_deg": -32.5, "distance_m": 0.344, "size_m": [0.024, 0.024, 0.016], "tone": 0.7},
+		{"shape": "box", "yaw_deg": 46, "pitch_deg": -32.5, "distance_m": 0.335, "size_m": [0.049, 0.04, 0.025], "tone": 0.8},
+		{"shape": "box", "yaw_deg": 46, "pitch_deg": -33.0, "distance_m": 0.331, "size_m": [0.01, 0.006, 0.004], "tone": 0.6, "lamp_color": [0.9, 0.2, 0.15]}
+	],
 	"instruments": []
 }

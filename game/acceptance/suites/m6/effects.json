@@ -1,3 +1,17 @@
 {
-	"steps": []
+	"steps": [
+		{
+			"id": "weapon_effects",
+			"replay": "res://acceptance/replays/both_primaries_fire.replay",
+			"checks": [
+				"final_hash",
+				"weapon_effects_shown",
+				"no_script_errors",
+				"ship_alive"
+			],
+			"expected_hash": 1302297426,
+			"screenshot_at_ticks": [2, 12, 46, 52, 99, 103],
+			"screenshot_at_end": true
+		}
+	]
 }

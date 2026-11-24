@@ -19,8 +19,7 @@ static func _tap(model: DevMenuModel, action: String) -> String:
 
 
 static func _select(model: DevMenuModel, kind: String) -> void:
-	while model.kind() != kind:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, kind, func(action: String) -> void: _tap(model, action))
 
 
 func test_entries_and_their_order_come_from_the_data_file() -> String:
@@ -37,7 +36,7 @@ func test_entries_and_their_order_come_from_the_data_file() -> String:
 	menu.open("top_left", "")
 	var lines: Array[String] = menu.texts()
 	menu.free()
-	if lines != ["> Done", "Fly: < Test tunnel >"]:
+	if lines != ["> Done", "Fly: Test tunnel"]:
 		return "the menu shows %s" % [lines]
 	var missing: DevMenuSpec = DevMenuSpec.load_file("res://tests/no_such_menu.json")
 	var kinds: Array[String] = []

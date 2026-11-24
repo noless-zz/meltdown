@@ -12,7 +12,10 @@ extends Node3D
 ## pillar on each side and a rim above. Every piece lies outside the window.
 ## Each part is one `MultiMeshInstance3D`, one draw call on the headset. Since
 ## #659 the opaque parts are lit and patterned (`CockpitMaterials`) and the
-## frame carries its own dim light, so it shows in a dark mine.
+## frame carries its own dim light, so it shows in a dark mine. Since #1306
+## the surfaces are physically based (`CockpitFinish`), the glass reflects
+## faintly at its edge, and the file's dash pieces (`CockpitDashPiece`) sit on
+## the ledge: boxes in one part, knobs in another.
 ##
 ## The frame reads only its spec. It never reads or writes simulation state
 ## (ARC-3, MP-2); a preset change rebuilds it and touches nothing else.
@@ -27,9 +30,11 @@ const OVERLAP: float = 1.05
 ## thin to place a piece in.
 const MAX_SHAPE_PITCH_DEG: float = 80.0
 ## Every part a frame can build. Shapes with zero size are left out.
-const PARTS: Array[String] = ["Solid", "Glass", "Ledge", "Pillars", "Rim"]
-## The parts that are boxes; the others are flat.
-const BOX_PARTS: Array[String] = ["Ledge", "Pillars", "Rim"]
+const PARTS: Array[String] = ["Solid", "Glass", "Ledge", "Pillars", "Rim", "Dash", "Knobs"]
+## The parts that are boxes, or fill their unit box; the others are flat.
+const BOX_PARTS: Array[String] = ["Ledge", "Pillars", "Rim", "Dash", "Knobs"]
+## Sides of a dash knob: enough to read round at arm's length.
+const KNOB_SIDES: int = 12
 
 const GLASS_COLOR: Color = Color(0.55, 0.75, 0.85)
 
@@ -107,6 +112,8 @@ func _build() -> void:
 	_add_part("Ledge", _box(), _surface("Ledge", spec.structure_color), _ledge())
 	_add_part("Pillars", _box(), _surface("Pillars", spec.structure_color), _pillars())
 	_add_part("Rim", _box(), _surface("Rim", spec.structure_color), _rim())
+	_add_dash("Dash", _box())
+	_add_dash("Knobs", _knob())
 	var light: OmniLight3D = CockpitMaterials.light(spec.look)
 	if light != null:
 		add_child(light)
@@ -114,7 +121,22 @@ func _build() -> void:
 
 ## The patterned, lit surface of part `part_name` in colour `base` (#659).
 func _surface(part_name: String, base: Color) -> ShaderMaterial:
-	return CockpitMaterials.surface(part_name, base, spec.look, OVERLAP)
+	return CockpitMaterials.surface(part_name, base, spec.look, OVERLAP, spec.finish)
+
+
+## The dash pieces built as part `part_name`, each with its tone and lamp.
+func _add_dash(part_name: String, mesh: Mesh) -> void:
+	var transforms: Array[Transform3D] = []
+	var colors: Array[Color] = []
+	var lamps: Array[Color] = []
+	for piece: CockpitDashPiece in spec.dash:
+		if CockpitDashPiece.SHAPE_PART[piece.shape] != part_name:
+			continue
+		transforms.append(piece.placed())
+		colors.append(Color(piece.tone, piece.tone, piece.tone))
+		lamps.append(piece.lamp_color)
+	var material: ShaderMaterial = CockpitMaterials.dash(part_name, spec.structure_color, spec.look, spec.finish)
+	_add_part(part_name, mesh, material, transforms, colors, lamps)
 
 
 ## The pitch band the ledge covers, as (top, bottom) degrees below straight
@@ -219,19 +241,30 @@ func _add_glass(yaw_breaks: PackedFloat32Array, pitch_breaks: PackedFloat32Array
 	var tint: Color = GLASS_COLOR
 	tint.a = spec.glass_tint_alpha
 	var single: Array[Transform3D] = [Transform3D.IDENTITY]
-	_add_part("Glass", CockpitGeometry.glass_mesh(_glass_points, yaw_breaks.size()), _material(tint), single)
+	var window: Vector2 = Vector2(spec.window_half_angle_h_deg, spec.window_half_angle_v_deg)
+	_add_part("Glass", CockpitGeometry.glass_mesh(_glass_points, yaw_breaks.size()),
+		CockpitMaterials.glass(tint, window, spec.finish), single)
 
 
-func _add_part(part_name: String, mesh: Mesh, material: Material, transforms: Array[Transform3D]) -> void:
+## Adds part `part_name`; `colors` and `customs`, when given, are each
+## instance's colour and custom data, as the dash uses them.
+func _add_part(part_name: String, mesh: Mesh, material: Material, transforms: Array[Transform3D],
+		colors: Array[Color] = [], customs: Array[Color] = []) -> void:
 	if transforms.is_empty():
 		return
 	_transforms[part_name] = transforms
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_colors = not colors.is_empty()
+	multimesh.use_custom_data = not customs.is_empty()
 	multimesh.mesh = mesh
 	multimesh.instance_count = transforms.size()
 	for k: int in transforms.size():
 		multimesh.set_instance_transform(k, transforms[k])
+		if multimesh.use_colors:
+			multimesh.set_instance_color(k, colors[k])
+		if multimesh.use_custom_data:
+			multimesh.set_instance_custom_data(k, customs[k])
 	var node: MultiMeshInstance3D = MultiMeshInstance3D.new()
 	node.name = part_name
 	node.multimesh = multimesh
@@ -252,12 +285,11 @@ static func _box() -> BoxMesh:
 	return mesh
 
 
-## The glass's flat tint.
-static func _material(color: Color) -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = color
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	if color.a < 1.0:
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	return material
+static func _knob() -> CylinderMesh:
+	var mesh: CylinderMesh = CylinderMesh.new()
+	mesh.top_radius = 0.5
+	mesh.bottom_radius = 0.5
+	mesh.height = 1.0
+	mesh.radial_segments = KNOB_SIDES
+	mesh.rings = 0
+	return mesh

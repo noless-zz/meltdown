@@ -24,6 +24,8 @@ var _ages: Array[float] = []
 var _ships: Array[int] = []
 ## Where a riding flash sits in its ship's axes.
 var _locals: Array[Vector3] = []
+## Each flash's radius at its start, metres (#1309: each weapon its own).
+var _radii: Array[float] = []
 var _mesh: SphereMesh = SphereMesh.new()
 var _material: StandardMaterial3D = StandardMaterial3D.new()
 
@@ -54,10 +56,12 @@ func set_look(radius: float, lifetime: float, color: Color) -> void:
 
 ## Starts a flash at `at`, in this node's space. With `ship` 0 or more, the
 ## flash rides on that ship at `local`, its own axes, from the next `follow`.
-func flash(at: Vector3, ship: int = -1, local: Vector3 = Vector3.ZERO) -> void:
+## `radius` sizes this flash; negative takes `radius_m`.
+func flash(at: Vector3, ship: int = -1, local: Vector3 = Vector3.ZERO, radius: float = -1.0) -> void:
 	if lifetime_s <= 0.0:
 		return
 	var slot: int = _free_slot()
+	_radii[slot] = radius if radius >= 0.0 else radius_m
 	_ages[slot] = 0.0
 	_ships[slot] = ship
 	_locals[slot] = local
@@ -113,6 +117,7 @@ func _free_slot() -> int:
 	_ages.append(INF)
 	_ships.append(-1)
 	_locals.append(Vector3.ZERO)
+	_radii.append(radius_m)
 	return _nodes.size() - 1
 
 
@@ -122,4 +127,4 @@ func _rescale() -> void:
 		var node: MeshInstance3D = _nodes[slot]
 		node.visible = left > 0.0
 		if node.visible:
-			node.scale = Vector3.ONE * (radius_m * left)
+			node.scale = Vector3.ONE * (_radii[slot] * left)

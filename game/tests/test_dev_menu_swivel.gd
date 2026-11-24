@@ -85,8 +85,7 @@ func test_left_and_right_step_and_wrap_and_confirm_returns_the_choice() -> Strin
 	var model: DevMenuModel = DevMenuModel.new(DevMenuSpec.fallback(), [])
 	model.open("centre", "")
 	model.set_swivel(false, false)
-	while model.kind() != DevMenuSpec.KIND_SWIVEL:
-		tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, DevMenuSpec.KIND_SWIVEL, func(action: String) -> void: tap(model, action))
 	var seen: Array[String] = [model.swivel_text()]
 	for action: String in [DevMenuModel.RIGHT, DevMenuModel.RIGHT, DevMenuModel.LEFT]:
 		tap(model, action)

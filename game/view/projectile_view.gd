@@ -10,7 +10,9 @@ extends Node3D
 ## The bolts nearest the viewer carry real lights from a budgeted pool
 ## (`BoltLights`, PRF-1). A ship's bolts are drawn from its muzzles
 ## (`BoltMuzzles`, #602) with a flash there, and a bolt that ends on something
-## gets an impact flash (`BoltFlashes`). The look lives in
+## gets an impact flash (`BoltFlashes`). Each weapon draws its bolts with its
+## own shape, colour and trail (`BoltMeshes`), and what a bolt ended on shows as
+## sparks, a scorch or a hit (`BoltImpacts`, #1309). The look lives in
 ## `res://view/projectile_look.json` (`ProjectileLook`) so the owner can change it.
 
 const NODE_NAME: String = "ProjectileView"
@@ -19,9 +21,10 @@ const LIGHT_PREFIX: String = BoltLights.LIGHT_PREFIX
 const DEFAULT_LOOK_FILE: String = ProjectileLook.DEFAULT_FILE
 const MUZZLE_FLASHES_NAME: String = "MuzzleFlashes"
 const IMPACT_FLASHES_NAME: String = "ImpactFlashes"
-## A robot's bolt ending this close to a ship (radius 1 m, plus room for its
-## move) hit the pilot, whose hit the cockpit shake shows: no flash in the face.
-const SHIP_HIT_RADIUS_M: float = 1.5
+const TRAIL_NAME: String = "Trail"
+## A robot's bolt ending this close to a ship hit the pilot, whose hit the
+## cockpit shake shows: no flash in the face.
+const SHIP_HIT_RADIUS_M: float = BoltImpacts.SHIP_HIT_RADIUS_M
 
 # The fields below, `muzzles` and the two flash pools are set from the look
 # file; see `ProjectileLook` for each key's meaning and range.
@@ -39,6 +42,10 @@ var look_error: String = ""
 var muzzle_flashes: BoltFlashes = BoltFlashes.new(MUZZLE_FLASHES_NAME)
 ## Flashes where a bolt ended on something before its range ran out.
 var impact_flashes: BoltFlashes = BoltFlashes.new(IMPACT_FLASHES_NAME)
+## Sparks, scorches and hit flashes where bolts end.
+var impacts: BoltImpacts = BoltImpacts.new()
+## Each weapon's bolt meshes.
+var meshes: BoltMeshes = BoltMeshes.new()
 
 var _bolts: Array[MeshInstance3D] = []
 var _lamps: BoltLights = null
@@ -50,21 +57,22 @@ var _first_seen: Dictionary[Projectile, Vector3] = {}
 var _offsets: Dictionary[Projectile, Vector3] = {}
 ## The muzzles ship bolts are drawn from, shaped by the look file.
 var muzzles: BoltMuzzles = BoltMuzzles.new()
-var _mesh: CylinderMesh = CylinderMesh.new()
-var _material: StandardMaterial3D = StandardMaterial3D.new()
+## Each projectile shown on the last call to the weapon row it is drawn with.
+var _weapons: Dictionary[Projectile, String] = {}
+## The parsed look in use, with its `weapons` rows.
+var _look: Dictionary = ProjectileLook.DEFAULTS
+## What the bolts may end on, set by `set_scene`; read only.
+var _ships: Array[ShipState] = []
+var _robots: Array[RobotState] = []
+var _walls: BoxUnion = null
 
 
 func _init() -> void:
 	name = NODE_NAME
 	_lamps = BoltLights.new(self)
-	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.emission_enabled = true
-	# One draw call's worth of geometry per bolt; it is small and fast.
-	_mesh.radial_segments = 6
-	_mesh.rings = 1
-	_mesh.material = _material
 	add_child(muzzle_flashes)
 	add_child(impact_flashes)
+	add_child(impacts)
 	load_look()
 
 
@@ -84,15 +92,35 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 	if values.has("error"):
 		look_error = "%s: %s" % [path, values["error"]]
 		push_warning("ProjectileView uses the default look; %s" % look_error)
-		look = ProjectileLook.DEFAULTS
+		look = ProjectileLook.DEFAULTS.duplicate()
+		look[ProjectileLook.WEAPONS_KEY] = {}
+	_look = look
 	for key: String in ["bolt_length_m", "bolt_radius_m", "emission_color", "max_lights",
 			"light_range", "light_energy"]:
 		set(key, look[key])
 	muzzles.set_look(look)
 	muzzle_flashes.set_look(look["muzzle_flash_radius_m"], look["muzzle_flash_s"], emission_color)
 	impact_flashes.set_look(look["impact_flash_radius_m"], look["impact_flash_s"], look["impact_color"])
+	impacts.set_look(look)
+	meshes.set_look(look)
+	_weapons = {}
 	_apply_look()
 	return look_error
+
+
+## The per-weapon rows of the look in use, by weapon id.
+func weapon_rows() -> Dictionary:
+	return _look.get(ProjectileLook.WEAPONS_KEY, {})
+
+
+## What the next `show_projectiles` reads to tell each bolt's weapon and what
+## an ended bolt struck: the ships and the robots (a tick before is best, so a
+## robot a bolt destroyed is still there) and the walls, null for open space.
+## Read only, never written (MP-2).
+func set_scene(ships: Array[ShipState], robots: Array[RobotState], walls: BoxUnion) -> void:
+	_ships = ships
+	_robots = robots
+	_walls = walls
 
 
 ## Draws one bolt per projectile, `alpha` (0..1) of the way from the previous
@@ -120,6 +148,8 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 			continue
 		var first_position: Vector3 = _first_seen.get(projectile, projectile.position)
 		seen[projectile] = first_position
+		if not _weapons.has(projectile):
+			_weapons[projectile] = ProjectileWeaponLooks.weapon_of(projectile, _ships, _robots, weapon_rows())
 		offsets[projectile] = _offsets[projectile] if _offsets.has(projectile) \
 			else _new_bolt_offset(projectile, ship_poses)
 		var drawn: Vector3 = projectile.position
@@ -127,6 +157,8 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 			drawn += projectile.velocity * ShipState.TICK_DT * (blend - 1.0)
 		drawn += offsets[projectile] * muzzles.weight(drawn.distance_to(first_position))
 		bolt.transform = Transform3D(bolt_basis(projectile.velocity), drawn)
+		bolt.mesh = meshes.head(_weapons[projectile])
+		_show_trail(bolt, _weapons[projectile], drawn.distance_to(first_position + offsets[projectile]))
 		bolt.visible = true
 		positions.append(drawn)
 	for index: int in range(projectiles.size(), _bolts.size()):
@@ -134,6 +166,7 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 	for gone: Projectile in _first_seen:
 		if not seen.has(gone):
 			_on_bolt_gone(gone, ship_poses)
+			_weapons.erase(gone)
 	_first_seen = seen
 	_offsets = offsets
 	muzzle_flashes.follow(ship_poses)
@@ -171,6 +204,11 @@ func bolt(index: int) -> MeshInstance3D:
 	return _bolts[index]
 
 
+## The trail behind the pooled bolt at `index`.
+func trail(index: int) -> MeshInstance3D:
+	return _bolts[index].get_node(TRAIL_NAME) as MeshInstance3D
+
+
 ## A rotation whose Y axis, the bolt mesh's long axis, points along
 ## `direction`. The identity for a projectile at rest.
 static func bolt_basis(direction: Vector3) -> Basis:
@@ -186,20 +224,38 @@ static func bolt_basis(direction: Vector3) -> Basis:
 func _add_bolt() -> void:
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = "%s%d" % [BOLT_PREFIX, _bolts.size()]
-	instance.mesh = _mesh
+	instance.mesh = meshes.head(ProjectileWeaponLooks.NO_WEAPON)
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	instance.visible = false
+	var trail_node: MeshInstance3D = MeshInstance3D.new()
+	trail_node.name = TRAIL_NAME
+	trail_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	trail_node.visible = false
+	instance.add_child(trail_node)
 	add_child(instance)
 	_bolts.append(instance)
 
 
 func _apply_look() -> void:
 	_lamps.apply_look(max_lights, light_range, light_energy, emission_color)
-	_mesh.height = bolt_length_m
-	_mesh.top_radius = bolt_radius_m
-	_mesh.bottom_radius = bolt_radius_m
-	_material.albedo_color = emission_color
-	_material.emission = emission_color
+	for instance: MeshInstance3D in _bolts:
+		instance.mesh = meshes.head(ProjectileWeaponLooks.NO_WEAPON)
+
+
+## Shows the trail behind `bolt`, drawn with `weapon`'s look, no longer than
+## the `flown_m` the bolt has come from its muzzle, so a new shot's trail never
+## reaches back into the cockpit.
+func _show_trail(bolt_node: MeshInstance3D, weapon: String, flown_m: float) -> void:
+	var trail_node: MeshInstance3D = bolt_node.get_node(TRAIL_NAME) as MeshInstance3D
+	var look: Dictionary = meshes.look(weapon)
+	var length: float = minf(float(look["trail_length_m"]), flown_m)
+	trail_node.visible = length > 0.001
+	if not trail_node.visible:
+		return
+	var radius: float = float(look["bolt_radius_m"]) * BoltMeshes.TRAIL_RADIUS_SHARE
+	trail_node.mesh = meshes.trail(weapon)
+	trail_node.transform = Transform3D(Basis.from_scale(Vector3(radius, length, radius)),
+		Vector3(0.0, -(float(look["bolt_length_m"]) + length) * 0.5, 0.0))
 
 
 ## The muzzle offset of a bolt shown for the first time: the muzzle of the
@@ -210,20 +266,19 @@ func _new_bolt_offset(projectile: Projectile, ship_poses: Array[Transform3D]) ->
 	if projectile.is_robot_owned() or ship >= ship_poses.size():
 		return Vector3.ZERO
 	var local: Vector3 = muzzles.for_slot(projectile.slot)
-	muzzle_flashes.flash(ship_poses[ship] * local, ship, local)
+	muzzle_flashes.flash(ship_poses[ship] * local, ship, local,
+		meshes.look(_weapons.get(projectile, ProjectileWeaponLooks.NO_WEAPON))["muzzle_flash_radius_m"])
 	return ship_poses[ship].basis * local
 
 
 ## A bolt shown last call is gone. With a tick of range left it ended on a
-## robot, the reactor, debris or a wall, somewhere along that tick, so the flash
-## goes half a tick on. A robot's bolt that ends on a ship gets no flash.
+## robot, the reactor, debris, a wall or a ship, somewhere along that tick
+## (`BoltImpacts.classify`). Anything but a robot or ship gets the impact flash.
 func _on_bolt_gone(gone: Projectile, ship_poses: Array[Transform3D]) -> void:
 	if gone.ticks_left <= 1:
 		return  # Its range ran out in open space.
-	var step: Vector3 = gone.velocity * ShipState.TICK_DT
-	if gone.is_robot_owned():
-		for pose: Transform3D in ship_poses:
-			if Projectile.segment_entry(gone.position, gone.position + step, pose.origin,
-					SHIP_HIT_RADIUS_M) >= 0.0:
-				return
-	impact_flashes.flash(gone.position + step * 0.5)
+	var end: Array = BoltImpacts.classify(gone, ship_poses, _robots, _walls)
+	if end[0] == BoltImpacts.Kind.WALL:
+		impact_flashes.flash(end[1])
+	var look: Dictionary = meshes.look(_weapons.get(gone, ProjectileWeaponLooks.NO_WEAPON))
+	impacts.strike(end[0], end[1], end[2], look["spark_color"])

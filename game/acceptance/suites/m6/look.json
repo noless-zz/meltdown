@@ -7,6 +7,16 @@
 			"expected_hash": 1960961122,
 			"screenshot_at_ticks": [300, 900, 1800],
 			"screenshot_at_end": true
+		},
+		{
+			"id": "reactor_and_fire",
+			"seed": 29,
+			"replay": "res://acceptance/replays/bot_generated_fire_escape.replay",
+			"checks": ["final_hash", "level_hash", "outcome", "fire_burned", "reactor_wreck_look", "no_script_errors"],
+			"expected_hash": 3137378879,
+			"expected_level_hash": 3096639754,
+			"expected_outcome": "ESCAPED",
+			"screenshot_at_ticks": [5100, 5230, 5540]
 		}
 	]
 }
