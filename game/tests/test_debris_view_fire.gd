@@ -80,8 +80,10 @@ func _check_stage(view: DebrisView, rock: DebrisView.EntryState, fire: DebrisVie
 			return "entry %d is in state %d, expected %d" % [index, view.entry_state(index), wants[index]]
 		if node.visible != (wants[index] != DebrisView.EntryState.HIDDEN):
 			return "entry %d visible is %s" % [index, node.visible]
-		if node.get_child_count() != 0:
-			return "entry %d has children; fire must add no collision" % index
+		# Particles may hang under an entry (#1331); a collision may not.
+		if not node.find_children("*", "CollisionObject3D", true, false).is_empty() \
+				or not node.find_children("*", "CollisionShape3D", true, false).is_empty():
+			return "entry %d has a collision; fire must add none" % index
 		if view.entry_is_fire(index) != (index > 0):
 			return "entry %d fire is %s" % [index, view.entry_is_fire(index)]
 	if absf(view.entry_radius(1) - 1.5) > EPSILON:

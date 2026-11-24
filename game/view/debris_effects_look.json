@@ -1,0 +1,25 @@
+{
+	"fire_flames": {
+		"amount": 20,
+		"ember_amount": 8,
+		"lifetime": 0.8,
+		"height_r": 1.6,
+		"size_r": 0.45,
+		"hot_color": [0.45, 0.8, 1.0],
+		"cool_color": [0.15, 0.35, 1.0]
+	},
+	"dust": {
+		"amount": 16,
+		"lifetime": 1.4,
+		"size_r": 0.6,
+		"spread_r": 1.5,
+		"color": [0.42, 0.38, 0.32],
+		"alpha": 0.45
+	},
+	"rock": {
+		"wall_mix": 0.6
+	},
+	"metal": {
+		"wall_mix": 0.3
+	}
+}
