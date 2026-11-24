@@ -153,7 +153,7 @@ func test_salvage_glows_and_never_looks_like_a_robot() -> String:
 		items.append(SalvageItem.new(id, Vector3(items.size() * 3.0, 0, 0)))
 	view.show_salvage(items, items, 1.0)
 	for index: int in items.size():
-		var material: StandardMaterial3D = view.node(index).mesh.material as StandardMaterial3D
+		var material: StandardMaterial3D = _glow_of(view.node(index))
 		if result == "" and (material == null or not material.emission_enabled):
 			result = "part \"%s\" is not emissive" % items[index].part_id
 		elif result == "" and material.emission.get_luminance() < 0.3:
@@ -161,6 +161,21 @@ func test_salvage_glows_and_never_looks_like_a_robot() -> String:
 	view.free()
 	robots.free()
 	return result
+
+
+## The glowing material of a drawn part: its single mesh's, or, for a part
+## drawn as a model (#1308), the glow pieces'.
+static func _glow_of(node: MeshInstance3D) -> StandardMaterial3D:
+	if node.mesh != null:
+		return node.mesh.material as StandardMaterial3D
+	var model: Node3D = PickupModel.model_of(node)
+	if model == null:
+		return null
+	for piece: Node in model.get_children():
+		var material: StandardMaterial3D = (piece as MeshInstance3D).material_override as StandardMaterial3D
+		if material != null and material.emission_enabled:
+			return material
+	return null
 
 
 func test_unknown_id_uses_the_default_look() -> String:

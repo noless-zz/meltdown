@@ -13,7 +13,9 @@ extends RefCounted
 ## controller values then go through the scene's own `apply_controls` and
 ## `advance_frame`: the stick steps to the craft station and A takes it into
 ## use, which must show its rows while the others show only their titles; its
-## first ready weapon is built; the fit station mounts it in Primary 1; the
+## screen must show the selected upgrade's cost with what is held, and every
+## Workbench upgrade must have its cost row (#1317); its first ready weapon is
+## built; the fit station mounts it in Primary 1; the
 ## launch station's launch row leaves the hub. The new run must fly the weapon
 ## first. The flat panel must stay hidden throughout. It moves the run on, so
 ## it is the step's last check. Pointing at a station is covered by unit tests;
@@ -60,6 +62,8 @@ static func _craft_fit_launch(main: Node, hub: HubWiring, measurements: Dictiona
 	if not AcceptanceCraftAndFitCheck.choose_station(main, hub, "craft"):
 		return [AcceptanceReport.RESULT_FAIL, "the stick and A did not take the craft station into use"]
 	var shown: String = _only_in_use_shows_rows(hub)
+	if shown == "":
+		shown = _workbench_shows_costs(hub, measurements)
 	if shown != "":
 		return [AcceptanceReport.RESULT_FAIL, shown]
 	if not AcceptanceCraftAndFitCheck.press_in_station(main, hub, {"action": HubText.ACTION_CRAFT, "id": weapon}):
@@ -98,6 +102,27 @@ static func _only_in_use_shows_rows(hub: HubWiring) -> String:
 			count += 1 if (label as Label3D).visible else 0
 		if id != hub.stations.in_use and count != 1:
 			return "the %s station shows %d lines, expected its title only" % [id, count]
+	return ""
+
+
+## "" when the craft station's screen shows its selected upgrade's cost and
+## every upgrade on the Workbench has a cost row (#1317).
+static func _workbench_shows_costs(hub: HubWiring, measurements: Dictionary) -> String:
+	var model: HubModel = hub.text.model
+	var id: String = str(hub.text.selected().get("id", ""))
+	if id == "":
+		return "the craft station selects no upgrade"
+	var cost: String = HubCraftRows.cost_text(model, id)
+	measurements["cost"] = cost
+	if not hub.stations.texts().has(cost):
+		return "the craft station's screen does not show \"%s\": %s" % [cost, hub.stations.texts()]
+	var lines: Array[String] = hub.text.lines()
+	var ids: Array[String] = model.craftable()
+	for entry: Dictionary in model.locked():
+		ids.append(entry["id"])
+	for each: String in ids:
+		if not lines.has(HubCraftRows.cost_text(model, each)):
+			return "the Workbench shows no cost for %s" % HubCraftRows.upgrade_name(model, each)
 	return ""
 
 

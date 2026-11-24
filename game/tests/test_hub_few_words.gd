@@ -13,6 +13,8 @@ const WIDE_COUNT: int = 999
 const WIDE_LEVEL: int = 99
 const WIDE_TIER: int = 9
 const WIDE_SEED: int = 2147483647
+## Rows whose length is not the hub file's to bound: see the length test.
+const LIST_ROWS: Array[String] = ["locked_note", "cost_row", "effect_row", "unlocks_row"]
 
 
 static func _texts(dir: String) -> Dictionary:
@@ -74,8 +76,9 @@ func test_the_file_sets_the_screen_limits() -> String:
 ## Every text the hub file holds, filled with the longest names the shipped
 ## data can put in it, fits `max_row_chars`. A slot row is filled per slot
 ## kind with the longest thing that kind can hold, since only that can show.
-## `locked_note` is the crafting rules' own reason (`UpgradeTree.missing`), not
-## words of the hub file, so it is left out.
+## Left out: `locked_note` and the Workbench's list rows (`cost_row`,
+## `effect_row`, `unlocks_row`, #1317), whose length grows with the number of
+## components, numbers or unlocks joined into them (follow-up #1353).
 func test_every_shipped_text_fits_a_row() -> String:
 	var hub: HubText = _hub(Profile.new())
 	var config: HubConfig = hub.model.config
@@ -98,12 +101,13 @@ func test_every_shipped_text_fits_a_row() -> String:
 		"name": _longest(upgrades), "role": _longest(role_names), "stat": _longest(stats),
 		"amount": str(amounts.max()), "count": str(WIDE_COUNT), "tier": str(WIDE_TIER),
 		"level": str(WIDE_LEVEL), "seed": str(WIDE_SEED), "part": _longest(_part_names(hub)),
+		"have": str(WIDE_COUNT), "need": str(WIDE_COUNT),
 	}
 	var texts: Dictionary[String, String] = {"empty_crew": config.empty_crew, "empty_store": config.empty_store}
 	for id: String in config.pages:
 		texts["title " + id] = config.title(id)
 	for key: String in HubWords.PLACEHOLDERS:
-		if key != "locked_note" and key != "slot_row":
+		if not LIST_ROWS.has(key) and key != "slot_row":
 			texts[key] = words.row(key, filled)
 	texts["store_row"] = words.row("store_row", {"name": _longest(components), "count": WIDE_COUNT})
 	for slot: Dictionary in hub.model.fit_slots():
@@ -142,15 +146,19 @@ func test_only_the_selected_row_shows_its_explanation() -> String:
 	var locked: Array[Dictionary] = hub.model.locked()
 	if locked.size() < 2 or hub.selected() != {"action": HubText.ACTION_CRAFT, "id": locked[0]["id"]}:
 		return "an empty profile's Workbench does not start on a locked row: %s" % hub.selected()
-	var first: String = hub.model.config.words.row("locked_note", {"reason": locked[0]["reason"]})
+	var first: String = hub.model.config.words.row("locked_note", {"reason": HubCraftRows.reason(hub.model, locked[0]["id"])})
 	if hub.note() != first:
 		return "the first locked row's note is \"%s\", expected \"%s\"" % [hub.note(), first]
 	hub.move(1)
-	if hub.note() == first or hub.note() != hub.model.config.words.row("locked_note", {"reason": locked[1]["reason"]}):
+	var second: String = hub.model.config.words.row("locked_note", {"reason": HubCraftRows.reason(hub.model, locked[1]["id"])})
+	if hub.note() == first or hub.note() != second:
 		return "after a step down the note is \"%s\"" % hub.note()
 	for line: String in hub.lines():
-		if line.contains(str(locked[0]["reason"])) or line.contains(str(locked[1]["reason"])):
+		if line.contains(first) or line.contains(second):
 			return "a reason is a row of its own: \"%s\"" % line
+	var cost: String = HubCraftRows.cost_text(hub.model, locked[0]["id"])
+	if hub.lines().has(cost) or not hub.lines().has(HubCraftRows.cost_text(hub.model, locked[1]["id"])):
+		return "the cost rows shown are not only the selected upgrade's: %s" % [hub.lines()]
 	return ""
 
 

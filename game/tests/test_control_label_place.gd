@@ -1,8 +1,9 @@
 extends RefCounted
 
-## Control labels over the Quest 3 controller (#1212, PLT-5, PLT-2, ARC-3,
-## ARC-4): each label sits beside the part it names, within the layout file's
-## distance, its leader ends on that part, and with the hands where a seated
+## Control labels over the Quest 3 controller (#1212, #1316, PLT-5, PLT-2,
+## ARC-3, ARC-4): every part lies inside the layout's controller sphere, each
+## leader ends on its part and is no longer than the layout file allows, and
+## with the hands where a seated
 ## pilot holds them no label covers the status panel in any corner. CI has no
 ## runtime, so the Quest 3 model is the anchor table, as the headset uses it
 ## when the model names no parts (`test_controller_anchors.gd`).
@@ -30,6 +31,7 @@ func _rig(left_handed: bool, labels: Dictionary = {}) -> Node:
 		if not labels.is_empty():
 			model.set_labels(labels)
 		model.on_vendor_model_loaded()
+	ControlLabelClearance.face_all(rig, Transform3D.IDENTITY)
 	return rig
 
 
@@ -52,9 +54,10 @@ func test_a_bad_layout_is_rejected_naming_the_key() -> String:
 	json.parse(FileAccess.get_file_as_string(ControlLabelLayout.DEFAULT_FILE))
 	var good: Dictionary = json.data
 	var cases: Dictionary = {
-		"column_x_m": {"column_x_m": 0.5},
+		"gap_m": {"gap_m": 0.5},
 		"row_gap_m": {"row_gap_m": true},
-		"rise_m": {"rise_m": {"stick": 0.03}},
+		"column_side": {"column_side": "above"},
+		"controller_centre_m": {"controller_centre_m": [0.0, 0.5, 0.0]},
 		"held_hand_m": {"held_hand_m": [0.1, 0.2]},
 		"spin": {"spin": 1},
 	}
@@ -67,8 +70,8 @@ func test_a_bad_layout_is_rejected_naming_the_key() -> String:
 	return ""
 
 
-func test_every_label_is_near_its_part_and_its_leader_ends_on_it() -> String:
-	var limit: float = float(ControlLabelLayout.load_file()["max_distance_m"])
+func test_every_leader_is_short_and_ends_on_its_part() -> String:
+	var limit: float = float(ControlLabelLayout.load_file()["max_leader_m"])
 	var table: Dictionary = ControllerAnchors.load_file().table_points("")
 	for case: Array in _cases():
 		var rig: Node = _rig(case[0], case[1])
@@ -83,14 +86,26 @@ func test_every_label_is_near_its_part_and_its_leader_ends_on_it() -> String:
 				if message != "":
 					break
 				var point: Vector3 = labels.mirror(ControlLabelSet.control_point(str(control), table))
-				var distance: float = labels.label_for(str(control)).position.distance_to(point)
-				if distance > limit:
-					message = "%s %s is %.0f mm from its part, limit %.0f" % [hand, control, distance * 1000.0, limit * 1000.0]
-				elif not leaders.has(control) or not ((leaders[control] as Array)[1] as Vector3).is_equal_approx(point):
+				if not leaders.has(control) or not ((leaders[control] as Array)[1] as Vector3).is_equal_approx(point):
 					message = "%s %s leader does not end on its part at %s" % [hand, control, point]
+					break
+				var length: float = ((leaders[control] as Array)[0] as Vector3).distance_to(point)
+				if length > limit:
+					message = "%s %s leader is %.0f mm, limit %.0f" % [hand, control, length * 1000.0, limit * 1000.0]
 		rig.free()
 		if message != "":
 			return "left-handed %s: %s" % [case[0], message]
+	return ""
+
+
+func test_every_quest3_anchor_is_inside_the_controller_sphere() -> String:
+	var layout: Dictionary = ControlLabelLayout.load_file()
+	var table: Dictionary = ControllerAnchors.load_file().table_points("")
+	for part: Variant in table:
+		var distance: float = (table[part] as Vector3).distance_to(layout["controller_centre_m"])
+		if distance > float(layout["controller_radius_m"]):
+			return "%s is %.0f mm from the sphere's centre, outside its %.0f mm" % [part, distance * 1000.0,
+				float(layout["controller_radius_m"]) * 1000.0]
 	return ""
 
 
@@ -127,9 +142,9 @@ func test_no_label_covers_the_status_panel_in_any_corner() -> String:
 
 
 func test_the_panel_check_can_fail() -> String:
-	# A panel straight ahead of the held hand must be found under its labels.
+	# A panel just outside the held right hand must be found under its labels.
 	var held: Vector3 = ControlLabelLayout.load_file()["held_hand_m"]
-	var panel: Rect2 = _panel_rect(Transform3D(Basis.IDENTITY, held + Vector3(0.0, 0.0, -0.05)))
+	var panel: Rect2 = _panel_rect(Transform3D(Basis.IDENTITY, held + Vector3(0.14, 0.0, -0.05)))
 	var rig: Node = _rig(false)
 	var rects: Dictionary = LABEL_LAYOUT._view_rects(rig)
 	rig.free()

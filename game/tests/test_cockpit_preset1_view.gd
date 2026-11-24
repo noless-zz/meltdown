@@ -51,7 +51,7 @@ func test_anchored_window_is_wider_than_the_slot() -> String:
 func test_control_labels_are_inside_the_anchored_window() -> String:
 	var spec: CockpitSpec = _anchored()
 	var layout: RefCounted = LABEL_LAYOUT.new()
-	var rig: Node = layout.call("_rig_in_neutral_pose")
+	var rig: Node = layout.call("_rig_in_neutral_pose", LABEL_LAYOUT.CLOSE_APART_M)
 	# Each label's rectangle in tangent units, eye at the origin looking along -z.
 	var rects: Dictionary = LABEL_LAYOUT._view_rects(rig)
 	rig.free()

@@ -21,6 +21,13 @@
 		"ready_row": "Build {name}",
 		"locked_row": "{name}",
 		"locked_note": "{reason}",
+		"locked_needs": "Needs {name}",
+		"locked_short": "{count} more {name}",
+		"cost_row": "Cost: {cost}",
+		"cost_item": "{name} {have}/{need}",
+		"effect_row": "Does: {effect}",
+		"unlocks_row": "Unlocks: {names}",
+		"list_join": ", ",
 		"built_row": "{name}",
 		"slot_row": "{slot}: {fitted}",
 		"slot_upgrade": "{name}",
@@ -48,9 +55,28 @@
 			"shield": "Shield", "hull": "Hull", "engine": "Engine"},
 		"stat_names": {
 			"map_reveal": "map reveal",
-			"shield_max": "shield",
+			"shield_max": "Shield",
 			"salvage_slots": "salvage slots",
 			"meltdown_seconds": "seconds before meltdown"
+		},
+		"effect_names": {
+			"damage": "Damage {value}",
+			"rate": "{value} shots/s",
+			"max_shield": "Shield {value}",
+			"shield_recharge": "Recharge {value}",
+			"shield_energy_cost": "Shield energy {value}",
+			"max_hull": "Hull {value}",
+			"wall_damage_per_speed": "Wall damage {value}",
+			"max_speed": "Speed {value}",
+			"acceleration": "Thrust {value}",
+			"afterburner_max_speed": "Boost speed {value}",
+			"afterburner_acceleration": "Boost thrust {value}",
+			"afterburner_drain": "Boost drain {value}",
+			"reveal_radius_m": "Map reveal {value} m",
+			"scan_radius_m": "Scan range {value} m",
+			"cone_degrees": "Aim cone {value}°",
+			"range_m": "Range {value} m",
+			"gimbal_degrees_per_second": "Turn {value}°/s"
 		}
 	}
 }

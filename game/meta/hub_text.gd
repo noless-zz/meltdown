@@ -4,9 +4,9 @@ extends RefCounted
 ## The hub as lines of text with a selected row (CRW-2, CRF-3, CRF-4, #1058), so
 ## a hub panel only draws lines: stick up and down calls `move`, left and right
 ## `turn_page`, A `press`. Every word comes from `data/hub/hub.json` through the
-## model's `HubConfig` (ARC-4, NAM-3); ids from other data files (upgrade and
-## component names, role names, the ship file's part ids) are shown as those
-## files give them.
+## model's `HubConfig` (ARC-4, NAM-3); names from other data files (upgrade,
+## component, role and weapon names) are shown as those files give them, never
+## their ids (#1317).
 ##
 ## `press` acts only through the `HubModel`, so it changes the profile and the
 ## fitting and nothing else (MP-2); saving them stays the caller's job.
@@ -126,13 +126,16 @@ func selected() -> Dictionary:
 
 
 ## Performs the selected row's action through the model. Returns the model's
-## reason unchanged, or "" on success (and for an information row).
+## reason, or "" on success (and for an information row); a refused build gives
+## the locked row's words instead of the tree's ids (#1317).
 func press() -> String:
 	var action: Dictionary = selected()
 	var reason: String = ""
 	match action.get("action", ""):
 		ACTION_CRAFT:
 			reason = model.craft(action["id"])
+			if reason != "" and HubCraftRows.reason(model, action["id"]) != "":
+				reason = HubCraftRows.reason(model, action["id"])  # Words, not the tree's ids.
 		ACTION_FIT:
 			reason = model.fit(action["slot"], action["id"])
 		ACTION_LAUNCH:
@@ -151,8 +154,18 @@ func press() -> String:
 
 ## Every row of the current page or station: `text`, `action`, whether it is
 ## `selectable`, and on some Fitting Bay rows a `group`.
+## A Workbench upgrade's detail rows (`detail_of`) show only under the selected
+## upgrade (#1300); they cannot be selected, so hiding them moves no selection.
 func _rows() -> Array[Dictionary]:
-	return _page_rows(page_id()) if station == "" else _station_rows()
+	var rows: Array[Dictionary] = _page_rows(page_id()) if station == "" else _station_rows()
+	var owner: String = ""
+	var selectable: int = 0
+	for entry: Dictionary in rows:
+		if entry["selectable"]:
+			if selectable == row:
+				owner = str((entry["action"] as Dictionary).get("id", ""))
+			selectable += 1
+	return rows.filter(func(entry: Dictionary) -> bool: return str(entry.get("detail_of", owner)) == owner)
 
 
 ## The station's pages' rows of its group; a later page starts under its
@@ -197,26 +210,9 @@ func _selectable() -> Array[int]:
 	return out
 
 
+## The Workbench rows: costs, numbers and unlocks under each upgrade (#1317).
 func _craft_rows() -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
-	var ready: Array[String] = model.craftable()
-	if not ready.is_empty():
-		rows.append(HubRows.shown(_words().row("ready_header")))
-	for id: String in ready:
-		rows.append(HubRows.acting(_words().row("ready_row", {"name": _name(id)}), {"action": ACTION_CRAFT, "id": id}))
-	var locked: Array[Dictionary] = model.locked()
-	if not locked.is_empty():
-		rows.append(HubRows.shown(_words().row("locked_header")))
-	for entry: Dictionary in locked:
-		var id: String = entry["id"]
-		rows.append(HubRows.noted(HubRows.acting(_words().row("locked_row", {"name": _name(id)}), {"action": ACTION_CRAFT, "id": id}),
-			_words().row("locked_note", {"reason": entry["reason"]})))
-	var built: Array[String] = model.crafted()
-	if not built.is_empty():
-		rows.append(HubRows.shown(_words().row("built_header")))
-	for id: String in built:
-		rows.append(HubRows.info(_words().row("built_row", {"name": _name(id)})))
-	return rows
+	return HubCraftRows.rows(model)
 
 
 ## Each slot with what it holds, the crafted upgrades of its kind it could take,
@@ -233,7 +229,8 @@ func _fit_rows() -> Array[Dictionary]:
 		if slot["upgrade"] != "":
 			fitted = _words().row("slot_upgrade", {"name": _name(slot["upgrade"])})
 		elif slot["part"] != "":
-			fitted = _words().row("slot_part", {"part": slot["part"]})
+			var part: String = model.parts.weapon_name(slot["part"])
+			fitted = _words().row("slot_part", {"part": part}) if part != "" else _words().row("slot_stock")
 		elif Fitting.PART_KEYS.has(slot["kind"]):
 			fitted = _words().row("slot_stock")
 		rows.append(HubRows.info(_words().row("slot_row", {"slot": _words().slot_name(slot["kind"], slot["index"]), "fitted": fitted})))

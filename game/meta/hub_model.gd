@@ -27,6 +27,9 @@ var components: ComponentList
 var ship_data: Dictionary = {}
 ## The suspended run waiting to resume, or null; read only.
 var waiting_run: RunSave = null
+## The part files' numbers the Workbench shows (#1317); empty until the caller
+## sets the shipped ones, and then upgrades show no numbers.
+var parts: HubPartInfo = HubPartInfo.new()
 
 
 static func create(p_config: HubConfig, p_profile: Profile, p_roles: CrewRoles, p_components: ComponentList,
@@ -106,7 +109,7 @@ func craftable() -> Array[String]:
 ## reason from `UpgradeTree.missing`, in the same order as `craftable`.
 func locked() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
-	for upgrade: UpgradeDef in _ordered_upgrades():
+	for upgrade: UpgradeDef in ordered_upgrades():
 		if profile.crafted.has(upgrade.id):
 			continue
 		var reason: String = tree.missing(upgrade.id, profile.crafted, profile.banked)
@@ -118,7 +121,7 @@ func locked() -> Array[Dictionary]:
 ## Upgrades already crafted, in the same order as `craftable`.
 func crafted() -> Array[String]:
 	var ids: Array[String] = []
-	for upgrade: UpgradeDef in _ordered_upgrades():
+	for upgrade: UpgradeDef in ordered_upgrades():
 		if profile.crafted.has(upgrade.id):
 			ids.append(upgrade.id)
 	return ids
@@ -239,7 +242,7 @@ func _take(candidate: Fitting) -> String:
 
 
 ## The tree's upgrades ordered as `Crafting.available` orders them.
-func _ordered_upgrades() -> Array[UpgradeDef]:
+func ordered_upgrades() -> Array[UpgradeDef]:
 	var ordered: Array[UpgradeDef] = tree.upgrades.duplicate()
 	ordered.sort_custom(Crafting._before)
 	return ordered

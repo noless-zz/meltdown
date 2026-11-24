@@ -12,6 +12,10 @@
 			"expected_hash": 1302297426,
 			"screenshot_at_ticks": [2, 12, 46, 52, 99, 103],
 			"screenshot_at_end": true
+		},
+		{
+			"id": "control_labels_clear",
+			"checks": ["no_script_errors", "control_labels_clear"]
 		}
 	]
 }
