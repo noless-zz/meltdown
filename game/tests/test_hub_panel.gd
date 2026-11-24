@@ -147,7 +147,8 @@ func test_a_locked_row_shows_its_reason_until_the_next_input() -> String:
 	var panel: HubPanel = _panel(hub)
 	_to_page(panel, hub, HubConfig.CRAFT)
 	var picked: Dictionary = hub.selected()
-	var expected: String = hub.model.tree.missing(str(picked.get("id", "")), [], {})
+	# The locked row's words (#1317), not the tree's reason with its ids.
+	var expected: String = HubCraftRows.reason(hub.model, str(picked.get("id", "")))
 	var result: Dictionary = _tap(panel, DevMenuModel.CONFIRM)
 	var failure: String = ""
 	if picked.get("action") != HubText.ACTION_CRAFT or expected == "":
