@@ -161,7 +161,7 @@ func test_the_shipped_look_loads_and_bad_files_are_named() -> String:
 		good.replace("\"min_share\": 0.0", "\"min_share\": 0.1"): "rewards[2].min_share must be 0",
 		good.replace("\"tier\": 3", "\"tier\": 4"): "rewards[0].tier must be a whole number",
 		good.replace("\"entry_step_m\": 0.14", "\"entry_step_m\": true"): "\"entry_step_m\" must be a number",
-		good.replace("[0.0, 0.24, -1.5]", "[0.0, 0.24, 1.5]"): "\"title_position_m\" must be",
+		good.replace("[0.0, 0.3, -1.5]", "[0.0, 0.3, 1.5]"): "\"title_position_m\" must be",
 	}
 	for text: String in cases:
 		var parsed: Dictionary = ShaftPanelLook.parse(text)
