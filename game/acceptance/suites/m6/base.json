@@ -1,3 +1,10 @@
 {
-	"steps": []
+	"steps": [
+		{
+			"id": "hub_room",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "hub_room"]
+		}
+	]
 }

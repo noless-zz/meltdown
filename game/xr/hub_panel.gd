@@ -151,5 +151,6 @@ func _label(label_name: String, font_size: float) -> Label3D:
 	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	label.no_depth_test = true
 	label.render_priority = DestroyedScreen.RENDER_PRIORITY
+	label.layers = 1 | HubRoom.LAYER_BIT  # Also drawn while the camera shows only the hub room (#1298).
 	add_child(label)
 	return label
