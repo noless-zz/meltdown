@@ -19,6 +19,9 @@ var swivel: DevMenuValueToggle
 var auto_level: DevMenuValueToggle
 var foveation: DevMenuValueFoveation
 var level: DevMenuValueLevel
+## On is the cockpit place and the map following the ship (#1321).
+var map_place: DevMenuValueToggle
+var map_turn: DevMenuValueToggle
 
 var _by_kind: Dictionary[String, DevMenuValue] = {}
 
@@ -46,12 +49,17 @@ func _init(spec: DevMenuSpec, levels: DevMenuLevels) -> void:
 	foveation = DevMenuValueFoveation.new(DevMenuModel.FOVEATION_PREFIX,
 		spec.foveation_off_text, spec.foveation_dynamic_text, spec.foveation_note_text)
 	level = DevMenuValueLevel.new(DevMenuModel.LEVEL_PREFIX, levels, spec)
+	map_place = DevMenuValueToggle.new(MapChoice.PLACE_PREFIX, MapChoice.PLACE_COCKPIT,
+		MapChoice.PLACE_HAND, spec.map_cockpit_text, spec.map_hand_text)
+	map_turn = DevMenuValueToggle.new(MapChoice.TURN_PREFIX, MapChoice.TURN_FOLLOWS,
+		MapChoice.TURN_FIXED, spec.map_follows_text, spec.map_fixed_text)
 	_by_kind = {DevMenuSpec.KIND_CORNER: corner, DevMenuSpec.KIND_CONTROLS: scheme,
 		DevMenuSpec.KIND_HANDS: hands, DevMenuSpec.KIND_PITCH: pitch,
 		DevMenuSpec.KIND_COMFORT: comfort, DevMenuSpec.KIND_BREAK: break_reminder,
 		DevMenuSpec.KIND_REFRESH: refresh, DevMenuSpec.KIND_SWIVEL: swivel,
 		DevMenuSpec.KIND_FOVEATION: foveation, DevMenuSpec.KIND_AUTO_LEVEL: auto_level,
-		DevMenuSpec.KIND_LEVEL: level}
+		DevMenuSpec.KIND_LEVEL: level, DevMenuSpec.KIND_MAP_PLACE: map_place,
+		DevMenuSpec.KIND_MAP_TURN: map_turn}
 
 
 ## The value helper of entry kind `entry_kind`, or null for an action entry.

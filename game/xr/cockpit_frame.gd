@@ -58,6 +58,8 @@ func set_spec(p_spec: CockpitSpec) -> void:
 	_transforms.clear()
 	_glass_points = PackedVector3Array()
 	for child: Node in get_children():
+		if child is MapHologram:
+			continue  # Mounted here by the pilot's choice (#1321), not part of the frame.
 		remove_child(child)
 		child.free()
 	_build()

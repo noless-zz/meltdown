@@ -22,6 +22,8 @@ const SAMPLE_RESULTS: Dictionary = {
 	DevMenuSpec.KIND_FLIGHT_TEST: DevMenuModel.FLIGHT_TEST,
 	DevMenuSpec.KIND_RETURN: DevMenuModel.RETURN,
 	DevMenuSpec.KIND_CLOSE: DevMenuModel.CLOSE,
+	DevMenuSpec.KIND_MAP_PLACE: MapChoice.PLACE_PREFIX + MapChoice.PLACE_COCKPIT,
+	DevMenuSpec.KIND_MAP_TURN: MapChoice.TURN_PREFIX + MapChoice.TURN_FOLLOWS,
 }
 
 

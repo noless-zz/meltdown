@@ -114,6 +114,8 @@ var instruments: Array[CockpitInstrument] = []
 var finish: CockpitFinish = CockpitFinish.new()
 ## The modelled dash pieces: the file's optional `"dash"` list (#1306).
 var dash: Array[CockpitDashPiece] = []
+## Where the map hangs in the cockpit place: the optional `"map_mount"` (#1321).
+var map_mount: CockpitMapMount = CockpitMapMount.new()
 
 ## Set when the text was rejected; empty otherwise.
 var error: String = ""
@@ -136,7 +138,8 @@ static func parse_json(text: String) -> CockpitSpec:
 	var data: Dictionary = json.data
 	for key: Variant in data:
 		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == LOOK_KEY
-				or key == CockpitInstrument.LIST_KEY or key == FINISH_KEY or key == CockpitDashPiece.LIST_KEY):
+				or key == CockpitInstrument.LIST_KEY or key == FINISH_KEY or key == CockpitDashPiece.LIST_KEY
+				or key == CockpitMapMount.KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	var spec: CockpitSpec = CockpitSpec.new()
 	for key: String in KEYS:
@@ -177,6 +180,11 @@ static func parse_json(text: String) -> CockpitSpec:
 		if parsed is String:
 			return _rejected(parsed)
 		spec.instruments = parsed
+	if data.has(CockpitMapMount.KEY):
+		var mount: Variant = CockpitMapMount.parse(data[CockpitMapMount.KEY])
+		if mount is String:
+			return _rejected(mount)
+		spec.map_mount = mount
 	return _parse_finish_and_dash(data, spec)
 
 
