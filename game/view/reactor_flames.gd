@@ -14,7 +14,7 @@ static func flames(look: Dictionary) -> GPUParticles3D:
 	var lifetime: float = float(look["flame_lifetime"])
 	var size: float = float(look["flame_size_r"])
 	var height: float = float(look["flame_height_r"])
-	return _build("Flames", int(look["flame_amount"]), lifetime,
+	return build("Flames", int(look["flame_amount"]), lifetime,
 		float(look["core_scale_r"]), height / lifetime, 12.0, size,
 		look["flame_hot_color"], look["flame_cool_color"])
 
@@ -23,12 +23,15 @@ static func flames(look: Dictionary) -> GPUParticles3D:
 static func embers(look: Dictionary) -> GPUParticles3D:
 	var lifetime: float = float(look["flame_lifetime"]) * 2.0
 	var height: float = float(look["flame_height_r"]) * 1.5
-	return _build("Embers", int(look["ember_amount"]), lifetime,
+	return build("Embers", int(look["ember_amount"]), lifetime,
 		float(look["core_scale_r"]), height / lifetime, 35.0, float(look["flame_size_r"]) * 0.15,
 		look["flame_hot_color"], look["flame_hot_color"])
 
 
-static func _build(node_name: String, amount: int, lifetime: float, emit_radius: float,
+## One soft-billboard particle system rising from a sphere of `emit_radius`
+## at `speed`, fading from `hot` to `cool`. Shared with the meltdown fire and
+## dust (`DebrisEffects`, #1331), so every fire in the mine burns alike.
+static func build(node_name: String, amount: int, lifetime: float, emit_radius: float,
 		speed: float, spread_deg: float, size: float, hot: Color, cool: Color) -> GPUParticles3D:
 	var particles: GPUParticles3D = GPUParticles3D.new()
 	particles.name = node_name
