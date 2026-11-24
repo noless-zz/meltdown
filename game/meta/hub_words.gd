@@ -27,6 +27,7 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"launch_row": [],
 	"resume_row": ["level", "seed"],
 	"launch_discard_note": [],
+	"resume_none": [],
 	"stats_empty": [],
 	"stats_runs_started": ["count"],
 	"stats_runs_won": ["count"],

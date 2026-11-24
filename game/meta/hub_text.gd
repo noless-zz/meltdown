@@ -10,6 +10,12 @@ extends RefCounted
 ##
 ## `press` acts only through the `HubModel`, so it changes the profile and the
 ## fitting and nothing else (MP-2); saving them stays the caller's job.
+##
+## In the home base room (#1299) each station shows a part of the pages: while
+## `station` names one, the rows are its pages' rows (`HubStationPages`), kept to
+## the station's row group, and the same `move`, `selected` and `press` act on them.
+## The rows and their actions are the pages' own, so a station and the flat
+## panel cannot disagree on what a row does.
 
 const ACTION_CRAFT: String = "craft"
 const ACTION_FIT: String = "fit"
@@ -25,6 +31,8 @@ var model: HubModel
 var page: int = 0
 ## Index among the current page's selectable rows; -1 when it has none.
 var row: int = 0
+## The station in use (a key of `HubStationPages.STATIONS`), or "" for the pages.
+var station: String = ""
 ## The loadout section the last successful launch press gave; {} before one.
 var launched: Dictionary = {}
 ## The action the last successful resume press gave (`{"resume": true}`); {} before one.
@@ -41,9 +49,22 @@ func page_id() -> String:
 	return model.pages()[page]
 
 
-## The current page: its title, then one line per row.
+## Uses station `id`'s rows from now on and selects its first row; an unknown id
+## goes back to the pages.
+func choose_station(id: String) -> void:
+	station = id if HubStationPages.STATIONS.has(id) else ""
+	row = 0 if not _selectable().is_empty() else -1
+
+
+## Back from a station to the pages, on the page shown before.
+func leave_station() -> void:
+	choose_station("")
+
+
+## The current page (or station): its title, then one line per row.
 func lines() -> Array[String]:
-	var out: Array[String] = [model.page_title(page_id())]
+	var title_page: String = page_id() if station == "" else str(HubStationPages.STATIONS[station]["pages"][0])
+	var out: Array[String] = [model.page_title(title_page)]
 	for entry: Dictionary in _rows():
 		out.append(entry["text"])
 	return out
@@ -103,9 +124,33 @@ func press() -> String:
 	return reason
 
 
-## Every row of the current page: `text`, `action` and whether it is `selectable`.
+## Every row of the current page or station: `text`, `action`, whether it is
+## `selectable`, and on some Fitting Bay rows a `group`.
 func _rows() -> Array[Dictionary]:
-	match page_id():
+	return _page_rows(page_id()) if station == "" else _station_rows()
+
+
+## The station's pages' rows of its group; a later page starts under its
+## title. A station with no row of its group shows the group's empty line.
+func _station_rows() -> Array[Dictionary]:
+	var spec: Dictionary = HubStationPages.STATIONS[station]
+	var rows: Array[Dictionary] = []
+	var pages: Array = spec["pages"]
+	for i: int in pages.size():
+		var kept: Array[Dictionary] = []
+		for entry: Dictionary in _page_rows(str(pages[i])):
+			if str(entry.get("group", "")) == str(spec["group"]):
+				kept.append(entry)
+		if i > 0 and not kept.is_empty():
+			rows.append(_shown(model.page_title(str(pages[i]))))
+		rows.append_array(kept)
+	if rows.is_empty() and spec["group"] == HubStationPages.GROUP_RESUME:
+		rows.append(_shown(_words().row("resume_none")))
+	return rows
+
+
+func _page_rows(id: String) -> Array[Dictionary]:
+	match id:
 		HubConfig.CREW:
 			return _crew_rows()
 		HubConfig.STATS:
@@ -208,10 +253,12 @@ func _fit_rows() -> Array[Dictionary]:
 		if slot["upgrade"] != "":
 			rows.append(_acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
 	if not waiting.is_empty():
-		rows.append(_acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}))
-	rows.append(_acting(_words().row("launch_row"), {"action": ACTION_LAUNCH}))
+		rows.append(_grouped(_acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}),
+			HubStationPages.GROUP_RESUME))
+	rows.append(_grouped(_acting(_words().row("launch_row"), {"action": ACTION_LAUNCH}),
+		HubStationPages.GROUP_LAUNCH))
 	if not waiting.is_empty():
-		rows.append(_shown(_words().row("launch_discard_note")))
+		rows.append(_grouped(_shown(_words().row("launch_discard_note")), HubStationPages.GROUP_LAUNCH))
 	return rows
 
 
@@ -232,6 +279,11 @@ static func _info(text: String) -> Dictionary:
 ## A row that takes `action` when pressed.
 static func _acting(text: String, action: Dictionary) -> Dictionary:
 	return {"text": text, "action": action, "selectable": true}
+
+
+static func _grouped(entry: Dictionary, group: String) -> Dictionary:
+	entry["group"] = group
+	return entry
 
 
 ## A header or empty-page text, skipped by the selection.

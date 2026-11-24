@@ -28,6 +28,9 @@ const FRAME: float = 1.0 / 72.0
 const MAX_MOVES: int = 200
 const STICK_DOWN: Vector2 = Vector2(0.0, -1.0)
 const STICK_RIGHT: Vector2 = Vector2(1.0, 0.0)
+const STICK_LEFT: Vector2 = Vector2(-1.0, 0.0)
+const STICK_UP: Vector2 = Vector2(0.0, 1.0)
+const A: Dictionary = {DestroyedWiring.RESTART_BUTTON: true}
 
 
 ## "" or the problem with the step's fields: the check needs a scratch profile.
@@ -73,7 +76,7 @@ static func _craft_fit_launch(main: Node, hub: HubWiring, run: RunWiring,
 		return [AcceptanceReport.RESULT_FAIL, "mounting %s was not saved to the fitting" % weapon]
 	var granted: String = hub.text.model.tree.get_upgrade(weapon).grants  # The weapon file the upgrade fits.
 	if not press_row(main, hub, {"action": HubText.ACTION_LAUNCH}) or hub.is_open():
-		return [AcceptanceReport.RESULT_FAIL, "the launch row did not leave the hub: %s" % hub.panel.reason_text()]
+		return [AcceptanceReport.RESULT_FAIL, "the launch row did not leave the hub: %s" % hub.reason_text()]
 	var flown: Array[String] = LevelStart.local_loadout(main.get("session") as LocalSession).ids_of("primary")
 	measurements["primary"] = ",".join(flown)
 	if flown.is_empty() or flown[0] != granted:
@@ -89,19 +92,66 @@ static func first_weapon(model: HubModel) -> String:
 	return ""
 
 
-## Moves through the open hub with the right stick, a page at a time, until
-## the selected row does `want`, and presses A on it. False when no row does.
+## Moves through the open hub with the right stick until the selected row
+## does `want`, and presses A on it: in the room a station at a time (#1299),
+## on the flat panel a page at a time. False when no row does.
 static func press_row(main: Node, hub: HubWiring, want: Dictionary) -> bool:
+	if hub.stations != null:
+		for i: int in hub.stations.ids.size():
+			if choose_station(main, hub, hub.stations.highlighted_id()) and press_in_station(main, hub, want):
+				return true
+			_tap(main, {}, STICK_LEFT)  # Back to choosing, then on to the next station.
+			_tap(main, {}, STICK_RIGHT)
+		return false
 	var last: int = -2
 	for i: int in MAX_MOVES:
 		if not hub.is_open():
 			return false
 		if hub.text.selected() == want:
-			_tap(main, {DestroyedWiring.RESTART_BUTTON: true}, Vector2.ZERO)
+			_tap(main, A, Vector2.ZERO)
 			return true
 		var line: int = hub.text.selected_line()
 		_tap(main, {}, STICK_RIGHT if line == last else STICK_DOWN)  # At a page's foot, turn it.
 		last = -2 if line == last else line
+	return false
+
+
+## In the room, goes back to choosing if a station is in use, steps the stick
+## right until station `id` is highlighted and presses A. False when it is not
+## reached or not taken into use.
+static func choose_station(main: Node, hub: HubWiring, id: String) -> bool:
+	if not hub.is_open() or hub.stations == null:
+		return false
+	if hub.stations.in_use != "":
+		_tap(main, {}, STICK_LEFT)
+	for i: int in hub.stations.ids.size():
+		if hub.stations.highlighted_id() == id:
+			break
+		_tap(main, {}, STICK_RIGHT)
+	if hub.stations.highlighted_id() != id:
+		return false
+	_tap(main, A, Vector2.ZERO)
+	return hub.stations.in_use == id
+
+
+## Inside the station in use, moves the stick from the top row down until the
+## selected row does `want` and presses A on it. False when no row does.
+static func press_in_station(main: Node, hub: HubWiring, want: Dictionary) -> bool:
+	for i: int in MAX_MOVES:
+		var before: int = hub.text.selected_line()
+		_tap(main, {}, STICK_UP)
+		if hub.text.selected_line() == before:
+			break
+	for i: int in MAX_MOVES:
+		if not hub.is_open():
+			return false
+		if hub.text.selected() == want:
+			_tap(main, A, Vector2.ZERO)
+			return true
+		var line: int = hub.text.selected_line()
+		_tap(main, {}, STICK_DOWN)
+		if hub.text.selected_line() == line:
+			return false
 	return false
 
 

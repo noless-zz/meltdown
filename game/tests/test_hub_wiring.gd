@@ -81,18 +81,18 @@ func _check_lost(main: Node) -> String:
 	_fly(main, 0.1)
 	var lost: LocalSession = main.get("session")
 	_lose_and_press(main)
-	if not hub.is_open() or hub.panel == null or not hub.panel.visible:
-		return "losing the run did not open the hub"
-	if hub.panel.get_parent() != main.get_node("XRRig"):
-		return "the hub panel is not under the rig"
+	if not hub.is_open() or hub.stations == null or not hub.stations.visible:
+		return "losing the run did not open the hub on the room's stations"
+	if hub.stations.get_parent() != main.get_node("XRRig") or (hub.panel != null and hub.panel.visible):
+		return "the stations are not under the rig, or the flat panel shows in the room (#1299)"
 	if main.get("session") != lost:
 		return "a level flew behind the hub"
 	if level_start.run.state.plan.run_seed != NEXT_RUN_SEED or level_start.run.ended == null:
 		return "the lost run did not move on to the next run"
 	if (main.get("fade_overlay") as FadeOverlay).get_alpha() < 0.99:
 		return "the view is not dark behind the hub"
-	if not hub.panel.texts()[0].contains(HubConfig.load_shipped().title(HubConfig.CREW)):
-		return "the hub does not open on its first page: %s" % [hub.panel.texts()]
+	if hub.stations.highlighted_id() != "crew" or hub.stations.in_use != "":
+		return "the hub does not open choosing a station from the first: %s" % hub.stations.highlighted_id()
 	_fly(main, 3.0, {DestroyedWiring.RESTART_BUTTON: true})
 	if not hub.is_open() or main.get("session") != lost:
 		return "A on the hub's first page left it"
@@ -165,8 +165,8 @@ func _check_refused(main: Node) -> String:
 		return "no launch row"
 	if not hub.is_open() or main.get("session") != ended:
 		return "a refused launch left the hub"
-	if hub.panel.reason_text() != reason:
-		return "the panel shows '%s', expected the check's '%s'" % [hub.panel.reason_text(), reason]
+	if hub.reason_text() != reason:
+		return "the launch station shows '%s', expected the check's '%s'" % [hub.reason_text(), reason]
 	if FileAccess.file_exists(FITTING_PATH):
 		return "a refused launch saved the fitting"
 	return ""

@@ -35,11 +35,19 @@ extends RefCounted
 ## room shows, the head camera draws only the room, so the mine is not drawn;
 ## opening comes after the end screen's fade to black and a launch hands the
 ## dark back to the restart's fade (CMF-8). The room is presentation only.
+##
+## In the room the pages are on its stations (#1299, `HubStations`): the pilot
+## chooses a station by pointing the right controller's aim at it or with the
+## stick, and uses its rows as the panel's. The flat panel is kept only for a
+## room that fails to load, so the hub still works in the dark.
 
 const LOG_PREFIX: String = "[meltdown run]"
 
-## Under the rig origin once `attach` has run; made unattached by `open_for` in tests.
+## Under the rig origin once `attach` has run; made unattached by `open_for` in
+## tests. Shown only when there are no stations (the room did not load).
 var panel: HubPanel = null
+## The pages on the room's stations; null when the room was not built.
+var stations: HubStations = null
 ## The home base room under the rig origin once `attach` has run; null in tests without it.
 var room: HubRoom = null
 ## The open hub's text; null while closed.
@@ -57,6 +65,7 @@ var level_start: LevelStart = null
 
 var _actions: Dictionary = {}
 var _camera: Camera3D = null
+var _aim: XRController3D = null
 
 
 ## Hangs the panel and the room under `rig`. Calling it again adds nothing.
@@ -67,7 +76,14 @@ func attach(rig: Node3D) -> void:
 	rig.add_child(panel)
 	room = HubRoom.new()
 	rig.add_child(room)
+	if room.is_built():
+		stations = HubStations.new(room)
+		rig.add_child(stations)
+		if not stations.has_stations():
+			stations.queue_free()
+			stations = null
 	_camera = rig.get_node_or_null("Camera") as Camera3D
+	_aim = rig.get_node_or_null("RightHand") as XRController3D
 
 
 func is_open() -> bool:
@@ -134,9 +150,12 @@ func open_for(p_run: RunWiring, config: HubConfig = null) -> bool:
 		ComponentList.parse(RunShip.upgrade_texts(components_dir)), tree, fitting, ship_data)
 	model.set_waiting(waiting_save(run.saves))
 	text = HubText.new(model)
-	if panel == null:
-		panel = HubPanel.new()
-	panel.open(text)
+	if stations != null:
+		stations.open(text)
+	else:
+		if panel == null:
+			panel = HubPanel.new()
+		panel.open(text)
 	_actions = {}
 	print("%s the hub opens" % LOG_PREFIX)
 	return true
@@ -166,7 +185,9 @@ func update(paused: bool, head_point: Transform3D) -> bool:
 			room.show_for(_camera)  # Placed first, so it never shows a frame at the rig origin.
 	if paused or _actions.is_empty():  # No frame read since opening: nothing pressed yet.
 		return false
-	var result: Dictionary = panel.update(_actions)
+	if stations != null:
+		_point()
+	var result: Dictionary = stations.update(_actions) if stations != null else panel.update(_actions)
 	if result.is_empty() or str(result["reason"]) != "":
 		return false
 	match str((result["pressed"] as Dictionary).get("action", "")):
@@ -230,10 +251,28 @@ func alpha() -> float:
 func close() -> void:
 	text = null
 	_actions = {}
+	if stations != null:
+		stations.close()
 	if panel != null:
 		panel.close()
 	if room != null:
 		room.hide_room()
+
+
+## The refused press's reason the hub shows, or "".
+func reason_text() -> String:
+	if stations != null:
+		return stations.reason_text()
+	return panel.reason_text() if panel != null else ""
+
+
+## Hands the stations the right controller's aim ray in the room's space; a
+## controller that is not tracked points at nothing.
+func _point() -> void:
+	if _aim == null or not _aim.get_is_active() or room == null:
+		return
+	var to_room: Transform3D = room.transform.affine_inverse()
+	stations.point(to_room * _aim.transform.origin, to_room.basis * -_aim.transform.basis.z)
 
 
 ## Saves the run's profile; a failure is logged and the hub stays usable.

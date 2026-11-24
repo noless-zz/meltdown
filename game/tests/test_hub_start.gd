@@ -74,8 +74,8 @@ func _check_open(main: Node) -> String:
 	var hub: HubWiring = main.get("hub")
 	var session: LocalSession = main.get("session")
 	var start: Vector3 = session.current_ship().position
-	if not hub.is_open() or hub.panel == null or not hub.panel.visible:
-		return "the start-up hub did not open"
+	if not hub.is_open() or hub.stations == null or not hub.stations.visible:
+		return "the start-up hub did not open on the room's stations"
 	if hub.text.model.run_waits():
 		return "a resume row shows with no suspended run"
 	if not _held(main):
