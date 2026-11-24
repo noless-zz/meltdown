@@ -54,8 +54,8 @@ func _words() -> HubWords:
 
 func test_the_file_has_the_resume_words() -> String:
 	var words: HubWords = _words()
-	if HubWords.PLACEHOLDERS.get("resume_row", []) != ["level", "seed"]:
-		return "resume_row should take {level} and {seed}"
+	if HubWords.PLACEHOLDERS.get("resume_row", []) != ["level"] or HubWords.PLACEHOLDERS.get("resume_note", []) != ["seed"]:
+		return "resume_row should take {level} and resume_note {seed} (#1300)"
 	if words.row("resume_row") == "" or words.row("launch_discard_note") == "":
 		return "hub.json lacks resume_row or launch_discard_note"
 	return ""
@@ -64,10 +64,10 @@ func test_the_file_has_the_resume_words() -> String:
 func test_no_waiting_run_has_no_resume_row_and_resume_refuses() -> String:
 	var hub: HubText = _hub(null)
 	var resume_text: String = _words().row("resume_row", {"level": LEVEL, "seed": SEED})
-	var note: String = _words().row("launch_discard_note")
 	var lines: Array[String] = hub.lines()
-	if lines.has(resume_text) or lines.has(note):
-		return "a resume row or discard note shows with no waiting run: %s" % str(lines)
+	hub.move(1000)
+	if lines.has(resume_text) or hub.note() != "":
+		return "a resume row or discard note shows with no waiting run: %s, note \"%s\"" % [str(lines), hub.note()]
 	if hub.model.run_waits() or not hub.model.waiting().is_empty():
 		return "the model says a run waits"
 	var result: Variant = hub.model.resume()
@@ -98,10 +98,11 @@ func test_a_waiting_run_shows_level_and_seed_above_the_launch_row() -> String:
 		return "no resume row \"%s\" or launch row in %s" % [expected, str(lines)]
 	if resume != launch - 1:
 		return "the resume row is line %d, the launch row line %d: %s" % [resume, launch, str(lines)]
-	if launch + 1 >= lines.size() or lines[launch + 1] != _words().row("launch_discard_note"):
-		return "the discard note does not follow the launch row: %s" % str(lines)
-	if not expected.contains(str(LEVEL)) or not expected.contains(str(SEED)):
-		return "the row \"%s\" lacks the level or the seed" % expected
+	if not expected.contains(str(LEVEL)):
+		return "the row \"%s\" lacks the level" % expected
+	# The seed is the resume row's note, shown only while it is selected (#1300).
+	if not _select_line(hub, resume) or not hub.note().contains(str(SEED)):
+		return "the selected resume row's note \"%s\" lacks the seed" % hub.note()
 	return ""
 
 
@@ -150,16 +151,21 @@ func test_no_waiting_run_leaves_the_page_as_before() -> String:
 	return ""
 
 
+## The discard warning is the launch row's note, shown only while it is selected (#1300).
 func test_the_discard_note_sits_under_the_launch_row_only_when_a_run_waits() -> String:
 	var hub: HubText = _hub(_save())
 	var lines: Array[String] = hub.lines()
 	var launch: int = lines.find(_words().row("launch_row"))
-	if launch < 0 or launch + 1 >= lines.size() or lines[launch + 1] != _words().row("launch_discard_note"):
-		return "no discard note under the launch row: %s" % str(lines)
-	# The note is not selectable: the last selectable line is still the launch row.
+	if launch != lines.size() - 1 or lines.has(_words().row("launch_discard_note")):
+		return "the launch row is not last or the note is a row of its own: %s" % str(lines)
 	hub.move(1000)
 	if hub.selected_line() != launch or hub.selected() != {"action": HubText.ACTION_LAUNCH}:
 		return "the last selectable line is %d, launch is %d" % [hub.selected_line(), launch]
+	if hub.note() != _words().row("launch_discard_note"):
+		return "the selected launch row's note is \"%s\"" % hub.note()
+	hub.move(-1)
+	if hub.note() == _words().row("launch_discard_note"):
+		return "the discard note shows under another row"
 	return ""
 
 

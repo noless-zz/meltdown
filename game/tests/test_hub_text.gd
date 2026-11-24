@@ -71,11 +71,14 @@ func test_an_empty_profile_shows_the_empty_crew_and_store_texts() -> String:
 	_to_page(hub, HubConfig.CREW)
 	if hub.lines() != ([config.title(HubConfig.CREW), config.empty_crew] as Array[String]):
 		return "crew page is %s" % [hub.lines()]
-	if hub.selected_line() != -1 or hub.selected() != {} or hub.press() != "":
-		return "the empty crew page has a selectable row"
+	# The empty row is selected only to show its hint (#1300); it does nothing.
+	if hub.selected() != {} or hub.press() != "" or hub.note() != config.words.row("empty_crew_note"):
+		return "the empty crew row does %s with note \"%s\"" % [hub.selected(), hub.note()]
 	_to_page(hub, HubConfig.STORE)
 	if hub.lines() != ([config.title(HubConfig.STORE), config.empty_store] as Array[String]):
 		return "store page is %s" % [hub.lines()]
+	if hub.note() != config.words.row("empty_store_note"):
+		return "the empty locker's note is \"%s\"" % hub.note()
 	return ""
 
 
@@ -135,8 +138,9 @@ func test_pressing_a_locked_upgrade_returns_the_models_reason() -> String:
 	var reason: String = hub.press()
 	if reason == "" or reason != expected:
 		return "pressing gave \"%s\", the model says \"%s\"" % [reason, expected]
-	if not hub.lines()[hub.selected_line()].contains(expected):
-		return "the locked line does not show the reason: %s" % hub.lines()[hub.selected_line()]
+	if hub.lines()[hub.selected_line()].contains(expected) or hub.note() != expected:
+		return "the reason is not the locked row's note: row \"%s\", note \"%s\"" % [hub.lines()[hub.selected_line()],
+			hub.note()]
 	return ""
 
 

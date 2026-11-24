@@ -21,7 +21,7 @@ extends Node3D
 const NODE_NAME: String = "HubPanel"
 const LINE_PREFIX: String = "Line"
 ## The hub text's methods the panel calls.
-const HUB_METHODS: Array[String] = ["lines", "selected_line", "selected", "press", "move", "turn_page"]
+const HUB_METHODS: Array[String] = ["lines", "selected_line", "selected", "press", "move", "turn_page", "note"]
 ## The dev menu's named actions, so the wiring maps the same buttons to both.
 const ACTIONS: Array[String] = [DevMenuModel.UP, DevMenuModel.DOWN, DevMenuModel.LEFT, DevMenuModel.RIGHT,
 	DevMenuModel.CONFIRM]
@@ -115,6 +115,9 @@ func _refresh() -> void:
 	var page: Array[String] = []
 	page.assign(hub.call("lines"))
 	var chosen: int = hub.call("selected_line")
+	var note: String = hub.call("note")
+	if chosen > 0 and note != "":
+		page.insert(chosen + 1, note)  # The selected row's explanation, under it (#1300).
 	while _lines.size() < page.size():
 		_lines.append(_label("%s%d" % [LINE_PREFIX, _lines.size()], _look["line_font_size"]))
 	var top: Vector3 = _look["title_position_m"]
