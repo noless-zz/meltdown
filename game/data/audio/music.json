@@ -1,0 +1,41 @@
+{
+	"volume_db": -12.0,
+	"crossfade_seconds": 2.5,
+	"meltdown_seconds": 0.6,
+	"end_fade_seconds": 2.0,
+	"layers": [
+		{
+			"id": "calm",
+			"plays": "run",
+			"from_alarm": 0.0,
+			"sound": "res://data/audio/music_calm.wav",
+			"volume_db": -2.0
+		},
+		{
+			"id": "tension_low",
+			"plays": "run",
+			"from_alarm": 0.35,
+			"sound": "res://data/audio/music_tension_low.wav",
+			"volume_db": -4.0
+		},
+		{
+			"id": "tension_high",
+			"plays": "run",
+			"from_alarm": 0.7,
+			"sound": "res://data/audio/music_tension_high.wav",
+			"volume_db": -6.0
+		},
+		{
+			"id": "meltdown",
+			"plays": "meltdown",
+			"sound": "res://data/audio/music_meltdown.wav",
+			"volume_db": 0.0
+		},
+		{
+			"id": "hub",
+			"plays": "hub",
+			"sound": "res://data/audio/music_hub.wav",
+			"volume_db": -3.0
+		}
+	]
+}

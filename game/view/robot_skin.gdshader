@@ -7,6 +7,11 @@
 // The hit flash, damage dim and wind-up glow of #604 are applied after the
 // pattern, so they show over it: `brightness` dims everything, `flash` mixes
 // the whole surface towards `flash_color`, and `energy` scales the emission.
+//
+// With `lit_body` (#1307, `RobotFinish`) the body is metal the headlight
+// shows instead: panel seams and worn patches worked out in the robot's frame,
+// as the pattern is, and only the pattern's lines glow in the type colour, so
+// in the dark the robot is seen by its eye and lines first (LGT-1).
 shader_type spatial;
 
 // 0 plain, 1 rings, 2 chevrons, 3 checks, 4 bands, 5 stripes, 6 grid, 7 dots;
@@ -24,6 +29,13 @@ uniform float brightness = 1.0;
 uniform float flash = 0.0;
 uniform vec3 flash_color : source_color = vec3(1.0);
 uniform float energy = 1.0;
+uniform float lit_body = 0.0;
+uniform vec3 metal_albedo : source_color = vec3(0.35);
+uniform float metal_roughness = 0.45;
+uniform float metal_metallic = 0.8;
+uniform float panel_scale = 2.0;
+uniform float panel_depth = 0.5;
+uniform float wear = 0.25;
 
 // The part's size and offset in the robot's frame, so a part's vertex can be
 // placed in the robot's frame (set per part by `RobotView`).
@@ -67,14 +79,60 @@ float mark(vec3 p) {
 	return 0.0;
 }
 
-void fragment() {
-	vec3 surface = mix(base_color, accent_color, mark(robot_position));
+// Smooth value noise in 0..1, for worn patches without a texture (ARC-5).
+float hash3(vec3 p) {
+	return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float value_noise(vec3 p) {
+	vec3 cell = floor(p);
+	vec3 f = fract(p);
+	vec3 u = f * f * (3.0 - 2.0 * f);
+	float a = mix(mix(hash3(cell), hash3(cell + vec3(1, 0, 0)), u.x),
+			mix(hash3(cell + vec3(0, 1, 0)), hash3(cell + vec3(1, 1, 0)), u.x), u.y);
+	float b = mix(mix(hash3(cell + vec3(0, 0, 1)), hash3(cell + vec3(1, 0, 1)), u.x),
+			mix(hash3(cell + vec3(0, 1, 1)), hash3(cell + vec3(1, 1, 1)), u.x), u.y);
+	return mix(a, b, u.z);
+}
+
+void lit_fragment(inout vec3 albedo, inout vec3 emission, inout float metallic, inout float roughness) {
+	float lines = mark(robot_position);
+	vec3 q = robot_position * panel_scale;
+	float seam = max(max(line(q.x, 0.08), line(q.y, 0.08)), line(q.z, 0.08));
+	float worn = wear * smoothstep(1.0 - wear, 1.0 - wear + 0.15, value_noise(robot_position * 6.0));
+	vec3 metal = metal_albedo * (1.0 - panel_depth * seam);
+	metal = mix(metal, min(metal * 1.6 + vec3(0.06), vec3(1.0)), worn);
+	metal = mix(metal, accent_color, lines);
 	float ahead = dot(robot_position, face_axis);
 	float blur = max(fwidth(ahead), 1e-4);
-	surface = mix(surface, face_color, smoothstep(face_depth - blur, face_depth + blur, ahead));
-	surface = mix(surface * brightness, flash_color, flash);
-	ALBEDO = clamp(surface, vec3(0.0), vec3(1.0));
-	// Emissive as well as shaded, so the colours read in a dark tunnel.
-	EMISSION = ALBEDO * energy;
-	ROUGHNESS = 0.7;
+	float face = smoothstep(face_depth - blur, face_depth + blur, ahead);
+	metal = mix(metal, face_color, face);
+	albedo = clamp(mix(metal * brightness, flash_color, flash), vec3(0.0), vec3(1.0));
+	emission = mix(base_color * lines * (1.0 - face) * brightness, flash_color, flash) * energy;
+	metallic = metal_metallic * (1.0 - 0.5 * seam) * (1.0 - 0.4 * worn);
+	roughness = clamp(mix(metal_roughness, metal_roughness + 0.35, worn), 0.0, 1.0);
+}
+
+void fragment() {
+	if (lit_body > 0.5) {
+		vec3 albedo;
+		vec3 emission;
+		float metallic;
+		float roughness;
+		lit_fragment(albedo, emission, metallic, roughness);
+		ALBEDO = albedo;
+		EMISSION = emission;
+		METALLIC = metallic;
+		ROUGHNESS = roughness;
+	} else {
+		vec3 surface = mix(base_color, accent_color, mark(robot_position));
+		float ahead = dot(robot_position, face_axis);
+		float blur = max(fwidth(ahead), 1e-4);
+		surface = mix(surface, face_color, smoothstep(face_depth - blur, face_depth + blur, ahead));
+		surface = mix(surface * brightness, flash_color, flash);
+		ALBEDO = clamp(surface, vec3(0.0), vec3(1.0));
+		// Emissive as well as shaded, so the colours read in a dark tunnel.
+		EMISSION = ALBEDO * energy;
+		ROUGHNESS = 0.7;
+	}
 }

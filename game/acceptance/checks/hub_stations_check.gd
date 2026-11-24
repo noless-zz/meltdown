@@ -14,7 +14,8 @@ extends RefCounted
 ## `advance_frame`: the stick steps to the craft station and A takes it into
 ## use, which must show its rows while the others show only their titles; its
 ## screen must show the selected upgrade's cost with what is held, and every
-## Workbench upgrade must have its cost row (#1317); its first ready weapon is built; the fit station mounts it in Primary 1; the
+## Workbench upgrade must have its cost row (#1317); its first ready weapon is
+## built; the fit station mounts it in Primary 1; the
 ## launch station's launch row leaves the hub. The new run must fly the weapon
 ## first. The flat panel must stay hidden throughout. It moves the run on, so
 ## it is the step's last check. Pointing at a station is covered by unit tests;
