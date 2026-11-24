@@ -7,7 +7,9 @@ extends Node3D
 ## sight of its target (`RobotTells`, #638), a surface pattern in an accent
 ## colour and a face plate on its forward side (`RobotSkin`, #661), a flash on every hit, a dim sputter below
 ## half hull, a glow that grows over the wind-up before a burst of fire and a
-## burst where one is destroyed (#604).
+## burst where one is destroyed (#604). With a `finish` the body is lit metal
+## and only its accent lines glow, and thruster parts glow with its speed
+## (`RobotFinish`, #1307).
 ##
 ## It only reads the robots it is given and never writes to them, so the view
 ## cannot change what the authoritative simulation decided (MP-2). Nodes are
@@ -46,6 +48,7 @@ var _nodes: Array[MeshInstance3D] = []
 var _node_ids: Array[String] = []
 var _body_materials: Array[ShaderMaterial] = []
 var _eye_materials: Array[StandardMaterial3D] = []
+var _thruster_materials: Array[StandardMaterial3D] = []
 var _bursts: RobotBursts = RobotBursts.new()
 var _tracker: RobotHitTracker = RobotHitTracker.new()
 
@@ -138,6 +141,8 @@ func show_robots(previous: Array[RobotState], current: Array[RobotState], alpha:
 		var hull_fraction: float = robot.hull / robot.def.hull if robot.def.hull > 0.0 else 1.0
 		_paint(index, look, RobotHitTracker.glow(_effects, hull_fraction, _tracker.since_hit(index, now), now,
 				RobotHitTracker.windup_fraction(robot)), robot.awake, RobotTells.eye_share(robot, look["tell"]))
+		RobotFinish.paint_thruster(_thruster_materials[index], look["emission_color"],
+				RobotFinish.thrust_energy(look["thrust"], robot.velocity.length()))
 		node.visible = true
 	for index: int in range(current.size(), _nodes.size()):
 		_nodes[index].visible = false
@@ -170,6 +175,11 @@ func node(index: int) -> MeshInstance3D:
 	return _nodes[index]
 
 
+## The thruster material of the robot node at `index`, for tests.
+func thruster_material(index: int) -> StandardMaterial3D:
+	return _thruster_materials[index]
+
+
 ## The body material of the robot node at `index`, for tests; see `RobotSkin`.
 func body_material(index: int) -> ShaderMaterial:
 	return _body_materials[index]
@@ -180,51 +190,14 @@ func visible_burst_count() -> int:
 	return _bursts.visible_count()
 
 
-## A unit-sized mesh for `shape`: about 1 m from the centre to the surface
-## along its widest axes, so the node's scale is the robot's size directly.
+## See `RobotMeshes.build_mesh`.
 static func build_mesh(shape: String) -> PrimitiveMesh:
-	match shape:
-		"box":
-			var box: BoxMesh = BoxMesh.new()
-			box.size = Vector3(2.0, 2.0, 2.0)
-			return box
-		"capsule":
-			var capsule: CapsuleMesh = CapsuleMesh.new()
-			capsule.radius = 0.6
-			capsule.height = 2.0
-			capsule.radial_segments = 12
-			capsule.rings = 4
-			return capsule
-		"prism":
-			var prism: PrismMesh = PrismMesh.new()
-			prism.size = Vector3(2.0, 2.0, 2.0)
-			return prism
-		"cylinder", "cone":
-			var cylinder: CylinderMesh = CylinderMesh.new()
-			cylinder.top_radius = 1.0 if shape == "cylinder" else 0.0
-			cylinder.bottom_radius = 1.0
-			cylinder.height = 2.0
-			cylinder.radial_segments = 12
-			cylinder.rings = 1
-			return cylinder
-		"torus":
-			var torus: TorusMesh = TorusMesh.new()
-			torus.inner_radius = 0.7
-			torus.outer_radius = 1.0
-			torus.rings = 16
-			torus.ring_segments = 6
-			return torus
-	var sphere: SphereMesh = SphereMesh.new()
-	sphere.radius = 1.0
-	sphere.height = 2.0
-	sphere.radial_segments = 12
-	sphere.rings = 6
-	return sphere
+	return RobotMeshes.build_mesh(shape)
 
 
 func _mesh(shape: String) -> PrimitiveMesh:
 	if not _meshes.has(shape):
-		_meshes[shape] = build_mesh(shape)
+		_meshes[shape] = RobotMeshes.build_mesh(shape)
 	return _meshes[shape]
 
 
@@ -232,6 +205,7 @@ func _mesh(shape: String) -> PrimitiveMesh:
 func _build_parts(index: int, look: Dictionary) -> void:
 	var root: MeshInstance3D = _nodes[index]
 	RobotSkin.apply(_body_materials[index], look["skin"])
+	RobotFinish.apply(_body_materials[index], look["finish"])
 	for child: Node in root.get_children():
 		root.remove_child(child)
 		child.free()
@@ -241,12 +215,20 @@ func _build_parts(index: int, look: Dictionary) -> void:
 		var part: MeshInstance3D = MeshInstance3D.new()
 		part.mesh = _mesh(piece["shape"])
 		part.transform = Transform3D(Basis.from_scale(piece["size"]), piece["offset"])
-		part.material_override = _eye_materials[index] if piece["eye"] else _body_materials[index]
+		part.material_override = _part_material(index, piece)
 		# The skin's pattern and face plate are laid out in the robot's frame.
 		part.set_instance_shader_parameter("part_size", piece["size"])
 		part.set_instance_shader_parameter("part_offset", piece["offset"])
 		part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(part)
+
+
+func _part_material(index: int, piece: Dictionary) -> Material:
+	if piece["eye"]:
+		return _eye_materials[index]
+	if piece.get("thruster", false):
+		return _thruster_materials[index]
+	return _body_materials[index]
 
 
 ## `eye_share` (0..1) scales an awake eye, from `RobotTells.eye_share`.
@@ -275,3 +257,4 @@ func _add_node() -> void:
 	var eye: StandardMaterial3D = StandardMaterial3D.new()
 	eye.emission_enabled = true
 	_eye_materials.append(eye)
+	_thruster_materials.append(RobotFinish.make_thruster_material())

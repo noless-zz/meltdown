@@ -20,15 +20,19 @@ extends RefCounted
 ##   skids flat (#638), and `watch_dim` (0..1) dims the eye by that much while
 ##   the robot has no line to its target. See `RobotTells`;
 ## - `skin`: its surface pattern, accent colour and face plate (#661), see
-##   `RobotSkin`. Without one the body is plain.
+##   `RobotSkin`. Without one the body is plain;
+## - `finish` and `thrust`: its lit metal body and how its `"thruster": true`
+##   parts glow with speed (#1307), see `RobotFinish`. Without a `finish` the
+##   body glows as before.
 ## `effects` is optional; missing keys keep `DEFAULT_EFFECTS`.
 
 const SHAPES: Array[String] = ["sphere", "box", "capsule", "prism", "cylinder", "cone", "torus"]
 const ENTRY_KEYS: Array[String] = ["shape", "scale", "emission_color"]
-const OPTIONAL_ENTRY_KEYS: Array[String] = ["stretch", "parts", "eye_color", "tell", "skin"]
+const OPTIONAL_ENTRY_KEYS: Array[String] = ["stretch", "parts", "eye_color", "tell", "skin", "finish", "thrust"]
 const TOP_KEYS: Array[String] = ["default", "robots"]
 const OPTIONAL_TOP_KEYS: Array[String] = ["effects"]
 const PART_KEYS: Array[String] = ["shape", "size", "offset"]
+const PART_FLAGS: Array[String] = ["eye", "thruster"]
 const TELL_KEYS: Array[String] = ["pitch_deg_per_mps", "roll_deg_per_mps", "max_deg"]
 const OPTIONAL_TELL_KEYS: Array[String] = ["yaw_deg_per_mps", "watch_dim"]
 ## Size relative to the robot's collision radius, inclusive.
@@ -36,7 +40,7 @@ const SCALE_RANGE: Array[float] = [0.1, 4.0]
 const STRETCH_RANGE: Array[float] = [0.1, 4.0]
 const PART_SIZE_RANGE: Array[float] = [0.02, 4.0]
 const PART_OFFSET_RANGE: Array[float] = [-4.0, 4.0]
-const MAX_PARTS: int = 8
+const MAX_PARTS: int = 12
 const TELL_RANGES: Dictionary[String, Array] = {
 	"pitch_deg_per_mps": [0.0, 10.0],
 	"roll_deg_per_mps": [0.0, 10.0],
@@ -75,7 +79,7 @@ const NO_TELL: Dictionary = {
 const FALLBACK: Dictionary = {
 	"shape": "sphere", "scale": 1.0, "emission_color": Color(0.8, 0.8, 0.8),
 	"stretch": Vector3.ONE, "parts": [], "eye_color": Color(1.0, 1.0, 1.0), "tell": NO_TELL,
-	"skin": RobotSkin.PLAIN,
+	"skin": RobotSkin.PLAIN, "finish": RobotFinish.NO_FINISH, "thrust": RobotFinish.NO_THRUST,
 }
 
 
@@ -157,6 +161,15 @@ static func _parse_entry(field: String, entry: Variant) -> Dictionary:
 		if skin.has("error"):
 			return skin
 		look["skin"] = skin
+	for key: String in ["finish", "thrust"]:
+		if not data.has(key):
+			continue
+		var field_name: String = "%s.%s" % [field, key]
+		var parsed: Dictionary = RobotFinish.parse_finish(field_name, data[key]) if key == "finish" \
+			else RobotFinish.parse_thrust(field_name, data[key])
+		if parsed.has("error"):
+			return parsed
+		look[key] = parsed
 	return look
 
 
@@ -172,7 +185,7 @@ static func _parse_parts(field: String, value: Variant) -> Variant:
 			return "\"%s\" must be an object" % name
 		var part: Dictionary = given[index]
 		for key: Variant in part:
-			if typeof(key) != TYPE_STRING or not (PART_KEYS.has(key) or key == "eye"):
+			if typeof(key) != TYPE_STRING or not (PART_KEYS.has(key) or PART_FLAGS.has(key)):
 				return "\"%s\" has unknown key \"%s\"" % [name, str(key)]
 		for key: String in PART_KEYS:
 			if not part.has(key):
@@ -182,12 +195,16 @@ static func _parse_parts(field: String, value: Variant) -> Variant:
 			error = _vector(name + ".size", part["size"], PART_SIZE_RANGE)
 		if error == "":
 			error = _vector(name + ".offset", part["offset"], PART_OFFSET_RANGE)
-		if error == "" and part.has("eye") and typeof(part["eye"]) != TYPE_BOOL:
-			error = "\"%s.eye\" must be true or false" % name
+		for flag: String in PART_FLAGS:
+			if error == "" and part.has(flag) and typeof(part[flag]) != TYPE_BOOL:
+				error = "\"%s.%s\" must be true or false" % [name, flag]
+		if error == "" and part.get("eye", false) and part.get("thruster", false):
+			error = "\"%s\" cannot be both an eye and a thruster" % name
 		if error != "":
 			return error
 		parts.append({"shape": part["shape"], "size": _to_vector(part["size"]),
-			"offset": _to_vector(part["offset"]), "eye": part.get("eye", false)})
+			"offset": _to_vector(part["offset"]), "eye": part.get("eye", false),
+			"thruster": part.get("thruster", false)})
 	return parts
 
 
