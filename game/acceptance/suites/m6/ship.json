@@ -1,3 +1,12 @@
 {
-	"steps": []
+	"steps": [
+		{
+			"id": "robot_look",
+			"replay": "res://acceptance/replays/bot_test_tunnel.replay",
+			"checks": ["final_hash", "no_script_errors"],
+			"expected_hash": 517117812,
+			"screenshot_at_ticks": [60, 200, 290],
+			"screenshot_at_end": true
+		}
+	]
 }
