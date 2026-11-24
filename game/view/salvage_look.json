@@ -2,9 +2,54 @@
 	"ring": {"radius": 0.9, "color": [0.5, 0.9, 1.0], "far_energy": 0.4, "near_energy": 4.0},
 	"default": {"shape": "torus", "scale": 1.0, "emission_color": [0.9, 0.9, 0.9]},
 	"parts": {
-		"arc_lance": {"shape": "cylinder", "scale": 1.0, "emission_color": [0.55, 0.65, 1.0]},
-		"needle_gun": {"shape": "cylinder", "scale": 0.8, "emission_color": [0.6, 1.0, 0.75]},
-		"pulse_cannon": {"shape": "torus", "scale": 1.0, "emission_color": [1.0, 0.85, 0.5]},
-		"slug_thrower": {"shape": "torus", "scale": 1.2, "emission_color": [1.0, 0.5, 0.35]}
+		"arc_lance": {
+			"shape": "cylinder", "scale": 1.0, "emission_color": [0.55, 0.65, 1.0],
+			"model": {
+				"body": {"albedo": [0.3, 0.32, 0.38], "roughness": 0.35, "metallic": 0.85},
+				"pieces": [
+					{"shape": "box", "size": [0.28, 0.24, 0.45], "offset": [0.0, 0.0, 0.35]},
+					{"shape": "cylinder", "size": [0.09, 0.55, 0.09], "offset": [0.0, 0.0, -0.4], "turn": [90.0, 0.0, 0.0]},
+					{"shape": "torus", "size": [0.26, 0.4, 0.26], "offset": [0.0, 0.0, -0.2], "turn": [90.0, 0.0, 0.0], "glow": true},
+					{"shape": "torus", "size": [0.26, 0.4, 0.26], "offset": [0.0, 0.0, -0.55], "turn": [90.0, 0.0, 0.0], "glow": true},
+					{"shape": "sphere", "size": [0.13, 0.13, 0.13], "offset": [0.0, 0.0, -0.95], "glow": true}
+				]
+			}
+		},
+		"needle_gun": {
+			"shape": "cylinder", "scale": 0.8, "emission_color": [0.6, 1.0, 0.75],
+			"model": {
+				"body": {"albedo": [0.26, 0.3, 0.28], "roughness": 0.4, "metallic": 0.8},
+				"pieces": [
+					{"shape": "box", "size": [0.18, 0.22, 0.5], "offset": [0.0, 0.0, 0.4]},
+					{"shape": "cylinder", "size": [0.045, 0.75, 0.045], "offset": [0.0, 0.05, -0.35], "turn": [90.0, 0.0, 0.0]},
+					{"shape": "cylinder", "size": [0.045, 0.75, 0.045], "offset": [0.0, -0.07, -0.35], "turn": [90.0, 0.0, 0.0]},
+					{"shape": "box", "size": [0.1, 0.3, 0.16], "offset": [0.0, -0.35, 0.3], "glow": true}
+				]
+			}
+		},
+		"pulse_cannon": {
+			"shape": "torus", "scale": 1.0, "emission_color": [1.0, 0.85, 0.5],
+			"model": {
+				"body": {"albedo": [0.36, 0.33, 0.28], "roughness": 0.45, "metallic": 0.8},
+				"pieces": [
+					{"shape": "box", "size": [0.4, 0.32, 0.4], "offset": [0.0, 0.0, 0.45]},
+					{"shape": "cylinder", "size": [0.22, 0.45, 0.22], "offset": [0.0, 0.0, -0.2], "turn": [90.0, 0.0, 0.0]},
+					{"shape": "torus", "size": [0.38, 0.5, 0.38], "offset": [0.0, 0.0, -0.68], "turn": [90.0, 0.0, 0.0], "glow": true},
+					{"shape": "sphere", "size": [0.16, 0.16, 0.16], "offset": [0.0, 0.0, -0.68], "glow": true}
+				]
+			}
+		},
+		"slug_thrower": {
+			"shape": "torus", "scale": 1.2, "emission_color": [1.0, 0.5, 0.35],
+			"model": {
+				"body": {"albedo": [0.34, 0.3, 0.27], "roughness": 0.6, "metallic": 0.7},
+				"pieces": [
+					{"shape": "box", "size": [0.45, 0.4, 0.55], "offset": [0.0, 0.0, 0.3]},
+					{"shape": "cylinder", "size": [0.16, 0.5, 0.16], "offset": [0.0, 0.05, -0.55], "turn": [90.0, 0.0, 0.0]},
+					{"shape": "box", "size": [0.2, 0.35, 0.25], "offset": [0.0, -0.45, 0.35]},
+					{"shape": "box", "size": [0.47, 0.12, 0.3], "offset": [0.0, 0.0, 0.3], "glow": true}
+				]
+			}
+		}
 	}
 }

@@ -12,7 +12,9 @@ extends Node3D
 ##
 ## The look per part lives in `res://view/salvage_look.json`, keyed by the
 ## part's data file id, so a new part needs a new entry there and no code
-## (ARC-4).
+## (ARC-4). An entry's optional `model` (#1308, see `PickupModel`) draws the
+## part as its weapon family's few primitives, a lit body round a core glowing
+## in the part's colour; without one the part is its single glowing shape.
 
 const NODE_NAME: String = "SalvageView"
 const MESH_PREFIX: String = "Salvage"
@@ -21,6 +23,7 @@ const DEFAULT_LOOK_FILE: String = "res://view/salvage_look.json"
 const SHAPES: Array[String] = ["sphere", "box", "capsule", "prism", "cylinder", "torus"]
 ## Keys of one look entry.
 const ENTRY_KEYS: Array[String] = ["shape", "scale", "emission_color"]
+const MODEL_KEY: String = "model"
 ## Keys of the file's top level.
 const TOP_KEYS: Array[String] = ["default", "parts"]
 ## Size relative to `SalvageItem.RADIUS`, inclusive.
@@ -52,6 +55,7 @@ var _default_look: Dictionary = FALLBACK_LOOK
 ## One shared mesh per part id (and "" for the default), built on first use.
 var _meshes: Dictionary[String, PrimitiveMesh] = {}
 var _nodes: Array[MeshInstance3D] = []
+var _models: PickupModel = PickupModel.new()
 
 
 func _init() -> void:
@@ -113,6 +117,9 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 		values = _rejected("file not found")
 	_looks.clear()
 	_meshes.clear()
+	_models = PickupModel.new()
+	for instance: MeshInstance3D in _nodes:
+		_models.dress(instance, "", {}, null)
 	_default_look = FALLBACK_LOOK
 	look_error = ""
 	if values.has("error"):
@@ -156,8 +163,12 @@ func show_salvage(previous: Array[SalvageItem], current: Array[SalvageItem], alp
 		var before: SalvageItem = previous[index] if index < previous.size() else null
 		if not is_same_item(before, item):
 			before = item
-		var size: float = SalvageItem.RADIUS * float(look_for(item.part_id)["scale"])
-		node.mesh = _mesh_for(item.part_id)
+		var look: Dictionary = look_for(item.part_id)
+		var size: float = SalvageItem.RADIUS * float(look["scale"])
+		var mesh: PrimitiveMesh = _mesh_for(item.part_id)
+		var model: Dictionary = look.get(MODEL_KEY, {})
+		node.mesh = mesh if model.is_empty() else null
+		_models.dress(node, item.part_id if _looks.has(item.part_id) else "", model, mesh.material)
 		node.transform = Transform3D(spin.scaled(Vector3.ONE * size),
 				before.position.lerp(item.position, blend))
 		node.visible = true
@@ -239,7 +250,7 @@ static func _parse_entry(field: String, entry: Variant) -> Dictionary:
 		return _rejected("\"%s\" must be an object" % field)
 	var data: Dictionary = entry
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not ENTRY_KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (ENTRY_KEYS.has(key) or key == MODEL_KEY):
 			return _rejected("\"%s\" has unknown key \"%s\"" % [field, str(key)])
 	for key: String in ENTRY_KEYS:
 		if not data.has(key):
@@ -260,10 +271,16 @@ static func _parse_entry(field: String, entry: Variant) -> Dictionary:
 			return _rejected("\"%s.emission_color\" must hold numbers" % field)
 		if float(part) < 0.0 or float(part) > 1.0:
 			return _rejected("\"%s.emission_color\" has %s, must be within 0..1" % [field, part])
+	var model: Dictionary = {}
+	if data.has(MODEL_KEY):
+		model = PickupModel.parse("%s.%s" % [field, MODEL_KEY], data[MODEL_KEY])
+		if model.has("error"):
+			return model
 	return {
 		"shape": data["shape"],
 		"scale": float(scale),
 		"emission_color": Color(float(parts[0]), float(parts[1]), float(parts[2])),
+		MODEL_KEY: model,
 	}
 
 

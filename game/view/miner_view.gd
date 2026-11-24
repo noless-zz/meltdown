@@ -12,7 +12,7 @@ extends Node3D
 ## It only reads the rescue state and the ship it is given and never writes to
 ## them (MP-2). The ring faces the ship, like `SalvageRing`, so it reads as a
 ## dial. Nodes are pooled. The look lives in `res://view/miner_look.json`
-## (ARC-4).
+## (ARC-4), with an optional escape pod under the beacon (#1308, `MinerPod`).
 
 const NODE_NAME: String = "MinerView"
 const MARKER_PREFIX: String = "Miner"
@@ -43,6 +43,7 @@ var _beacon_mesh: CylinderMesh = null
 var _track_mesh: ArrayMesh = null
 var _fill_material: StandardMaterial3D = null
 var _markers: Array[Node3D] = []
+var _pod: MinerPod = MinerPod.new()
 ## The fill each marker's ring was last built for, 0..1, by marker index.
 var _fills: Array[float] = []
 ## Says what a miner is, the first time it comes into sight (#1220).
@@ -68,9 +69,13 @@ static func parse_look(text: String) -> Dictionary:
 		return {"error": "top level must be a JSON object"}
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == MinerPod.KEY):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	var look: Dictionary = {}
+	if data.has(MinerPod.KEY):
+		look[MinerPod.KEY] = MinerPod.parse(data[MinerPod.KEY])
+		if look[MinerPod.KEY].has("error"):
+			return look[MinerPod.KEY]
 	var shapes: Dictionary = {"beacon": BEACON_KEYS, "ring": RING_KEYS}
 	for part: String in shapes:
 		var entry: Dictionary = _parse_entry(part, data.get(part, null), shapes[part])
@@ -99,6 +104,7 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 		marker.free()
 	_markers.clear()
 	_fills.clear()
+	_pod = MinerPod.new(_look.get(MinerPod.KEY, {}))
 	var beacon: Dictionary = _look["beacon"]
 	_beacon_mesh = CylinderMesh.new()
 	_beacon_mesh.top_radius = beacon["radius"]
@@ -283,6 +289,7 @@ func _add_marker() -> void:
 		band.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ring.add_child(band)
 	(ring.get_node("Track") as MeshInstance3D).mesh = _track_mesh
+	_pod.dress(marker)
 	add_child(marker)
 	_markers.append(marker)
 	_fills.append(0.0)

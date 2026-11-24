@@ -11,13 +11,17 @@ extends Node3D
 ## view's own clock and is never written back. Nodes are pooled, as in
 ## `SalvageView`. The look lives in `res://view/component_look.json`, one
 ## colour per kind id and a fallback for an unknown kind, so a new kind needs a
-## new entry there and no code (ARC-4).
+## new entry there and no code (ARC-4). The optional `models` key gives a kind
+## its own small shape (#1308, see `PickupModel`): a lit body with pieces
+## glowing softly in the kind's colour, so kinds differ before any colour or
+## label is read. A kind without a model keeps the single glowing shape.
 
 const NODE_NAME: String = "ComponentView"
 const MESH_PREFIX: String = "Heap"
 const DEFAULT_LOOK_FILE: String = "res://view/component_look.json"
 ## Every key of the look file; all are required and no others are allowed.
 const KEYS: Array[String] = ["shape", "size", "energy", "fallback", "kinds"]
+const MODELS_KEY: String = "models"
 const SIZE_RANGE: Array[float] = [0.05, 2.0]
 const ENERGY_RANGE: Array[float] = [0.0, 10.0]
 ## Slow enough to read as resting, fast enough to catch the eye.
@@ -37,6 +41,7 @@ var _mesh: PrimitiveMesh = null
 ## One shared material per kind id (and "" for the fallback), built on first use.
 var _materials: Dictionary[String, StandardMaterial3D] = {}
 var _nodes: Array[MeshInstance3D] = []
+var _models: PickupModel = PickupModel.new()
 
 
 func _init() -> void:
@@ -64,7 +69,7 @@ static func parse_look(text: String) -> Dictionary:
 		return {"error": "top level must be a JSON object"}
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == MODELS_KEY):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	for key: String in KEYS:
 		if not data.has(key):
@@ -91,6 +96,16 @@ static func parse_look(text: String) -> Dictionary:
 			return {"error": color}
 		kinds[str(id)] = color
 	look["kinds"] = kinds
+	var models: Dictionary = {}
+	var given: Variant = data.get(MODELS_KEY, {})
+	if typeof(given) != TYPE_DICTIONARY:
+		return {"error": "key \"models\" must be an object of kind id to model"}
+	for id: Variant in given:
+		var model: Dictionary = PickupModel.parse("models.%s" % str(id), given[id])
+		if model.has("error"):
+			return model
+		models[str(id)] = model
+	look[MODELS_KEY] = models
 	return look
 
 
@@ -109,14 +124,21 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 		_look = look
 	_materials.clear()
 	_mesh = SalvageView.build_mesh(_look["shape"])
+	_models = PickupModel.new()
 	for instance: MeshInstance3D in _nodes:
 		instance.mesh = _mesh
+		_models.dress(instance, "", {}, null)
 	return look_error
 
 
 ## The colour drawn for kind `id`: its own entry, or the fallback.
 func color_for(id: String) -> Color:
 	return (_look["kinds"] as Dictionary).get(id, _look["fallback"])
+
+
+## The model drawn for kind `id`, or an empty one for the single shape.
+func model_for(id: String) -> Dictionary:
+	return (_look.get(MODELS_KEY, {}) as Dictionary).get(id, {})
 
 
 ## Kind ids the loaded look file lists.
@@ -139,7 +161,10 @@ func show_heaps(sim: Sim) -> void:
 	for index: int in heaps.size():
 		var heap: ComponentItem = heaps[index]
 		var instance: MeshInstance3D = _nodes[index]
+		var model: Dictionary = model_for(heap.kind_id)
 		instance.material_override = _material_for(heap.kind_id)
+		instance.mesh = _mesh if model.is_empty() else null
+		_models.dress(instance, heap.kind_id, model, instance.material_override)
 		instance.transform = Transform3D(turn, heap.position)
 		instance.visible = true
 	for index: int in range(heaps.size(), _nodes.size()):
