@@ -6,7 +6,9 @@ extends RefCounted
 ## their flight and range-checks its look file.
 
 const SCRIPT_PATHS: Array[String] = ["res://view/projectile_view.gd",
-	"res://view/projectile_look.gd", "res://view/bolt_muzzles.gd", "res://view/bolt_flashes.gd"]
+	"res://view/projectile_look.gd", "res://view/bolt_muzzles.gd", "res://view/bolt_flashes.gd",
+	"res://view/projectile_weapon_looks.gd", "res://view/bolt_meshes.gd", "res://view/bolt_impacts.gd",
+	"res://view/bolt_sparks.gd", "res://view/bolt_scorches.gd", "res://view/robot_bursts.gd"]
 const OUTSIDE_DIRS: Array[String] = ["res://xr", "res://meta", "res://net"]
 const EPSILON: float = 1e-5
 
@@ -66,7 +68,7 @@ func test_bolts_are_pooled() -> String:
 	if _bolt_ids(view) != ids:
 		result = "bolt nodes changed while the count stayed at 4"
 	view.show_projectiles(_shots(7), 0.5)
-	if result == "" and (view.bolt_count() != 7 or view.get_child_count() != 7 + view.light_count() + 2):
+	if result == "" and (view.bolt_count() != 7 or view.get_child_count() != 7 + view.light_count() + 3):
 		result = "7 shots gave %d bolts and %d children" % [view.bolt_count(), view.get_child_count()]
 	var grown: Array[int] = _bolt_ids(view)
 	view.show_projectiles(_shots(2), 0.5)
@@ -177,16 +179,16 @@ func test_look_file_loads_and_shapes_the_bolts() -> String:
 
 func test_bad_look_values_are_rejected_with_the_field_named() -> String:
 	for key: String in ProjectileLook.KEYS:
+		if ProjectileLook.NAME_KEYS.has(key):
+			continue  # Names are checked in test_projectile_weapon_looks.gd.
 		var is_color: bool = ProjectileLook.COLOR_KEYS.has(key)
 		var high: Dictionary = _valid_look()
 		high[key] = [2.0, 0.5, 0.5] if is_color else float(ProjectileLook.RANGES[key][1]) + 1.0
 		var low: Dictionary = _valid_look()
 		low[key] = [0.5, -0.1, 0.5] if is_color else float(ProjectileLook.RANGES[key][0]) - 0.001
-		var missing: Dictionary = _valid_look()
-		missing.erase(key)
 		var wrong_type: Dictionary = _valid_look()
 		wrong_type[key] = true
-		for bad: Dictionary in [high, low, missing, wrong_type]:
+		for bad: Dictionary in [high, low, wrong_type]:
 			var error: Variant = ProjectileView.parse_look(JSON.stringify(bad)).get("error", "")
 			if error == "" or not key in str(error):
 				return "%s gave error \"%s\"" % [JSON.stringify(bad), error]
@@ -223,14 +225,15 @@ func test_a_rejected_or_missing_look_falls_back_to_defaults() -> String:
 	return result
 
 
-## The defaults in code and the shipped file are the same look, so a missing
-## file on a device does not change what the player sees.
+## The defaults in code and the shipped file are the same look for the keys
+## the file had before #1309, so a missing file on a device keeps the bolts of
+## before; the effects added since are off in the defaults (today's look).
 func test_defaults_match_the_shipped_file() -> String:
 	var values: Dictionary = ProjectileView.parse_look(
 		FileAccess.get_file_as_string(ProjectileView.DEFAULT_LOOK_FILE))
 	if values.has("error"):
 		return str(values["error"])
-	for key: String in ProjectileLook.KEYS:
+	for key: String in ProjectileLook.FIRST_KEYS:
 		var shipped: Variant = values[key]
 		var default: Variant = ProjectileLook.DEFAULTS[key]
 		var same: bool = (shipped as Color).is_equal_approx(default) if shipped is Color \
