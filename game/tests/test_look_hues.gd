@@ -97,3 +97,16 @@ func test_a_miner_beacon_and_a_burning_fire_are_not_round() -> String:
 	if flame == null or flame.top_radius != 0.0:
 		result = "the fire flame is not a cone: %s" % flame
 	return result
+
+
+func test_the_fire_flames_are_unlike_the_reactor() -> String:
+	# The meltdown fire's particles (#1331) keep the fire's cold blue, while the
+	# reactor's wreck burns orange from the same particle builder.
+	var look: Dictionary = DebrisEffectsLook.parse(FileAccess.get_file_as_string(DebrisEffectsLook.DEFAULT_FILE))
+	if look.has("error"):
+		return "debris effects look rejected: %s" % look["error"]
+	for key: String in ["hot_color", "cool_color"]:
+		var message: String = _check("the fire flames' %s" % key, look["fire_flames"][key])
+		if message != "":
+			return message
+	return ""

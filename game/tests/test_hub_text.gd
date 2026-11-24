@@ -125,13 +125,16 @@ func test_turning_the_page_from_fit_wraps_to_crew_and_resets_the_row() -> String
 	return ""
 
 
+## The refusal is the model's, in the locked row's words rather than its ids (#1317).
 func test_pressing_a_locked_upgrade_returns_the_models_reason() -> String:
 	var hub: HubText = _hub()
 	_to_page(hub, HubConfig.CRAFT)
 	var picked: Dictionary = hub.selected()
 	if picked.get("action") != HubText.ACTION_CRAFT:
 		return "first craft row does %s" % picked
-	var expected: String = hub.model.tree.missing(picked["id"], [], {})
+	var expected: String = HubCraftRows.reason(hub.model, picked["id"])
+	if hub.model.tree.missing(picked["id"], [], {}) == "":
+		return "the model would build %s" % picked["id"]
 	var reason: String = hub.press()
 	if reason == "" or reason != expected:
 		return "pressing gave \"%s\", the model says \"%s\"" % [reason, expected]

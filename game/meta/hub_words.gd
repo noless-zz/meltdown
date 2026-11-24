@@ -16,6 +16,13 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"built_header": [],
 	"ready_row": ["name"],
 	"locked_row": ["name", "reason"],
+	"locked_needs": ["name"],
+	"locked_short": ["count", "name"],
+	"cost_row": ["cost"],
+	"cost_item": ["name", "have", "need"],
+	"effect_row": ["effect"],
+	"unlocks_row": ["names"],
+	"list_join": [],
 	"built_row": ["name"],
 	"slot_row": ["slot", "fitted"],
 	"slot_upgrade": ["name"],
@@ -41,6 +48,8 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 const STATS_ROW_PREFIX: String = "stats_"
 const KEY_SLOT_NAMES: String = "slot_names"
 const KEY_STAT_NAMES: String = "stat_names"
+## Workbench numbers (#1317): a part file's key to a pattern with `{value}`.
+const KEY_EFFECT_NAMES: String = "effect_names"
 ## Slot kinds a slot name is needed for: `Fitting.KEYS`, then `Fitting.PART_KEYS`.
 const SLOT_KINDS: Array[String] = ["primary", "secondary", "utility", "shield", "hull", "engine"]
 
@@ -49,6 +58,8 @@ var rows: Dictionary[String, String] = {}
 var slot_names: Dictionary[String, String] = {}
 ## Crew benefit stat id to its shown name; an unlisted stat shows its id.
 var stat_names: Dictionary[String, String] = {}
+## Part file number key to its pattern; an unlisted key is not shown.
+var effect_names: Dictionary[String, String] = {}
 ## Set by `parse` when the value was rejected; every error names the key.
 var error: String = ""
 
@@ -60,7 +71,7 @@ static func parse(value: Variant, max_length: int) -> HubWords:
 		return _failed("key \"text\" must be an object")
 	var data: Dictionary = value
 	for key: Variant in data:
-		if not (PLACEHOLDERS.has(str(key)) or str(key) == KEY_SLOT_NAMES or str(key) == KEY_STAT_NAMES):
+		if not (PLACEHOLDERS.has(str(key)) or [KEY_SLOT_NAMES, KEY_STAT_NAMES, KEY_EFFECT_NAMES].has(str(key))):
 			return _failed("key \"text\" has unknown key \"%s\"" % str(key))
 	for key: String in PLACEHOLDERS:
 		var message: String = _check("text.%s" % key, data.get(key), max_length)
@@ -70,6 +81,8 @@ static func parse(value: Variant, max_length: int) -> HubWords:
 	var message: String = words._read_names(data, KEY_SLOT_NAMES, SLOT_KINDS, words.slot_names, max_length)
 	if message == "":
 		message = words._read_names(data, KEY_STAT_NAMES, [], words.stat_names, max_length)
+	if message == "":
+		message = words._read_names(data, KEY_EFFECT_NAMES, [], words.effect_names, max_length)
 	if message != "":
 		return _failed(message)
 	return words
@@ -89,6 +102,12 @@ func slot_name(kind: String, index: int) -> String:
 
 func stat_name(stat: String) -> String:
 	return stat_names.get(stat, stat)
+
+
+## Number `key` of a part file shown with `value`, or "" for a key the file
+## does not name, so no raw key reaches a screen.
+func effect(key: String, value: String) -> String:
+	return effect_names[key].format({"value": value}) if effect_names.has(key) else ""
 
 
 ## Reads object `key` of strings into `into`; `required` keys must all be there.

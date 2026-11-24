@@ -1,16 +1,16 @@
 {
-	"column_x_m": 0.03,
-	"plane_shift_z_m": 0.0,
-	"row_gap_m": 0.0022,
-	"rise_m": {
-		"stick": 0.03,
-		"stick_click": 0.0,
-		"button_upper": 0.0,
-		"button_lower": 0.0,
-		"menu": 0.0,
-		"trigger": 0.0,
-		"grip": 0.0
-	},
-	"max_distance_m": 0.06,
-	"held_hand_m": [0.18, -0.32, -0.34]
+	"controller_centre_m": [0.005, -0.015, 0.02],
+	"controller_radius_m": 0.065,
+	"gap_m": 0.008,
+	"row_height_m": 0.012,
+	"row_gap_m": 0.003,
+	"column_side": "outer",
+	"column_rise_m": 0.04,
+	"leader_width_m": 0.0012,
+	"text_deg": 0.9,
+	"arm_length_m": 0.6,
+	"max_leader_m": 0.16,
+	"held_hand_m": [0.18, -0.32, -0.34],
+	"held_pitch_deg": 20.0,
+	"close_apart_m": 0.2
 }

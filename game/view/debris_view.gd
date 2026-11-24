@@ -29,6 +29,10 @@ extends Node3D
 ## reactor core (#1208). Its glow flickers with the tick it is handed, never with the
 ## clock, so a paused session draws the same frame (CMF-8). The view adds no
 ## collision and no full-screen pass (GFX-6).
+##
+## On top of those shapes `DebrisEffects` (#1331) adds particle flames to a
+## burning fire, a dust puff where a rock or slab lands, and rock and metal
+## surfaces from the theme's walls, from `res://view/debris_effects_look.json`.
 
 const NODE_NAME: String = "DebrisView"
 const ENTRY_PREFIX: String = "Debris"
@@ -49,12 +53,15 @@ var _boxes: Array[bool] = []
 var _fires: Array[bool] = []
 ## The tick the fire glow was last set for.
 var _fire_tick: int = 0
+var _effects: DebrisEffects = DebrisEffects.new({}, {}, {})
 
 
 func _init() -> void:
 	name = NODE_NAME
 	_meshes = DebrisMeshes.new()
 	mesh_builds += _meshes.builds
+	_effects = DebrisEffects.new(DebrisEffectsLook.load_or_empty(), LevelLook.load_or_fallback(),
+		LevelWallMaterial.load_theme())
 	load_look()
 
 
@@ -75,7 +82,23 @@ func load_look(path: String = DebrisLook.DEFAULT_FILE) -> String:
 	else:
 		_look = values
 	_materials.paint(_look, _fire_tick)
+	_effects.paint_surfaces(_materials, _look)
 	return look_error
+
+
+## Uses the fire and debris effects in the file at `path` from now on; a
+## missing or rejected file turns them off (`DebrisEffectsLook`). Entries already
+## drawn keep the particles they have.
+func load_effects(path: String = DebrisEffectsLook.DEFAULT_FILE) -> void:
+	_effects = DebrisEffects.new(DebrisEffectsLook.load_or_empty(path), LevelLook.load_or_fallback(),
+		LevelWallMaterial.load_theme())
+	_materials.paint(_look, _fire_tick)
+	_effects.paint_surfaces(_materials, _look)
+
+
+## The fire and debris effects in use.
+func effects() -> DebrisEffects:
+	return _effects
 
 
 ## The look in use.
@@ -93,6 +116,8 @@ func look() -> Dictionary:
 ## the simulation tick the snapshot was taken at, which drives the fire flicker.
 func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Array[bool], held: Array[bool], seconds_to_fall: Array[float], sizes_m: Array[Vector3] = [], kinds: Array[String] = [], tick: int = 0) -> void:
 	var count: int = mini(mini(positions_m.size(), radii_m.size()), mini(mini(solid.size(), held.size()), seconds_to_fall.size()))
+	# An entry first drawn already solid raises no dust: it fell before the view saw it.
+	var known: int = mini(_entries.size(), count)
 	while _entries.size() > count:
 		var extra: MeshInstance3D = _entries.pop_back()
 		_states.pop_back()
@@ -118,6 +143,8 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 		if is_fire:
 			state = fire_state_for(radii_m[index], size_m, held[index], seconds_to_fall[index])
 		var entry: MeshInstance3D = _entries[index]
+		var landed: bool = index < known and not is_fire and state == EntryState.SOLID \
+			and _states[index] != EntryState.SOLID
 		_states[index] = state
 		_boxes[index] = is_box
 		_fires[index] = is_fire
@@ -135,6 +162,8 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 			entry.material_override = fire_material_for(state)
 			if not is_box and state == EntryState.BURNING:
 				entry.mesh = _meshes.flame
+		var half_m: float = 0.5 * maxf(size_m.x, size_m.z) if is_box else radii_m[index]
+		_effects.update(entry, is_fire and state == EntryState.BURNING, landed, half_m)
 	if tick != _fire_tick:
 		_fire_tick = tick
 		_materials.flicker_fire(_look, tick)

@@ -14,6 +14,10 @@
 			"screenshot_at_end": true
 		},
 		{
+			"id": "control_labels_clear",
+			"checks": ["no_script_errors", "control_labels_clear"]
+		},
+		{
 			"id": "shaft_choice_look",
 			"run": 12345,
 			"replay": "res://acceptance/replays/run_advances.replay",
