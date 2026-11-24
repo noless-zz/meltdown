@@ -4,8 +4,10 @@ extends Node3D
 ## Draws the inside of a box-union level (GEN-5): every box's walls, facing
 ## into the box, with the openings where boxes overlap left open
 ## (`LevelFaces`). Floor, ceiling and walls are tinted apart and carry a
-## world-space grid; dim emissive strips along the box edges let the shape
-## read in the dark; the walls darken with distance (#609). The view adds no
+## world-space grid; the walls darken with distance (#609). Every opening is
+## framed as deep as the wall is thick (`LevelFrames`) and every box edge is
+## bevelled, with a dim glow so the shape reads in the dark (`LevelBevels`),
+## so walls have mass rather than reading as paper (#1323). The view adds no
 ## lights of its own: the ship's headlight, weapons and flares light the mine
 ## (LGT-1).
 ##
@@ -16,13 +18,9 @@ extends Node3D
 
 const NODE_NAME: String = "LevelView"
 const WALLS_NAME: String = "Walls"
-const EDGES_NAME: String = "Edges"
+const BEVELS_NAME: String = "Bevels"
 const ENVIRONMENT_NAME: String = "Environment"
 const DEFAULT_LOOK_FILE: String = LevelLook.DEFAULT_FILE
-
-## How far edge strips sit off the wall, into the box, so they never share the
-## wall's plane and flicker against it.
-const EDGE_LIFT_M: float = 0.01
 
 ## Look used when the file is missing or rejected.
 const FALLBACK_LOOK: Dictionary = LevelLook.FALLBACK
@@ -32,7 +30,8 @@ var look_error: String = ""
 
 var _look: Dictionary = FALLBACK_LOOK
 var _quads: Array[Dictionary] = []
-var _strips: Array[Dictionary] = []
+var _frames: Array[Dictionary] = []
+var _bevels: Array[Dictionary] = []
 
 
 func _init() -> void:
@@ -71,21 +70,14 @@ func build(union: BoxUnion) -> void:
 		remove_child(child)
 		child.free()
 	_quads = LevelFaces.quads(union)
-	_strips.clear()
-	var width: float = float(_look["edge_width_m"])
-	for quad: Dictionary in _quads:
-		_strips.append_array(LevelFaces.edge_strips(quad, union.boxes[quad["box"]], width, EDGE_LIFT_M))
-	var edges: StandardMaterial3D = StandardMaterial3D.new()
-	var edge_color: Color = _look["edge_color"]
-	edges.albedo_color = edge_color
-	edges.emission_enabled = true
-	edges.emission = edge_color
-	edges.emission_energy_multiplier = float(_look["edge_energy"])
+	_frames = LevelFrames.quads(union, float(_look["frame_depth_m"]), float(_look["frame_width_m"]))
+	_bevels = LevelBevels.quads(union, _quads, float(_look["edge_width_m"]))
 	var groups: Array[Array] = []
 	var materials: Array[Material] = []
 	for surface: String in LevelLook.CLASSES:
 		var group: Array[Dictionary] = []
-		for quad: Dictionary in _quads:
+		# Frames are drawn in the walls' own surfaces, so they cost no draw call.
+		for quad: Dictionary in _quads + _frames:
 			if LevelLook.surface_class(quad["normal"]) == surface:
 				group.append(quad)
 		if group.is_empty():
@@ -97,9 +89,7 @@ func build(union: BoxUnion) -> void:
 	# cannot shine through a wall into the next room.
 	walls.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(walls)
-	var strips: Array[Array] = [_strips]
-	var edge_materials: Array[Material] = [edges]
-	add_child(_instance(EDGES_NAME, strips, edge_materials))
+	add_child(_bevel_instance(_bevels, LevelLook.bevel_material(_look)))
 	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
 
 
@@ -108,9 +98,14 @@ func quads() -> Array[Dictionary]:
 	return _quads
 
 
-## The edge strips of the last `build`, in `LevelFaces` layout.
-func strips() -> Array[Dictionary]:
-	return _strips
+## The opening frames of the last `build`, in `LevelFaces` layout.
+func frames() -> Array[Dictionary]:
+	return _frames
+
+
+## The edge bevels of the last `build`, in `LevelBevels` layout.
+func bevels() -> Array[Dictionary]:
+	return _bevels
 
 
 ## The six corners of the two triangles that draw `quad`. Godot draws the
@@ -158,4 +153,29 @@ static func _instance(node_name: String, lists: Array[Array], materials: Array[M
 		mesh.surface_set_material(mesh.get_surface_count() - 1, materials[index])
 	if mesh.get_surface_count() > 0:
 		instance.mesh = mesh
+	return instance
+
+
+## One mesh of `bevels` in `material`. The bevels cast no shadow: they sit in
+## the corners, where the walls' own shadow already falls.
+static func _bevel_instance(bevels: Array[Dictionary], material: Material) -> MeshInstance3D:
+	var instance: MeshInstance3D = MeshInstance3D.new()
+	instance.name = BEVELS_NAME
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if bevels.is_empty():
+		return instance
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	for bevel: Dictionary in bevels:
+		for corner: Vector3 in LevelBevels.triangles(bevel):
+			vertices.append(corner)
+			normals.append(bevel["normal"])
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.surface_set_material(0, material)
+	instance.mesh = mesh
 	return instance

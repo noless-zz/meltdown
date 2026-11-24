@@ -47,6 +47,9 @@ uniform float normal_strength = 0.0;
 uniform float bevel_strength = 0.0;
 uniform float bevel_width = 0.05;
 uniform float triplanar_sharpness = 4.0;
+// Only the bevels along box edges glow (`LevelLook.bevel_material`, #1323);
+// on the walls this stays black.
+uniform vec3 glow : source_color = vec3(0.0);
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -187,5 +190,6 @@ void fragment() {
 	vec3 bent = normalize(unit_normal - (slope - dot(slope, unit_normal) * unit_normal));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);
 	// VERTEX is the view-space position here, so its length is the distance.
+	EMISSION = glow;
 	FOG = vec4(fog_color, 1.0 - exp(-fog_density * length(VERTEX)));
 }

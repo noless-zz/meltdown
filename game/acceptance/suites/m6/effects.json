@@ -16,6 +16,15 @@
 		{
 			"id": "control_labels_clear",
 			"checks": ["no_script_errors", "control_labels_clear"]
+		},
+		{
+			"id": "wall_depth",
+			"level": "g2",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": ["final_hash", "no_script_errors", "ship_alive", "wall_depth_shown"],
+			"expected_hash": 802400918,
+			"screenshot_at_ticks": [1275, 1815, 2340, 2625, 2745],
+			"screenshot_at_end": true
 		}
 	]
 }
