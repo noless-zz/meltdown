@@ -26,7 +26,7 @@ const WORDS: Dictionary = {
 	"yaw": ["yaw left", "yaw right"],
 	"roll": ["roll left", "roll right"],
 	"afterburner": ["boost", "boost"],
-	"fire_primary": ["fire", "fire"],
+	"fire_primary": ["fire both", "fire both"],
 	"slot_part": ["click: slot held part", "click: slot held part"],
 	"show_map": ["click: map", "click: map"],
 }

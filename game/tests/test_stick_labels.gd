@@ -168,7 +168,7 @@ func test_rig_shows_the_hint_and_takes_it_back() -> String:
 func test_hinted_labels_stay_inside_the_anchored_window() -> String:
 	var spec: CockpitSpec = CockpitSpec.for_preset(ComfortPresetFiles.load_number(1))
 	var layout: RefCounted = LABEL_LAYOUT.new()
-	var rig: Node = layout.call("_rig_in_neutral_pose")
+	var rig: Node = layout.call("_rig_in_neutral_pose", LABEL_LAYOUT.CLOSE_APART_M)
 	rig.set("pickup_hint", true)
 	var rects: Dictionary = LABEL_LAYOUT._view_rects(rig)
 	var overlap: String = LABEL_LAYOUT._first_overlap(rects)

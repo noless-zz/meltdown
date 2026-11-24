@@ -17,7 +17,7 @@ const DEFAULT_LABELS: Dictionary = {
 	"left_button_upper": "down",
 	"right_button_upper": "up",
 	"right_button_lower": "boost",
-	"right_trigger": "fire",
+	"right_trigger": "fire both",  # Both primaries fire together (decision record 0011).
 	"right_stick_click": "click: slot held part",
 	# A short click is the label toggle; holding it shows the map (#314, #606).
 	"left_stick_click": "click: map, hold: labels",
@@ -71,7 +71,7 @@ func test_left_handed_moves_labels_to_the_other_hand() -> String:
 	var message: String = _compare(got, want, "left-handed")
 	if message != "":
 		return message
-	if got.get("left_button_lower", "") != "boost" or got.get("left_trigger", "") != "fire":
+	if got.get("left_button_lower", "") != "boost" or got.get("left_trigger", "") != "fire both":
 		return "left-handed boost should be on X and fire on the left trigger: %s" % got
 	if got.has("right_button_lower") or got.get("left_button_upper", "") != "up" \
 			or got.get("right_button_upper", "") != "down":
@@ -126,7 +126,7 @@ func test_labels_split_by_hand() -> String:
 		return "hands should share all %d labels, got %d + %d" % [labels.size(), left.size(), right.size()]
 	if left.get("button_upper", "") != "down" or right.get("button_upper", "") != "up" \
 			or left.has("button_lower") \
-			or right.get("trigger", "") != "fire" or left.has("trigger"):
+			or right.get("trigger", "") != "fire both" or left.has("trigger"):
 		return "labels per hand wrong: %s / %s" % [left, right]
 	return ""
 

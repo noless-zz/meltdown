@@ -4,26 +4,24 @@ extends Node3D
 ## The floating labels of one controller (PLT-5, CMF-4): one `Label3D` per
 ## bound control with a short leader line to the control on the model.
 ##
-## The first labels sat around the controller head and ran into each other
-## and into the other hand's labels (#147). Then every label of a hand sat in
-## one fixed column on the outer side of that hand, which on the Quest 3 model
-## put them far from their buttons, on long lines, and over the status panel
-## (#1212). Now each label floats just beside the part it names: the stick's
-## cross over the stick, every other label just outside the controller at its
-## part's height, pushed down only as far as the row above needs
-## (`ControlLabelLayout`, a data file). Text still runs outward, so two hands
-## held side by side never share space.
+## The labels ran into each other and into the other hand's (#147), then sat
+## far from their buttons (#1212), then, placed in the hand's own frame, fell
+## on top of each other and inside the controller once the hand was tilted in a
+## resting grip (#1316). Now they stand in one column in a plane that faces the
+## eye, square to its view as the text is, beside the outline of the sphere
+## round the controller (`ControlLabelLayout`, a data file), on the hand's
+## outer side so two hands held close never share space. The column turns
+## with the eye every frame (`face`), so it reads the same
+## however the hand is held; each leader runs from its row's inner edge to its
+## part, which still moves with the hand.
 ##
-## The labels are billboarded, so the line always meets the text's edge.
 ## Nothing here reads or writes input or ship state (ARC-3).
 
-const OVER: String = "over"
 const COLUMN: String = "column"
-## Every labelled control and how its label is placed: `OVER` centred over
-## its part, `COLUMN` just outside the controller. Where exactly comes from
-## `ControlLabelLayout.place`.
+## Every labelled control. All sit in the column; the value is kept for the
+## callers that ask whether a control can be labelled.
 const LABEL_POSITIONS: Dictionary = {
-	"stick": OVER,
+	"stick": COLUMN,
 	"stick_click": COLUMN,
 	"button_upper": COLUMN,
 	"button_lower": COLUMN,
@@ -37,14 +35,9 @@ const POINT_OF: Dictionary = {"stick": "stick_click"}
 ## Labels whose lines are centred on each other, as a cross must be.
 const CENTRED: Array[String] = ["stick"]
 
-## Font size in pixels of the label texture; with `LABEL_PIXEL_SIZE` this sets
-## the size in the world. 32 px keeps the glyphs sharp after filtering.
+## Font size in pixels of the label texture; the layout's `text_deg` sets the
+## size in the world. 32 px keeps the glyphs sharp after filtering.
 const LABEL_FONT_SIZE: int = 32
-## 0.28 mm per pixel gives letters about 9 mm high (the em), down from 16 mm
-## (#147). At 0.4-0.6 m that is about 1 degree, around 20 headset pixels on a
-## Quest 3, still readable, while eight rows fit beside one controller
-## without crowding the view ahead.
-const LABEL_PIXEL_SIZE: float = 0.00028
 ## A thin dark outline keeps the white text readable over a bright tunnel.
 const LABEL_OUTLINE_SIZE: int = 4
 const LABEL_COLOR: Color = Color(1.0, 1.0, 1.0)
@@ -52,15 +45,22 @@ const LABEL_OUTLINE_COLOR: Color = Color(0.0, 0.0, 0.0)
 const LEADER_COLOR: Color = Color(1.0, 1.0, 1.0, 0.8)
 ## The leader stops this short of the text so it never runs into a letter.
 const LEADER_GAP: float = 0.003
-const LEADER_PREFIX: String = "Leader_"
+const LEADER_PREFIX: String = ControlLabelLeader.PREFIX
+## Where the eye is assumed before `face` is first called: straight behind the
+## hand, upright, as in a neutral pose.
+const DEFAULT_EYE_LOCAL: Transform3D = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, 0.5))
 
 ## `"left"` or `"right"`; picks which way the column mirrors.
 var hand: String = "right"
 ## Where the labels go (`ControlLabelLayout`); public so tests can swap it.
 var layout: Dictionary = ControlLabelLayout.load_file()
 
-## Control -> [label end, control end] of its leader line, hand-local.
-var _leaders: Dictionary = {}
+## Control -> its part, hand-local (mirrored for the left hand).
+var _points: Dictionary = {}
+## Control -> its text's size in metres.
+var _sizes: Dictionary = {}
+## The eye in this node's frame, looking along its -z.
+var _eye_local: Transform3D = DEFAULT_EYE_LOCAL
 var _alpha: float = 1.0
 var _leader_material: StandardMaterial3D = null
 
@@ -70,6 +70,12 @@ func _init(p_hand: String = "right") -> void:
 	name = "Labels"
 
 
+func _process(_delta: float) -> void:
+	var camera: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera != null and is_visible_in_tree() and _alpha > 0.0:
+		face_global(camera.global_transform)
+
+
 ## Replaces the labels with `labels` (control without hand prefix -> text).
 ## `control_points` gives each control's hand-local point on the right-hand
 ## model, where its leader line ends. Unknown controls are skipped.
@@ -77,43 +83,62 @@ func set_labels(labels: Dictionary, control_points: Dictionary) -> void:
 	for child: Node in get_children():
 		remove_child(child)
 		child.free()
-	_leaders.clear()
+	_points.clear()
+	_sizes.clear()
 	_leader_material = _make_leader_material()
+	var pixel: float = pixel_size()
 	var controls: Array = labels.keys()
 	controls.sort()
-	var heights: Dictionary = {}
-	var points: Dictionary = {}
-	for control: Variant in controls:
-		if LABEL_POSITIONS.has(control):
-			heights[control] = text_size(str(labels[control])).y
-			points[control] = control_point(str(control), control_points)
-	var spots: Dictionary = ControlLabelLayout.place(layout, heights, points, over_controls())
 	for control: Variant in controls:
 		if not LABEL_POSITIONS.has(control):
 			continue
-		var anchor: Vector3 = mirror(spots[control])
 		var label: Label3D = Label3D.new()
 		label.name = str(control)
 		label.text = str(labels[control])
-		label.position = anchor
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.font_size = LABEL_FONT_SIZE
-		label.pixel_size = LABEL_PIXEL_SIZE
+		label.pixel_size = pixel
 		label.outline_size = LABEL_OUTLINE_SIZE
 		label.outline_modulate = LABEL_OUTLINE_COLOR
 		label.modulate = LABEL_COLOR
-		label.horizontal_alignment = text_alignment()
-		if CENTRED.has(str(control)):
-			# Centred on the part below it, so the cross sits over the stick.
-			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if CENTRED.has(str(control)) \
+			else text_alignment()
 		# Labels must stay readable when a hand or the cockpit is in front.
 		label.no_depth_test = true
 		add_child(label)
+		_sizes[control] = text_size(label.text, pixel)
 		var point_name: String = str(POINT_OF.get(control, control))
 		if control_points.has(point_name):
-			var start: Vector3 = leader_start(str(control), anchor, float(heights[control]))
-			_add_leader(str(control), start, mirror(control_points[point_name]))
+			_points[control] = mirror(control_points[point_name])
+			add_child(ControlLabelLeader.new(str(control), _leader_material))
+	_arrange()
 	set_alpha(_alpha)
+
+
+## Squares the column to an eye at `eye_local` (this node's frame, looking
+## along its -z). Public so tests and checks can pose it without a tree.
+func face(eye_local: Transform3D) -> void:
+	eye_local = eye_local.orthonormalized()
+	if eye_local.is_equal_approx(_eye_local):
+		return
+	_eye_local = eye_local
+	_arrange()
+
+
+## `face` for an eye given in the world, as the camera reports it.
+func face_global(eye: Transform3D) -> void:
+	face(global_transform.affine_inverse() * eye)
+
+
+## The plane the column lies in, hand-local: x to the eye's right, y up in the
+## eye's view, z back towards the eye, as the billboarded text faces.
+func view_basis() -> Basis:
+	return _eye_local.basis
+
+
+## The centre of the sphere round the controller, hand-local.
+func controller_centre() -> Vector3:
+	return mirror(layout["controller_centre_m"])
 
 
 ## Control -> the text of its label, as shown now.
@@ -131,9 +156,19 @@ func label_for(control: String) -> Label3D:
 	return get_node_or_null(NodePath(control)) as Label3D
 
 
+## The leader of `control`, or null.
+func leader_for(control: String) -> ControlLabelLeader:
+	return get_node_or_null(NodePath(LEADER_PREFIX + control)) as ControlLabelLeader
+
+
 ## Control -> [label end, control end] of its leader, hand-local.
 func leaders() -> Dictionary:
-	return _leaders.duplicate()
+	var result: Dictionary = {}
+	for control: Variant in _points:
+		var leader: ControlLabelLeader = leader_for(str(control))
+		if leader != null:
+			result[control] = [leader.start, leader.end]
+	return result
 
 
 ## Sets the opacity of every label, its outline and the leader lines.
@@ -152,18 +187,25 @@ func alpha() -> float:
 	return _alpha
 
 
-## Text runs outward: to the right on the right hand, to the left on the left.
+## Text runs away from the controller, outward from the column's inner edge.
 func text_alignment() -> HorizontalAlignment:
-	return HORIZONTAL_ALIGNMENT_RIGHT if hand == "left" else HORIZONTAL_ALIGNMENT_LEFT
+	return HORIZONTAL_ALIGNMENT_LEFT if ControlLabelLayout.side_sign(layout, hand) > 0.0 \
+		else HORIZONTAL_ALIGNMENT_RIGHT
 
 
-## Width and height, in metres, of `text` as a label draws it, outline
-## included. Lines are split at "\n"; the widest sets the width.
-static func text_size(text: String) -> Vector2:
+## Metres per texture pixel of this set's labels, from the layout.
+func pixel_size() -> float:
+	return ControlLabelLayout.pixel_size(layout, LABEL_FONT_SIZE)
+
+
+## Width and height, in metres, of `text` as a label draws it at `pixel`
+## metres per pixel, outline included. Lines are split at "\n"; the widest
+## sets the width.
+static func text_size(text: String, pixel: float) -> Vector2:
 	var font: Font = ThemeDB.fallback_font
 	var pixels: Vector2 = font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_FONT_SIZE)
 	pixels += Vector2.ONE * 2.0 * LABEL_OUTLINE_SIZE
-	return pixels * LABEL_PIXEL_SIZE
+	return pixels * pixel
 
 
 ## The hand-local point where `control`'s leader ends, on the right hand,
@@ -172,46 +214,36 @@ static func control_point(control: String, control_points: Dictionary) -> Vector
 	return control_points.get(POINT_OF.get(control, control), Vector3.ZERO)
 
 
-## The controls whose label is centred over their part.
-static func over_controls() -> Array[String]:
-	var over: Array[String] = []
-	for control: String in LABEL_POSITIONS:
-		if LABEL_POSITIONS[control] == OVER:
-			over.append(control)
-	return over
-
-
-## Where `control`'s leader leaves its label at `anchor` (hand-local) whose
-## text is `height` metres tall: just under a label over its part, just
-## inside the inner edge of a column label, so it never runs into a letter.
-func leader_start(control: String, anchor: Vector3, height: float) -> Vector3:
-	if LABEL_POSITIONS.get(control, COLUMN) == OVER:
-		return anchor - Vector3(0.0, 0.5 * height + LEADER_GAP, 0.0)
-	var inward: float = 1.0 if hand == "left" else -1.0
-	return anchor + Vector3(inward * LEADER_GAP, 0.0, 0.0)
-
-
 func mirror(offset: Vector3) -> Vector3:
 	return Vector3(-offset.x, offset.y, offset.z) if hand == "left" else offset
 
 
-func _add_leader(control: String, start: Vector3, point: Vector3) -> void:
-	var line: ImmediateMesh = ImmediateMesh.new()
-	line.surface_begin(Mesh.PRIMITIVE_LINES, _leader_material)
-	line.surface_add_vertex(start)
-	line.surface_add_vertex(point)
-	line.surface_end()
-	var node: MeshInstance3D = MeshInstance3D.new()
-	node.name = LEADER_PREFIX + control
-	node.mesh = line
-	add_child(node)
-	_leaders[control] = [start, point]
+## Puts every row in the column square to the eye and redraws the leaders.
+func _arrange() -> void:
+	var basis: Basis = view_basis()
+	var centre: Vector3 = controller_centre()
+	var side: float = ControlLabelLayout.side_sign(layout, hand)
+	var extent: float = ControlLabelLayout.outline_extent(_eye_local.affine_inverse() * centre,
+		float(layout["controller_radius_m"]), side)
+	var spots: Dictionary = ControlLabelLayout.place(layout, _sizes, side, extent)
+	for control: Variant in spots:
+		var spot: Vector2 = spots[control]
+		var inner: Vector3 = centre + basis.x * spot.x + basis.y * spot.y
+		var label: Label3D = label_for(str(control))
+		label.position = inner
+		if CENTRED.has(str(control)):
+			label.position += basis.x * side * 0.5 * (_sizes[control] as Vector2).x
+		var leader: ControlLabelLeader = leader_for(str(control))
+		if leader != null:
+			leader.draw(inner - basis.x * side * LEADER_GAP, _points[control],
+				float(layout["leader_width_m"]), basis.z)
 
 
 static func _make_leader_material() -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	material.no_depth_test = true
 	material.albedo_color = LEADER_COLOR
 	return material
