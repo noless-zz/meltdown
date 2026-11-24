@@ -20,6 +20,9 @@ extends RefCounted
 ## first offered shaft. A rejected shaft file, or `with_shafts` false, runs
 ## without a choice.
 ##
+## The end-of-level bookkeeping (banking, settling a choice, a won or lost
+## run and the next seed) lives in `RunOutcome` (#1284).
+##
 ## It sits beside `main.gd` because it reads the `net/` session's outcome and
 ## `collected` counts; it only hands back a level source for `main.gd` (MP-2).
 
@@ -157,7 +160,7 @@ func choice_due_after_escape() -> bool:
 func escape_for_choice(collected: Dictionary, rescued: int = 0) -> Array[String]:
 	if not choice_due_after_escape():
 		return []
-	_bank(collected, rescued)
+	RunOutcome.bank(self, collected, rescued)
 	escape_taken = true
 	return state.offer()
 
@@ -185,32 +188,28 @@ func after_level(outcome: int, hull: float, collected: Dictionary, rescued: int 
 		return ""
 	if outcome == ExitRule.Outcome.ESCAPED and escape_taken:
 		escape_taken = false
-		_settle_choice()
+		RunOutcome.settle_choice(self)
 	elif outcome == ExitRule.Outcome.ESCAPED:
-		_bank(collected, rescued)
-		_settle_choice()
+		RunOutcome.bank(self, collected, rescued)
+		RunOutcome.settle_choice(self)
 		if state.won:
-			print("%s %d won after %d levels; banked %s" % [LOG_PREFIX, state.plan.run_seed,
-				state.plan.level_count(), state.banked])
-			ended = state
-			stats.run_won(profile, store)
-			start(_new_seed())
+			RunOutcome.win(self)
 		else:
 			print("%s %d: level %d escaped, flying level %d (seed %d)" % [LOG_PREFIX, state.plan.run_seed,
 				state.level_index, state.current_depth(), state.current_level_seed()])
 	elif hull <= 0.0:
-		_lose("lost")
+		RunOutcome.lose(self, "lost")
 	return level_source()
 
 
 ## The menu's "Return to base" (#1246, RUN-7, CRF-2): ends the run as a
-## destroyed ship does (`_lose`), and deletes a suspended-run save so it cannot
-## come back. False, changing nothing, without a run in flight.
+## destroyed ship does (`RunOutcome.lose`), and deletes a suspended-run save
+## so it cannot come back. False, changing nothing, without a run in flight.
 func abandon() -> bool:
 	if not active():
 		return false
 	escape_taken = false
-	_lose("abandoned")
+	RunOutcome.lose(self, "abandoned")
 	if saves != null and saves.has_save() and not saves.discard():
 		print("%s: %s" % [LOG_PREFIX, saves.message])
 	return true
@@ -246,7 +245,7 @@ func resume(saved: RunSave) -> bool:
 	error = ""
 	escape_taken = false
 	suspended = false
-	_settle_choice()
+	RunOutcome.settle_choice(self)
 	print("%s %d resumed on level %d (seed %d)" % [LOG_PREFIX, state.plan.run_seed, state.current_depth(),
 		state.current_level_seed()])
 	return true
@@ -254,7 +253,7 @@ func resume(saved: RunSave) -> bool:
 
 ## Starts a new run with a newly picked seed: the hub's launch after a suspend.
 func start_new() -> bool:
-	return start(_new_seed())
+	return start(RunOutcome.new_seed(self))
 
 
 ## Leaves the run: the dev menu chose another level.
@@ -262,44 +261,6 @@ func stop() -> void:
 	if state != null:
 		print("%s %d left on level %d" % [LOG_PREFIX, state.plan.run_seed, state.current_depth()])
 	state = null
-
-
-## Ends the run as lost (`how` names the way in the log) and starts the next
-## with a new seed; one path for a destroyed ship and an abandoned run.
-func _lose(how: String) -> void:
-	state.lose()
-	stats.run_lost(profile, store)
-	print("%s %d %s on level %d; banked %s" % [LOG_PREFIX, state.plan.run_seed, how, state.current_depth(),
-		state.banked])
-	ended = state
-	start(_new_seed())
-
-
-## A level is never flown while a choice is due: with none made, the first
-## offered shaft is taken.
-func _settle_choice() -> void:
-	if state.needs_choice():
-		var offered: Array[String] = state.offer()
-		print("%s %d: no shaft chosen, taking %s" % [LOG_PREFIX, state.plan.run_seed, offered[0]])
-		choose(offered[0])
-
-
-## Advances past the escaped level and banks its `collected` components and
-## `rescued` miners through `RunEscapeBank` (#1136).
-func _bank(collected: Dictionary, rescued: int) -> void:
-	var escaped_index: int = state.level_index
-	var banked: RunEscapeBank = RunEscapeBank.bank(state, state.advance(collected), escaped_index, rescued,
-		profile, store, roles, stats)
-	if banked.error != "":
-		error = banked.error
-	if not banked.refused:
-		crew_error = banked.crew_error
-
-
-func _new_seed() -> int:
-	var picked: int = int(pick_seed.call()) if pick_seed.is_valid() else LevelSwitch.random_seed()
-	print("%s: new run with seed %d" % [LOG_PREFIX, picked])
-	return picked
 
 
 static func _read(path: String) -> String:
