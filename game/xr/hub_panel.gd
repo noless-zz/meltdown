@@ -6,7 +6,8 @@ extends Node3D
 ## under the page. The pilot drives it like the dev menu: right stick up and
 ## down moves the row, left and right turns the page, A presses. Hung under the
 ## rig origin at the head point like `ShaftPanel`, and drawn over the fade quad
-## the same way. A flat panel for now; the hub room is later look work.
+## the same way. Since #1299 the pages are on the home base room's stations
+## (`HubStations`); the panel shows only when the room fails to load.
 ##
 ## The lines and the actions come from a hub text (`meta/hub_text.gd`). `xr/`
 ## may not depend on `meta/` (the layer table in `CLAUDE.md`), so the panel
