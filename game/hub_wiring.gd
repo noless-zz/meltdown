@@ -148,6 +148,7 @@ func open_for(p_run: RunWiring, config: HubConfig = null) -> bool:
 	var roles: CrewRoles = run.roles if run.roles != null else CrewRoles.parse_json("")
 	var model: HubModel = HubModel.create(config, run.profile, roles,
 		ComponentList.parse(RunShip.upgrade_texts(components_dir)), tree, fitting, ship_data)
+	model.parts = HubPartInfo.load_shipped()
 	model.set_waiting(waiting_save(run.saves))
 	text = HubText.new(model)
 	if stations != null:
