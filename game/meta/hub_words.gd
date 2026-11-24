@@ -9,8 +9,12 @@ extends RefCounted
 
 ## Row patterns, each with the placeholders `HubText` fills in.
 const PLACEHOLDERS: Dictionary[String, Array] = {
-	"crew_row": ["role", "amount", "stat"],
+	"crew_row": ["role", "count", "amount", "stat"],
+	"crew_capped_row": ["role", "count", "amount", "stat"],
 	"store_row": ["name", "tier", "count"],
+	"store_uses": ["names"],
+	"store_uses_more": ["names", "count"],
+	"store_unused": [],
 	"ready_header": [],
 	"locked_header": [],
 	"built_header": [],
@@ -30,6 +34,7 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"slot_empty": [],
 	"slot_stock": [],
 	"fit_option_row": ["name"],
+	"move_option_row": ["name", "from"],
 	"clear_row": [],
 	"launch_row": [],
 	"resume_row": ["level", "seed"],
@@ -98,6 +103,13 @@ func row(key: String, values: Dictionary = {}) -> String:
 func slot_name(kind: String, index: int) -> String:
 	var pattern: String = slot_names.get(kind, kind)
 	return pattern.format({"number": index + 1})
+
+
+## The shown name of a slot by its fitting name: "primary[1]" gives "Primary 2",
+## a part slot ("shield") its own name (#1336).
+func named_slot(slot: String) -> String:
+	var parsed: Array = FittingSlots.parse(slot)
+	return slot_name(slot, 0) if parsed.is_empty() else slot_name(parsed[0], parsed[1])
 
 
 func stat_name(stat: String) -> String:

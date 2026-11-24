@@ -6,7 +6,8 @@ extends RefCounted
 ## rather than part of the profile, so crafting and crew changes never touch it
 ## and a damaged fitting file only empties the fitting. A save goes through
 ## `SafeFileWrite`, as `ProfileStore` does: a kill at any moment leaves the old
-## file or the new one whole. The file name uses the codename (NAM-1).
+## file or the new one whole. The file name uses the codename (NAM-1). A file
+## that names one upgrade in two slots loads with the later slot empty (#1336).
 ##
 ## On disk the fitting sits under a version number, because `Fitting` itself has
 ## none and refuses unknown keys: a later build that adds a slot kind raises the
@@ -78,6 +79,13 @@ func load_fitting() -> Fitting:
 	var read: Fitting = Fitting.parse_json(JSON.stringify(data[KEY_FITTING]))
 	if read.error != "":
 		return _unreadable(read.error)
+	# Written before one upgrade was one item (#1336): keep the first slot, warn
+	# about the rest, and load anyway.
+	var doubles: Array[String] = []
+	read = FittingSlots.without_doubles(read, doubles)
+	if not doubles.is_empty():
+		message = "%s named an upgrade twice; %s" % [path, "; ".join(doubles)]
+		print("%s %s" % [LOG_PREFIX, message])
 	return read
 
 

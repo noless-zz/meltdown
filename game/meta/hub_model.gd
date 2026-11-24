@@ -72,6 +72,11 @@ func crew() -> Array[Dictionary]:
 	return members
 
 
+## The crew counted by role, with the total each role gives (`CrewGroups.of`, #1336).
+func crew_groups() -> Array[Dictionary]:
+	return CrewGroups.of(profile, roles)
+
+
 ## The profile's seven lifetime counters (#1095), keyed as `ProfileStats.KEYS`
 ## and in that order. A profile read from a file older than version 3 has no
 ## stats on disk; `Profile` gives it zeros, and so does a missing stats object.
@@ -170,23 +175,21 @@ func craft(id: String) -> String:
 ## slot, parts included. A slot name that is not one of the fitting's slots is
 ## refused before the check.
 func fit(slot: String, id: String) -> String:
-	var candidate: Fitting = _copy(fitting)
-	if Fitting.PART_KEYS.has(slot):
-		candidate.parts[slot] = id
-		return _take(candidate)
-	var parsed: Array = _parse_slot(slot)
-	if parsed.is_empty():
+	var candidate: Fitting = FittingSlots.copy(fitting)
+	if not FittingSlots.put(candidate, slot, id):
 		return "unknown slot \"%s\"" % slot
-	var kind: String = parsed[0]
-	var index: int = parsed[1]
-	var ids: Array[String] = candidate.ids_of(kind)
-	while ids.size() <= index:
-		ids.append("")
-	ids[index] = id
-	if kind == Fitting.UTILITY:
-		# The fitting file lists utility slots up to the last used one.
-		while not ids.is_empty() and ids[ids.size() - 1] == "":
-			ids.remove_at(ids.size() - 1)
+	return _take(candidate)
+
+
+## Moves upgrade `id` from the slot it is fitted in to `slot` in one step
+## (#1336): one crafted upgrade is one item, so a second slot gets it by a move,
+## never as a copy. Returns `Fitting.move`'s or `Fitting.check`'s reason
+## unchanged, leaving the fitting as it was; "" on success.
+func move(slot: String, id: String) -> String:
+	var candidate: Fitting = FittingSlots.copy(fitting)
+	var reason: String = candidate.move(id, slot)
+	if reason != "":
+		return reason
 	return _take(candidate)
 
 
@@ -246,28 +249,3 @@ func ordered_upgrades() -> Array[UpgradeDef]:
 	var ordered: Array[UpgradeDef] = tree.upgrades.duplicate()
 	ordered.sort_custom(Crafting._before)
 	return ordered
-
-
-## [kind, index] for a slot name, or [] when it names no fitting slot.
-static func _parse_slot(slot: String) -> Array:
-	var open: int = slot.find("[")
-	if open <= 0 or not slot.ends_with("]"):
-		return []
-	var kind: String = slot.substr(0, open)
-	var number: String = slot.substr(open + 1, slot.length() - open - 2)
-	if not Fitting.KEYS.has(kind) or not number.is_valid_int():
-		return []
-	var index: int = number.to_int()
-	var most: int = Fitting.UTILITY_MAX if kind == Fitting.UTILITY else ShipLoadout.SLOTS_PER_KIND
-	if index < 0 or index >= most or str(index) != number:
-		return []
-	return [kind, index]
-
-
-static func _copy(source: Fitting) -> Fitting:
-	var copy: Fitting = Fitting.new()
-	copy.primary = source.primary.duplicate()
-	copy.secondary = source.secondary.duplicate()
-	copy.utility = source.utility.duplicate()
-	copy.parts = source.parts.duplicate()
-	return copy

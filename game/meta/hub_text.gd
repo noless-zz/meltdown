@@ -19,6 +19,8 @@ extends RefCounted
 
 const ACTION_CRAFT: String = "craft"
 const ACTION_FIT: String = "fit"
+## Takes an upgrade fitted elsewhere into the row's slot (#1336).
+const ACTION_MOVE: String = "move"
 const ACTION_LAUNCH: String = "launch"
 const ACTION_RESUME: String = "resume"
 ## Upgrade kind that fits each slot kind; a kind not listed offers no upgrade.
@@ -91,7 +93,8 @@ func turn_page(delta: int) -> void:
 
 
 ## What the selected row does: {"action": "craft", "id"}, {"action": "fit",
-## "slot", "id"} ("" empties the slot), {"action": "launch"}, {"action": "resume"}, or {} for a row
+## "slot", "id"} ("" empties the slot), {"action": "move", "slot", "id"},
+## {"action": "launch"}, {"action": "resume"}, or {} for a row
 ## that only shows information.
 func selected() -> Dictionary:
 	var line: int = selected_line()
@@ -113,6 +116,8 @@ func press() -> String:
 				reason = HubCraftRows.reason(model, action["id"])  # Words, not the tree's ids.
 		ACTION_FIT:
 			reason = model.fit(action["slot"], action["id"])
+		ACTION_MOVE:
+			reason = model.move(action["slot"], action["id"])
 		ACTION_LAUNCH:
 			reason = model.launch_check()
 			if reason == "":
@@ -175,11 +180,13 @@ func _selectable() -> Array[int]:
 	return out
 
 
+## One row per role with how many hold it and the total they give (#1336).
 func _crew_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
-	for member: Dictionary in model.crew():
-		rows.append(_info(_words().row("crew_row", {"role": member["role_name"] if member["role_name"] != "" else member["role"],
-			"amount": member["amount"], "stat": _words().stat_name(member["stat"])})))
+	for group: Dictionary in model.crew_groups():
+		rows.append(_info(_words().row("crew_capped_row" if group["capped"] else "crew_row", {
+			"role": group["role_name"] if group["role_name"] != "" else group["role"], "count": group["count"],
+			"amount": group["total"], "stat": _words().stat_name(group["stat"])})))
 	if rows.is_empty():
 		rows.append(_shown(model.config.empty_crew))
 	return rows
@@ -204,6 +211,7 @@ func _store_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for kind: Dictionary in model.store():
 		rows.append(_info(_words().row("store_row", {"name": kind["name"], "tier": kind["tier"], "count": kind["count"]})))
+		rows.append(_shown(ComponentUses.line(_words(), model.ordered_upgrades(), kind["id"])))  # What it is for (#1336).
 	if rows.is_empty():
 		rows.append(_shown(model.config.empty_store))
 	return rows
@@ -215,7 +223,9 @@ func _craft_rows() -> Array[Dictionary]:
 
 
 ## Each slot with what it holds, the crafted upgrades of its kind it could take,
-## and a row to strip a fitted upgrade. While a suspended run waits, a row to
+## and a row to strip a fitted upgrade. One crafted upgrade is one item (#1336):
+## one fitted nowhere is offered as a mount, one fitted in another slot as a
+## move that names where it is now. While a suspended run waits, a row to
 ## resume it (#1106, RUN-8) sits directly above the launch row, so the two ways
 ## into the mine are side by side (owner's decision, #1172); a note under the
 ## launch row says launching discards the waiting run.
@@ -235,8 +245,7 @@ func _fit_rows() -> Array[Dictionary]:
 		rows.append(_info(_words().row("slot_row", {"slot": _words().slot_name(slot["kind"], slot["index"]), "fitted": fitted})))
 		for id: String in built:
 			if id != slot["upgrade"] and model.tree.get_upgrade(id).kind == FITS.get(slot["kind"], ""):
-				rows.append(_acting(_words().row("fit_option_row", {"name": _name(id)}),
-					{"action": ACTION_FIT, "slot": slot["slot"], "id": id}))
+				rows.append(_option(slot["slot"], id))
 		if slot["upgrade"] != "":
 			rows.append(_acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
 	if not waiting.is_empty():
@@ -247,6 +256,15 @@ func _fit_rows() -> Array[Dictionary]:
 	if not waiting.is_empty():
 		rows.append(_grouped(_shown(_words().row("launch_discard_note")), HubStationPages.GROUP_LAUNCH))
 	return rows
+
+
+## The row offering upgrade `id` for `slot`: a mount, or a move from where it is.
+func _option(slot: String, id: String) -> Dictionary:
+	var now: String = model.fitting.slot_of(id)
+	if now == "":
+		return _acting(_words().row("fit_option_row", {"name": _name(id)}), {"action": ACTION_FIT, "slot": slot, "id": id})
+	return _acting(_words().row("move_option_row", {"name": _name(id), "from": _words().named_slot(now)}),
+		{"action": ACTION_MOVE, "slot": slot, "id": id})
 
 
 func _words() -> HubWords:
