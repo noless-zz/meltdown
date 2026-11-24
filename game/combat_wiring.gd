@@ -26,6 +26,8 @@ var miner_view: MinerView = null
 var hold_messages: HoldMessages = HoldMessages.new()
 ## The positional sound cues (#1290), beside the bolts once `attach` has run.
 var sound_cues: SoundCues = null
+## The reverb of the room the ship is in (#1291), on the bus the cues play on.
+var room_reverb: RoomReverb = null
 var _sound_sim: Sim = null
 ## The hit cue on every preset (#618): which side and bar flash. Null when its
 ## file was rejected; the pulses still go.
@@ -56,6 +58,9 @@ func attach(world: Node3D) -> void:
 	if camera != null and hit_flash != null:
 		hit_overlay = HitFlashOverlay.new(hit_flash)
 		camera.add_child(hit_overlay)
+	room_reverb = RoomReverb.new()
+	room_reverb.ensure_bus()
+	world.add_child(room_reverb)
 	sound_cues = SoundCues.new()
 	world.add_child(sound_cues)
 	projectile_view = ProjectileView.new()
@@ -121,13 +126,16 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 
 
 ## Plays the cues of the session's last advance (#1290). A new simulation is a
-## new level, so the old one's bolts are forgotten rather than heard ending.
+## new level, so the old one's bolts are forgotten rather than heard ending,
+## and its first room's reverb is heard at once (#1291).
 func feed_sound(session: LocalSession) -> void:
 	if sound_cues == null:
 		return
 	if session.sim != _sound_sim:
 		sound_cues.reset()
+		room_reverb.reset()
 		_sound_sim = session.sim
+	room_reverb.follow(session.sim.walls, session.current_ship().position, session.sim.tick)
 	sound_cues.feed(session.frame_events(), session.current_projectiles(),
 		[session.current_ship()] as Array[ShipState])
 
