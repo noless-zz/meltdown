@@ -92,7 +92,7 @@ func test_g2_has_one_reactor_view_at_the_level_reactor() -> String:
 		problem = "the main scene has %d reactor views" % views.size()
 	elif not views[0].position.is_equal_approx(want):
 		problem = "the reactor view is at %s, the level's reactor at %s" % [views[0].position, want]
-	elif not views[0].visible or not is_equal_approx(views[0].core_radius(), radius):
+	elif not views[0].visible or not is_equal_approx(views[0].radius(), radius):
 		problem = "the reactor view is not shown at radius %.2f" % radius
 	elif (main.get("meltdown") as MeltdownWiring).reactor_view != views[0]:
 		problem = "the wiring does not hold the view in the level"

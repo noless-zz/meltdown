@@ -11,12 +11,17 @@ extends RefCounted
 ##      "light_energy": 0..16, "light_range": 0.5..30, "pulse_depth": 0..1,
 ##      "pulse_period_full_hull": s, "pulse_period_no_hull": s,
 ##      "flicker_period_slow": s, "flicker_period_fast": s,
-##      "flicker_ramp_seconds": 1..600}
+##      "flicker_ramp_seconds": 1..600, "machine": {..}}
+##
+## `machine` is optional (#1310): with it the core is drawn inside a machine,
+## parsed by `ReactorMachineLook`; without it the reactor is the bare glowing
+## sphere it was before, which is also the built-in look.
 ##
 ## Periods are seconds per full pulse or flicker. The faster one of each pair
 ## must not be slower than the other.
 
 const DEFAULT_FILE: String = "res://view/reactor_look.json"
+const MACHINE_KEY: String = "machine"
 
 const COLOR_KEYS: Array[String] = ["core_color", "wreck_color", "light_color", "meltdown_light_color"]
 ## Inclusive ranges of the number keys.
@@ -70,7 +75,7 @@ static func parse(text: String) -> Dictionary:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not FALLBACK.has(key):
+		if typeof(key) != TYPE_STRING or (not FALLBACK.has(key) and key != MACHINE_KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	for key: String in FALLBACK:
 		if not data.has(key):
@@ -98,6 +103,11 @@ static func parse(text: String) -> Dictionary:
 	for pair: Array in ORDERED_PAIRS:
 		if float(look[pair[0]]) > float(look[pair[1]]):
 			return _rejected("\"%s\" is %s, must not be longer than \"%s\" (%s)" % [pair[0], look[pair[0]], pair[1], look[pair[1]]])
+	if data.has(MACHINE_KEY):
+		var machine: Dictionary = ReactorMachineLook.parse(data[MACHINE_KEY])
+		if machine.has("error"):
+			return _rejected(machine["error"])
+		look[MACHINE_KEY] = machine
 	return look
 
 
