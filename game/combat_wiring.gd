@@ -28,6 +28,8 @@ var hold_messages: HoldMessages = HoldMessages.new()
 var sound_cues: SoundCues = null
 ## The reverb of the room the ship is in (#1291), on the bus the cues play on.
 var room_reverb: RoomReverb = null
+## The adaptive music (#1303), beside the cues once `attach` has run.
+var music: MusicWiring = MusicWiring.new()
 var _sound_sim: Sim = null
 ## The hit cue on every preset (#618): which side and bar flash. Null when its
 ## file was rejected; the pulses still go.
@@ -63,6 +65,7 @@ func attach(world: Node3D) -> void:
 	world.add_child(room_reverb)
 	sound_cues = SoundCues.new()
 	world.add_child(sound_cues)
+	music.attach(world)
 	projectile_view = ProjectileView.new()
 	world.add_child(projectile_view)
 	robot_view = RobotView.new()
@@ -87,8 +90,11 @@ func attach(world: Node3D) -> void:
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
 ## The aim reticle shows along the ship's gun direction on every preset
 ## (#1211); look-aim reaches it only through that simulated direction (#1239).
-func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0) -> void:
+## The music follows the session, or the hub while `hub_open` (#1303).
+func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, delta: float = 0.0,
+		hub_open: bool = false) -> void:
 	show_hit_flash(delta)
+	music.update(session, hub_open, delta)
 	if slot_popup != null:
 		slot_popup.show_open(slot_popup_input.is_open, camera)
 	if panel != null:
