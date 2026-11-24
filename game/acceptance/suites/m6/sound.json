@@ -9,6 +9,15 @@
 				"ship_alive"
 			],
 			"expected_hash": 1302297426
+		},
+		{
+			"id": "room_reverb",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": [
+				"final_hash",
+				"room_reverb_changed"
+			],
+			"expected_hash": 802400918
 		}
 	]
 }

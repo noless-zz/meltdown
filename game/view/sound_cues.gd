@@ -10,7 +10,8 @@ extends Node3D
 ## the simulation never waits for or hears a sound (ARC-1, MP-2). Without an
 ## audio device (headless, the dummy driver) it plays nothing.
 
-const AUDIO_BUS: StringName = &"Master"
+## The effects bus, where the room reverb is (#1291); Master until it is made.
+const AUDIO_BUS: StringName = RoomReverb.BUS
 ## Players are cut off this far away, metres; the mines are not much longer
 ## across a room than this.
 const MAX_DISTANCE_M: float = 80.0
