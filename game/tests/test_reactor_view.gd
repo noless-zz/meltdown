@@ -6,7 +6,8 @@ extends RefCounted
 ## falls back when rejected, no reference to layers above core, and no mesh
 ## rebuild when the same state is shown every frame.
 
-const SCRIPT_PATHS: Array[String] = ["res://view/reactor_view.gd", "res://view/reactor_look.gd"]
+const SCRIPT_PATHS: Array[String] = ["res://view/reactor_view.gd", "res://view/reactor_look.gd",
+	"res://view/reactor_machine.gd", "res://view/reactor_machine_look.gd", "res://view/reactor_flames.gd"]
 const OUTSIDE_DIRS: Array[String] = ["res://xr", "res://meta", "res://net"]
 const SCRATCH_DIR: String = "user://test_reactor_view"
 const EPSILON: float = 1e-4
@@ -41,8 +42,10 @@ func test_one_mesh_and_one_light_of_the_reactor_radius() -> String:
 		result = "expected one mesh and one omni light, got %d meshes and %d lights" % [meshes, lights]
 	elif not view.core().mesh is SphereMesh:
 		result = "the core is not a sphere"
-	elif absf(view.core_radius() - 2.5) > EPSILON:
-		result = "core radius %s, expected 2.5" % view.core_radius()
+	elif absf(view.core_radius() - 2.5 * view.core_scale()) > EPSILON:
+		result = "core radius %s, expected %s" % [view.core_radius(), 2.5 * view.core_scale()]
+	elif absf(view.radius() - 2.5) > EPSILON:
+		result = "reactor radius %s, expected 2.5" % view.radius()
 	elif not view.position.is_equal_approx(Vector3(0, -39, -114)):
 		result = "placed at %s" % view.position
 	elif view.light().shadow_enabled:
@@ -139,8 +142,8 @@ func test_same_state_every_frame_does_not_rebuild_the_mesh() -> String:
 		result = "the mesh was built %d more times" % (view.mesh_builds - builds)
 	elif view.core().mesh != mesh or (view.core().mesh as SphereMesh).material != material:
 		result = "the mesh or material was replaced"
-	elif view.get_child_count() != 2:
-		result = "%d children after 120 frames, expected 2" % view.get_child_count()
+	elif view.get_child_count() != 3:
+		result = "%d children after 120 frames, expected the core, the light and the machine" % view.get_child_count()
 	view.free()
 	return result
 

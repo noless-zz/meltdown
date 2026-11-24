@@ -19,7 +19,9 @@ extends RefCounted
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
 ## `flight_test` (#839), `update`, `return_to_base` (#1246) or `close`.
-## The update entry is skipped while `update_version` is empty. The menu
+## The update entry is skipped while `update_version` is empty. Confirming a
+## section row opens that section and its Back row returns to the top list
+## (#1301, `DevMenuRows`); neither returns anything. The menu
 ## only returns these; it never reads or writes the simulation (MP-2, ARC-3).
 
 const UP: String = "menu_up"
@@ -68,9 +70,18 @@ const RETURN: String = "return_to_base"
 const ACTION_KINDS: Array[String] = [DevMenuSpec.KIND_RESTART, DevMenuSpec.KIND_FLIGHT_TEST,
 	DevMenuSpec.KIND_UPDATE, DevMenuSpec.KIND_CLOSE, DevMenuSpec.KIND_RETURN]
 
+## What `kind` gives on a section row and on a section's Back row (#1301).
+const KIND_SECTION: String = "section"
+const KIND_BACK: String = "back"
+
 var spec: DevMenuSpec
-## Index of the highlighted entry in `spec.entries`.
-var selected: int = 0
+## The list shown, its scroll and its highlight (#1301).
+var rows: DevMenuRows
+## The highlighted row: an entry's index in `spec.entries`, or a section or
+## Back row (`DevMenuRows`).
+var selected: int:
+	get: return rows.selected
+	set(value): rows.selected = value
 ## The Level entry's choices and seed.
 var levels: DevMenuLevels
 ## The waiting build the update entry names; "" hides the entry (#763).
@@ -118,11 +129,12 @@ var _held: Dictionary = {}
 ## A menu from `spec` offering the level files at `level_paths`.
 func _init(p_spec: DevMenuSpec, level_paths: Array[String]) -> void:
 	spec = p_spec
+	rows = DevMenuRows.new(spec, is_shown)
 	levels = DevMenuLevels.new(level_paths)
 	values = DevMenuValues.new(spec, levels)
 
 
-## Shows what is in use when the menu opens: the first entry highlighted,
+## Shows what is in use when the menu opens: the top list, its first row highlighted,
 ## `corner`, the level `source` (as `LevelStart.source` holds it), the
 ## control `scheme`, the hand and pitch settings, the comfort preset
 ## `comfort_number` (1..4, or the custom mode while `p_custom_base` > 0;
@@ -131,7 +143,7 @@ func _init(p_spec: DevMenuSpec, level_paths: Array[String]) -> void:
 func open(corner: String, source: String, scheme: String = "", left_handed: bool = false,
 		invert_pitch: bool = false, comfort_number: int = ComfortPresetFiles.START_NUMBER,
 		p_break_on: bool = true, p_custom_base: int = 0) -> void:
-	selected = _step_shown(-1, 1)
+	rows.to_top()
 	_held = {}
 	return_armed = false
 	values.corner.select(corner)
@@ -156,7 +168,18 @@ func press(held: Dictionary) -> String:
 	return result
 
 
+## Back to the top list, any Return to base confirm cancelled (#1246, #1301).
+func close() -> void:
+	rows.to_top()
+	return_armed = false
+
+
+## The highlighted row's entry kind, or `KIND_SECTION` / `KIND_BACK`.
 func kind() -> String:
+	if selected == DevMenuRows.BACK:
+		return KIND_BACK
+	if DevMenuRows.section_of(selected) != -1:
+		return KIND_SECTION
 	return str(spec.entries[selected]["kind"])
 
 
@@ -183,8 +206,7 @@ func is_shown(index: int) -> bool:
 func set_run(shown: bool) -> void:
 	run_shown = shown
 	return_armed = false
-	if not is_shown(selected):
-		selected = _step_shown(selected, 1)
+	rows.leave_hidden()
 
 
 ## The words the Return to base row shows: its label, or the confirm text once armed.
@@ -197,8 +219,7 @@ func return_text(label: String) -> String:
 func set_update(version: String, busy: bool) -> void:
 	update_version = version
 	update_busy = busy
-	if not is_shown(selected):
-		selected = _step_shown(selected, 1)
+	rows.leave_hidden()
 
 
 ## The words the update entry shows for the waiting build.
@@ -238,7 +259,7 @@ func set_swivel(on: bool, locked: bool) -> void:
 func _act(action: String) -> String:
 	match action:
 		UP, DOWN:
-			selected = _step_shown(selected, -1 if action == UP else 1)
+			rows.step(-1 if action == UP else 1)
 			return_armed = false  # Moving to another row cancels the confirm step.
 		LEFT, RIGHT:
 			var helper: DevMenuValue = value(kind())
@@ -253,6 +274,12 @@ func _act(action: String) -> String:
 
 
 func _confirm() -> String:
+	if kind() == KIND_SECTION:
+		rows.open_section(DevMenuRows.section_of(selected))
+		return ""
+	if kind() == KIND_BACK:
+		rows.back()
+		return ""
 	var helper: DevMenuValue = value(kind())
 	if helper != null:
 		return helper.confirmed()
@@ -267,15 +294,3 @@ func _confirm() -> String:
 			return_armed = not return_armed
 			return "" if return_armed else RETURN
 	return CLOSE
-
-
-## The next shown entry from `from` in `direction`, wrapping; `from` itself
-## when nothing else is shown. A start of -1 finds the first shown entry.
-func _step_shown(from: int, direction: int) -> int:
-	var count: int = spec.entries.size()
-	var index: int = from
-	for step: int in count:
-		index = posmod(index + direction, count)
-		if is_shown(index):
-			return index
-	return maxi(from, 0)

@@ -1,0 +1,9 @@
+{
+	"blend_seconds": 0.8,
+	"points": [
+		{"span_m": 8.0, "room_size": 0.15, "damping": 0.7, "wet": 0.12},
+		{"span_m": 12.0, "room_size": 0.3, "damping": 0.6, "wet": 0.16},
+		{"span_m": 18.0, "room_size": 0.55, "damping": 0.45, "wet": 0.24},
+		{"span_m": 24.0, "room_size": 0.75, "damping": 0.35, "wet": 0.3}
+	]
+}

@@ -61,11 +61,7 @@ func _press(model: DevMenuModel, action: String) -> String:
 
 ## Moves the highlight down to the Return to base row; false if it never gets there.
 func _to_return(model: DevMenuModel) -> bool:
-	for step: int in model.spec.entries.size():
-		if model.kind() == DevMenuSpec.KIND_RETURN:
-			return true
-		_press(model, DevMenuModel.DOWN)
-	return model.kind() == DevMenuSpec.KIND_RETURN
+	return DevMenuWalk.select(model, DevMenuSpec.KIND_RETURN, func(action: String) -> void: _press(model, action))
 
 
 func test_the_shipped_menu_has_the_row_and_its_texts() -> String:
@@ -226,11 +222,7 @@ func test_the_row_fades_to_the_hub_from_the_paused_menu() -> String:
 	if not wiring.is_open() or not wiring.menu.model.run_shown:
 		wiring.menu.free()
 		return "the menu did not open with the row shown"
-	for step: int in wiring.menu.model.spec.entries.size():
-		if wiring.menu.model.kind() == DevMenuSpec.KIND_RETURN:
-			break
-		wiring.read(_values({}, Vector2(0.0, -1.0)), now)
-		now = _idle(wiring, now + FRAME, FRAME)
+	now = DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_RETURN, now)
 	if not session.paused_by(LocalSession.PAUSE_MENU):
 		problems.append("the open menu did not pause the session")
 	for press: int in 2:

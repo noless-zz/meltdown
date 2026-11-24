@@ -56,12 +56,7 @@ static func _choose(wiring: DevMenuWiring, at: float) -> float:
 	wiring.read(_values({ControllerSampler.MENU_BUTTON: true}), at)
 	wiring.read(_values(), at + 0.2)
 	var now: float = at + 0.3
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_FLIGHT_TEST:
-		var down: Dictionary = _values()
-		down["right_stick"] = Vector2(0.0, -1.0)
-		wiring.read(down, now)
-		wiring.read(_values(), now + FRAME)
-		now += 0.1
+	now = DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_FLIGHT_TEST, now)
 	wiring.read(_values({A: true}), now)
 	wiring.read(_values(), now + FRAME)
 	var end: float = now + DevMenuWiring.FADE_SECONDS * 3.0
@@ -98,9 +93,7 @@ func test_the_shipped_menu_lists_the_entry_with_its_label() -> String:
 				return "the entry is labelled '%s'" % entry["label"]
 			var model: DevMenuModel = DevMenuModel.new(spec, [])
 			model.open("centre", "")
-			while model.kind() != DevMenuSpec.KIND_FLIGHT_TEST:
-				model.press({DevMenuModel.DOWN: true})
-				model.press({})
+			DevMenuWalk.select(model, DevMenuSpec.KIND_FLIGHT_TEST)
 			var result: String = model.press({DevMenuModel.CONFIRM: true})
 			return "" if result == DevMenuModel.FLIGHT_TEST else "confirming it gave '%s'" % result
 	return "the shipped menu has no flight test entry"

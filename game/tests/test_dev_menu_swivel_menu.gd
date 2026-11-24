@@ -23,14 +23,7 @@ static func _wiring(comfort: ComfortWiring, path: String) -> DevMenuWiring:
 static func _open_on_swivel(wiring: DevMenuWiring, at: float = 10.0) -> float:
 	wiring.read(Swivel.idle_values({ControllerSampler.MENU_BUTTON: true}), at)
 	wiring.read(Swivel.idle_values(), at + 0.2)
-	var now: float = at + 0.4
-	var down: Dictionary = Swivel.idle_values()
-	down["right_stick"] = Vector2(0.0, -1.0)
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_SWIVEL:
-		wiring.read(down, now)
-		wiring.read(Swivel.idle_values(), now + FRAME)
-		now += 0.1
-	return now
+	return DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_SWIVEL, at + 0.4)
 
 
 ## Pushes the stick right once and confirms with A; returns the clock after.

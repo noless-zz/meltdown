@@ -33,6 +33,9 @@ var escape: EscapeCueWiring = EscapeCueWiring.new()
 
 ## The node whose space is the simulation's; set by `attach`.
 var _world: Node3D = null
+## The view whose pipes were last fitted to the walls, and where (#1310).
+var _fitted_view: ReactorView = null
+var _fitted_at: Vector3 = Vector3.ZERO
 
 
 ## Remembers `world`, the node whose space is the simulation's, and shows
@@ -54,7 +57,7 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 	if session == null:
 		return
 	var reactor: ReactorState = SessionSnapshots.reactor(session.sim.reactor)
-	_follow(reactor)
+	_follow(reactor, session.sim.walls)
 	if reactor_view != null:
 		reactor_view.frozen = session.paused
 	_follow_debris(SessionSnapshots.debris(session.sim.debris), session.sim.tick)
@@ -94,7 +97,8 @@ static func hull_fraction(reactor: ReactorState) -> float:
 
 
 ## Creates, moves or removes the view so it matches `reactor`, a copy or null.
-func _follow(reactor: ReactorState) -> void:
+## A new view runs its pipes out to `walls`, read only (#1310).
+func _follow(reactor: ReactorState, walls: BoxUnion) -> void:
 	if reactor == null:
 		if reactor_view != null:
 			reactor_view.get_parent().remove_child(reactor_view)
@@ -108,6 +112,11 @@ func _follow(reactor: ReactorState) -> void:
 		_world.add_child(reactor_view)
 	reactor_view.show_state(reactor.position(), reactor.radius(), hull_fraction(reactor),
 		reactor.destroyed, seconds_left(reactor))
+	# The walls are searched once per place, not every frame.
+	if walls != null and (_fitted_view != reactor_view or _fitted_at != reactor.position()):
+		reactor_view.fit_pipes(walls)
+		_fitted_view = reactor_view
+		_fitted_at = reactor.position()
 
 
 ## Creates, feeds or removes the debris view so it matches `snapshot`, a

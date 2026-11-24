@@ -15,7 +15,7 @@ func _init(p_prefix: String, p_levels: DevMenuLevels, p_spec: DevMenuSpec) -> vo
 	spec = p_spec
 
 
-func value_text() -> String:
+func plain_text() -> String:
 	return levels.text(spec)
 
 

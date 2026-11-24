@@ -61,23 +61,13 @@ static func _press(wiring: DevMenuWiring, values: Dictionary, at: float) -> void
 	wiring.read(_values(), at + FRAME)
 
 
-static func _down(wiring: DevMenuWiring, at: float) -> void:
-	var values: Dictionary = _values()
-	values["right_stick"] = Vector2(0.0, -1.0)
-	_press(wiring, values, at)
-
-
 static func _confirm(wiring: DevMenuWiring, at: float) -> void:
 	_press(wiring, _values({"right_button_lower": true}), at)
 
 
-## Moves the highlight down to the entry of `kind`.
+## Highlights the entry of `kind`, into its section when it has one (#1301).
 static func _select(wiring: DevMenuWiring, kind: String, at: float) -> float:
-	var now: float = at
-	while wiring.menu.model.kind() != kind:
-		_down(wiring, now)
-		now += 0.1
-	return now
+	return DevMenuWalk.select_wired(wiring, kind, at)
 
 
 ## Frames with nothing pressed from `at` for `seconds`; returns the highest fade seen.
@@ -241,13 +231,15 @@ func test_a_waiting_update_is_an_entry_that_starts_it_and_none_without() -> Stri
 	var wiring: DevMenuWiring = _wired("", restarts, update)
 	_tap(wiring, 1.0)
 	var lines: Array[String] = wiring.menu.texts()
-	var listed: bool = version != "" and lines[0] == "> Update to %s" % version
-	_confirm(wiring, 2.0)
+	# On the top list after the section rows, above Close (#1301).
+	var listed: bool = version != "" and lines.find("Update to %s" % version) == lines.size() - 2 \
+		and lines[lines.size() - 1] == "Close"
+	_confirm(wiring, DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_UPDATE, 1.5))
 	var open: bool = wiring.is_open()
 	_done(wiring)
 	update.notice.free()
 	if not listed:
-		return "the waiting build %s is not the first entry: %s" % [version, lines]
+		return "the waiting build %s is not the entry above Close: %s" % [version, lines]
 	if chosen.size() != 1 or open or not restarts.is_empty():
 		return "choosing the entry started %d updates, menu open %s, restarts %s" % [chosen.size(), open, restarts]
 	return ""

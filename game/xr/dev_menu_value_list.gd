@@ -28,7 +28,7 @@ func current() -> String:
 	return choices[index]
 
 
-func value_text() -> String:
+func plain_text() -> String:
 	return texts[index]
 
 

@@ -7,7 +7,7 @@ extends DevMenuValue
 var prefix: String
 var off_text: String
 var dynamic_text: String
-var note_text: String
+var note: String
 var setting: Vector2i = Vector2i.ZERO
 
 
@@ -16,16 +16,18 @@ func _init(p_prefix: String, p_off_text: String, p_dynamic_text: String,
 	prefix = p_prefix
 	off_text = p_off_text
 	dynamic_text = p_dynamic_text
-	note_text = p_note_text
+	note = p_note_text
 
 
-## Off or the level, "dynamic" after it when on, then the note that the
-## choice lasts this session only.
-func value_text() -> String:
+## Off or the level, "dynamic" after it when on.
+func plain_text() -> String:
 	var text: String = off_text if setting.x == 0 else str(setting.x)
-	if setting.y != 0:
-		text = "%s %s" % [text, dynamic_text]
-	return "%s %s" % [text, note_text]
+	return "%s %s" % [text, dynamic_text] if setting.y != 0 else text
+
+
+## The note that the choice lasts this session only.
+func note_text() -> String:
+	return note
 
 
 func step(direction: int) -> void:

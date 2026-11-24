@@ -74,12 +74,7 @@ func test_a_restart_waiting_when_the_hub_opens_is_dropped() -> String:
 	var wiring: DevMenuWiring = _wired(hub, restarts)
 	_tap(wiring, 1.0)
 	var now: float = 1.5
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_RESTART:
-		var down: Dictionary = _values()
-		down["right_stick"] = Vector2(0.0, -1.0)
-		wiring.read(down, now)
-		wiring.read(_values(), now + FRAME)
-		now += 0.1
+	now = DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_RESTART, now)
 	wiring.read(_values({"right_button_lower": true}), now)
 	wiring.read(_values(), now + FRAME)
 	now = _idle(wiring, now + 2.0 * FRAME, DevMenuWiring.FADE_SECONDS * 0.3)

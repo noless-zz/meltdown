@@ -33,8 +33,7 @@ static func _tap(model: DevMenuModel, action: String) -> String:
 
 
 static func _select(model: DevMenuModel, kind: String) -> void:
-	while model.kind() != kind:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, kind, func(action: String) -> void: _tap(model, action))
 
 
 static func _name(number: int) -> String:
@@ -63,15 +62,10 @@ static func _open(wiring: DevMenuWiring, at: float) -> float:
 ## times and confirms with A. Returns the clock after the last frame.
 static func _choose(wiring: DevMenuWiring, steps: int, at: float) -> float:
 	var now: float = at
-	var down: Dictionary = _values()
-	down["right_stick"] = Vector2(0.0, -1.0)
 	var right: Dictionary = _values()
 	right["right_stick"] = Vector2(1.0, 0.0)
 	var presses: Array[Dictionary] = []
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_COMFORT:
-		wiring.read(down, now)
-		wiring.read(_values(), now + FRAME)
-		now += 0.1
+	now = DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_COMFORT, now)
 	for step: int in steps:
 		presses.append(right)
 	presses.append(_values({"right_button_lower": true}))
@@ -83,10 +77,7 @@ static func _choose(wiring: DevMenuWiring, steps: int, at: float) -> float:
 
 
 static func _comfort_line(menu: DevMenu) -> String:
-	for line: String in menu.texts():
-		if line.contains("Comfort"):
-			return line
-	return ""
+	return DevMenuWalk.entry_line(menu.model, DevMenuSpec.KIND_COMFORT)
 
 
 func test_the_entry_steps_and_wraps_through_the_four_presets_by_name() -> String:
