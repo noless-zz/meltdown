@@ -33,8 +33,7 @@ static func _tap(model: DevMenuModel, action: String) -> String:
 
 
 static func _select(model: DevMenuModel, kind: String) -> void:
-	while model.kind() != kind:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, kind, func(action: String) -> void: _tap(model, action))
 
 
 ## A break prompt wiring on preset 1 whose choice is saved to a scratch file.
@@ -65,12 +64,7 @@ static func _open(wiring: DevMenuWiring, at: float) -> float:
 ## once and confirms with A. Returns the clock after the last frame.
 static func _toggle_and_apply(wiring: DevMenuWiring, at: float) -> float:
 	var now: float = at
-	var down: Dictionary = _values()
-	down["right_stick"] = Vector2(0.0, -1.0)
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_BREAK:
-		wiring.read(down, now)
-		wiring.read(_values(), now + FRAME)
-		now += 0.1
+	now = DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_BREAK, now)
 	var right: Dictionary = _values()
 	right["right_stick"] = Vector2(1.0, 0.0)
 	for values: Dictionary in [right, _values({"right_button_lower": true})]:
@@ -81,10 +75,7 @@ static func _toggle_and_apply(wiring: DevMenuWiring, at: float) -> float:
 
 
 static func _break_line(menu: DevMenu) -> String:
-	for line: String in menu.texts():
-		if line.contains("Break reminder"):
-			return line
-	return ""
+	return DevMenuWalk.entry_line(menu.model, DevMenuSpec.KIND_BREAK)
 
 
 static func _done(wiring: DevMenuWiring, break_prompt: BreakPromptWiring) -> void:

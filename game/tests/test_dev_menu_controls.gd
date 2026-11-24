@@ -55,9 +55,9 @@ func test_the_controls_entry_steps_through_the_schemes_and_returns_the_choice() 
 	var menu: DevMenu = DevMenu.new(spec, [])
 	menu.open("centre", "", ControlSchemeSwitch.GRIPPED)
 	var model: DevMenuModel = menu.model
-	while model.kind() != DevMenuSpec.KIND_CONTROLS:
-		menu.update({DevMenuModel.DOWN: true})
-		menu.update({})
+	DevMenuWalk.select(model, DevMenuSpec.KIND_CONTROLS, func(action: String) -> void:
+		menu.update({action: true})
+		menu.update({}))
 	var opened_on: String = model.scheme()
 	menu.update({DevMenuModel.RIGHT: true})
 	menu.update({})
@@ -73,8 +73,7 @@ func test_the_controls_entry_steps_through_the_schemes_and_returns_the_choice() 
 	# Left wraps the other way, and an unknown scheme opens on the first.
 	var plain: DevMenuModel = DevMenuModel.new(DevMenuSpec.fallback(), [])
 	plain.open("centre", "", "joystick")
-	while plain.kind() != DevMenuSpec.KIND_CONTROLS:
-		_tap(plain, DevMenuModel.DOWN)
+	DevMenuWalk.select(plain, DevMenuSpec.KIND_CONTROLS, func(action: String) -> void: _tap(plain, action))
 	_tap(plain, DevMenuModel.LEFT)
 	var left: String = _tap(plain, DevMenuModel.CONFIRM)
 	return "" if left == "controls:gripped" else "left then confirm returned \"%s\"" % left
@@ -167,12 +166,7 @@ func test_choosing_through_the_wiring_switches_saves_and_keeps_the_menu_open() -
 	wiring.read(_values(), 1.2)
 	var opened_on: String = wiring.menu.model.scheme()
 	var now: float = 1.3
-	var down: Dictionary = _values()
-	down["right_stick"] = Vector2(0.0, -1.0)
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_CONTROLS:
-		wiring.read(down, now)
-		wiring.read(_values(), now + FRAME)
-		now += 0.1
+	now = DevMenuWalk.select_wired(wiring, DevMenuSpec.KIND_CONTROLS, now)
 	var right: Dictionary = _values()
 	right["right_stick"] = Vector2(1.0, 0.0)
 	wiring.read(right, now)
@@ -207,10 +201,18 @@ func test_a_switch_with_the_menu_open_leaves_the_state_as_neutral_input() -> Str
 		main.call("apply_controls", _values({ControllerSampler.MENU_BUTTON: true}))
 		main.call("apply_controls", _values())
 		var frames: Array[Dictionary] = []
-		for step: int in 12:
-			var down: Dictionary = _gripping()
-			down["right_stick"] = Vector2(0.0, -1.0)
-			frames.append(down if switching else _values())
+		var walked: Array[int] = [0]
+		if switching:
+			DevMenuWalk.select(wiring.menu.model, DevMenuSpec.KIND_CONTROLS, func(action: String) -> void:
+				var push: Dictionary = _gripping()
+				var wanted: Dictionary = DevMenuWalk.controls(action)
+				push["right_stick"] = wanted["right_stick"]
+				push["buttons"] = wanted["buttons"]
+				for values: Dictionary in [push, _gripping()]:
+					main.call("apply_controls", values)
+					main.call("advance_frame", FRAME)
+				walked[0] += 2)
+		for step: int in 24 - walked[0]:
 			frames.append(_gripping() if switching else _values())
 		var right: Dictionary = _gripping()
 		right["right_stick"] = Vector2(1.0, 0.0)
@@ -222,9 +224,6 @@ func test_a_switch_with_the_menu_open_leaves_the_state_as_neutral_input() -> Str
 		for frame: int in 60:
 			frames.append(_gripping() if switching else _values())
 		for values: Dictionary in frames:
-			if switching and wiring.menu.model.kind() == DevMenuSpec.KIND_CONTROLS \
-					and values.get("right_stick", Vector2.ZERO).y < 0.0:
-				values = _gripping()  # Stop on the Controls entry.
 			main.call("apply_controls", values)
 			main.call("advance_frame", FRAME)
 		var open: bool = wiring.is_open()

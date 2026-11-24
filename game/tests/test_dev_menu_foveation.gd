@@ -20,15 +20,11 @@ static func _tap(model: DevMenuModel, action: String) -> String:
 
 
 static func _select(model: DevMenuModel, kind: String) -> void:
-	while model.kind() != kind:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, kind, func(action: String) -> void: _tap(model, action))
 
 
 static func _line(menu: DevMenu) -> String:
-	for line: String in menu.texts():
-		if line.contains("Foveation"):
-			return line.trim_prefix("> ")
-	return ""
+	return DevMenuWalk.entry_line(menu.model, DevMenuSpec.KIND_FOVEATION)
 
 
 ## A wiring whose foveation switch runs on `runtime` (none for the flat build).

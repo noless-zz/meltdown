@@ -43,6 +43,20 @@ static func _frame(main: Node, values: Dictionary, start_speed: float, label: St
 	return ""
 
 
+## The next press of the walk in the test below: A twice on Foveation, then
+## out of its section and down to Close.
+static func _walk_action(model: DevMenuModel, chosen: int) -> String:
+	var comfort: int = DevMenuRows.section_row(
+		DevMenuWalk.section_of_kind(model.spec, DevMenuSpec.KIND_FOVEATION))
+	if chosen < 2:
+		if model.kind() == DevMenuSpec.KIND_FOVEATION or model.selected == comfort:
+			return DevMenuModel.CONFIRM
+		return DevMenuModel.DOWN
+	if model.rows.section != DevMenuRows.TOP:
+		return DevMenuModel.CONFIRM if model.kind() == DevMenuModel.KIND_BACK else DevMenuModel.UP
+	return DevMenuModel.DOWN
+
+
 func test_stepping_choosing_and_closing_with_a_held_never_reaches_the_ship() -> String:
 	var main: Node = _main_with_menu()
 	var wiring: DevMenuWiring = main.get("dev_menu")
@@ -52,19 +66,23 @@ func test_stepping_choosing_and_closing_with_a_held_never_reaches_the_ship() -> 
 	var start_speed: float = (main.get("session") as LocalSession).current_ship().velocity.length()
 	var problem: String = ""
 	var chosen: int = 0
-	# 120 frames: the stick steps down a row every eighth frame, A chooses on
-	# the Foveation row (a setting for this session only, so the menu stays
-	# open), and the triggers and left stick are held as a pilot would.
-	for frame: int in 120:
+	# Every eighth frame the stick steps or A presses: into the Comfort section,
+	# down to Foveation, A twice there (a setting for this session only, so the
+	# menu stays open), Back to the top list and down to Close (#1301). The
+	# triggers and left stick are held throughout, as a pilot would.
+	for frame: int in 200:
 		var values: Dictionary = _values()
 		values["left_stick"] = Vector2(0.2, 1.0)
 		values["right_trigger"] = 1.0
-		var kind: String = wiring.menu.model.kind()
-		if kind == DevMenuSpec.KIND_FOVEATION and (chosen < 2 or frame % 8 == 1):
-			values["buttons"] = {A: frame % 8 == 0}
-			chosen += 1 if frame % 8 == 0 else 0
-		elif kind != DevMenuSpec.KIND_CLOSE and frame % 8 == 0:
-			values["right_stick"] = Vector2(0.0, -1.0)
+		var model: DevMenuModel = wiring.menu.model
+		if model.kind() == DevMenuSpec.KIND_CLOSE and chosen >= 2:
+			break
+		if frame % 8 == 0:
+			var action: String = _walk_action(model, chosen)
+			chosen += 1 if model.kind() == DevMenuSpec.KIND_FOVEATION and action == DevMenuModel.CONFIRM else 0
+			var wanted: Dictionary = DevMenuWalk.controls(action)
+			values["right_stick"] = wanted["right_stick"]
+			values["buttons"] = wanted["buttons"]
 		problem = _frame(main, values, start_speed, "open frame %d" % frame)
 		if problem != "" or not wiring.is_open():
 			break
@@ -73,7 +91,7 @@ func test_stepping_choosing_and_closing_with_a_held_never_reaches_the_ship() -> 
 	if problem == "":
 		# A on Close, then held for half a second with the stick still pushed.
 		var held: Dictionary = _values({A: true})
-		held["right_stick"] = Vector2(0.0, 1.0)
+		held["right_stick"] = Vector2(0.0, -1.0)  # Still pushed from the step onto Close.
 		for frame: int in 36:
 			problem = _frame(main, held, start_speed, "A held %d frames after Close" % frame)
 			if problem != "":

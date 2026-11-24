@@ -39,19 +39,13 @@ static func _tap(model: DevMenuModel, action: String) -> String:
 
 
 static func _select(model: DevMenuModel, kind: String) -> void:
-	while model.kind() != kind:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, kind, func(action: String) -> void: _tap(model, action))
 
 
 ## Walks the wiring's open menu to `kind`, steps it right once and confirms.
 static func _choose(wiring: DevMenuWiring, kind: String, at: float) -> float:
 	var now: float = at
-	var down: Dictionary = _values()
-	down["right_stick"] = Vector2(0.0, -1.0)
-	while wiring.menu.model.kind() != kind:
-		wiring.read(down, now)
-		wiring.read(_values(), now + FRAME)
-		now += 0.1
+	now = DevMenuWalk.select_wired(wiring, kind, now)
 	var right: Dictionary = _values()
 	right["right_stick"] = Vector2(1.0, 0.0)
 	wiring.read(right, now)
@@ -80,9 +74,9 @@ func test_the_hands_entry_steps_and_returns_the_choice() -> String:
 	var menu: DevMenu = DevMenu.new(DevMenuSpec.load_file(), [])
 	menu.open("centre", "", ControlSchemeSwitch.THUMBSTICKS)
 	var model: DevMenuModel = menu.model
-	while model.kind() != DevMenuSpec.KIND_HANDS:
-		menu.update({DevMenuModel.DOWN: true})
-		menu.update({})
+	DevMenuWalk.select(model, DevMenuSpec.KIND_HANDS, func(action: String) -> void:
+		menu.update({action: true})
+		menu.update({}))
 	var before: Array[String] = menu.texts()
 	menu.update({DevMenuModel.RIGHT: true})
 	menu.update({})
@@ -207,11 +201,8 @@ func test_a_hands_switch_with_the_menu_open_leaves_the_state_as_neutral_input() 
 		main.call("apply_controls", _values({ControllerSampler.MENU_BUTTON: true}))
 		main.call("apply_controls", _values())
 		var frames: Array[Dictionary] = []
-		var walk: int = 0
-		while switching and wiring.menu.model.kind() != DevMenuSpec.KIND_HANDS and walk < 20:
-			wiring.menu.model.press({DevMenuModel.DOWN: true})
-			wiring.menu.model.press({})
-			walk += 1
+		if switching:
+			DevMenuWalk.select(wiring.menu.model, DevMenuSpec.KIND_HANDS)
 		var right: Dictionary = _values()
 		right["right_stick"] = Vector2(1.0, 0.0)
 		frames.append(right if switching else _values())

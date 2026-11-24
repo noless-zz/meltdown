@@ -55,16 +55,14 @@ static func _wiring(comfort: ComfortWiring) -> DevMenuWiring:
 static func _open_on_comfort(wiring: DevMenuWiring) -> void:
 	wiring.read(_values({ControllerSampler.MENU_BUTTON: true}), 10.0)
 	wiring.read(_values(), 10.2)
-	while wiring.menu.model.kind() != DevMenuSpec.KIND_COMFORT:
-		_tap(wiring.menu.model, DevMenuModel.DOWN)
+	DevMenuWalk.select(wiring.menu.model, DevMenuSpec.KIND_COMFORT, func(action: String) -> void: _tap(wiring.menu.model, action))
 
 
 ## The numbers the entry shows stepping right `steps` times from preset 1.
 static func _stepped(custom_base: int, steps: int) -> Array[int]:
 	var model: DevMenuModel = DevMenuModel.new(DevMenuSpec.fallback(), [])
 	model.open("centre", "", "", false, false, 1, true, custom_base)
-	while model.kind() != DevMenuSpec.KIND_COMFORT:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, DevMenuSpec.KIND_COMFORT, func(action: String) -> void: _tap(model, action))
 	var seen: Array[int] = [model.comfort_number()]
 	for step: int in steps:
 		_tap(model, DevMenuModel.RIGHT)
@@ -91,8 +89,7 @@ func test_without_a_custom_file_the_entry_stays_on_the_four_presets() -> String:
 func test_left_from_preset_1_reaches_custom_and_a_confirms_it() -> String:
 	var model: DevMenuModel = DevMenuModel.new(DevMenuSpec.fallback(), [])
 	model.open("centre", "", "", false, false, 1, true, 2)
-	while model.kind() != DevMenuSpec.KIND_COMFORT:
-		_tap(model, DevMenuModel.DOWN)
+	DevMenuWalk.select(model, DevMenuSpec.KIND_COMFORT, func(action: String) -> void: _tap(model, action))
 	_tap(model, DevMenuModel.LEFT)
 	var confirmed: String = _tap(model, DevMenuModel.CONFIRM)
 	return "" if confirmed == "comfort:%d" % CUSTOM else "confirming custom returned \"%s\"" % confirmed
@@ -106,10 +103,7 @@ func test_the_custom_label_comes_from_the_file() -> String:
 	var spec: DevMenuSpec = DevMenuSpec.parse(text.replace("Custom (base {base})", "Own, from {base}"))
 	var menu: DevMenu = DevMenu.new(spec, [])
 	menu.open("centre", "", "", false, false, CUSTOM, true, 3)
-	var line: String = ""
-	for shown: String in menu.texts():
-		if shown.contains("Comfort"):
-			line = shown
+	var line: String = DevMenuWalk.entry_line(menu.model, DevMenuSpec.KIND_COMFORT)
 	menu.free()
 	if spec.error != "" or line != "Comfort: < Own, from 3 >":
 		return "the entry reads \"%s\" (%s)" % [line, spec.error]

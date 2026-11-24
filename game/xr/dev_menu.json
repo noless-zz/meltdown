@@ -17,12 +17,21 @@
 		{"kind": "flight_test", "label": "Flight test"},
 		{"kind": "close", "label": "Close"}
 	],
+	"sections": [
+		{"label": "Comfort", "entries": ["comfort", "break", "refresh", "swivel", "auto_level", "foveation"]},
+		{"label": "Controls", "entries": ["controls", "hands", "pitch"]},
+		{"label": "Mine", "entries": ["level", "restart", "return", "flight_test"]},
+		{"label": "Display", "entries": ["corner"]}
+	],
+	"back_text": "Back",
+	"max_rows_visible": 6,
+	"max_row_chars": 28,
 	"corners": ["bottom_left", "bottom_right", "top_left", "top_right", "centre"],
 	"schemes": ["thumbsticks", "gripped"],
 	"distance_m": 1.0,
 	"offset_m": [0.0, 0.0],
 	"tunnel_text": "Test tunnel",
-	"seed_text": "Seed {seed}",
+	"seed_text": "#{seed}",
 	"random_text": "Random seed",
 	"cancel_update_text": "Cancel update to {version}",
 	"right_handed_text": "right-handed",
