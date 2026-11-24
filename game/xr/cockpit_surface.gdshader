@@ -14,6 +14,13 @@
 // overlap their neighbours by a few percent; inside that margin every piece
 // draws a panel line, so both overlapping pieces show the same thing there.
 //
+// Since #1306 each surface is physically based (`CockpitFinish`): its own
+// roughness and metalness, panel seams pressed in and bolts raised in the
+// shading normal, so the headlight and bolt lights catch their edges, and
+// worn patches rubbed toward bare metal. The normal is bent from the slope of
+// a computed height, so there is no normal map either. With every finish
+// value neutral the surface draws exactly as before.
+//
 // Not fogged: the cockpit is inside the ship, like the status panel.
 shader_type spatial;
 render_mode blend_mix, cull_disabled, fog_disabled, shadows_disabled;
@@ -35,9 +42,27 @@ uniform float pattern_contrast = 0.1;
 uniform float rivet_size = 0.0;
 // Fraction of each face edge that overlaps a neighbour (CockpitFrame.OVERLAP).
 uniform float overlap_margin = 0.0238;
+// The surface's finish (#1306); the defaults are the look before it.
+uniform float roughness = 0.75;
+uniform float metallic = 0.0;
+// Depth of the seams and height of the bolts in the shading normal, metres.
+uniform float seam_depth_m = 0.0;
+uniform float bolt_height_m = 0.0;
+// Share of the surface worn toward bare metal, and the size of a worn patch.
+uniform float wear = 0.0;
+uniform float wear_scale_m = 0.05;
+// The dash: each instance's colour scales the base colour, and its custom
+// data is the colour of the lamp it carries (`CockpitDash`).
+uniform bool instance_tint = false;
+
+// How bright a dash lamp glows; it lights nothing else (GFX-4).
+const float LAMP_ENERGY = 1.5;
 
 varying vec2 face_uv;
 varying vec2 face_size;
+varying vec3 tint;
+varying vec3 lamp;
+varying vec2 wear_offset;
 
 void vertex() {
 	// The instance's scale along each local axis is its size in metres.
@@ -53,6 +78,32 @@ void vertex() {
 		face_uv = VERTEX.xz + 0.5;
 		face_size = scale.xz;
 	}
+	tint = vec3(1.0);
+	lamp = vec3(0.0);
+	if (instance_tint) {
+		tint = COLOR.rgb;
+		lamp = INSTANCE_CUSTOM.rgb;
+	}
+	// Each piece wears differently, so the cells do not repeat one patch.
+	wear_offset = vec2(float(INSTANCE_ID) * 7.31, float(INSTANCE_ID) * 3.17);
+}
+
+float hash2(vec2 p) {
+	p = fract(p * vec2(0.1031, 0.1030));
+	p += dot(p, p.yx + 33.33);
+	return fract((p.x + p.y) * p.x);
+}
+
+// Smooth value noise, 0..1, one cell per unit.
+float value_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float a = hash2(i);
+	float b = hash2(i + vec2(1.0, 0.0));
+	float c = hash2(i + vec2(0.0, 1.0));
+	float d = hash2(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
 // Distance in metres from `uv` to the nearest panel border along one axis,
@@ -91,7 +142,41 @@ void fragment() {
 	}
 	float tone = 1.0 - contrast * line + contrast * rivet * (1.0 - line);
 
-	vec3 color = base_color * tone;
+	vec3 color = base_color * tint * tone;
+	float rough = roughness;
+	float metal = metallic;
+	if (wear > 0.0) {
+		float n = value_noise(metres / wear_scale_m + wear_offset) * 0.65
+			+ value_noise(metres / wear_scale_m * 2.7 + wear_offset.yx) * 0.35;
+		float worn = smoothstep(1.0 - wear * 0.7, 1.05 - wear * 0.6, n) * detail;
+		color *= 1.0 + 0.35 * worn;
+		rough = mix(rough, rough * 0.45, worn);
+		metal = mix(metal, 1.0, worn * 0.6);
+	}
+	if (seam_depth_m > 0.0 || bolt_height_m > 0.0) {
+		// A height in metres: seams pressed in with a bevel as wide as the
+		// line, bolts domed. It fades out with the pattern, so it never shimmers.
+		float seam = 1.0 - smoothstep(line_half, line_half * 2.5, min(d.x, d.y));
+		float dome = 0.0;
+		if (rivet_size > 0.0) {
+			float radius = rivet_size * pattern_scale_m * 0.5;
+			vec2 inset = d - vec2(pattern_scale_m * 0.15);
+			dome = 1.0 - smoothstep(0.0, radius, length(inset));
+			dome = dome * dome * (1.0 - seam);
+		}
+		float height = (bolt_height_m * dome - seam_depth_m * seam) * detail;
+		// Bump from the screen-space slope of the height (Mikkelsen 2010).
+		vec3 dpdx = dFdx(VERTEX);
+		vec3 dpdy = dFdy(VERTEX);
+		vec3 r1 = cross(dpdy, NORMAL);
+		vec3 r2 = cross(NORMAL, dpdx);
+		float det = dot(dpdx, r1);
+		vec3 slope = sign(det) * (dFdx(height) * r1 + dFdy(height) * r2);
+		vec3 bent = abs(det) * NORMAL - slope;
+		if (dot(bent, bent) > 1e-20) {
+			NORMAL = normalize(bent);
+		}
+	}
 	if (edge_width_m > 0.0) {
 		vec2 from_edge = min(face_uv, 1.0 - face_uv) * face_size;
 		float far_away = 1e3;
@@ -100,7 +185,8 @@ void fragment() {
 		color = mix(color, edge_color, edge);
 	}
 	ALBEDO = color;
-	ROUGHNESS = 0.75;
+	ROUGHNESS = rough;
+	METALLIC = metal;
 	SPECULAR = 0.3;
-	EMISSION = color * glow;
+	EMISSION = color * glow + lamp * LAMP_ENERGY;
 }

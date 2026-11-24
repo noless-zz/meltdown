@@ -96,6 +96,8 @@ const RANGES: Dictionary[String, Array] = {
 
 ## The key of the surfaces' look object (`CockpitLook`).
 const LOOK_KEY: String = "look"
+## The key of the surfaces' finish object (`CockpitFinish`), optional.
+const FINISH_KEY: String = "finish"
 
 ## The shapes' distance keys: each shape must lie wholly in front of the shell.
 const SHAPE_DISTANCE_KEYS: Array[String] = ["ledge_distance_m", "pillar_distance_m", "rim_distance_m"]
@@ -107,6 +109,12 @@ var look: CockpitLook = CockpitLook.new()
 ## list, empty without one. None is drawn yet (M6).
 var instruments: Array[CockpitInstrument] = []
 
+## The surfaces' physically based finish and the glass's edge reflection:
+## the file's optional `"finish"` object (#1306); neutral without one.
+var finish: CockpitFinish = CockpitFinish.new()
+## The modelled dash pieces: the file's optional `"dash"` list (#1306).
+var dash: Array[CockpitDashPiece] = []
+
 ## Set when the text was rejected; empty otherwise.
 var error: String = ""
 
@@ -114,8 +122,10 @@ var error: String = ""
 ## Parses the text of a cockpit data file: one JSON object holding every key
 ## in `KEYS` as a number in its range, every key in `COLOR_KEYS` as a colour
 ## and a `"look"` object for `CockpitLook`, optionally an `"instruments"`
-## list (`CockpitInstrument`), and nothing else. A missing or unknown key is an error, so a typo
-## cannot leave a value silently at its default. On failure the returned spec
+## list (`CockpitInstrument`), an optional `"finish"` object
+## (`CockpitFinish`) and `"dash"` list (`CockpitDashPiece`), and nothing
+## else. A missing or unknown required key is an error, so a typo cannot
+## leave a value silently at its default. On failure the returned spec
 ## has `error` set, naming the field, and default values.
 static func parse_json(text: String) -> CockpitSpec:
 	var json: JSON = JSON.new()
@@ -126,7 +136,7 @@ static func parse_json(text: String) -> CockpitSpec:
 	var data: Dictionary = json.data
 	for key: Variant in data:
 		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == LOOK_KEY
-				or key == CockpitInstrument.LIST_KEY):
+				or key == CockpitInstrument.LIST_KEY or key == FINISH_KEY or key == CockpitDashPiece.LIST_KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	var spec: CockpitSpec = CockpitSpec.new()
 	for key: String in KEYS:
@@ -167,6 +177,26 @@ static func parse_json(text: String) -> CockpitSpec:
 		if parsed is String:
 			return _rejected(parsed)
 		spec.instruments = parsed
+	return _parse_finish_and_dash(data, spec)
+
+
+## The optional `"finish"` object and `"dash"` list (#1306) of `data`, set on
+## `spec`; a rejected spec when either is wrong or a piece leaves the frame.
+static func _parse_finish_and_dash(data: Dictionary, spec: CockpitSpec) -> CockpitSpec:
+	if data.has(FINISH_KEY):
+		spec.finish = CockpitFinish.parse(data[FINISH_KEY])
+		if spec.finish.error != "":
+			return _rejected("key \"%s\": %s" % [FINISH_KEY, spec.finish.error])
+	if data.has(CockpitDashPiece.LIST_KEY):
+		var parsed: Variant = CockpitDashPiece.parse_list(data[CockpitDashPiece.LIST_KEY])
+		if parsed is String:
+			return _rejected(parsed)
+		spec.dash = parsed
+	var window: Vector2 = Vector2(spec.window_half_angle_h_deg, spec.window_half_angle_v_deg)
+	for index: int in spec.dash.size():
+		var misfit: String = spec.dash[index].fit_error(window, spec.frame_distance_m)
+		if misfit != "":
+			return _rejected("%s[%d] %s" % [CockpitDashPiece.LIST_KEY, index, misfit])
 	return spec
 
 

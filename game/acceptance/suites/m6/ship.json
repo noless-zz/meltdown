@@ -1,3 +1,18 @@
 {
-	"steps": []
+	"steps": [
+		{
+			"id": "cockpit_look",
+			"replay": "res://acceptance/replays/frame_budget_flight.replay",
+			"preset": 1,
+			"preset_changes": [
+				{"tick": 750, "preset": 2},
+				{"tick": 1500, "preset": 3},
+				{"tick": 2250, "preset": 4}
+			],
+			"checks": ["final_hash", "no_script_errors"],
+			"expected_hash": 1960961122,
+			"screenshot_at_ticks": [700, 1450, 2200],
+			"screenshot_at_end": true
+		}
+	]
 }
