@@ -18,6 +18,15 @@
 				"room_reverb_changed"
 			],
 			"expected_hash": 802400918
+		},
+		{
+			"id": "music_follows_alarm",
+			"replay": "res://acceptance/replays/bot_g2_escape.replay",
+			"checks": [
+				"final_hash",
+				"music_follows_alarm"
+			],
+			"expected_hash": 2519309766
 		}
 	]
 }
