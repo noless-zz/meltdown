@@ -7,6 +7,7 @@ extends RefCounted
 
 const LEVEL_FILE: String = "res://data/levels/g2_level.json"
 const SCRIPT_PATHS: Array[String] = ["res://view/level_view.gd", "res://view/level_faces.gd",
+	"res://view/level_faces_frames.gd", "res://view/level_faces_bevels.gd",
 	"res://view/level_look.gd", "res://view/headlight.gd"]
 const OUTSIDE_DIRS: Array[String] = ["res://xr", "res://meta", "res://net"]
 const EPSILON: float = 1e-3
@@ -133,8 +134,10 @@ func test_every_quad_faces_into_its_box() -> String:
 	var vertex_count: int = 0
 	for surface: int in walls.mesh.get_surface_count():
 		vertex_count += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	if result == "" and vertex_count != view.quads().size() * 6:
-		result = "wall mesh has %d vertices for %d quads" % [vertex_count, view.quads().size()]
+	# Opening frames are drawn in the walls' surfaces (#1323).
+	var drawn_quads: int = view.quads().size() + view.frames().size()
+	if result == "" and vertex_count != drawn_quads * 6:
+		result = "wall mesh has %d vertices for %d quads and frames" % [vertex_count, drawn_quads]
 	view.free()
 	return result
 
@@ -152,10 +155,13 @@ func test_a_single_box_gives_six_whole_faces() -> String:
 		return "one box's walls cover %s m², expected 208" % total
 	var view: LevelView = LevelView.new()
 	view.build(union)
-	var strips: int = view.strips().size()
+	var bevels: int = view.bevels().size()
+	var frames: int = view.frames().size()
 	view.free()
-	if strips != 24:
-		return "%d edge strips for one box, expected 24 (four per face)" % strips
+	if bevels != 12:
+		return "%d bevels for one box, expected 12 (one per edge)" % bevels
+	if frames != 0:
+		return "%d frame quads for one box with no opening" % frames
 	return ""
 
 
@@ -185,14 +191,16 @@ func test_the_look_is_dark_dim_and_adds_no_lights() -> String:
 	for child: Node in view.find_children("*", "Light3D", true, false):
 		result = "the level view adds a light: %s" % child.name
 	var wall_mesh: Mesh = (view.get_node(LevelView.WALLS_NAME) as MeshInstance3D).mesh
-	var edges: StandardMaterial3D = (view.get_node(LevelView.EDGES_NAME) as MeshInstance3D).mesh.surface_get_material(0)
+	var bevels: ShaderMaterial = (view.get_node(LevelView.BEVELS_NAME) as MeshInstance3D).mesh.surface_get_material(0)
 	for surface: int in wall_mesh.get_surface_count():
-		var shader: Shader = (wall_mesh.surface_get_material(surface) as ShaderMaterial).shader
-		# Walls are lit, never glowing: only the edge strips may emit.
-		if result == "" and (shader.code.contains("EMISSION") or shader.code.contains("unshaded")):
-			result = "walls glow or ignore light; only the edge strips may"
-	if result == "" and (not edges.emission_enabled or edges.emission_energy_multiplier > 1.0):
-		result = "edge strips are not dimly emissive (energy %s)" % edges.emission_energy_multiplier
+		var material: ShaderMaterial = wall_mesh.surface_get_material(surface) as ShaderMaterial
+		var glow: Variant = material.get_shader_parameter("glow")
+		# Walls are lit, never glowing: only the bevels may emit.
+		if result == "" and (material.shader.code.contains("unshaded") or (glow != null and (glow as Color).get_luminance() > 0.0)):
+			result = "walls glow or ignore light; only the bevels may"
+	var bevel_glow: Color = bevels.get_shader_parameter("glow")
+	if result == "" and (bevel_glow.get_luminance() <= 0.0 or bevel_glow.r > 1.0 or bevel_glow.g > 1.0 or bevel_glow.b > 1.0):
+		result = "bevels are not dimly emissive (glow %s)" % bevel_glow
 	var world: WorldEnvironment = view.get_node(LevelView.ENVIRONMENT_NAME) as WorldEnvironment
 	if result == "" and world.environment.ambient_light_energy > 0.3:
 		result = "ambient light %s is not dark (LGT-1)" % world.environment.ambient_light_energy
@@ -209,11 +217,12 @@ func test_a_bad_or_missing_look_falls_back_naming_the_field() -> String:
 			"plate_floor_m": 1.0, "plate_wall_m": 1.0, "plate_ceiling_m": 1.0,
 			"plate_floor_aspect": 1.0, "plate_wall_aspect": 2.0, "plate_ceiling_aspect": 3.0,
 			"plate_floor_stagger": 0.0, "plate_wall_stagger": 0.5, "plate_ceiling_stagger": 0.0,
-			"plate_seam_m": 0.02, "plate_contrast": 0.1}
+			"plate_seam_m": 0.02, "plate_contrast": 0.1, "frame_depth_m": 0.5, "frame_width_m": 0.2}
 	if LevelView.parse_look(JSON.stringify(good)).has("error"):
 		return "a valid look was rejected: %s" % LevelView.parse_look(JSON.stringify(good))["error"]
 	var cases: Dictionary[String, Variant] = {
 		"edge_energy": 2.0, "roughness": true, "edge_width_m": 0.0, "wall_color": [0.1, 0.1], "edge_color": [0.1, 2.0, 0.1],
+		"frame_depth_m": 2.0, "frame_width_m": 0.6,
 	}
 	for key: String in cases:
 		var bad: Dictionary = good.duplicate()
