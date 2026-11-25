@@ -1,0 +1,21 @@
+{
+	"materials": {
+		"hull": {"albedo": [0.74, 0.72, 0.67], "roughness": 0.35, "metallic": 0.6},
+		"trim": {"albedo": [0.17, 0.18, 0.2], "roughness": 0.45, "metallic": 0.85},
+		"accent": {"albedo": [0.86, 0.42, 0.12], "roughness": 0.5, "metallic": 0.3},
+		"canopy": {"albedo": [0.04, 0.11, 0.15], "roughness": 0.08, "metallic": 0.2}
+	},
+	"engine": {"color": [0.35, 0.75, 1.0], "idle_energy": 0.6, "full_energy": 6.0},
+	"pieces": [
+		{"shape": "capsule", "size": [0.55, 0.95, 0.45], "offset": [0.0, 0.0, 0.0], "turn": [90.0, 0.0, 0.0], "material": "hull"},
+		{"shape": "cone", "size": [0.2, 0.3, 0.16], "offset": [0.0, 0.0, -1.05], "turn": [-90.0, 0.0, 0.0], "material": "trim"},
+		{"shape": "box", "size": [0.04, 0.04, 0.3], "offset": [0.0, -0.22, -0.85], "material": "trim"},
+		{"shape": "sphere", "size": [0.19, 0.13, 0.42], "offset": [0.0, 0.2, -0.4], "material": "canopy"},
+		{"shape": "prism", "size": [1.0, 0.6, 0.03], "offset": [0.0, -0.06, 0.3], "turn": [-90.0, 0.0, 0.0], "material": "hull"},
+		{"shape": "prism", "size": [0.28, 0.22, 0.02], "offset": [-0.98, 0.16, 0.72], "turn": [0.0, 90.0, 20.0], "material": "accent"},
+		{"shape": "prism", "size": [0.28, 0.22, 0.02], "offset": [0.98, 0.16, 0.72], "turn": [0.0, 90.0, 20.0], "material": "accent"},
+		{"shape": "cylinder", "size": [0.25, 0.18, 0.25], "offset": [0.0, 0.0, 0.95], "turn": [90.0, 0.0, 0.0], "material": "trim"},
+		{"shape": "torus", "size": [0.27, 0.12, 0.27], "offset": [0.0, 0.0, 1.13], "turn": [90.0, 0.0, 0.0], "material": "accent"},
+		{"shape": "cylinder", "size": [0.2, 0.015, 0.2], "offset": [0.0, 0.0, 1.14], "turn": [90.0, 0.0, 0.0], "material": "engine"}
+	]
+}
