@@ -27,6 +27,15 @@
 				"music_follows_alarm"
 			],
 			"expected_hash": 2803663058
+		},
+		{
+			"id": "robot_voices",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": [
+				"final_hash",
+				"robot_voices_heard"
+			],
+			"expected_hash": 802400918
 		}
 	]
 }
