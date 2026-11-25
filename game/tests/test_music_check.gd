@@ -71,3 +71,13 @@ func test_expected_moments_are_data() -> String:
 	if moments.is_empty() or moments[-1] != CHECK_SCRIPT.FADED:
 		return "expected %s" % [moments]
 	return "" if moments.has(MusicLayer.MELTDOWN) else "the meltdown is not expected"
+
+
+func test_the_shipped_step_expects_a_tension_layer_before_the_meltdown() -> String:
+	# #1342: with the core's alarm the step hears tension join before the meltdown.
+	var expected: Array[String] = CHECK_SCRIPT.expected_for(STEP_ID)
+	var meltdown: int = expected.find("meltdown")
+	for index: int in maxi(meltdown, 0):
+		if expected[index].begins_with("tension"):
+			return ""
+	return "%s expects no tension layer before the meltdown: %s" % [STEP_ID, expected]

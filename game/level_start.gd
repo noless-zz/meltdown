@@ -114,7 +114,7 @@ func run_rules(path: String) -> RunLevelRules:
 	if run == null or not run.active() or not run.level_rules or path != run.level_source():
 		return null
 	return RunLevelRules.load_files(RunLevelRules.COMPONENTS_DIR, RunLevelRules.RESCUE_FILE,
-		run.level_reward())
+		run.level_reward(), RunLevelRules.ALARM_FILE, run.level_alarm_scale())
 
 
 ## Takes what the launch asks to fly (`LevelSwitch.requested_path`). A run,

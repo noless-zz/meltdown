@@ -1,0 +1,7 @@
+{
+	"rise_per_second": 0.004,
+	"per_shot": 0.002,
+	"per_robot_alert": 0.04,
+	"cap": 1.0,
+	"steps": [0.35, 0.7]
+}

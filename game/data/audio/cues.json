@@ -117,6 +117,12 @@
 			"pitch_min": 1.0,
 			"pitch_max": 1.0
 		},
+		"ALARM_RAISED": {
+			"sound": "res://data/audio/alarm_raised.wav",
+			"volume_db": -6.0,
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
+		},
 		"REACTOR_DESTROYED": {
 			"sound": "res://data/audio/meltdown_start.wav",
 			"volume_db": 2.0,
