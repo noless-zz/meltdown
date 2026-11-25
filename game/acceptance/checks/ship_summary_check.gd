@@ -10,8 +10,8 @@ extends RefCounted
 ## After the replay the hub opens on the run (`HubWiring.open_for`) with the
 ## profile and fitting in scratch files. Scripted stick and A presses build the
 ## engine upgrade the profile's bank pays for, then take the Fitting Bay into
-## use: its screen must show the summary at stock; with the stick on the mount
-## row (not yet pressed) the screen must show each attribute the part changes
+## use: its screen must show the summary at stock; with the engine slot chosen
+## on the ship (#1366) and the stick on the mount row (not yet pressed) the screen must show each attribute the part changes
 ## as before and after; once mounted the summary must read the new value
 ## against stock and the fitting file hold the part; the strip row must then
 ## empty the saved fitting and bring the summary back to stock. Whether the
@@ -66,7 +66,8 @@ static func _summary_fit_strip(main: Node, hub: HubWiring, measurements: Diction
 		return [AcceptanceReport.RESULT_FAIL, "the Fitting Bay never shows \"%s\": %s" % [stock, hub.text.lines()]]
 	var before_after: String = HubSummaryRows.change_text(model.config.words, changes[0])
 	measurements["before_after"] = before_after
-	if not _scroll_to(main, hub, mount, before_after):
+	var slot_row: Dictionary = {"action": HubFitBay.ACTION_SLOT, "slot": SLOT}
+	if not Helper.press_in_station(main, hub, slot_row) or not _scroll_to(main, hub, mount, before_after):
 		return [AcceptanceReport.RESULT_FAIL, "with the mount row selected the screen does not show \"%s\": %s" %
 			[before_after, hub.stations.texts()]]
 	Helper._tap(main, Helper.A, Vector2.ZERO)
@@ -111,13 +112,20 @@ static func _scroll_to(main: Node, hub: HubWiring, want: Dictionary, line: Strin
 		if hub.text.selected_line() == before:
 			break
 	for i: int in Helper.MAX_MOVES:
-		if hub.text.selected() == want and hub.stations.texts().has(line):
+		if hub.text.selected() == want and _shows(hub, line):
 			return true
 		var at: int = hub.text.selected_line()
 		Helper._tap(main, {}, Helper.STICK_DOWN)
 		if hub.text.selected_line() == at:
 			return false
 	return false
+
+
+## Whether the station's screen shows `line`, plain or as the marked selected
+## row: picking a slot on the bay's ship leaves room for one row (#1366).
+static func _shows(hub: HubWiring, line: String) -> bool:
+	var texts: Array[String] = hub.stations.texts()
+	return texts.has(line) or texts.has(str(HubPanelLook.load_file()["mark_text"]) + line)
 
 
 static func _remove_scratch() -> void:

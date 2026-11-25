@@ -47,6 +47,8 @@ var launched: Dictionary = {}
 var resumed: Dictionary = {}
 ## Index into the rows (`lines()` without the title) of the first one shown.
 var top: int = 0
+## The Fitting Bay's chosen slot (`HubFitBay`, #1366), or "" while picking one.
+var fit_slot: String = ""
 
 
 func _init(p_model: HubModel) -> void:
@@ -63,6 +65,7 @@ func page_id() -> String:
 ## goes back to the pages.
 func choose_station(id: String) -> void:
 	station = id if HubStationPages.STATIONS.has(id) else ""
+	fit_slot = ""
 	_first_row()
 
 
@@ -102,7 +105,10 @@ func turn_page(delta: int) -> void:
 
 
 ## Rows a screen shows at once (`max_rows_visible` in the hub file).
+## Fewer while picking a slot on the bay's drawn ship, so the ship has the face.
 func rows_shown() -> int:
+	if station == HubFitBay.STATION and fit_slot == "" and model.config.fit_layout.has_ship():
+		return model.config.fit_layout.slot_rows_visible
 	return model.config.max_rows_visible
 
 
@@ -137,6 +143,8 @@ func press() -> String:
 	var action: Dictionary = selected()
 	var reason: String = ""
 	match action.get("action", ""):
+		HubFitBay.ACTION_SLOT:
+			_select_slot(action["slot"], "")
 		ACTION_CRAFT:
 			reason = model.craft(action["id"])
 			if reason != "" and HubCraftRows.reason(model, action["id"]) != "":
@@ -157,8 +165,48 @@ func press() -> String:
 				resumed = result
 			else:
 				reason = str(result)
+	if reason == "" and fit_slot != "" and action.get("action", "") in [ACTION_FIT, ACTION_MOVE]:
+		_select_slot("", fit_slot)  # Fitted: back on the ship, on the slot just filled.
 	move(0)  # The rows may have changed; keep the selection on one.
 	return reason
+
+
+## Stick left with a bay slot chosen: back to the ship, on that slot; false otherwise.
+func back() -> bool:
+	if fit_slot == "":
+		return false
+	_select_slot("", fit_slot)
+	return true
+
+
+## The slot at `at` (metres on the bay's drawn ship) while one is picked, or "".
+func slot_at(at: Vector2) -> String:
+	return HubFitBay.slot_at(model, at) if station == HubFitBay.STATION and fit_slot == "" else ""
+
+
+## Pointing at `at` selects the slot there (`slot_at`), which it returns.
+func point_slot(at: Vector2) -> String:
+	var slot: String = slot_at(at)
+	if slot != "":
+		_select_slot("", slot)
+	return slot
+
+
+## What the station in use draws besides its words (`HubFitBay.drawing`), or {}.
+func drawing() -> Dictionary:
+	if station != HubFitBay.STATION:
+		return {}
+	return HubFitBay.drawing(model, fit_slot, _rows(), selected_line() - 1)
+
+
+## Chooses bay slot `chosen` ("" for none) and selects slot `slot`'s row, or the first.
+func _select_slot(chosen: String, slot: String) -> void:
+	fit_slot = chosen
+	_first_row()
+	var index: int = HubFitBay.selectable_index(_rows(), slot)
+	if index >= 0:
+		row = index
+		_scroll()
 
 
 ## Every row of the current page or station: `text`, `action`, whether it is
@@ -181,6 +229,8 @@ func _rows() -> Array[Dictionary]:
 ## The station's pages' rows of its group; a later page starts under its
 ## title. A station with no row of its group shows the group's empty line.
 func _station_rows() -> Array[Dictionary]:
+	if station == HubFitBay.STATION:
+		return HubFitBay.rows(model, fit_slot)
 	var spec: Dictionary = HubStationPages.STATIONS[station]
 	var rows: Array[Dictionary] = []
 	var pages: Array = spec["pages"]
@@ -206,8 +256,8 @@ func _page_rows(id: String) -> Array[Dictionary]:
 		HubConfig.STORE:
 			return HubRows.store(model)
 		HubConfig.CRAFT:
-			return _craft_rows()
-	return _fit_rows()
+			return HubCraftRows.rows(model)  # Costs, numbers and unlocks (#1317).
+	return HubFitRows.rows(model)
 
 
 ## Indexes into `_rows()` of the selectable rows.
@@ -218,16 +268,6 @@ func _selectable() -> Array[int]:
 		if rows[i]["selectable"]:
 			out.append(i)
 	return out
-
-
-## The Workbench rows: costs, numbers and unlocks under each upgrade (#1317).
-func _craft_rows() -> Array[Dictionary]:
-	return HubCraftRows.rows(model)
-
-
-## The Fitting Bay rows (`HubFitRows`).
-func _fit_rows() -> Array[Dictionary]:
-	return HubFitRows.rows(model)
 
 
 ## Selects the first selectable row and shows the top of the rows.

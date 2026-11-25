@@ -38,6 +38,8 @@ var _towards_eye: Vector3 = Vector3.BACK
 ## 0 at rest, 1 fully forward; `_focus_target` is where it is heading.
 var _focus: float = 0.0
 var _focus_target: float = 0.0
+## Each row line shown: {"row": index into the rows last given, "y": its first line's middle}.
+var _shown: Array[Dictionary] = []
 
 
 func _init(look: Dictionary, layers: int, screen: Dictionary = HubScreenLook.load_file()) -> void:
@@ -72,6 +74,7 @@ func show_title(title: String, highlighted: bool) -> void:
 	for row: Label3D in _rows:
 		row.visible = false
 	_reason.visible = false
+	_shown.clear()
 	_frame.visible = highlighted
 	_focus_target = 0.0
 
@@ -93,15 +96,18 @@ func show_rows(title: String, rows: Array[String], selected: int, note: String, 
 		bottom += _height(_reason) + float(_screen["row_step_m"]) - _line_m()
 	var texts: Array[String] = []
 	var colors: Array[Color] = []
+	var origin: Array[int] = []  # Each text's row, -1 for the note.
 	var keep: int = -1  # The last line that must show: the selected row or its note.
 	for i: int in rows.size():
 		var chosen: bool = i == selected
 		texts.append((_look["mark_text"] + rows[i]) if chosen else rows[i])
 		colors.append(_screen["selected_color"] if chosen else _screen["text_color"])
+		origin.append(i)
 		if chosen:
 			keep = texts.size() - 1
 			if note != "":
 				texts.append(note)
+				origin.append(-1)
 				colors.append(_screen["text_color"])
 				keep += 1
 	_make_lines(texts.size())
@@ -110,6 +116,7 @@ func show_rows(title: String, rows: Array[String], selected: int, note: String, 
 		start += 1  # Wrapped lines above push the selected one off the face.
 	var count: int = _fits(texts, start, texts.size(), bottom)
 	var top: float = _first_top()
+	_shown.clear()
 	for i: int in _rows.size():
 		var index: int = start + i
 		_rows[i].visible = i < count
@@ -117,6 +124,8 @@ func show_rows(title: String, rows: Array[String], selected: int, note: String, 
 			continue
 		_put(_rows[i], texts[index], colors[index])
 		_rows[i].position = Vector3(0.0, top, TEXT_LIFT_M)
+		if origin[index] >= 0:
+			_shown.append({"row": origin[index], "y": top - _line_m() * 0.5})
 		top -= _height(_rows[i]) + float(_screen["row_step_m"]) - _line_m()
 	_reason.position = Vector3(0.0, top, TEXT_LIFT_M)
 	_frame.visible = true
@@ -144,6 +153,11 @@ func advance(seconds: float) -> void:
 	var eased: float = smoothstep(0.0, 1.0, _focus)
 	position = _rest + _towards_eye * float(_screen["focus_forward_m"]) * eased
 	scale = Vector3.ONE * lerpf(1.0, float(_screen["focus_scale"]), eased)
+
+
+## Where each row line sits on the face, top first: {"row", "y"} (notes left out).
+func shown_rows() -> Array[Dictionary]:
+	return _shown.duplicate()
 
 
 ## 0 at rest to 1 fully forward.

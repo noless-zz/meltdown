@@ -19,6 +19,11 @@ extends Node3D
 ## moves no camera (CMF-8): only the screen in use comes towards the eye and
 ## grows, so its rows can be read (#1359, `HubStationScreen`). The screens hang
 ## on the room's station meshes, so the room is read only to find them.
+##
+## A hub text may also draw on the station in use (`drawing`, `back`,
+## `slot_at`, `point_slot`; #1366): the Fitting Bay shows its ship with slots
+## (`HubFittingView`), stick left steps back from choosing an item to the ship
+## before it leaves the station, and the aim picks a slot on the ship.
 
 const NODE_NAME: String = "HubStations"
 ## The hub text's methods the stations call.
@@ -44,6 +49,13 @@ var _screens: Dictionary[String, HubStationScreen] = {}
 var _held: Dictionary = {}
 var _reason: String = ""
 var _pointed: String = ""
+## The slot the aim was last on inside a station, as `_pointed` for stations.
+var _pointed_slot: String = ""
+var _room: HubRoom
+var _screen_look: Dictionary = {}
+var _icons: HubIcons
+## Station id to its drawing, made the first time the hub text draws there.
+var _views: Dictionary[String, HubFittingView] = {}
 
 
 ## Puts a screen on each station of `room`; a room that was not built gives none.
@@ -51,8 +63,11 @@ func _init(room: HubRoom, look: Dictionary = HubPanelLook.load_file(),
 		screen: Dictionary = HubScreenLook.load_file()) -> void:
 	name = NODE_NAME
 	visible = false
+	_room = room
+	_screen_look = screen
 	if room == null or not room.is_built():
 		return
+	_icons = HubIcons.load_file()
 	var points: Dictionary[String, Vector3] = room.station_points()
 	for station: Dictionary in room.spec.stations:
 		var id: String = station["id"]
@@ -113,6 +128,8 @@ func close() -> void:
 		hub.call("leave_station")
 	for id: String in ids:
 		_screens[id].show_title(_labels[id], false)
+	for drawn: HubFittingView in _views.values():
+		drawn.visible = false
 	advance(SETTLE_SECONDS)  # Reopened, every screen starts at rest.
 
 
@@ -142,8 +159,9 @@ func update(held: Dictionary) -> Dictionary:
 	elif HubPanel.ROW_STEPS.has(acted):
 		hub.call("move", HubPanel.ROW_STEPS[acted])
 	elif acted == DevMenuModel.LEFT:
-		in_use = ""  # Back to choosing, on the station just left.
-		hub.call("leave_station")
+		if not (hub.has_method("back") and hub.call("back")):
+			in_use = ""  # Back to choosing, on the station just left.
+			hub.call("leave_station")
 	elif acted == DevMenuModel.CONFIRM:
 		var picked: Dictionary = hub.call("selected")
 		_reason = hub.call("press")
@@ -155,8 +173,12 @@ func update(held: Dictionary) -> Dictionary:
 ## The aim ray in the room's space, from `origin` along `direction`, while
 ## choosing: the station it newly points at becomes the highlighted one, so a
 ## still hand does not undo a stick step. Returns the station pointed at, or "".
+## Inside a station that draws a ship, it picks the slot it points at instead
+## and returns that slot.
 func point(origin: Vector3, direction: Vector3) -> String:
-	if not visible or in_use != "":
+	if visible and in_use != "":
+		return _point_in_station(origin, direction)
+	if not visible:
 		return ""
 	var id: String = pick(origin, direction, _points, POINT_RADIUS_M)
 	if id != _pointed and id != "":
@@ -199,6 +221,26 @@ func reason_text() -> String:
 	return _reason
 
 
+## The view on station `id`, or null when nothing was drawn there.
+func view(id: String) -> HubFittingView:
+	return _views.get(id, null)
+
+
+## Only a slot the aim newly reaches is selected, so a still hand does not
+## undo a stick step.
+func _point_in_station(origin: Vector3, direction: Vector3) -> String:
+	var drawn: HubFittingView = view(in_use)
+	var at: Variant = null
+	if drawn != null and drawn.visible and drawn.ship.visible and hub.has_method("point_slot"):
+		at = drawn.point_on_ship(origin, direction, _room)
+	var slot: String = hub.call("slot_at", at) if at != null else ""
+	if slot != _pointed_slot and slot != "":
+		hub.call("point_slot", at)
+		_refresh()
+	_pointed_slot = slot
+	return slot
+
+
 func _choose(acted: String) -> void:
 	if HubPanel.PAGE_STEPS.has(acted):
 		highlighted = posmod(highlighted + HubPanel.PAGE_STEPS[acted], ids.size())
@@ -211,6 +253,8 @@ func _refresh() -> void:
 	for id: String in ids:
 		if id != in_use:
 			_screens[id].show_title(_labels[id], in_use == "" and id == highlighted_id())
+			if _views.has(id):
+				_views[id].visible = false
 			continue
 		var lines: Array[String] = []
 		lines.assign(hub.call("lines"))
@@ -218,3 +262,17 @@ func _refresh() -> void:
 		var rows: Array[String] = lines.slice(1 + first, 1 + first + int(hub.call("rows_shown")))
 		var chosen: int = int(hub.call("selected_line")) - 1 - first
 		_screens[id].show_rows(_labels[id], rows, chosen, str(hub.call("note")), _reason)
+		_draw(id, first)
+
+
+## Draws the hub text's `drawing` on station `id`, or hides what was drawn.
+func _draw(id: String, first: int) -> void:
+	var drawing: Dictionary = hub.call("drawing") if hub.has_method("drawing") else {}
+	if drawing.is_empty():
+		if _views.has(id):
+			_views[id].visible = false
+		return
+	if not _views.has(id):
+		_views[id] = HubFittingView.new(_icons, _screen_look, HubRoom.LAYER_BIT)
+		_screens[id].add_child(_views[id])
+	_views[id].show_drawing(drawing, _screens[id].shown_rows(), first, _screens[id].face_size())

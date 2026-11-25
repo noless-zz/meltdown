@@ -27,7 +27,10 @@ const KEY_MAX_CHARS: String = "max_row_chars"
 const DEFAULT_MAX_ROWS: int = 5
 const DEFAULT_MAX_CHARS: int = 28
 const KEYS: Array[String] = [KEY_PAGES, KEY_EMPTY_CREW, KEY_EMPTY_STORE, KEY_TEXT]
-const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS]
+## The Fitting Bay's ship drawing (#1366, `HubFitLayout`). Optional; a file
+## without it keeps the bay's rows only.
+const KEY_FIT_SHIP: String = "fit_ship"
+const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS, KEY_FIT_SHIP]
 const PAGE_KEYS: Array[String] = ["id", "title"]
 const TEXT_MAX_LENGTH: int = 120
 
@@ -41,6 +44,8 @@ var max_rows_visible: int = DEFAULT_MAX_ROWS
 var max_row_chars: int = DEFAULT_MAX_CHARS
 ## The words of every row a hub panel shows (#1058).
 var words: HubWords = HubWords.new()
+## The ship the Fitting Bay draws; `has_ship()` is false when the file has none.
+var fit_layout: HubFitLayout = HubFitLayout.new()
 ## Set by `parse_json` when the text was rejected; the config is then empty.
 var error: String = ""
 var _titles: Dictionary[String, String] = {}
@@ -78,6 +83,9 @@ static func parse_json(text: String) -> HubConfig:
 		message = _check_text(KEY_EMPTY_STORE, data[KEY_EMPTY_STORE])
 	if message == "":
 		message = config._read_limits(data)
+	if message == "" and data.has(KEY_FIT_SHIP):
+		config.fit_layout = HubFitLayout.parse(data[KEY_FIT_SHIP])
+		message = config.fit_layout.error
 	var words: HubWords = HubWords.parse(data[KEY_TEXT], TEXT_MAX_LENGTH) if message == "" else null
 	if message == "" and words.error != "":
 		message = words.error
@@ -91,7 +99,7 @@ static func parse_json(text: String) -> HubConfig:
 
 ## The optional screen limits, each a whole number of at least 1.
 func _read_limits(data: Dictionary) -> String:
-	for key: String in OPTIONAL_KEYS:
+	for key: String in [KEY_MAX_ROWS, KEY_MAX_CHARS]:
 		if not data.has(key):
 			continue
 		var value: Variant = data[key]
