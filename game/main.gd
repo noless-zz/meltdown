@@ -175,7 +175,7 @@ func advance_frame(delta_seconds: float) -> void:
 	vignette.update(comfort, session, delta_seconds, get_node_or_null("XRRig"))  # View only (ARC-3).
 	flight_test.update(delta_seconds, session.paused)
 	break_prompt.update(delta_seconds, BreakPromptWiring.is_flying(session, flight_test, destroyed), _xr_running)
-	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel, delta_seconds, hub.is_open())
+	combat.update(session, get_node_or_null("XRRig/Camera") as Node3D, status_panel, delta_seconds, hub.is_open(), level_start.run)
 	$XRRig.pickup_hint = pickup_hint.is_due(session.current_ship(), session.current_salvage())  # View only.
 	map.update(session, delta_seconds, comfort.shared_click_hold())
 	meltdown.update(session, status_panel)

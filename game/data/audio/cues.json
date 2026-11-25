@@ -106,10 +106,10 @@
 			"pitch_max": 1.1
 		},
 		"MINER_RESCUED": {
-			"sound": "res://data/audio/pickup.wav",
+			"sound": "res://data/audio/miner_aboard.wav",
 			"volume_db": -4.0,
-			"pitch_min": 0.8,
-			"pitch_max": 0.8
+			"pitch_min": 1.0,
+			"pitch_max": 1.0
 		},
 		"PART_SLOTTED": {
 			"sound": "res://data/audio/part_slotted.wav",

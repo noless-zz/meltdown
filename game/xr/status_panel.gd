@@ -4,7 +4,7 @@ extends Node3D
 ## A small panel fixed in the cockpit, below and ahead of the eye point (#146).
 ## In flight it draws what a pilot needs in a fight (#1207): hull, shield and
 ## energy (#227), the countdown (#315), every primary slot, the one that fires
-## marked (#1210), the hold (#290) and how the level ended (#361). Its other
+## marked (#1210), the hold (#290), its tally (#1356) and how the level ended (#361). Its other
 ## rows (speed, preset, build, level, #747) take their values but draw only if
 ## the look's `rows` names them (`StatusPanelRowList`); the dev menu shows them.
 ##
@@ -113,6 +113,7 @@ var _level_row: StatusPanelLevelRow
 var _speed: Label3D
 var _boost: Label3D
 var _hold_row: StatusPanelHoldRow
+var tally_row: StatusPanelTallyRow = StatusPanelTallyRow.new(self, StatusPanelLook.shared(), StatusPanelTally.shipped_names())
 ## One row per primary slot (#1210).
 var weapon_rows: StatusPanelWeaponRows
 var _meltdown_row: StatusPanelMeltdownRow
