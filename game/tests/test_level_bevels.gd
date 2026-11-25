@@ -119,7 +119,7 @@ func test_no_bevel_in_the_shipped_levels_leaves_the_walls_or_crosses_an_opening(
 func test_the_level_view_draws_bevels_in_the_wall_material_with_a_dim_glow() -> String:
 	var view: LevelView = LevelView.new()
 	view.build(_union([BoxBounds.new(Vector3(-2, -3, -4), Vector3(2, 3, 4))]))
-	var node: MeshInstance3D = view.get_node(LevelView.BEVELS_NAME) as MeshInstance3D
+	var node: MeshInstance3D = view.bevels_of(0)
 	var look: Dictionary = view.look()
 	var result: String = ""
 	var material: ShaderMaterial = node.mesh.surface_get_material(0) as ShaderMaterial

@@ -28,18 +28,32 @@ static func _judge(_step: AcceptanceStep, runner: AcceptanceRunner, measurements
 static func judge_view(view: LevelView, measurements: Dictionary) -> Array:
 	if view == null:
 		return [AcceptanceReport.RESULT_FAIL, "the main scene shows no level"]
-	var walls: MeshInstance3D = view.get_node_or_null(LevelView.WALLS_NAME) as MeshInstance3D
-	var bevels: MeshInstance3D = view.get_node_or_null(LevelView.BEVELS_NAME) as MeshInstance3D
-	if walls == null or walls.mesh == null or bevels == null or bevels.mesh == null:
-		return [AcceptanceReport.RESULT_FAIL, "the level view draws no walls or no bevels"]
+	# One node per box since #1364: each box's walls and frames, and its bevels.
 	var wall_vertices: int = 0
-	for surface: int in walls.mesh.get_surface_count():
-		wall_vertices += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	var bevel_vertices: int = (bevels.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var bevel_vertices: int = 0
+	var surfaces: int = 0
+	var bevel_material: ShaderMaterial = null
+	for box: int in view.box_count():
+		var walls: MeshInstance3D = view.walls_of(box)
+		var bevels: MeshInstance3D = view.bevels_of(box)
+		if walls != null and walls.mesh != null:
+			if walls.mesh.get_surface_count() > LevelLook.CLASSES.size():
+				return [AcceptanceReport.RESULT_FAIL, "the walls of box %d take %d surfaces" % [box, walls.mesh.get_surface_count()]]
+			surfaces += walls.mesh.get_surface_count()
+			for surface: int in walls.mesh.get_surface_count():
+				wall_vertices += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		if bevels != null and bevels.mesh != null:
+			if bevels.mesh.get_surface_count() != 1:
+				return [AcceptanceReport.RESULT_FAIL, "the bevels of box %d take %d surfaces" % [box, bevels.mesh.get_surface_count()]]
+			surfaces += 1
+			bevel_vertices += (bevels.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+			bevel_material = bevels.mesh.surface_get_material(0) as ShaderMaterial
+	if wall_vertices == 0 or bevel_material == null:
+		return [AcceptanceReport.RESULT_FAIL, "the level view draws no walls or no bevels"]
 	measurements["wall_frame_quads"] = view.frames().size()
 	measurements["wall_bevels"] = view.bevels().size()
 	measurements["wall_triangles"] = (wall_vertices + bevel_vertices) / 3
-	measurements["wall_surfaces"] = walls.mesh.get_surface_count() + bevels.mesh.get_surface_count()
+	measurements["wall_surfaces"] = surfaces
 	if view.frames().is_empty():
 		return [AcceptanceReport.RESULT_FAIL, "no opening is framed"]
 	if view.bevels().is_empty():
@@ -48,10 +62,7 @@ static func judge_view(view: LevelView, measurements: Dictionary) -> Array:
 		return [AcceptanceReport.RESULT_FAIL, "the old glowing edge strips are still drawn"]
 	if wall_vertices != (view.quads().size() + view.frames().size()) * 6:
 		return [AcceptanceReport.RESULT_FAIL, "the frames are not drawn in the walls' surfaces"]
-	if walls.mesh.get_surface_count() > LevelLook.CLASSES.size() or bevels.mesh.get_surface_count() != 1:
-		return [AcceptanceReport.RESULT_FAIL, "the walls take %d surfaces and the bevels %d" \
-				% [walls.mesh.get_surface_count(), bevels.mesh.get_surface_count()]]
-	var glow: Color = (bevels.mesh.surface_get_material(0) as ShaderMaterial).get_shader_parameter("glow")
+	var glow: Color = bevel_material.get_shader_parameter("glow")
 	if glow.r > 1.0 or glow.g > 1.0 or glow.b > 1.0:
 		return [AcceptanceReport.RESULT_FAIL, "the bevels glow %s, more than an outline" % glow]
 	return [AcceptanceReport.RESULT_PASS, "%d frame quads and %d bevels, %d triangles in %d surfaces" \
