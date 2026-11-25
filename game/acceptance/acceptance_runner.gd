@@ -152,7 +152,7 @@ func _start_step(step: AcceptanceStep) -> void:
 		level_problem = "level %s: the scene could not switch to it" % step.level
 		return
 	var replay: Replay = Replay.load_file(step.replay_path)
-	if replay.error != "" or replay.ship_count != 1:
+	if replay.error != "" or (replay.ship_count != 1 and not AcceptanceStepLevel.flies_ships(step)):
 		return  # `replay_problem` reports it when the step is recorded.
 	replay_source = AcceptanceControlsScript.source_for(step, replay, main)  # Its inputs, or scripted controls (#818).
 	if step.level_seed == AcceptanceStep.NO_SEED:
