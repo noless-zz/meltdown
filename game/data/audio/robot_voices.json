@@ -1,0 +1,56 @@
+{
+	"max_voices": 6,
+	"reference_m": 3.0,
+	"far_cutoff_hz": 2500.0,
+	"muffle_cutoff_hz": 700.0,
+	"voices": {
+		"drone": {
+			"sound": "res://data/audio/voice_drone.wav",
+			"volume_db": -10.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.2,
+			"range_m": 30.0,
+			"muffle_db": -12.0
+		},
+		"glider": {
+			"sound": "res://data/audio/voice_glider.wav",
+			"volume_db": -10.0,
+			"pitch_min": 0.85,
+			"pitch_max": 1.25,
+			"range_m": 35.0,
+			"muffle_db": -12.0
+		},
+		"hauler": {
+			"sound": "res://data/audio/voice_hauler.wav",
+			"volume_db": -6.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.1,
+			"range_m": 45.0,
+			"muffle_db": -9.0
+		},
+		"needler": {
+			"sound": "res://data/audio/voice_needler.wav",
+			"volume_db": -12.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.3,
+			"range_m": 30.0,
+			"muffle_db": -15.0
+		},
+		"skimmer": {
+			"sound": "res://data/audio/voice_skimmer.wav",
+			"volume_db": -10.0,
+			"pitch_min": 0.9,
+			"pitch_max": 1.2,
+			"range_m": 35.0,
+			"muffle_db": -12.0
+		},
+		"warden": {
+			"sound": "res://data/audio/voice_warden.wav",
+			"volume_db": -4.0,
+			"pitch_min": 0.95,
+			"pitch_max": 1.05,
+			"range_m": 55.0,
+			"muffle_db": -8.0
+		}
+	}
+}

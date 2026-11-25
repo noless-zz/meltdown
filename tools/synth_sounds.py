@@ -100,6 +100,8 @@ def main():
 		"ship_escaped": chime([523, 659, 784, 1047], 0.09, 0.8),
 		"ship_destroyed": thud(90, 1.2, 0.85, 2.5, 13),
 		"alarm_raised": chime([740, 554, 740, 554], 0.18, 0.9),
+		# A slower, lower rising arpeggio than the pickup's, so a rescue is told apart (#1356).
+		"miner_aboard": chime([392, 523, 659, 784], 0.12, 0.7),
 	}
 	for name, samples in sounds.items():
 		write(name, samples)
