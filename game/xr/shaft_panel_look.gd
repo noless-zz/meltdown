@@ -51,7 +51,7 @@ const FALLBACK: Dictionary = {
 	"title_color": Color(0.85, 0.95, 1.0),
 	"text_color": Color(0.6, 0.7, 0.8),
 	"highlight_color": Color(0.35, 1.0, 0.45),
-	"title_position_m": Vector3(0.0, 0.24, -1.5),
+	"title_position_m": Vector3(0.0, 0.3, -1.5),
 	"entry_step_m": 0.14,
 	"title_font_size": 72.0,
 	"label_font_size": 48.0,
