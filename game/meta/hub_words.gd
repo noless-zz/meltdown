@@ -7,15 +7,20 @@ extends RefCounted
 ## listed in `PLACEHOLDERS`. Kept apart from `HubConfig`, which reads the rest of
 ## the file, so each class stays small.
 
-## Row patterns, each with the placeholders `HubText` fills in.
+## Row patterns, each with the placeholders `HubText` fills in. A `_note` key
+## (and `launch_discard_note`, `stats_empty`) is the one line of explanation
+## shown under its row only while that row is selected (#1300).
 const PLACEHOLDERS: Dictionary[String, Array] = {
-	"crew_row": ["role", "amount", "stat"],
-	"store_row": ["name", "tier", "count"],
+	"crew_row": ["role"],
+	"crew_note": ["amount", "stat"],
+	"store_row": ["name", "count"],
+	"store_note": ["tier"],
 	"ready_header": [],
 	"locked_header": [],
 	"built_header": [],
 	"ready_row": ["name"],
-	"locked_row": ["name", "reason"],
+	"locked_row": ["name"],
+	"locked_note": ["reason"],
 	"locked_needs": ["name"],
 	"locked_short": ["count", "name"],
 	"cost_row": ["cost"],
@@ -32,9 +37,12 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"fit_option_row": ["name"],
 	"clear_row": [],
 	"launch_row": [],
-	"resume_row": ["level", "seed"],
+	"resume_row": ["level"],
+	"resume_note": ["seed"],
 	"launch_discard_note": [],
 	"resume_none": [],
+	"empty_crew_note": [],
+	"empty_store_note": [],
 	"stats_empty": [],
 	"stats_runs_started": ["count"],
 	"stats_runs_won": ["count"],

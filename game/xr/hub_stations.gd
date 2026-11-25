@@ -10,9 +10,10 @@ extends Node3D
 ## back to choosing a station. Every press is a dev menu named action (decision
 ## record 0009), so the controls stay remappable (PLT-5).
 ##
-## The station in use shows its rows from the hub text (`meta/hub_text.gd`,
-## chosen with its `choose_station`), so the stations and the panel share one
-## copy of the hub's rules; the others show only their title. Like the panel it
+## The station in use shows the hub text's window of its rows and the selected
+## row's note (#1300), from the hub text (`meta/hub_text.gd`, chosen with its
+## `choose_station`), so the stations and the panel share one copy of the hub's
+## rules; the others show only their title. Like the panel it
 ## names no meta class and calls the hub text by method name (`HUB_METHODS`),
 ## writes no simulation state (MP-2), reads no comfort setting (ARC-3) and
 ## moves nothing (CMF-8). The screens hang on the room's station meshes, so
@@ -21,7 +22,7 @@ extends Node3D
 const NODE_NAME: String = "HubStations"
 ## The hub text's methods the stations call.
 const HUB_METHODS: Array[String] = ["lines", "selected_line", "selected", "press", "move", "choose_station",
-	"leave_station"]
+	"leave_station", "rows_shown", "first_shown", "note"]
 ## How far the aim ray may pass from a screen's centre and still point at it;
 ## the screens are 0.45 m apart, so two never both qualify.
 const POINT_RADIUS_M: float = 0.2
@@ -191,5 +192,7 @@ func _refresh() -> void:
 			continue
 		var lines: Array[String] = []
 		lines.assign(hub.call("lines"))
-		var rows: Array[String] = lines.slice(1)
-		_screens[id].show_rows(_labels[id], rows, int(hub.call("selected_line")) - 1, _reason)
+		var first: int = hub.call("first_shown")
+		var rows: Array[String] = lines.slice(1 + first, 1 + first + int(hub.call("rows_shown")))
+		var chosen: int = int(hub.call("selected_line")) - 1 - first
+		_screens[id].show_rows(_labels[id], rows, chosen, str(hub.call("note")), _reason)

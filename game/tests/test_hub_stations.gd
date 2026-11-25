@@ -125,15 +125,17 @@ func test_a_uses_the_station_and_stick_left_goes_back() -> String:
 	return result
 
 
-## The hub text's rows the screen shows: the window around the selected row,
-## marked as the screen marks it.
+## The hub text's rows the screen shows: its window (#1300), the selected row
+## marked as the screen marks it and its note under it.
 static func _window(hub: HubText) -> Array[String]:
-	var rows: Array[String] = hub.lines().slice(1)
-	var chosen: int = hub.selected_line() - 1
+	var first: int = hub.first_shown()
+	var rows: Array[String] = hub.lines().slice(1 + first, 1 + first + hub.rows_shown())
+	var chosen: int = hub.selected_line() - 1 - first
 	if chosen >= 0:
 		rows[chosen] = str(HubPanelLook.load_file()["mark_text"]) + rows[chosen]
-	var start: int = HubStationScreen.window_start(rows.size(), chosen, HubStationScreen.ROWS_SHOWN)
-	return rows.slice(start, start + HubStationScreen.ROWS_SHOWN)
+		if hub.note() != "":
+			rows.insert(chosen + 1, hub.note())
+	return rows
 
 
 func test_the_rows_scroll_with_the_selection() -> String:
@@ -147,11 +149,9 @@ func test_the_rows_scroll_with_the_selection() -> String:
 		var marked: int = 0
 		for line: String in shown:
 			marked += 1 if line.begins_with(str(HubPanelLook.load_file()["mark_text"])) else 0
-		if marked != 1 or shown.size() > HubStationScreen.ROWS_SHOWN or shown != _window(hub):
+		if marked != 1 or shown.size() > hub.rows_shown() + 1 or shown != _window(hub):
 			result = "after %d steps down the screen shows %s" % [i + 1, shown]
 			break
-	if result == "" and HubStationScreen.window_start(30, 29, 8) != 22:
-		result = "the window at the last of 30 rows starts at %d" % HubStationScreen.window_start(30, 29, 8)
 	_free(stations)
 	return result
 

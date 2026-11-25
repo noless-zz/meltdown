@@ -3,15 +3,17 @@ extends Node3D
 
 ## The words on one station's screen in the home base room (#1299, CRW-2):
 ## only the station's title while it is not in use (marked while it is the one
-## the pilot would choose), or the title, a window of its rows with the
-## selected one marked, and a refused press's reason while it is in use. Hung
+## the pilot would choose), or the title, the hub text's window of its rows
+## with the selected one marked and its note on one line under it, and a
+## refused press's reason while it is in use. The hub text picks the window
+## (`max_rows_visible` in the hub file, #1300); the screen only draws it. Hung
 ## on the room's `Screen` mesh, on its face towards the pilot, so it tilts and
 ## hides with the room. The colours and the mark are the hub panel's
 ## (`HubPanelLook`); the words are the hub text's and the room's labels.
 
 const NODE_NAME: String = "Words"
-## Rows shown at once; the window follows the selection.
-const ROWS_SHOWN: int = 8
+## Lines made up front: five rows and a note; more are made if a window asks.
+const LINES_MADE: int = 6
 ## Just in front of the screen box's face (`HubRoomParts.SCREEN_SIZE_M.z` / 2).
 const FACE_M: float = 0.017
 const TITLE_Y_M: float = 0.1
@@ -24,20 +26,19 @@ var _look: Dictionary
 var _title: Label3D
 var _rows: Array[Label3D] = []
 var _reason: Label3D
+var _layers: int
 
 
 func _init(look: Dictionary, layers: int) -> void:
 	name = NODE_NAME
 	_look = look
+	_layers = layers
 	position = Vector3(0.0, 0.0, FACE_M)
 	_title = _label("Title", TITLE_FONT_SIZE, layers)
 	_title.position = Vector3(0.0, TITLE_Y_M, 0.0)
-	for i: int in ROWS_SHOWN:
-		_rows.append(_label("Row%d" % i, ROW_FONT_SIZE, layers))
-		_rows[i].position = Vector3(0.0, TITLE_Y_M - STEP_M * (i + 1), 0.0)
 	_reason = _label("Reason", ROW_FONT_SIZE, layers)
-	_reason.position = Vector3(0.0, TITLE_Y_M - STEP_M * (ROWS_SHOWN + 1), 0.0)
 	_reason.modulate = look["reason_color"]
+	_make_lines(LINES_MADE)
 
 
 ## The station not in use: its title alone, marked when `highlighted`.
@@ -49,21 +50,28 @@ func show_title(title: String, highlighted: bool) -> void:
 	_reason.visible = false
 
 
-## The station in use: `title`, the window of `rows` around `selected` (an index
-## into `rows`, -1 for none) and `reason` when it is not "".
-func show_rows(title: String, rows: Array[String], selected: int, reason: String) -> void:
+## The station in use: `title`, the shown `rows` with row `selected` (-1 for
+## none) marked, `note` on the line under it when it is not "", and `reason`
+## when it is not "".
+func show_rows(title: String, rows: Array[String], selected: int, note: String, reason: String) -> void:
 	_put(_title, title, _look["title_color"])
-	var start: int = window_start(rows.size(), selected, ROWS_SHOWN)
-	for i: int in ROWS_SHOWN:
-		var index: int = start + i
-		_rows[i].visible = index < rows.size()
-		if not _rows[i].visible:
-			continue
-		var chosen: bool = index == selected
-		_put(_rows[i], (_look["mark_text"] + rows[index]) if chosen else rows[index],
-			_look["selected_color"] if chosen else _look["text_color"])
+	var lines: Array[String] = []
+	var colors: Array[Color] = []
+	for i: int in rows.size():
+		var chosen: bool = i == selected
+		lines.append((_look["mark_text"] + rows[i]) if chosen else rows[i])
+		colors.append(_look["selected_color"] if chosen else _look["text_color"])
+		if chosen and note != "":
+			lines.append(note)
+			colors.append(_look["text_color"])
+	_make_lines(lines.size())
+	for i: int in _rows.size():
+		_rows[i].visible = i < lines.size()
+		if _rows[i].visible:
+			_put(_rows[i], lines[i], colors[i])
 	_reason.text = reason
 	_reason.visible = reason != ""
+	_reason.position = Vector3(0.0, TITLE_Y_M - STEP_M * (lines.size() + 1), 0.0)
 
 
 ## The shown lines, top first.
@@ -78,12 +86,11 @@ func texts() -> Array[String]:
 	return shown
 
 
-## The first row index shown so that `selected` sits in a window of `shown`
-## rows out of `count`, as near the window's middle as the ends allow.
-static func window_start(count: int, selected: int, shown: int) -> int:
-	if count <= shown or selected < 0:
-		return 0
-	return clampi(selected - shown / 2, 0, count - shown)
+func _make_lines(count: int) -> void:
+	while _rows.size() < count:
+		var line: Label3D = _label("Row%d" % _rows.size(), ROW_FONT_SIZE, _layers)
+		line.position = Vector3(0.0, TITLE_Y_M - STEP_M * (_rows.size() + 1), 0.0)
+		_rows.append(line)
 
 
 func _put(label: Label3D, text: String, color: Color) -> void:
