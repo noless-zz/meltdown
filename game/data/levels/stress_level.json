@@ -1,0 +1,30 @@
+{
+	"boxes": [
+		{"min": [-15.0, -8.0, -15.0], "max": [15.0, 8.0, 15.0]}
+	],
+	"start": {"position": [0.0, 0.0, 12.0], "facing": [0.0, 0.0, -1.0]},
+	"robots": [
+		{"id": "needler", "position": [-12.0, -5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "drone", "position": [-6.0, -5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "skimmer", "position": [6.0, -5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "glider", "position": [12.0, -5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "drone", "position": [-12.0, 5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "needler", "position": [-6.0, 5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "glider", "position": [6.0, 5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "skimmer", "position": [12.0, 5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "hauler", "position": [-12.0, 0.0, -7.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "warden", "position": [-6.0, 0.0, -8.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "warden", "position": [6.0, 0.0, -8.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "hauler", "position": [12.0, 0.0, -7.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "drone", "position": [-12.0, 4.0, 0.0], "facing": [1.0, 0.0, 0.0]},
+		{"id": "skimmer", "position": [-12.0, -4.0, 0.0], "facing": [1.0, 0.0, 0.0]},
+		{"id": "needler", "position": [12.0, 4.0, 0.0], "facing": [-1.0, 0.0, 0.0]},
+		{"id": "glider", "position": [12.0, -4.0, 0.0], "facing": [-1.0, 0.0, 0.0]},
+		{"id": "drone", "position": [-12.0, 0.0, 6.0], "facing": [1.0, 0.0, 0.0]},
+		{"id": "needler", "position": [12.0, 0.0, 6.0], "facing": [-1.0, 0.0, 0.0]},
+		{"id": "hauler", "position": [0.0, 5.0, -12.0], "facing": [0.0, 0.0, 1.0]},
+		{"id": "skimmer", "position": [0.0, -5.0, -12.0], "facing": [0.0, 0.0, 1.0]}
+	],
+	"reactor": {"position": [0.0, 0.0, 0.0], "radius": 2.5, "hull": 16.0, "meltdown_seconds": 120.0},
+	"exit_radius": 1.0
+}
