@@ -106,10 +106,13 @@ run_headset() {
 		STUB_ADB_BACKGROUND="${BACKGROUND:-0}" \
 		STUB_GODOT_EARLY_LOG="${EARLY_LOG:+$dir/early.log}" \
 		STUB_GODOT_EARLY_POLLS="${EARLY_POLLS:-0}" \
+		STUB_ADB_RESOLVE_SEQUENCE="${RESOLVES:-ok}" \
+		STUB_ADB_RESOLVE_ACTIVITY="${RESOLVED:-}" \
+		STUB_ADB_NOT_EXPORTED="${NOT_EXPORTED:-}" \
 		GITHUB_STEP_SUMMARY="$dir/summary.md" \
 		pwsh -NoProfile -NonInteractive -File "$tools/device_acceptance.ps1" \
 		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds 3 \
-		-WakeSeconds 0 -ForegroundGraceSeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" 2>&1)" || status=$?
+		-WakeSeconds 0 -ForegroundGraceSeconds 0 -ResolveRetrySeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
 }
 
@@ -155,7 +158,8 @@ if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] && [ -f "$out/m1.
 	&& [ "$(line_of "logcat -c")" -lt "$(line_of "logcat -v threadtime")" ] \
 	&& [ "$(line_of "logcat -v threadtime")" -lt "$(line_of "am start")" ] \
 	&& grep -q -- "-s SERIAL1 install -r" <<< "$log" \
-	&& grep -q -- "am start -n io.github.nolesszz.meltdown/com.godot.game.GodotApp --es meltdown_acceptance m1" <<< "$log" \
+	&& grep -q -- "am start -n io.github.nolesszz.meltdown/com.godot.game.GodotAppLauncher --es meltdown_acceptance m1" <<< "$log" \
+		&& [ "$(grep -c -- "resolve-activity" <<< "$log")" -eq 1 ] && ! grep -q "Fell back" <<< "$output" \
 	&& grep -q -- "settings put global stay_on_while_plugged_in 7" <<< "$log" \
 	&& grep -q -- "settings put global stay_on_while_plugged_in 2" <<< "$log" \
 	&& grep -q -- "automation_disable" <<< "$log" \
@@ -250,6 +254,52 @@ if [ "$status" -eq 1 ] && grep -q "Install failed on SERIAL1: the headset droppe
 	pass "wait-for-device hangs: gives up after the wait, installs nothing"
 else
 	fail "wait-for-device hangs: gives up after the wait, installs nothing"
+fi
+
+launcher="am start -n io.github.nolesszz.meltdown/com.godot.game.GodotAppLauncher --es meltdown_acceptance m1"
+
+# The activity lookup prints nothing usable right after an install (#1392): it
+# is asked three times, then the exported launcher is started and the output
+# says it fell back and why.
+RESOLVES="empty" run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
+	&& [ "$(grep -c -- "resolve-activity" <<< "$log")" -eq 3 ] \
+	&& grep -q "Fell back to io.github.nolesszz.meltdown/com.godot.game.GodotAppLauncher because the activity lookup printed no activity on all 3 tries" <<< "$output" \
+	&& [ "$(grep -c -- "am start" <<< "$log")" -eq 1 ] && grep -q -- "$launcher" <<< "$log"; then
+	pass "empty activity lookup: asked three times, falls back to the launcher and says so"
+else
+	fail "empty activity lookup: asked three times, falls back to the launcher and says so"
+fi
+
+# An empty answer, then a usable one: the second try is used and nothing falls back.
+RESOLVES="empty ok" run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 0 ] && [ "$(grep -c -- "resolve-activity" <<< "$log")" -eq 2 ] \
+	&& ! grep -q "Fell back" <<< "$output" && grep -q -- "$launcher" <<< "$log"; then
+	pass "activity lookup empty once: retried, no fallback"
+else
+	fail "activity lookup empty once: retried, no fallback"
+fi
+
+# The lookup names an activity Android will not start from adb: the start is
+# retried once with the launcher and the suite runs (#1392).
+RESOLVED="com.godot.game.GodotApp" NOT_EXPORTED="com.godot.game.GodotApp" \
+	run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
+	&& grep -q "refused io.github.nolesszz.meltdown/com.godot.game.GodotApp as not exported; trying" <<< "$output" \
+	&& [ "$(grep -c -- "am start" <<< "$log")" -eq 2 ] && grep -q -- "$launcher" <<< "$log"; then
+	pass "activity not exported: retried once with the launcher, suite runs"
+else
+	fail "activity not exported: retried once with the launcher, suite runs"
+fi
+
+# The launcher itself refused: no second retry, the suite fails saying why.
+RESOLVES="empty" NOT_EXPORTED="com.godot.game.GodotAppLauncher" \
+	run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
+if [ "$status" -eq 1 ] && [ "$(status_of "$out")" = "failed" ] \
+	&& grep -q "The game did not start" <<< "$output" && [ "$(grep -c -- "am start" <<< "$log")" -eq 1 ]; then
+	pass "launcher refused: fails once, no retry loop"
+else
+	fail "launcher refused: fails once, no retry loop"
 fi
 
 # The simulator job skips cleanly away from Windows.
