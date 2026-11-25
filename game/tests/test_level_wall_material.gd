@@ -134,7 +134,7 @@ func test_the_level_view_draws_walls_with_the_shipped_theme() -> String:
 	var view: LevelView = LevelView.new()
 	var boxes: Array[BoxBounds] = [BoxBounds.new(Vector3(-2, -3, -4), Vector3(2, 3, 4))]
 	view.build(BoxUnion.new(boxes))
-	var walls: MeshInstance3D = view.get_node(LevelView.WALLS_NAME) as MeshInstance3D
+	var walls: MeshInstance3D = view.walls_of(0)
 	var theme: Dictionary = LevelWallMaterial.load_theme()
 	var result: String = ""
 	for surface: int in walls.mesh.get_surface_count():
