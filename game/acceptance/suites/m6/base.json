@@ -12,6 +12,12 @@
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
 			"checks": ["no_script_errors", "hub_stations"]
+		},
+		{
+			"id": "hub_icons",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "hub_icons"]
 		}
 	]
 }
