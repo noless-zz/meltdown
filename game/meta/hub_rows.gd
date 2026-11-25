@@ -8,13 +8,15 @@ extends RefCounted
 ## while the row is selected.
 
 
+## One row per role with how many hold it; its note is the total they give,
+## clamped to the stat's cap, and "(max)" marks a capped role (#1336).
 static func crew(model: HubModel) -> Array[Dictionary]:
 	var words: HubWords = model.config.words
 	var rows: Array[Dictionary] = []
-	for member: Dictionary in model.crew():
-		var role: String = member["role_name"] if member["role_name"] != "" else member["role"]
-		rows.append(noted(info(words.row("crew_row", {"role": role})),
-			words.row("crew_note", {"amount": member["amount"], "stat": words.stat_name(member["stat"])})))
+	for group: Dictionary in model.crew_groups():
+		var role: String = group["role_name"] if group["role_name"] != "" else group["role"]
+		rows.append(noted(info(words.row("crew_capped_row" if group["capped"] else "crew_row", {"role": role, "count": group["count"]})),
+			words.row("crew_note", {"amount": group["total"], "stat": words.stat_name(group["stat"])})))
 	if rows.is_empty():
 		rows.append(noted(info(model.config.empty_crew), words.row("empty_crew_note")))
 	return rows
@@ -35,12 +37,13 @@ static func stats(model: HubModel) -> Array[Dictionary]:
 	return rows
 
 
+## A component row's note says which upgrades use it (#1336).
 static func store(model: HubModel) -> Array[Dictionary]:
 	var words: HubWords = model.config.words
 	var rows: Array[Dictionary] = []
 	for kind: Dictionary in model.store():
 		rows.append(noted(info(words.row("store_row", {"name": kind["name"], "count": kind["count"]})),
-			words.row("store_note", {"tier": kind["tier"]})))
+			ComponentUses.line(words, model.ordered_upgrades(), kind["id"])))  # What it is for (#1336).
 	if rows.is_empty():
 		rows.append(noted(info(model.config.empty_store), words.row("empty_store_note")))
 	return rows

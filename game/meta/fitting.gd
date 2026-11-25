@@ -18,6 +18,8 @@ extends RefCounted
 ##   and utility slots, so defence and engine upgrades never compete with
 ##   modules for space; `RunStartShip` applies their part files to the ship's
 ##   numbers. Weapon, secondary and utility slots refuse them.
+## - One crafted upgrade is one item (#1336): `check` refuses a fitting that
+##   names it in two slots; `move` shifts it from one slot to another.
 
 const PRIMARY: String = "primary"
 const SECONDARY: String = "secondary"
@@ -131,6 +133,18 @@ func part_ids() -> Array[String]:
 		if parts[slot] != "":
 			ids.append(parts[slot])
 	return ids
+
+
+## The slot holding upgrade `id` ("primary[1]", "shield", ...), or "" (#1336).
+func slot_of(id: String) -> String:
+	return FittingSlots.slot_of(self, id)
+
+
+## Moves upgrade `id` from the slot it is in to `to_slot` in one step, since one
+## crafted upgrade is one item (#1336). "" on success, else the reason with
+## nothing changed; `check` still judges whether it fits there.
+func move(id: String, to_slot: String) -> String:
+	return FittingSlots.move(self, id, to_slot)
 
 
 ## True when no slot names an upgrade.

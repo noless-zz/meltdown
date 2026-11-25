@@ -89,7 +89,7 @@ func test_crew_and_store_lines_come_from_the_patterns() -> String:
 	var hub: HubText = _hub(profile)
 	var words: HubWords = hub.model.config.words
 	_to_page(hub, HubConfig.CREW)
-	var crew: String = words.row("crew_row", {"role": "Shield Technician", "amount": 5, "stat": words.stat_name("shield_max")})
+	var crew: String = words.row("crew_row", {"role": "Shield Technician", "count": 1, "amount": 5, "stat": words.stat_name("shield_max")})
 	if hub.lines() != ([hub.model.page_title(HubConfig.CREW), crew] as Array[String]) or hub.selected() != {}:
 		return "crew page is %s" % [hub.lines()]
 	_to_page(hub, HubConfig.STORE)
@@ -198,6 +198,9 @@ func test_fit_then_launch_returns_the_models_loadout() -> String:
 	return ""
 
 
+## A mounted weapon is offered for the other primary slot only as a move
+## (#1336), so the old refused second mount no longer exists; a refused mount
+## still passes the model's reason through.
 func test_a_refused_fit_passes_the_reason_through() -> String:
 	var profile: Profile = Profile.new()
 	profile.crafted.append("needle_gun")
@@ -205,14 +208,15 @@ func test_a_refused_fit_passes_the_reason_through() -> String:
 	_to_page(hub, HubConfig.FIT)
 	if not _select(hub, "id", "needle_gun", HubText.ACTION_FIT) or hub.press() != "":
 		return "first fit failed"
-	# The same weapon is now offered only for primary[1], where Fitting.check refuses it.
-	if not _select(hub, "id", "needle_gun", HubText.ACTION_FIT) or hub.selected()["slot"] != "primary[1]":
-		return "no needle_gun row for primary[1]: %s" % [hub.lines()]
-	var picked: Dictionary = hub.selected()
-	var direct: String = hub.model.fit(picked["slot"], picked["id"])
-	var reason: String = hub.press()
-	if reason == "" or reason != direct:
-		return "pressing gave \"%s\", the model says \"%s\"" % [reason, direct]
+	if not _select(hub, "id", "needle_gun", HubText.ACTION_MOVE) or hub.selected()["slot"] != "primary[1]":
+		return "no needle_gun move row for primary[1]: %s" % [hub.lines()]
+	var expected: Fitting = FittingSlots.copy(hub.model.fitting)
+	expected.move("needle_gun", "primary[1]")
+	if hub.press() != "" or hub.model.fitting.to_json() != expected.to_json():
+		return "the move press left %s" % hub.model.fitting.to_json()
+	var direct: String = hub.model.fit("primary[0]", "needle_gun")
+	if direct == "" or hub.model.fitting.to_json() != expected.to_json():
+		return "a second mount passed the model: \"%s\"" % direct
 	return ""
 
 
