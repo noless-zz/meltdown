@@ -130,8 +130,8 @@ func test_crew_quarters_shows_one_row_per_role_with_the_total_as_its_note() -> S
 	var riggers: String = words.row("crew_capped_row", {"role": "Cargo Rigger", "count": 3})
 	var tech: String = words.row("crew_row", {"role": "Shield Technician", "count": 1})
 	var expected: Array[String] = [hub.model.page_title(HubConfig.CREW), riggers, tech]
-	if hub.lines() != expected:
-		return "crew page is %s, expected %s" % [hub.lines(), expected]
+	if hub.lines().slice(0, expected.size()) != expected:  # The ship summary follows (#1357).
+		return "crew page is %s, expected %s first" % [hub.lines(), expected]
 	var capped: String = words.row("crew_note", {"amount": 2, "stat": words.stat_name("salvage_slots")})
 	if hub.note() != capped:
 		return "the riggers' note is \"%s\", expected \"%s\"" % [hub.note(), capped]

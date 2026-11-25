@@ -193,6 +193,32 @@ func move(slot: String, id: String) -> String:
 	return _take(candidate)
 
 
+## Unmounts every fitted upgrade in one step (#1357): the next launch flies
+## the ship file as it is. Crafted upgrades stay crafted and the crew stays.
+## Always "" (an empty fitting always passes `Fitting.check`).
+func strip() -> String:
+	return _take(Fitting.new())
+
+
+## The ship as the next launch flies it (`ShipSummary.of`, #1357).
+func summary() -> Array[Dictionary]:
+	return ShipSummary.of(ship_data, fitting, tree, profile, roles, parts.parts)
+
+
+## What pressing a fit or move `action` (as `HubText.selected` gives it) would
+## change, as `ShipSummary.changes`; empty when it changes no attribute or the
+## fitting would refuse it. Changes nothing.
+func preview(action: Dictionary) -> Array[Dictionary]:
+	var candidate: Fitting = FittingSlots.copy(fitting)
+	var slot: String = str(action.get("slot", ""))
+	var id: String = str(action.get("id", ""))
+	var placed: bool = candidate.move(id, slot) == "" if str(action.get("action", "")) == HubText.ACTION_MOVE \
+		else FittingSlots.put(candidate, slot, id)
+	if not placed or Fitting.check(candidate, tree, profile.crafted, ship_data) != "":
+		return []
+	return ShipSummary.changes(summary(), ShipSummary.of(ship_data, candidate, tree, profile, roles, parts.parts))
+
+
 ## Tells the model which suspended run waits (`RunSaveStore`'s save), or null for none.
 func set_waiting(save: RunSave) -> void:
 	waiting_run = save

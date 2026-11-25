@@ -194,7 +194,7 @@ func update(paused: bool, head_point: Transform3D) -> bool:
 	match str((result["pressed"] as Dictionary).get("action", "")):
 		HubText.ACTION_CRAFT:
 			save_profile()
-		HubText.ACTION_FIT, HubText.ACTION_MOVE:
+		HubText.ACTION_FIT, HubText.ACTION_MOVE, HubText.ACTION_STRIP:
 			save_fitting()
 		HubText.ACTION_LAUNCH:
 			launch()

@@ -107,6 +107,9 @@ func test_every_shipped_text_fits_a_row() -> String:
 		"have": str(WIDE_COUNT), "need": str(WIDE_COUNT),
 		# A locker note names one upgrade, a move note one slot (#1336).
 		"names": _longest(upgrades), "from": _longest(slot_names),
+		# Ship summary numbers (#1357): wider than any ship file value or crew total.
+		"current": str(WIDE_COUNT), "stock": str(WIDE_COUNT), "before": str(WIDE_COUNT), "after": str(WIDE_COUNT),
+		"change": "+%d" % amounts.max(),
 	}
 	var texts: Dictionary[String, String] = {"empty_crew": config.empty_crew, "empty_store": config.empty_store}
 	for id: String in config.pages:
@@ -191,11 +194,14 @@ func test_scrolling_keeps_the_selection_on_screen() -> String:
 			hub.move(1 if step < count else -1)
 			var now: int = hub.selected_line() - 1
 			var first: int = hub.first_shown()
+			var rows_now: int = hub.lines().size() - 1  # Detail rows come and go with the selection.
 			if now >= 0 and (now < first or now >= first + shown):
 				return "%s %d: row %d selected, rows %d..%d shown" % [places[i], i, now, first, first + shown - 1]
-			if first < 0 or (count > shown and first > count - shown) or (count <= shown and first != 0):
-				return "%s %d: window starts at %d of %d rows" % [places[i], i, first, count]
-			if now >= before and now < before + shown and was >= before and was < before + shown and first != before:
+			if first < 0 or (rows_now > shown and first > rows_now - shown) or (rows_now <= shown and first != 0):
+				return "%s %d: window starts at %d of %d rows" % [places[i], i, first, rows_now]
+			# The selection includes the detail rows under it (#1357).
+			var end: int = hub.selection_end()
+			if now >= before and end < before + shown and was >= before and was < before + shown and first != before:
 				return "%s %d: the window moved from %d to %d inside it" % [places[i], i, before, first]
 	if HubWindow.scrolled(0, 29, _flags(30, []), 8) != 22 or HubWindow.scrolled(22, 0, _flags(30, []), 8) != 0:
 		return "the window does not follow the selection to the ends"
