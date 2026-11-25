@@ -21,6 +21,13 @@
 			"checks": ["no_script_errors", "fit_move"]
 		},
 		{
+			"id": "hub_screens",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
+			"checks": ["no_script_errors", "hub_screens"]
+		},
+		{
 			"id": "hub_icons",
 			"run": 12345,
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
