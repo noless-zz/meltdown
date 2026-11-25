@@ -9,6 +9,7 @@ extends RefCounted
 ##     {"wall_color": [r, g, b], "floor_color": [r, g, b],
 ##      "ceiling_color": [r, g, b], "roughness": 0..1,
 ##      "edge_color": [r, g, b], "edge_energy": 0..1, "edge_width_m": 0.02..1,
+##      "frame_depth_m": 0..1, "frame_width_m": 0..0.5 (at most the depth),
 ##      "grid_spacing_m": 0.5..20, "grid_line_width_m": 0.01..0.5,
 ##      "grid_line_factor": 0..4,
 ##      "plate_floor_m", "plate_wall_m", "plate_ceiling_m": 0.25..10,
@@ -39,6 +40,13 @@ extends RefCounted
 ##   ones, the cheapest depth cue there is. It is worked out in the wall
 ##   shader, not the environment, so it costs only on the walls (see
 ##   `level_wall.gdshader`); edge strips, robots and the cockpit are not fogged.
+## - Walls have mass (#1323, owner's note on #1292): every box edge is cut
+##   by a bevel `edge_width_m` across each wall (`LevelBevels`), drawn in the
+##   wall material with a dim glow of `edge_color` at `edge_energy`, so the
+##   shape still reads in the dark (#609) where thin glowing strips used to
+##   outline it. Every opening gets a frame `frame_depth_m` deep, the wall's
+##   thickness, reaching `frame_width_m` into the opening (`LevelFrames`),
+##   drawn with the walls. A depth or width of 0 draws no frames.
 ## - Ambient stays low so the mine is dark until the headlight, weapons or
 ##   flares light it (LGT-1); the range caps it.
 
@@ -50,9 +58,11 @@ const COLOR_KEYS: Array[String] = ["wall_color", "floor_color", "ceiling_color",
 ## Inclusive ranges of the number keys.
 const RANGES: Dictionary[String, Array] = {
 	"roughness": [0.0, 1.0],
-	# Edge energy stays at or below 1 so the strips outline the mine, not light it.
+	# Edge energy stays at or below 1 so the bevels outline the mine, not light it.
 	"edge_energy": [0.0, 1.0],
 	"edge_width_m": [0.02, 1.0],
+	"frame_depth_m": [0.0, 1.0],
+	"frame_width_m": [0.0, 0.5],
 	"grid_spacing_m": [0.5, 20.0],
 	"grid_line_width_m": [0.01, 0.5],
 	"grid_line_factor": [0.0, 4.0],
@@ -94,8 +104,10 @@ const FALLBACK: Dictionary = {
 	"ceiling_color": Color(0.1, 0.11, 0.13),
 	"roughness": 0.9,
 	"edge_color": Color(0.25, 0.45, 0.6),
-	"edge_energy": 0.4,
-	"edge_width_m": 0.15,
+	"edge_energy": 0.15,
+	"edge_width_m": 0.3,
+	"frame_depth_m": 0.6,
+	"frame_width_m": 0.3,
 	"grid_spacing_m": 2.0,
 	"grid_line_width_m": 0.06,
 	"grid_line_factor": 2.2,
@@ -167,6 +179,11 @@ static func parse(text: String) -> Dictionary:
 		if float(look["plate_seam_m"]) > float(look[plate_key]) * SEAM_MAX_SHARE:
 			return _rejected("\"plate_seam_m\" is %s, must be at most %s of \"%s\" (%s)"
 					% [look["plate_seam_m"], SEAM_MAX_SHARE, plate_key, look[plate_key]])
+	# A frame wider than the wall is thick would poke further into the
+	# space than the wall it stands for.
+	if float(look["frame_width_m"]) > float(look["frame_depth_m"]):
+		return _rejected("\"frame_width_m\" is %s, must be at most \"frame_depth_m\" (%s)"
+				% [look["frame_width_m"], look["frame_depth_m"]])
 	return look
 
 
@@ -232,6 +249,16 @@ static func wall_material(look: Dictionary, tint: Color, surface: Dictionary = {
 	material.set_shader_parameter("fog_color", look["fog_color"])
 	material.set_shader_parameter("fog_density", float(look["fog_density"]))
 	LevelWallMaterial.apply(material, surface if not surface.is_empty() else LevelWallMaterial.load_theme())
+	return material
+
+
+## The material of the bevels along box edges: the walls' material in the
+## wall tint, glowing dimly in `edge_color` at `edge_energy`, so box edges
+## still read in the dark (#609). Walls themselves never glow.
+static func bevel_material(look: Dictionary, surface: Dictionary = {}) -> ShaderMaterial:
+	var material: ShaderMaterial = wall_material(look, look["wall_color"], surface)
+	var edge: Color = look["edge_color"]
+	material.set_shader_parameter("glow", edge * float(look["edge_energy"]))
 	return material
 
 

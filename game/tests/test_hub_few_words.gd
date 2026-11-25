@@ -95,6 +95,9 @@ func test_every_shipped_text_fits_a_row() -> String:
 	for id: String in roles.ids:
 		role_names.append(roles.role_name(id))
 		amounts.append(roles.cap(roles.benefit_stat(id)))
+	var slot_names: Array[String] = []
+	for kind: String in HubWords.SLOT_KINDS:
+		slot_names.append(words.slot_name(kind, 8))
 	var stats: Array[String] = []
 	stats.assign(words.stat_names.values())
 	var filled: Dictionary[String, String] = {
@@ -102,6 +105,8 @@ func test_every_shipped_text_fits_a_row() -> String:
 		"amount": str(amounts.max()), "count": str(WIDE_COUNT), "tier": str(WIDE_TIER),
 		"level": str(WIDE_LEVEL), "seed": str(WIDE_SEED), "part": _longest(_part_names(hub)),
 		"have": str(WIDE_COUNT), "need": str(WIDE_COUNT),
+		# A locker note names one upgrade, a move note one slot (#1336).
+		"names": _longest(upgrades), "from": _longest(slot_names),
 	}
 	var texts: Dictionary[String, String] = {"empty_crew": config.empty_crew, "empty_store": config.empty_store}
 	for id: String in config.pages:
