@@ -23,6 +23,8 @@ const NODES: Dictionary = {
 	# more, drawn as the first is (`StatusPanelWeaponRows.set_layers`).
 	"weapon": ["Weapon", "Weapon2"],
 	"hold": ["Hold"],
+	# What this level's flight carries and what the run has banked (#1356).
+	"tally": ["Tally", "TallyBanked"],
 	"outcome": ["Outcome"],
 	"speed": ["Speed", "Boost"],
 	"preset": ["Preset"],
@@ -31,7 +33,7 @@ const NODES: Dictionary = {
 	"level": ["Level"],
 }
 ## What a pilot needs in a fight: the panel's rows when the file names none.
-const FIGHT: Array[String] = ["meltdown", "hull", "shield", "energy", "weapon", "hold", "outcome"]
+const FIGHT: Array[String] = ["meltdown", "hull", "shield", "energy", "weapon", "hold", "tally", "outcome"]
 ## The render layer a drawn row is on: Godot's default, which every camera sees.
 const DRAWN_LAYERS: int = 1
 

@@ -30,6 +30,13 @@ extends RefCounted
 ##
 ## `rows` may be left out (#1207): the names of the rows the panel draws, from
 ## `StatusPanelRowList.NODES`; without it, `StatusPanelRowList.FIGHT`.
+##
+## So may the tally's (#1356, `StatusPanelTally`) words: `tally_text` (with
+## `{items}` and `{miners}`), `tally_banked_text` (with `{items}`),
+## `tally_none_text`, `tally_collected_text` (with `{count}` and `{name}`) and
+## `tally_miner_text`; and how a rising count shows, `tally_flash_color` for
+## `tally_flash_seconds`. The banked line is drawn in the level row's font
+## and colour, so it stays quieter than the carried line.
 
 const DEFAULT_FILE: String = "res://xr/status_panel_look.json"
 const COLOR_KEYS: Array[String] = ["escaped_color"]
@@ -45,11 +52,13 @@ const OPTIONAL_NUMBER_RANGES: Dictionary = {
 	"low_hull_fraction": Vector2(0.0, 1.0),
 	"level_font": Vector2(8.0, 96.0),
 	"preset_custom_rejected_seconds": Vector2(0.0, 60.0),
+	"tally_flash_seconds": Vector2(0.0, 5.0),
 }
 ## Colour and text keys a file may leave out; `FALLBACK` gives the value.
-const OPTIONAL_COLOR_KEYS: Array[String] = ["level_color"]
+const OPTIONAL_COLOR_KEYS: Array[String] = ["level_color", "tally_flash_color"]
 const OPTIONAL_TEXT_KEYS: Array[String] = ["level_tunnel_text", "level_seed_text", "level_file_text",
-	"preset_swivel_text", "preset_custom_text", "preset_custom_rejected_text"]
+	"preset_swivel_text", "preset_custom_text", "preset_custom_rejected_text", "tally_text",
+	"tally_banked_text", "tally_none_text", "tally_collected_text", "tally_miner_text"]
 ## The four corners a `corners` value must name, and nothing else.
 const CORNER_NAMES: Array[String] = ["top_left", "top_right", "bottom_left", "bottom_right"]
 ## A corner nearer the eye than this would fill the view and could not be
@@ -82,6 +91,15 @@ const FALLBACK: Dictionary = {
 	"preset_custom_text": "Custom (base {base})",
 	"preset_custom_rejected_text": "Custom file rejected: {field}",
 	"preset_custom_rejected_seconds": 10.0,
+	# The owner's G4 notes (#1356): a pickup and a rescue must be noticed, and
+	# the count read at a glance. The flash is short and steady, never blinking.
+	"tally_text": "Carried {items} | Miners {miners}",
+	"tally_banked_text": "Banked {items}",
+	"tally_none_text": "none",
+	"tally_collected_text": "+{count} {name}",
+	"tally_miner_text": "Miner aboard",
+	"tally_flash_color": Color(0.35, 1.0, 0.45),
+	"tally_flash_seconds": 1.0,
 	# About 17 degrees to the side and 13 up or down at 0.55 m, like the
 	# default's distance: every row stays within 40 degrees of straight ahead.
 	"corners": {
