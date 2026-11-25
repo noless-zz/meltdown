@@ -2,11 +2,12 @@ class_name ComponentUses
 extends RefCounted
 
 ## What a banked component is for (CRF-3, CRF-5, #1336): the upgrades whose cost
-## names it, so the Parts Locker can say "For Needle Gun, ..." instead of only a
+## names it, so the Parts Locker can say "For Needle Gun +17" instead of only a
 ## count. Read from the upgrade files (ARC-4); nothing here is per component.
 
-## Names a Parts Locker row lists before it counts the rest.
-const SHOWN: int = 3
+## Names a Parts Locker note lists before it counts the rest; one keeps the
+## note inside `max_row_chars` (#1300).
+const SHOWN: int = 1
 
 
 ## Display names of the upgrades in `upgrades` (in their order) whose cost
@@ -19,7 +20,7 @@ static func names(upgrades: Array[UpgradeDef], id: String) -> Array[String]:
 	return out
 
 
-## The Parts Locker line under component `id`: the first `SHOWN` names, a count
+## The Parts Locker note of component `id`: the first `SHOWN` names, a count
 ## of the rest, or the "not used yet" words, all from `words` (NAM-3, ARC-4).
 static func line(words: HubWords, upgrades: Array[UpgradeDef], id: String) -> String:
 	var used: Array[String] = names(upgrades, id)

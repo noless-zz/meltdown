@@ -70,8 +70,16 @@ func test_a_fitted_weapon_is_offered_elsewhere_only_as_a_move() -> String:
 	if not actions.has({"action": HubText.ACTION_MOVE, "slot": "primary[1]", "id": "needle_gun"}):
 		return "Primary 2 offers no move: %s" % [hub.lines()]
 	var words: HubWords = hub.model.config.words
-	var row: String = words.row("move_option_row", {"name": "Needle Gun", "from": words.slot_name("primary", 0)})
-	return "" if hub.lines().has(row) else "no line \"%s\" in %s" % [row, hub.lines()]
+	var row: String = words.row("move_option_row", {"name": "Needle Gun"})
+	if not hub.lines().has(row):
+		return "no line \"%s\" in %s" % [row, hub.lines()]
+	hub.move(-1000)
+	for i: int in 200:
+		if hub.selected().get("action") == HubText.ACTION_MOVE:
+			break
+		hub.move(1)
+	var where: String = words.row("move_note", {"from": words.slot_name("primary", 0)})
+	return "" if hub.note() == where else "the move row's note is \"%s\", expected \"%s\"" % [hub.note(), where]
 
 
 func test_pressing_the_move_row_moves_the_weapon() -> String:
@@ -115,22 +123,28 @@ func test_a_group_past_its_cap_shows_the_capped_total() -> String:
 	return "" if totals.get("salvage_slots") == groups[0]["total"] else "the run gets %s" % [totals]
 
 
-func test_crew_quarters_shows_one_row_per_role() -> String:
+func test_crew_quarters_shows_one_row_per_role_with_the_total_as_its_note() -> String:
 	var hub: HubText = _hub(_crew(["cargo_rigger", "shield_tech", "cargo_rigger", "cargo_rigger"] as Array[String]))
 	_to_page(hub, HubConfig.CREW)
 	var words: HubWords = hub.model.config.words
-	var riggers: String = words.row("crew_capped_row", {"role": "Cargo Rigger", "count": 3, "amount": 2,
-		"stat": words.stat_name("salvage_slots")})
-	var tech: String = words.row("crew_row", {"role": "Shield Technician", "count": 1, "amount": 5,
-		"stat": words.stat_name("shield_max")})
+	var riggers: String = words.row("crew_capped_row", {"role": "Cargo Rigger", "count": 3})
+	var tech: String = words.row("crew_row", {"role": "Shield Technician", "count": 1})
 	var expected: Array[String] = [hub.model.page_title(HubConfig.CREW), riggers, tech]
-	return "" if hub.lines() == expected else "crew page is %s, expected %s" % [hub.lines(), expected]
+	if hub.lines() != expected:
+		return "crew page is %s, expected %s" % [hub.lines(), expected]
+	var capped: String = words.row("crew_note", {"amount": 2, "stat": words.stat_name("salvage_slots")})
+	if hub.note() != capped:
+		return "the riggers' note is \"%s\", expected \"%s\"" % [hub.note(), capped]
+	hub.move(1)
+	var shield: String = words.row("crew_note", {"amount": 5, "stat": words.stat_name("shield_max")})
+	return "" if hub.note() == shield else "the technician's note is \"%s\"" % hub.note()
 
 
 func test_the_shipped_crew_row_reads_as_the_issue_asks() -> String:
 	var words: HubWords = HubConfig.load_shipped().words
-	var line: String = words.row("crew_row", {"role": "Cargo Rigger", "count": 3, "amount": 3, "stat": "salvage slots"})
-	return "" if line == "Cargo Rigger ×3: +3 salvage slots" else "the row reads \"%s\"" % line
+	var line: String = "%s: %s" % [words.row("crew_row", {"role": "Cargo Rigger", "count": 3}),
+		words.row("crew_note", {"amount": 3, "stat": "salvage slots"})]
+	return "" if line == "Cargo Rigger ×3: +3 salvage slots" else "the row and note read \"%s\"" % line
 
 
 func test_component_uses_name_the_upgrades_that_cost_it() -> String:
@@ -145,7 +159,7 @@ func test_component_uses_name_the_upgrades_that_cost_it() -> String:
 	return "" if ComponentUses.names(tree.upgrades, "nothing_costs_this").is_empty() else "an unused id has uses"
 
 
-func test_the_parts_locker_says_what_each_component_is_for() -> String:
+func test_the_parts_locker_note_says_what_each_component_is_for() -> String:
 	var profile: Profile = Profile.new()
 	profile.bank({"scrap_alloy": 3, "mystery_ore": 1})
 	var hub: HubText = _hub(profile)
@@ -156,19 +170,14 @@ func test_the_parts_locker_says_what_each_component_is_for() -> String:
 		return "scrap alloy has only %d uses; the test expects more than %d" % [used.size(), ComponentUses.SHOWN]
 	var scrap: String = words.row("store_uses_more", {"names": words.row("list_join").join(used.slice(0, ComponentUses.SHOWN)),
 		"count": used.size() - ComponentUses.SHOWN})
-	var lines: Array[String] = hub.lines()
-	var at: int = lines.find(words.row("store_row", {"name": "Scrap Alloy", "tier": 1, "count": 3}))
-	if at < 0 or at + 1 >= lines.size() or lines[at + 1] != scrap:
-		return "no \"%s\" under Scrap Alloy in %s" % [scrap, lines]
-	if not lines.has(words.row("store_unused")):
-		return "the unknown component does not say it is not used: %s" % [lines]
+	var notes: Dictionary[String, String] = {}
+	hub.move(-1000)
+	for i: int in 10:
+		notes[hub.lines()[hub.selected_line()]] = hub.note()
+		hub.move(1)
+	var row: String = words.row("store_row", {"name": "Scrap Alloy", "count": 3})
+	if notes.get(row, "") != scrap:
+		return "the Scrap Alloy note is \"%s\", expected \"%s\" (%s)" % [notes.get(row, ""), scrap, notes]
+	if notes.get(words.row("store_row", {"name": "mystery_ore", "count": 1}), "") != words.row("store_unused"):
+		return "the unknown component's note is not the unused words: %s" % [notes]
 	return ""
-
-
-func test_a_use_line_is_not_selectable() -> String:
-	var profile: Profile = Profile.new()
-	profile.bank({"scrap_alloy": 3})
-	var hub: HubText = _hub(profile)
-	_to_page(hub, HubConfig.STORE)
-	hub.move(1000)
-	return "" if hub.selected_line() == 1 else "the selection reached line %d of %s" % [hub.selected_line(), hub.lines()]

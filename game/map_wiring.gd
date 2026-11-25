@@ -71,14 +71,16 @@ var _miners_shown: PackedVector3Array = PackedVector3Array()
 
 
 ## Creates the hologram and hangs it in the hand that clicks `show_map` under
-## `mapping` (`MapHologram.hand_for`). Calling it again adds nothing.
+## `mapping` (`MapHologram.hand_for`), or in the cockpit when the saved
+## `MapChoice` says so. Calling it again adds nothing.
 func attach(rig: Node, mapping: ThumbstickMapping) -> void:
 	if hologram != null or rig == null:
 		return
 	_rig = rig
 	_mapping = mapping
+	MapChoice.from_launch()  # The saved place and turn (#1321).
 	hologram = MapHologram.new()
-	_follow_hand()
+	follow_choice()
 	if hologram.get_parent() == null:  # No hand to hold it: stay unattached.
 		hologram.free()
 		hologram = null
@@ -115,7 +117,7 @@ func update(session: LocalSession, _delta_seconds: float, shared: ClickHold = nu
 		session.current_ship().position, session.interpolation_fraction))
 	hologram.set_ship_orientation(session.previous_ship().orientation.slerp(
 		session.current_ship().orientation, session.interpolation_fraction))
-	_follow_hand()
+	follow_choice()
 	hologram.read(_mapping, buttons, shared)
 	if session.current_ship().is_destroyed():
 		hologram.close()  # Closed through the end screen and the restart (#914).
@@ -207,9 +209,14 @@ func _reactor_seen(explored: Array[int], ship_at: Vector3) -> bool:
 	return LineOfSight.clear(_union, ship_at, _reactor_at)
 
 
-## Moves the map to the other hand when left-handed mode or a remap moved the
-## `show_map` click there.
-func _follow_hand() -> void:
+## Mounts the map in the cockpit when the pilot chose that (#1321,
+## `MapPlacement`); otherwise moves it to the other hand when left-handed mode
+## or a remap moved the `show_map` click there, or back from the cockpit.
+## Called every `update`; the acceptance check `map_places` calls it too.
+func follow_choice() -> void:
+	if MapPlacement.apply(hologram, _rig):
+		_hand = ""
+		return
 	var hand: String = MapHologram.hand_for(_mapping)
 	if hand != _hand and hologram.attach_to(_rig, _mapping):
 		_hand = hand

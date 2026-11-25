@@ -27,10 +27,14 @@
 			"run": 12345,
 			"replay": "res://acceptance/replays/crew_joins.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "crew_joins"],
-			"expected_hash": 3375022947,
+			"expected_hash": 2982118127,
 			"expected_outcome": "ESCAPED",
 			"expected_crew": 1,
 			"screenshot_at_ticks": [360, 990, 1230, 5670, 7230]
+		},
+		{
+			"id": "map_places",
+			"checks": ["no_script_errors", "map_places"]
 		}
 	]
 }

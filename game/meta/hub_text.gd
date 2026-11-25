@@ -16,6 +16,10 @@ extends RefCounted
 ## the station's row group, and the same `move`, `selected` and `press` act on them.
 ## The rows and their actions are the pages' own, so a station and the flat
 ## panel cannot disagree on what a row does.
+##
+## Fewer words on a screen (#1300): a screen shows at most `rows_shown()` rows,
+## from `first_shown()`, scrolled so the selected row stays in view, and a row's
+## longer explanation (`note()`) only while it is selected.
 
 const ACTION_CRAFT: String = "craft"
 const ACTION_FIT: String = "fit"
@@ -39,11 +43,13 @@ var station: String = ""
 var launched: Dictionary = {}
 ## The action the last successful resume press gave (`{"resume": true}`); {} before one.
 var resumed: Dictionary = {}
+## Index into the rows (`lines()` without the title) of the first one shown.
+var top: int = 0
 
 
 func _init(p_model: HubModel) -> void:
 	model = p_model
-	row = 0 if not _selectable().is_empty() else -1
+	_first_row()
 
 
 ## The current page's id.
@@ -55,7 +61,7 @@ func page_id() -> String:
 ## goes back to the pages.
 func choose_station(id: String) -> void:
 	station = id if HubStationPages.STATIONS.has(id) else ""
-	row = 0 if not _selectable().is_empty() else -1
+	_first_row()
 
 
 ## Back from a station to the pages, on the page shown before.
@@ -84,12 +90,31 @@ func selected_line() -> int:
 func move(delta: int) -> void:
 	var count: int = _selectable().size()
 	row = clampi(row + delta, 0, count - 1) if count > 0 else -1
+	_scroll()
 
 
 ## Turns `delta` pages, wrapping, and selects the new page's first row.
 func turn_page(delta: int) -> void:
 	page = posmod(page + delta, model.pages().size())
-	row = 0 if not _selectable().is_empty() else -1
+	_first_row()
+
+
+## Rows a screen shows at once (`max_rows_visible` in the hub file).
+func rows_shown() -> int:
+	return model.config.max_rows_visible
+
+
+## Index into the rows (`lines()` without the title) of the first one shown;
+## the selected row is always among the `rows_shown()` from there.
+func first_shown() -> int:
+	_scroll()
+	return top
+
+
+## The selected row's one line of explanation, or "" when it has none.
+func note() -> String:
+	var line: int = selected_line()
+	return str(_rows()[line - 1].get("note", "")) if line > 0 else ""
 
 
 ## What the selected row does: {"action": "craft", "id"}, {"action": "fit",
@@ -134,8 +159,18 @@ func press() -> String:
 
 ## Every row of the current page or station: `text`, `action`, whether it is
 ## `selectable`, and on some Fitting Bay rows a `group`.
+## A Workbench upgrade's detail rows (`detail_of`) show only under the selected
+## upgrade (#1300); they cannot be selected, so hiding them moves no selection.
 func _rows() -> Array[Dictionary]:
-	return _page_rows(page_id()) if station == "" else _station_rows()
+	var rows: Array[Dictionary] = _page_rows(page_id()) if station == "" else _station_rows()
+	var owner: String = ""
+	var selectable: int = 0
+	for entry: Dictionary in rows:
+		if entry["selectable"]:
+			if selectable == row:
+				owner = str((entry["action"] as Dictionary).get("id", ""))
+			selectable += 1
+	return rows.filter(func(entry: Dictionary) -> bool: return str(entry.get("detail_of", owner)) == owner)
 
 
 ## The station's pages' rows of its group; a later page starts under its
@@ -150,21 +185,21 @@ func _station_rows() -> Array[Dictionary]:
 			if str(entry.get("group", "")) == str(spec["group"]):
 				kept.append(entry)
 		if i > 0 and not kept.is_empty():
-			rows.append(_shown(model.page_title(str(pages[i]))))
+			rows.append(HubRows.shown(model.page_title(str(pages[i]))))
 		rows.append_array(kept)
 	if rows.is_empty() and spec["group"] == HubStationPages.GROUP_RESUME:
-		rows.append(_shown(_words().row("resume_none")))
+		rows.append(HubRows.shown(_words().row("resume_none")))
 	return rows
 
 
 func _page_rows(id: String) -> Array[Dictionary]:
 	match id:
 		HubConfig.CREW:
-			return _crew_rows()
+			return HubRows.crew(model)
 		HubConfig.STATS:
-			return _stats_rows()
+			return HubRows.stats(model)
 		HubConfig.STORE:
-			return _store_rows()
+			return HubRows.store(model)
 		HubConfig.CRAFT:
 			return _craft_rows()
 	return _fit_rows()
@@ -180,43 +215,6 @@ func _selectable() -> Array[int]:
 	return out
 
 
-## One row per role with how many hold it and the total they give (#1336).
-func _crew_rows() -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
-	for group: Dictionary in model.crew_groups():
-		rows.append(_info(_words().row("crew_capped_row" if group["capped"] else "crew_row", {
-			"role": group["role_name"] if group["role_name"] != "" else group["role"], "count": group["count"],
-			"amount": group["total"], "stat": _words().stat_name(group["stat"])})))
-	if rows.is_empty():
-		rows.append(_shown(model.config.empty_crew))
-	return rows
-
-
-## One line per counter, none selectable; above them the empty-profile line
-## while every counter is still 0.
-func _stats_rows() -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
-	var counters: Dictionary = model.stats()
-	var any: bool = false
-	for key: String in ProfileStats.KEYS:
-		any = any or int(counters.get(key, 0)) != 0
-	if not any:
-		rows.append(_shown(_words().row("stats_empty")))
-	for key: String in ProfileStats.KEYS:
-		rows.append(_shown(_words().row(HubWords.STATS_ROW_PREFIX + key, {"count": int(counters.get(key, 0))})))
-	return rows
-
-
-func _store_rows() -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
-	for kind: Dictionary in model.store():
-		rows.append(_info(_words().row("store_row", {"name": kind["name"], "tier": kind["tier"], "count": kind["count"]})))
-		rows.append(_shown(ComponentUses.line(_words(), model.ordered_upgrades(), kind["id"])))  # What it is for (#1336).
-	if rows.is_empty():
-		rows.append(_shown(model.config.empty_store))
-	return rows
-
-
 ## The Workbench rows: costs, numbers and unlocks under each upgrade (#1317).
 func _craft_rows() -> Array[Dictionary]:
 	return HubCraftRows.rows(model)
@@ -227,8 +225,8 @@ func _craft_rows() -> Array[Dictionary]:
 ## one fitted nowhere is offered as a mount, one fitted in another slot as a
 ## move that names where it is now. While a suspended run waits, a row to
 ## resume it (#1106, RUN-8) sits directly above the launch row, so the two ways
-## into the mine are side by side (owner's decision, #1172); a note under the
-## launch row says launching discards the waiting run.
+## into the mine are side by side (owner's decision, #1172); the launch row's
+## note says launching discards the waiting run.
 func _fit_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	var waiting: Dictionary = model.waiting()
@@ -242,29 +240,45 @@ func _fit_rows() -> Array[Dictionary]:
 			fitted = _words().row("slot_part", {"part": part}) if part != "" else _words().row("slot_stock")
 		elif Fitting.PART_KEYS.has(slot["kind"]):
 			fitted = _words().row("slot_stock")
-		rows.append(_info(_words().row("slot_row", {"slot": _words().slot_name(slot["kind"], slot["index"]), "fitted": fitted})))
+		rows.append(HubRows.info(_words().row("slot_row", {"slot": _words().slot_name(slot["kind"], slot["index"]), "fitted": fitted})))
 		for id: String in built:
 			if id != slot["upgrade"] and model.tree.get_upgrade(id).kind == FITS.get(slot["kind"], ""):
 				rows.append(_option(slot["slot"], id))
 		if slot["upgrade"] != "":
-			rows.append(_acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
+			rows.append(HubRows.acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
 	if not waiting.is_empty():
-		rows.append(_grouped(_acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}),
-			HubStationPages.GROUP_RESUME))
-	rows.append(_grouped(_acting(_words().row("launch_row"), {"action": ACTION_LAUNCH}),
-		HubStationPages.GROUP_LAUNCH))
+		rows.append(HubRows.grouped(HubRows.noted(HubRows.acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}),
+			_words().row("resume_note", waiting)), HubStationPages.GROUP_RESUME))
+	var launch: Dictionary = HubRows.acting(_words().row("launch_row"), {"action": ACTION_LAUNCH})
 	if not waiting.is_empty():
-		rows.append(_grouped(_shown(_words().row("launch_discard_note")), HubStationPages.GROUP_LAUNCH))
+		HubRows.noted(launch, _words().row("launch_discard_note"))
+	rows.append(HubRows.grouped(launch, HubStationPages.GROUP_LAUNCH))
 	return rows
 
 
-## The row offering upgrade `id` for `slot`: a mount, or a move from where it is.
+## The row offering upgrade `id` for `slot`: a mount, or a move whose note
+## says where it is now.
 func _option(slot: String, id: String) -> Dictionary:
 	var now: String = model.fitting.slot_of(id)
 	if now == "":
-		return _acting(_words().row("fit_option_row", {"name": _name(id)}), {"action": ACTION_FIT, "slot": slot, "id": id})
-	return _acting(_words().row("move_option_row", {"name": _name(id), "from": _words().named_slot(now)}),
-		{"action": ACTION_MOVE, "slot": slot, "id": id})
+		return HubRows.acting(_words().row("fit_option_row", {"name": _name(id)}), {"action": ACTION_FIT, "slot": slot, "id": id})
+	return HubRows.noted(HubRows.acting(_words().row("move_option_row", {"name": _name(id)}),
+		{"action": ACTION_MOVE, "slot": slot, "id": id}), _words().row("move_note", {"from": _words().named_slot(now)}))
+
+
+## Selects the first selectable row and shows the top of the rows.
+func _first_row() -> void:
+	row = 0 if not _selectable().is_empty() else -1
+	top = 0
+	_scroll()
+
+
+func _scroll() -> void:
+	var rows: Array[Dictionary] = _rows()
+	var selectable: Array[bool] = []
+	for entry: Dictionary in rows:
+		selectable.append(bool(entry["selectable"]))
+	top = HubWindow.scrolled(top, selected_line() - 1, selectable, rows_shown())
 
 
 func _words() -> HubWords:
@@ -274,23 +288,3 @@ func _words() -> HubWords:
 ## The upgrade's name from its data file, or its id when the tree lacks it.
 func _name(id: String) -> String:
 	return model.tree.get_upgrade(id).display_name if model.tree.has_upgrade(id) else id
-
-
-## A row that can be selected but does nothing.
-static func _info(text: String) -> Dictionary:
-	return {"text": text, "action": {}, "selectable": true}
-
-
-## A row that takes `action` when pressed.
-static func _acting(text: String, action: Dictionary) -> Dictionary:
-	return {"text": text, "action": action, "selectable": true}
-
-
-static func _grouped(entry: Dictionary, group: String) -> Dictionary:
-	entry["group"] = group
-	return entry
-
-
-## A header or empty-page text, skipped by the selection.
-static func _shown(text: String) -> Dictionary:
-	return {"text": text, "action": {}, "selectable": false}

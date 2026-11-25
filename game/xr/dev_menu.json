@@ -15,13 +15,15 @@
 		{"kind": "restart", "label": "Restart level"},
 		{"kind": "return", "label": "Return to base"},
 		{"kind": "flight_test", "label": "Flight test"},
+		{"kind": "map_place", "label": "Map place"},
+		{"kind": "map_turn", "label": "Map turn"},
 		{"kind": "close", "label": "Close"}
 	],
 	"sections": [
 		{"label": "Comfort", "entries": ["comfort", "break", "refresh", "swivel", "auto_level", "foveation"]},
 		{"label": "Controls", "entries": ["controls", "hands", "pitch"]},
 		{"label": "Mine", "entries": ["level", "restart", "return", "flight_test"]},
-		{"label": "Display", "entries": ["corner"]}
+		{"label": "Display", "entries": ["corner", "map_place", "map_turn"]}
 	],
 	"back_text": "Back",
 	"max_rows_visible": 6,
@@ -54,5 +56,9 @@
 	"foveation_dynamic_text": "dynamic",
 	"foveation_note_text": "(this session)",
 	"info_title_text": "Info",
-	"confirm_return_text": "Confirm: abandon run"
+	"confirm_return_text": "Confirm: abandon run",
+	"map_hand_text": "hand",
+	"map_cockpit_text": "cockpit",
+	"map_fixed_text": "fixed",
+	"map_follows_text": "follows ship"
 }

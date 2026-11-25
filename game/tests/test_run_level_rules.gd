@@ -101,7 +101,8 @@ func test_the_escape_banks_the_collected_component() -> String:
 func test_a_recorded_run_level_replays_to_the_same_hash() -> String:
 	var session: LocalSession = _flight()
 	var text: String = session.replay.to_text()
-	if not text.begins_with("meltdown-replay 18\n") or not text.contains("\ncomponents ") \
+	# Version 20 since the run level's alarm joined it (#1342).
+	if not text.begins_with("meltdown-replay 20\n") or not text.contains("\ncomponents ") \
 			or not text.contains("\nrescue ") or not text.contains("\"components\":[{"):
 		return "the replay does not carry the rules and drop tables"
 	var replay: Replay = Replay.from_text(text)
@@ -155,7 +156,8 @@ func test_shipped_replays_have_no_rules_and_stay_version_17() -> String:
 			return "%s: %s" % [file, replay.error]
 		if replay.component_rules != null or replay.rescue_rules != null:
 			return "%s carries rules" % file
-		if ReplayRulesLine.format_version(replay) != 17:
+		# An alarm line alone (#1342) needs version 20; the shipped alarm replay has one.
+		if replay.alarm_rules == null and ReplayRulesLine.format_version(replay) != 17:
 			return "%s would be written as version %d" % [file, ReplayRulesLine.format_version(replay)]
 	return ""
 
