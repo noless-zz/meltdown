@@ -28,6 +28,8 @@ var hold_messages: HoldMessages = HoldMessages.new()
 var sound_cues: SoundCues = null
 ## The reverb of the room the ship is in (#1291), on the bus the cues play on.
 var room_reverb: RoomReverb = null
+## The robots' looping voices (#1363), beside the cues once `attach` has run.
+var robot_voices: RobotVoices = null
 ## The adaptive music (#1303), beside the cues once `attach` has run.
 var music: MusicWiring = MusicWiring.new()
 var _sound_sim: Sim = null
@@ -65,6 +67,9 @@ func attach(world: Node3D) -> void:
 	world.add_child(room_reverb)
 	sound_cues = SoundCues.new()
 	world.add_child(sound_cues)
+	robot_voices = RobotVoices.new()
+	robot_voices.ensure_bus()
+	world.add_child(robot_voices)
 	music.attach(world)
 	projectile_view = ProjectileView.new()
 	world.add_child(projectile_view)
@@ -140,17 +145,20 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 
 ## Plays the cues of the session's last advance (#1290). A new simulation is a
 ## new level, so the old one's bolts are forgotten rather than heard ending,
-## and its first room's reverb is heard at once (#1291).
+## and its first room's reverb is heard at once (#1291). The robots' voices
+## follow the robots after the advance (#1363), and stop with the old level.
 func feed_sound(session: LocalSession) -> void:
 	if sound_cues == null:
 		return
 	if session.sim != _sound_sim:
 		sound_cues.reset()
 		room_reverb.reset()
+		robot_voices.reset()
 		_sound_sim = session.sim
 	room_reverb.follow(session.sim.walls, session.current_ship().position, session.sim.tick)
 	sound_cues.feed(session.frame_events(), session.current_projectiles(),
 		[session.current_ship()] as Array[ShipState])
+	robot_voices.follow(session.current_robots(), session.current_ship().position, session.sim.walls)
 
 
 ## Takes in the events of one session advance and `ship`, the local ship (0)
