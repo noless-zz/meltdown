@@ -106,6 +106,9 @@ func test_the_icons_of_a_group_differ_in_colour() -> String:
 func test_every_icon_stands_out_from_the_dark_screen() -> String:
 	var icons: HubIcons = HubIcons.load_file()
 	var backdrop: Color = icons.colors["backdrop_color"]
+	var screen: Color = HubScreenLook.load_file()["screen_color"]
+	if not backdrop.is_equal_approx(screen):
+		return "backdrop_color %s is not the screens' face %s" % [backdrop, screen]
 	if icons.numbers["min_contrast"] < 3.0:
 		return "the file asks only %s:1" % icons.numbers["min_contrast"]
 	for group: String in HubIcons.GROUPS:
