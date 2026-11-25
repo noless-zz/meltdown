@@ -132,8 +132,30 @@ static func _window(hub: HubText) -> Array[String]:
 	var chosen: int = hub.selected_line() - 1
 	if chosen >= 0:
 		rows[chosen] = str(HubPanelLook.load_file()["mark_text"]) + rows[chosen]
-	var start: int = HubStationScreen.window_start(rows.size(), chosen, HubStationScreen.ROWS_SHOWN)
-	return rows.slice(start, start + HubStationScreen.ROWS_SHOWN)
+	var shown: int = int(HubScreenLook.load_file()["rows_shown"])
+	var start: int = HubStationScreen.window_start(rows.size(), chosen, shown)
+	return rows.slice(start, start + shown)
+
+
+## True when `shown` is a run of the hub text's marked rows holding the
+## selected one: a row that wraps can leave fewer rows than the window (#1359).
+static func _in_window(hub: HubText, shown: Array[String]) -> bool:
+	var rows: Array[String] = _window_rows(hub)
+	var mark: String = str(HubPanelLook.load_file()["mark_text"])
+	if not shown.any(func(line: String) -> bool: return line.begins_with(mark)):
+		return false
+	for start: int in rows.size():
+		if rows.slice(start, start + shown.size()) == shown:
+			return true
+	return false
+
+
+static func _window_rows(hub: HubText) -> Array[String]:
+	var rows: Array[String] = hub.lines().slice(1)
+	var chosen: int = hub.selected_line() - 1
+	if chosen >= 0:
+		rows[chosen] = str(HubPanelLook.load_file()["mark_text"]) + rows[chosen]
+	return rows
 
 
 func test_the_rows_scroll_with_the_selection() -> String:
@@ -147,7 +169,7 @@ func test_the_rows_scroll_with_the_selection() -> String:
 		var marked: int = 0
 		for line: String in shown:
 			marked += 1 if line.begins_with(str(HubPanelLook.load_file()["mark_text"])) else 0
-		if marked != 1 or shown.size() > HubStationScreen.ROWS_SHOWN or shown != _window(hub):
+		if marked != 1 or shown.size() > int(HubScreenLook.load_file()["rows_shown"]) or not _in_window(hub, shown):
 			result = "after %d steps down the screen shows %s" % [i + 1, shown]
 			break
 	if result == "" and HubStationScreen.window_start(30, 29, 8) != 22:
@@ -167,7 +189,7 @@ func test_only_the_station_in_use_shows_rows() -> String:
 		var words: Node = room.get_node("Station_%s/Screen/%s" % [id, HubStationScreen.NODE_NAME])
 		var shown: int = 0
 		for label: Node in words.get_children():
-			shown += 1 if (label as Label3D).visible else 0
+			shown += 1 if label is Label3D and (label as Label3D).visible else 0
 		if result == "" and id != "fit" and shown != 1:
 			result = "%s shows %d lines while fit is in use" % [id, shown]
 		if result == "" and id == "fit" and shown < 3:

@@ -95,7 +95,7 @@ static func _only_in_use_shows_rows(hub: HubWiring) -> String:
 		var words: Node = hub.room.get_node_or_null("Station_%s/Screen/%s" % [id, HubStationScreen.NODE_NAME])
 		var count: int = 0
 		for label: Node in words.get_children() if words != null else []:
-			count += 1 if (label as Label3D).visible else 0
+			count += 1 if label is Label3D and (label as Label3D).visible else 0
 		if id != hub.stations.in_use and count != 1:
 			return "the %s station shows %d lines, expected its title only" % [id, count]
 	return ""
