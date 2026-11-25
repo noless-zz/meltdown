@@ -112,7 +112,7 @@ static func _workbench_shows_costs(hub: HubWiring, measurements: Dictionary) -> 
 	var id: String = str(hub.text.selected().get("id", ""))
 	if id == "":
 		return "the craft station selects no upgrade"
-	var cost: String = HubCraftRows.cost_text(model, id)
+	var cost: String = HubCraftRows.texts(HubCraftRows.cost_lines(model, id))[0]
 	measurements["cost"] = cost
 	if not hub.stations.texts().has(cost):
 		return "the craft station's screen does not show \"%s\": %s" % [cost, hub.stations.texts()]
@@ -121,7 +121,7 @@ static func _workbench_shows_costs(hub: HubWiring, measurements: Dictionary) -> 
 	for entry: Dictionary in model.locked():
 		ids.append(entry["id"])
 	for each: String in ids:
-		if not lines.has(HubCraftRows.cost_text(model, each)):
+		if not lines.has(HubCraftRows.texts(HubCraftRows.cost_lines(model, each))[0]):
 			return "the Workbench shows no cost for %s" % HubCraftRows.upgrade_name(model, each)
 	return ""
 

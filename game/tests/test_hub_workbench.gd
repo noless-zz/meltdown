@@ -20,6 +20,10 @@ static func _craft_lines(model: HubModel) -> Array[String]:
 	return hub.lines()
 
 
+static func _cost(model: HubModel, id: String) -> Array[String]:
+	return HubCraftRows.texts(HubCraftRows.cost_lines(model, id))
+
+
 static func _words() -> Dictionary:
 	return JSON.parse_string(FileAccess.get_file_as_string(HubConfig.CONFIG_PATH))["text"]
 
@@ -30,28 +34,28 @@ func test_each_row_shows_the_cost_with_what_is_held_by_name() -> String:
 	var model: HubModel = _model(profile)
 	var hub: HubText = HubText.new(model)
 	hub.page = model.pages().find(HubConfig.CRAFT)
-	# Ember Coil costs 3 Cell Salts and 2 Scrap Alloy; 2 and 5 are held.
-	var expected: String = "Cost: Cell Salts 2/3, Scrap Alloy 5/2"
-	if HubCraftRows.cost_text(model, "ember_coil") != expected:
-		return "ember coil's cost reads \"%s\"" % HubCraftRows.cost_text(model, "ember_coil")
+	# Ember Coil costs 3 Cell Salts and 2 Scrap Alloy; 2 and 5 are held. One fact per line (#1367).
+	var expected: Array[String] = ["Cost: Cell Salts 2/3", "Cost: Scrap Alloy 5/2"]
+	if _cost(model, "ember_coil") != expected:
+		return "ember coil's cost reads %s" % [_cost(model, "ember_coil")]
 	var ids: Array[String] = model.craftable()
 	for entry: Dictionary in model.locked():
 		ids.append(entry["id"])
 	for id: String in ids:
-		var cost: String = HubCraftRows.cost_text(model, id)
+		var cost: Array[String] = _cost(model, id)
 		# Details show only under the selected upgrade (#1300).
 		hub.move(-1000)
 		while hub.selected().get("id", "") != id and hub.selected_line() < hub.lines().size() - 1:
 			hub.move(1)
 		var lines: Array[String] = hub.lines()
-		if hub.selected().get("id", "") != id or lines[hub.selected_line() + 1] != cost:
-			return "no cost row under %s in %s" % [id, lines]
+		if hub.selected().get("id", "") != id or lines.slice(hub.selected_line() + 1, hub.selected_line() + 1 + cost.size()) != cost:
+			return "no cost rows under %s in %s" % [id, lines]
 		var upgrade: UpgradeDef = model.tree.get_upgrade(id)
 		for component: String in upgrade.cost:
 			var item: String = "%s %d/%d" % [model.components.get_kind(component).display_name,
 				profile.count_of(component), upgrade.cost[component]]
-			if not cost.contains(item):
-				return "%s's cost \"%s\" lacks \"%s\"" % [id, cost, item]
+			if not cost.has("Cost: " + item):
+				return "%s's cost %s lacks \"%s\"" % [id, cost, item]
 	return ""
 
 
@@ -62,7 +66,7 @@ func test_the_cost_row_sits_under_its_upgrade() -> String:
 	hub.row = 0
 	var lines: Array[String] = hub.lines()
 	var id: String = hub.selected().get("id", "")
-	if id == "" or lines[hub.selected_line() + 1] != HubCraftRows.cost_text(model, id):
+	if id == "" or lines[hub.selected_line() + 1] != _cost(model, id)[0]:
 		return "the line under %s is \"%s\"" % [id, lines[hub.selected_line() + 1]]
 	return ""
 
@@ -71,16 +75,17 @@ func test_what_an_upgrade_does_comes_from_its_part_file() -> String:
 	var model: HubModel = _model()
 	var weapon: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/weapons/ember_coil.json"))
 	var rate: float = 60.0 / float(weapon["fire_interval_ticks"])
-	var cases: Dictionary[String, String] = {
-		"ember_coil": "Does: Damage %d, %s shots/s" % [int(weapon["damage"]), str(rate)],
-		"glass_core_shield": "Does: Shield +40%, Recharge +20%, Shield energy -20%",
-		"layered_plating": "Does: Hull +25%",
-		"wide_radar": "Does: Map reveal 40 m",
+	var cases: Dictionary[String, Array] = {
+		"ember_coil": ["Does: Damage %d" % int(weapon["damage"]), "Does: %s shots/s" % str(rate)],
+		"glass_core_shield": ["Does: Shield +40%", "Does: Recharge +20%", "Does: Shield energy -20%"],
+		"layered_plating": ["Does: Hull +25%"],
+		"wide_radar": ["Does: Map reveal 40 m"],
 	}
 	for id: String in cases:
-		if HubCraftRows.effect_text(model, id) != cases[id]:
-			return "%s does \"%s\", expected \"%s\"" % [id, HubCraftRows.effect_text(model, id), cases[id]]
-	if not _craft_lines(model).has(cases["ember_coil"]):
+		var does: Array[String] = HubCraftRows.texts(HubCraftRows.effect_lines(model, id))
+		if does != cases[id]:
+			return "%s does %s, expected %s" % [id, does, cases[id]]
+	if not _craft_lines(model).has(cases["ember_coil"][0]):
 		return "the Workbench does not show ember coil's numbers"
 	return ""
 
@@ -100,10 +105,11 @@ func test_every_shipped_upgrade_has_named_numbers() -> String:
 
 func test_each_upgrade_shows_what_it_unlocks_by_name() -> String:
 	var model: HubModel = _model()
-	if HubCraftRows.unlocks_text(model, "slug_thrower") != "Unlocks: Drift Mortar":
-		return "slug thrower unlocks \"%s\"" % HubCraftRows.unlocks_text(model, "slug_thrower")
+	var slug: Array[String] = HubCraftRows.texts(HubCraftRows.unlocks_lines(model, "slug_thrower"))
+	if slug != ["Unlocks: Drift Mortar"]:
+		return "slug thrower unlocks %s" % [slug]
 	for upgrade: UpgradeDef in model.tree.upgrades:
-		var text: String = HubCraftRows.unlocks_text(model, upgrade.id)
+		var text: String = "\n".join(HubCraftRows.texts(HubCraftRows.unlocks_lines(model, upgrade.id)))
 		for other: UpgradeDef in model.tree.upgrades:
 			if other.requires.has(upgrade.id) and not text.contains(other.display_name):
 				return "%s does not say it unlocks %s: \"%s\"" % [upgrade.id, other.id, text]
@@ -114,7 +120,7 @@ func test_a_locked_row_says_why_in_words() -> String:
 	var model: HubModel = _model()
 	var cases: Dictionary[String, String] = {
 		"drift_mortar": "Needs Slug Thrower",
-		"ember_coil": "3 more Cell Salts, 2 more Scrap Alloy",
+		"ember_coil": "3 more Cell Salts",  # One fact; the cost lines say the rest (#1367).
 	}
 	var hub: HubText = HubText.new(model)
 	hub.page = model.pages().find(HubConfig.CRAFT)

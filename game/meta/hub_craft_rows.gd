@@ -4,7 +4,7 @@ extends RefCounted
 ## The Workbench page's rows (CRF-3, CRF-6, CRW-2, #1317): under each upgrade
 ## that can be built or is out of reach, what it costs beside what is held of
 ## each component, what it does in numbers from its part file, and what it
-## unlocks next, all by name. A locked row says why in words, in its note
+## unlocks next, all by name, one fact per line (#1367). A locked row says why in words, in its note
 ## under it while it is selected (#1300). Every word comes
 ## from `data/hub/hub.json` (ARC-4); the rules of crafting stay `UpgradeTree`'s,
 ## so a row is locked exactly when `HubModel.locked` lists it.
@@ -19,7 +19,7 @@ static func rows(model: HubModel) -> Array[Dictionary]:
 		out.append(_shown(words.row("ready_header")))
 	for id: String in ready:
 		out.append(_acting(words.row("ready_row", {"name": upgrade_name(model, id)}), id))
-		out.append_array(_details(model, id))
+		out.append_array(details(model, id))
 	var locked: Array[Dictionary] = model.locked()
 	if not locked.is_empty():
 		out.append(_shown(words.row("locked_header")))
@@ -28,7 +28,7 @@ static func rows(model: HubModel) -> Array[Dictionary]:
 		var row: Dictionary = _acting(words.row("locked_row", {"name": upgrade_name(model, id)}), id)
 		row["note"] = words.row("locked_note", {"reason": reason(model, id)})  # Only while selected (#1300).
 		out.append(row)
-		out.append_array(_details(model, id))
+		out.append_array(details(model, id))
 	var built: Array[String] = model.crafted()
 	if not built.is_empty():
 		out.append(_shown(words.row("built_header")))
@@ -37,8 +37,9 @@ static func rows(model: HubModel) -> Array[Dictionary]:
 	return out
 
 
-## Why upgrade `id` cannot be built now, in words: the first upgrade it needs
-## built first, else every component it is short of. "" when it can be built.
+## Why upgrade `id` cannot be built now, in words, one fact (#1367): the first
+## upgrade it needs built first, else the first component it is short of; its
+## cost lines say the rest. "" when it can be built.
 static func reason(model: HubModel, id: String) -> String:
 	var upgrade: UpgradeDef = model.tree.get_upgrade(id)
 	if upgrade == null or model.tree.missing(id, model.profile.crafted, model.profile.banked) == "":
@@ -47,51 +48,75 @@ static func reason(model: HubModel, id: String) -> String:
 	for required: String in upgrade.requires:
 		if not model.profile.crafted.has(required):
 			return words.row("locked_needs", {"name": upgrade_name(model, required)})
-	var short: Array[String] = []
 	for component: String in upgrade.cost:
 		var lacking: int = upgrade.cost[component] - int(model.profile.banked.get(component, 0))
 		if lacking > 0:
-			short.append(words.row("locked_short", {"count": lacking, "name": component_name(model, component)}))
-	return words.row("list_join").join(short)
+			return words.row("locked_short", {"count": lacking, "name": component_name(model, component)})
+	return ""
 
 
-## The cost row's text: each component of the cost with what is held of it.
-static func cost_text(model: HubModel, id: String) -> String:
+## The cost, one line per component with what is held of it (#1367: one fact
+## per line), each with the component's icon (`HubIcons` group and id).
+static func cost_lines(model: HubModel, id: String) -> Array[Dictionary]:
 	var words: HubWords = model.config.words
-	var items: Array[String] = []
+	var out: Array[Dictionary] = []
 	var upgrade: UpgradeDef = model.tree.get_upgrade(id)
 	if upgrade == null:
-		return ""
+		return out
 	for component: String in upgrade.cost:
-		items.append(words.row("cost_item", {"name": component_name(model, component),
-			"have": int(model.profile.banked.get(component, 0)), "need": upgrade.cost[component]}))
-	return words.row("cost_row", {"cost": words.row("list_join").join(items)})
+		var item: String = words.row("cost_item", {"name": component_name(model, component),
+			"have": int(model.profile.banked.get(component, 0)), "need": upgrade.cost[component]})
+		out.append({"text": words.row("cost_row", {"cost": item}), "icon": {"group": "component", "id": component}})
+	return out
 
 
-## The effect row's text, or "" when no part file gives a number the hub file names.
-static func effect_text(model: HubModel, id: String) -> String:
+## What the upgrade does, one line per number a part file gives and the hub
+## file names, each with the icon `HubTreeLayout.effect_icons` gives its key,
+## else the upgrade's own.
+static func effect_lines(model: HubModel, id: String) -> Array[Dictionary]:
 	var words: HubWords = model.config.words
+	var out: Array[Dictionary] = []
 	var upgrade: UpgradeDef = model.tree.get_upgrade(id)
 	if upgrade == null:
-		return ""
-	var items: Array[String] = []
+		return out
+	var icons: Dictionary[String, String] = model.config.craft_tree.effect_icons
 	for entry: Dictionary in model.parts.effects(upgrade):
 		var shown: String = words.effect(entry["key"], _number(entry["value"], entry["multiplier"]))
 		if shown != "":
-			items.append(shown)
-	return words.row("effect_row", {"effect": words.row("list_join").join(items)}) if not items.is_empty() else ""
+			var icon: Dictionary = {"group": "attribute", "id": icons[entry["key"]]} if icons.has(entry["key"]) \
+				else HubFitBay.upgrade_icon(model, id)
+			out.append({"text": words.row("effect_row", {"effect": shown}), "icon": icon})
+	return out
 
 
-## The unlocks row's text, or "" when nothing requires upgrade `id`.
-static func unlocks_text(model: HubModel, id: String) -> String:
-	var names: Array[String] = []
+## What building it unlocks, one line per upgrade that requires it, with its icon.
+static func unlocks_lines(model: HubModel, id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for upgrade: UpgradeDef in model.ordered_upgrades():
 		if upgrade.requires.has(id):
-			names.append(upgrade.display_name)
-	if names.is_empty():
-		return ""
-	var words: HubWords = model.config.words
-	return words.row("unlocks_row", {"names": words.row("list_join").join(names)})
+			out.append({"text": model.config.words.row("unlocks_row", {"names": upgrade.display_name}),
+				"icon": HubFitBay.upgrade_icon(model, upgrade.id)})
+	return out
+
+
+## The detail rows under upgrade `id`: its cost, effect and unlocks lines,
+## shown only while it is selected (`detail_of`, #1300), each with its `icon`.
+static func details(model: HubModel, id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for line: Dictionary in cost_lines(model, id) + effect_lines(model, id) + unlocks_lines(model, id):
+		var detail: Dictionary = _shown(line["text"])
+		detail["detail_of"] = id  # `HubText` shows it only while `id` is selected (#1300).
+		detail["icon"] = line["icon"]
+		out.append(detail)
+	return out
+
+
+## The texts of `lines` (`cost_lines`, `effect_lines`, `unlocks_lines`).
+static func texts(lines: Array[Dictionary]) -> Array[String]:
+	var out: Array[String] = []
+	for line: Dictionary in lines:
+		out.append(line["text"])
+	return out
 
 
 ## The upgrade's name from its data file, or "" when the tree lacks it, so an
@@ -115,16 +140,6 @@ static func _number(value: float, multiplier: bool) -> String:
 	if is_equal_approx(value, roundf(value)):
 		return str(roundi(value))
 	return "%.1f" % value
-
-
-static func _details(model: HubModel, id: String) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for text: String in [cost_text(model, id), effect_text(model, id), unlocks_text(model, id)]:
-		if text != "":
-			var detail: Dictionary = _shown(text)
-			detail["detail_of"] = id  # `HubText` shows it only while `id` is selected (#1300).
-			out.append(detail)
-	return out
 
 
 static func _acting(text: String, id: String) -> Dictionary:
