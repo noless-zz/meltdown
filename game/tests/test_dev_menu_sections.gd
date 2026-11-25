@@ -119,10 +119,11 @@ func test_a_opens_a_section_back_and_closing_return_to_the_top_list() -> String:
 
 
 func test_at_most_max_rows_show_and_the_highlight_stays_on_screen() -> String:
-	# The built-in menu has no sections: all sixteen entries on one list.
+	# The built-in menu has no sections: every entry on one list.
 	var menu: DevMenu = DevMenu.new(DevMenuSpec.fallback(), [])
 	var model: DevMenuModel = menu.model
 	model.set_run(true)
+	model.checklist_shown = true  # A development build with a checklist (#1325).
 	menu.set_update("abc1234", false)
 	menu.open("centre", "")
 	var problem: String = ""
@@ -224,10 +225,12 @@ func test_every_row_still_reaches_its_action() -> String:
 		DevMenuSpec.KIND_LEVEL: "level:", DevMenuSpec.KIND_RESTART: DevMenuModel.RESTART,
 		DevMenuSpec.KIND_FLIGHT_TEST: DevMenuModel.FLIGHT_TEST, DevMenuSpec.KIND_UPDATE: DevMenuModel.UPDATE,
 		DevMenuSpec.KIND_RETURN: DevMenuModel.RETURN, DevMenuSpec.KIND_CLOSE: DevMenuModel.CLOSE,
+		DevMenuSpec.KIND_CHECKLIST: DevMenuModel.CHECKLIST,
 	}
 	var model: DevMenuModel = _shipped()
 	model.open("centre", "")
 	model.set_run(true)
+	model.checklist_shown = true
 	model.set_update("abc1234", false)
 	for entry: Dictionary in model.spec.entries:
 		var kind: String = str(entry["kind"])

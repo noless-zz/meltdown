@@ -18,7 +18,7 @@ extends RefCounted
 ## `level:<source>` where the source is in the form
 ## `LevelStart.source` uses ("" for the test tunnel, a level file path,
 ## `seed:<n>`) or `random` for a fresh pick (see `DevMenuLevels`), `restart`,
-## `flight_test` (#839), `update`, `return_to_base` (#1246) or `close`.
+## `flight_test` (#839), `update`, `return_to_base` (#1246), `checklist` (#1325) or `close`.
 ## The update entry is skipped while `update_version` is empty. Confirming a
 ## section row opens that section and its Back row returns to the top list
 ## (#1301, `DevMenuRows`); neither returns anything. The menu
@@ -65,10 +65,14 @@ const FLIGHT_TEST: String = "flight_test"
 const CLOSE: String = "close"
 const UPDATE: String = "update"
 const RETURN: String = "return_to_base"
+const CHECKLIST: String = "checklist"
 
 ## The entries confirming acts on with no value to step (`value` gives null).
 const ACTION_KINDS: Array[String] = [DevMenuSpec.KIND_RESTART, DevMenuSpec.KIND_FLIGHT_TEST,
-	DevMenuSpec.KIND_UPDATE, DevMenuSpec.KIND_CLOSE, DevMenuSpec.KIND_RETURN]
+	DevMenuSpec.KIND_UPDATE, DevMenuSpec.KIND_CLOSE, DevMenuSpec.KIND_RETURN, DevMenuSpec.KIND_CHECKLIST]
+## What confirming each action entry but Return to base returns; anything else closes.
+const ACTION_RESULTS: Dictionary = {DevMenuSpec.KIND_RESTART: RESTART, DevMenuSpec.KIND_FLIGHT_TEST: FLIGHT_TEST,
+	DevMenuSpec.KIND_UPDATE: UPDATE, DevMenuSpec.KIND_CHECKLIST: CHECKLIST}
 
 ## What `kind` gives on a section row and on a section's Back row (#1301).
 const KIND_SECTION: String = "section"
@@ -92,6 +96,8 @@ var update_busy: bool = false
 ## press arms it, the second returns `RETURN`, moving or reopening disarms (#1246).
 var run_shown: bool = false
 var return_armed: bool = false
+## Whether the Test checklist row shows: a checklist is attached (#1325).
+var checklist_shown: bool = false
 ## Each value entry kind's value helper (#908, split out by #1282).
 var values: DevMenuValues
 ## The valid custom comfort file's base preset (1..4), or 0 when there is none (#837).
@@ -199,6 +205,7 @@ func is_shown(index: int) -> bool:
 	match str(spec.entries[index]["kind"]):
 		DevMenuSpec.KIND_UPDATE: return update_version != ""
 		DevMenuSpec.KIND_RETURN: return run_shown
+		DevMenuSpec.KIND_CHECKLIST: return checklist_shown
 	return true
 
 
@@ -283,14 +290,7 @@ func _confirm() -> String:
 	var helper: DevMenuValue = value(kind())
 	if helper != null:
 		return helper.confirmed()
-	match kind():
-		DevMenuSpec.KIND_RESTART:
-			return RESTART
-		DevMenuSpec.KIND_FLIGHT_TEST:
-			return FLIGHT_TEST
-		DevMenuSpec.KIND_UPDATE:
-			return UPDATE
-		DevMenuSpec.KIND_RETURN:
-			return_armed = not return_armed
-			return "" if return_armed else RETURN
-	return CLOSE
+	if kind() == DevMenuSpec.KIND_RETURN:
+		return_armed = not return_armed
+		return "" if return_armed else RETURN
+	return str(ACTION_RESULTS.get(kind(), CLOSE))
