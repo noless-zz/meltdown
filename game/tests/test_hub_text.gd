@@ -69,7 +69,7 @@ func test_an_empty_profile_shows_the_empty_crew_and_store_texts() -> String:
 	var hub: HubText = _hub()
 	var config: HubConfig = hub.model.config
 	_to_page(hub, HubConfig.CREW)
-	if hub.lines() != ([config.title(HubConfig.CREW), config.empty_crew] as Array[String]):
+	if hub.lines().slice(0, 2) != ([config.title(HubConfig.CREW), config.empty_crew] as Array[String]):  # Then the ship summary (#1357).
 		return "crew page is %s" % [hub.lines()]
 	# The empty row is selected only to show its hint (#1300); it does nothing.
 	if hub.selected() != {} or hub.press() != "" or hub.note() != config.words.row("empty_crew_note"):
@@ -90,7 +90,7 @@ func test_crew_and_store_lines_come_from_the_patterns() -> String:
 	var words: HubWords = hub.model.config.words
 	_to_page(hub, HubConfig.CREW)
 	var crew: String = words.row("crew_row", {"role": "Shield Technician", "count": 1, "amount": 5, "stat": words.stat_name("shield_max")})
-	if hub.lines() != ([hub.model.page_title(HubConfig.CREW), crew] as Array[String]) or hub.selected() != {}:
+	if hub.lines().slice(0, 2) != ([hub.model.page_title(HubConfig.CREW), crew] as Array[String]) or hub.selected() != {}:
 		return "crew page is %s" % [hub.lines()]
 	_to_page(hub, HubConfig.STORE)
 	var store: String = words.row("store_row", {"name": "Cell Salts", "tier": 1, "count": 2})
