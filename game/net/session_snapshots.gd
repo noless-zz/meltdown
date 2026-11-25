@@ -20,6 +20,12 @@ const DEBRIS_SECONDS: String = "seconds_to_solid"
 const DEBRIS_KINDS: String = "kinds"
 
 
+## The alarm level of `alarm`, 0..1, as a plain number; 0 without an alarm
+## (RUN-6, #1342). The view reads this and never the `Alarm` itself.
+static func alarm_level(alarm: Alarm) -> float:
+	return 0.0 if alarm == null else alarm.level
+
+
 ## A copy of `ship`: writing to it changes nothing in the simulation.
 static func ship(source: ShipState) -> ShipState:
 	var copy: ShipState = ShipState.new()

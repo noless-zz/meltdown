@@ -99,6 +99,7 @@ def main():
 		"meltdown_start": zap(110, 70, 1.4, "saw", 0.3, 1.5, 12),
 		"ship_escaped": chime([523, 659, 784, 1047], 0.09, 0.8),
 		"ship_destroyed": thud(90, 1.2, 0.85, 2.5, 13),
+		"alarm_raised": chime([740, 554, 740, 554], 0.18, 0.9),
 	}
 	for name, samples in sounds.items():
 		write(name, samples)

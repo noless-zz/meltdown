@@ -5,7 +5,7 @@ extends RefCounted
 ## (ARC-2, MP-2). Split out of `Sim` to keep that file under its size limit.
 ## Projectiles, robots, salvage, the part catalogue, the reactor, with the
 ## run's outcome, debris and components join only while there are any (for
-## components and miner rescue: while their rules are set), so runs recorded before them keep
+## components, miner rescue and the alarm: while their rules are set), so runs recorded before them keep
 ## their hashes.
 
 
@@ -41,4 +41,6 @@ static func of(sim: Sim) -> int:
 		parts.append(ComponentPickup.state_hash(sim))
 	if sim.rescue != null:
 		parts.append(MinerRescue.state_hash(sim))
+	if sim.alarm != null:
+		parts.append(Alarm.state_hash(sim))
 	return hash(parts)

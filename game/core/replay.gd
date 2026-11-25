@@ -51,6 +51,7 @@ extends RefCounted
 ##     components {"pickup_reach":2.5}
 ##     rescue {"hold_seconds":2.0,"miners":[...],...}
 ##                              optional (version 18): `ReplayRulesLine`
+##     alarm {"cap":1.0,...}    optional (version 20): `ReplayAlarmLine`, via `ReplayRulesLine`
 ##     inputs                   end of header
 ##     0 0 -1000 0 250 0 1 0 1 0
 ##                              one line per tick: thrust x y z, turn x y z,
@@ -71,7 +72,7 @@ extends RefCounted
 ## Blank lines and lines starting with `#` are ignored.
 
 const FORMAT_NAME: String = "meltdown-replay"
-const FORMAT_VERSION: int = 19
+const FORMAT_VERSION: int = 20
 ## Oldest version `from_text` still reads.
 const OLDEST_VERSION: int = 1
 const NO_HASH: int = -1
@@ -111,11 +112,12 @@ var parts: Dictionary[String, WeaponDef] = {}
 var salvage_rules: SalvageRules = null
 ## Look-aim cone and gimbal rate (CMB-6), or null for the defaults.
 var look_aim: LookAim = null
-## Component drops, and miner rescue with its trapped `miners` in millimetres,
-## on a run level (#1028), or null when off.
+## Component drops, miner rescue with its trapped `miners` in millimetres, and
+## the alarm with its shaft `risk` (#1342), on a run level (#1028), or null when off.
 var component_rules: ComponentPickup = null
 var rescue_rules: MinerRescue = null
 var miners: Array[Vector3i] = []
+var alarm_rules: Alarm = null
 ## One entry per tick; each entry is an Array[ShipInput] with one input per ship.
 var frames: Array[Array] = []
 ## Set by `from_text` and `load_file` when the text could not be parsed.

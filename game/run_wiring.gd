@@ -136,6 +136,13 @@ func level_robot_scale() -> float:
 	return float(state.current_risk()["robot_count"]) if active() else 1.0
 
 
+## The alarm multiplier the current level's alarm rises by (#1342, RUN-6): the
+## chosen shaft's `risk.alarm`, or 1.0 for the first level, a run without
+## shafts, or no run.
+func level_alarm_scale() -> float:
+	return float(state.current_risk()["alarm"]) if active() else 1.0
+
+
 ## The level source of the run's current level, or "" without a run:
 ## `seed:<n>`, with `:robots=<scale>` when its shaft scales the robots (#1011).
 func level_source() -> String:

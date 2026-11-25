@@ -24,7 +24,7 @@
 			"run": 12345,
 			"replay": "res://acceptance/replays/run_advances.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "components_bank"],
-			"expected_hash": 2628837371,
+			"expected_hash": 250488278,
 			"expected_outcome": "ESCAPED",
 			"expected_banked": {"cell_salts": 1}
 		},
@@ -35,7 +35,7 @@
 			"shaft": 0,
 			"next_replay": "res://acceptance/replays/shaft_rewards_deep.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "collected"],
-			"expected_hash": 336123081,
+			"expected_hash": 3673083190,
 			"expected_outcome": "ESCAPED",
 			"expected_collected": {"cell_salts": 2, "scrap_alloy": 2}
 		},
@@ -46,7 +46,7 @@
 			"shaft": 2,
 			"next_replay": "res://acceptance/replays/shaft_rewards_steady.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "collected"],
-			"expected_hash": 135514920,
+			"expected_hash": 1778285703,
 			"expected_outcome": "ESCAPED",
 			"expected_collected": {"cell_salts": 1, "scrap_alloy": 2}
 		},
@@ -84,7 +84,7 @@
 			"run": 12345,
 			"replay": "res://acceptance/replays/crew_joins.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "crew_joins"],
-			"expected_hash": 3375022947,
+			"expected_hash": 2982118127,
 			"expected_outcome": "ESCAPED",
 			"expected_crew": 1
 		},
@@ -108,7 +108,7 @@
 			"run": 12345,
 			"replay": "res://acceptance/replays/run_advances.replay",
 			"checks": ["final_hash", "outcome", "no_script_errors", "abandon_run"],
-			"expected_hash": 2628837371,
+			"expected_hash": 250488278,
 			"expected_outcome": "ESCAPED",
 			"expected_banked": {"cell_salts": 1}
 		}
