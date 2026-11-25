@@ -35,6 +35,10 @@
 		{
 			"id": "map_places",
 			"checks": ["no_script_errors", "map_places"]
+		},
+		{
+			"id": "ship_model",
+			"checks": ["no_script_errors", "ship_model"]
 		}
 	]
 }
