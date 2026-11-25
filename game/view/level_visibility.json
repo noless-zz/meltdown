@@ -1,0 +1,8 @@
+{
+	"enabled": true,
+	"tan_half_width": 1.8,
+	"tan_half_height": 1.6,
+	"near_m": 0.02,
+	"margin_m": 0.15,
+	"max_steps": 4096
+}

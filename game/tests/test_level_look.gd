@@ -135,7 +135,7 @@ func test_wall_material_carries_the_grid_and_tint() -> String:
 func test_level_view_draws_each_class_in_its_tint_with_fog() -> String:
 	var view: LevelView = LevelView.new()
 	view.build(_one_box())
-	var walls: MeshInstance3D = view.get_node(LevelView.WALLS_NAME) as MeshInstance3D
+	var walls: MeshInstance3D = view.walls_of(0)
 	var result: String = ""
 	if walls.mesh.get_surface_count() != LevelLook.CLASSES.size():
 		result = "one box gave %d wall surfaces, expected one per class" % walls.mesh.get_surface_count()

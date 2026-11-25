@@ -11,6 +11,11 @@ extends Node3D
 ## lights of its own: the ship's headlight, weapons and flares light the mine
 ## (LGT-1).
 ##
+## Each box (room or tunnel) is its own node holding its walls, frames and
+## bevels, and each frame only the boxes that can be seen from the camera are
+## shown (`LevelVisibility`, #1364, GFX-3): the camera's own box and the boxes
+## seen through openings. `level_visibility.json` can switch that off.
+##
 ## It only reads the union it is given and never writes to it (MP-2).
 ##
 ## The look lives in `res://view/level_look.json` and is parsed by
@@ -20,6 +25,10 @@ const NODE_NAME: String = "LevelView"
 const WALLS_NAME: String = "Walls"
 const BEVELS_NAME: String = "Bevels"
 const ENVIRONMENT_NAME: String = "Environment"
+## Box nodes are named this followed by the box's index.
+const BOX_PREFIX: String = "Box"
+## Runs after the rig and the ship have moved the camera this frame.
+const PROCESS_PRIORITY: int = 1000
 const DEFAULT_LOOK_FILE: String = LevelLook.DEFAULT_FILE
 
 ## Look used when the file is missing or rejected.
@@ -32,11 +41,53 @@ var _look: Dictionary = FALLBACK_LOOK
 var _quads: Array[Dictionary] = []
 var _frames: Array[Dictionary] = []
 var _bevels: Array[Dictionary] = []
+var _boxes: Array[Node3D] = []
+var _visibility: LevelVisibility = null
+var _settings: Dictionary = LevelVisibility.DEFAULTS
+## Set when the visibility file was rejected; empty otherwise.
+var visibility_error: String = ""
+## Boxes and draw calls shown in the last culled frame, and totals over frames.
+var drawn_boxes: int = 0
+var drawn_surfaces: int = 0
+var culled_frames: int = 0
+var drawn_boxes_total: int = 0
+var drawn_surfaces_total: int = 0
 
 
 func _init() -> void:
 	name = NODE_NAME
+	process_priority = PROCESS_PRIORITY
 	load_look()
+	load_visibility()
+
+
+## Applies the visibility settings at `path`; a missing or rejected file keeps
+## culling on with `LevelVisibility.DEFAULTS` and pushes a warning naming the
+## field. Returns `visibility_error`.
+func load_visibility(path: String = LevelVisibilitySettings.DEFAULT_FILE) -> String:
+	var values: Dictionary = LevelVisibilitySettings.load_file(path)
+	_settings = LevelVisibility.DEFAULTS
+	visibility_error = ""
+	if values.has("error"):
+		visibility_error = values["error"]
+		push_warning("LevelView uses the default visibility; %s" % visibility_error)
+	else:
+		_settings = values
+	return visibility_error
+
+
+## The visibility settings in use.
+func visibility_settings() -> Dictionary:
+	return _settings
+
+
+## Switches culling on or off for this view (the dev switch); off shows every box.
+func set_culling(enabled: bool) -> void:
+	_settings = _settings.duplicate()
+	_settings["enabled"] = enabled
+	if not enabled:
+		for box: Node3D in _boxes:
+			box.visible = true
 
 
 ## Parses the text of a look file; see `LevelLook.parse`.
@@ -72,25 +123,139 @@ func build(union: BoxUnion) -> void:
 	_quads = LevelFaces.quads(union)
 	_frames = LevelFrames.quads(union, float(_look["frame_depth_m"]), float(_look["frame_width_m"]))
 	_bevels = LevelBevels.quads(union, _quads, float(_look["edge_width_m"]))
+	_boxes.clear()
+	var per_box: Array[Array] = []
+	var bevels_per_box: Array[Array] = []
+	for index: int in union.boxes.size():
+		per_box.append([])
+		bevels_per_box.append([])
+	for quad: Dictionary in _quads:
+		per_box[int(quad["box"])].append(quad)
+	for quad: Dictionary in _frames:
+		per_box[frame_box(union, quad)].append(quad)
+	for bevel: Dictionary in _bevels:
+		bevels_per_box[int(bevel["box"])].append(bevel)
+	var materials: Dictionary = {}
+	for surface: String in LevelLook.CLASSES:
+		materials[surface] = LevelLook.wall_material(_look, _look["%s_color" % surface])
+	var bevel_material: Material = LevelLook.bevel_material(_look)
+	for index: int in union.boxes.size():
+		var box: Node3D = Node3D.new()
+		box.name = "%s%d" % [BOX_PREFIX, index]
+		_add_box_meshes(box, per_box[index], bevels_per_box[index], materials, bevel_material)
+		add_child(box)
+		_boxes.append(box)
+	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
+	_visibility = LevelVisibility.new(union)
+
+
+## The node of box `index` of the last `build`, or null.
+func box_node(index: int) -> Node3D:
+	return _boxes[index] if index >= 0 and index < _boxes.size() else null
+
+
+func box_count() -> int:
+	return _boxes.size()
+
+
+## The walls (and frames) mesh of box `index`, or null when it has none.
+func walls_of(index: int) -> MeshInstance3D:
+	var box: Node3D = box_node(index)
+	return box.get_node_or_null(WALLS_NAME) as MeshInstance3D if box != null else null
+
+
+## The bevels mesh of box `index`, or null when it has none.
+func bevels_of(index: int) -> MeshInstance3D:
+	var box: Node3D = box_node(index)
+	return box.get_node_or_null(BEVELS_NAME) as MeshInstance3D if box != null else null
+
+
+## Surfaces (one draw call each) that box `index` draws.
+func surfaces_of(index: int) -> int:
+	var count: int = 0
+	for part: MeshInstance3D in [walls_of(index), bevels_of(index)]:
+		if part != null and part.mesh != null:
+			count += part.mesh.get_surface_count()
+	return count
+
+
+## The visibility graph of the last `build`.
+func visibility() -> LevelVisibility:
+	return _visibility
+
+
+## The box whose node draws frame `quad`: a frame is sunk behind its face, into
+## the box that opens there, so it is drawn (and hidden) with that box. The
+## lowest such box holding the frame's centre; its own box if none does.
+static func frame_box(union: BoxUnion, quad: Dictionary) -> int:
+	var centre: Vector3 = ((quad["min"] as Vector3) + (quad["max"] as Vector3)) * 0.5
+	for index: int in union.boxes.size():
+		if index == int(quad["box"]):
+			continue
+		var box: BoxBounds = union.boxes[index]
+		var grow: Vector3 = Vector3.ONE * 1e-3
+		if _inside(centre, box.min_corner - grow, box.max_corner + grow):
+			return index
+	return int(quad["box"])
+
+
+static func _inside(point: Vector3, low: Vector3, high: Vector3) -> bool:
+	return point.x >= low.x and point.y >= low.y and point.z >= low.z \
+			and point.x <= high.x and point.y <= high.y and point.z <= high.z
+
+
+## Shows only the boxes that can be seen from an eye at `eye` looking along -Z
+## of `basis`, both in this view's space, and counts what is drawn.
+func cull(eye: Vector3, basis: Basis) -> void:
+	if _visibility == null:
+		return
+	var flags: Array[bool] = _visibility.visible(eye, basis, _settings)
+	drawn_boxes = 0
+	drawn_surfaces = 0
+	for index: int in _boxes.size():
+		_boxes[index].visible = flags[index]
+		if flags[index]:
+			drawn_boxes += 1
+			drawn_surfaces += surfaces_of(index)
+	culled_frames += 1
+	drawn_boxes_total += drawn_boxes
+	drawn_surfaces_total += drawn_surfaces
+
+
+func _process(_delta: float) -> void:
+	if not bool(_settings["enabled"]) or _boxes.is_empty():
+		return
+	var camera: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera == null:
+		return
+	var to_level: Transform3D = global_transform.affine_inverse() * camera.global_transform
+	cull(to_level.origin, to_level.basis)
+
+
+static func _add_box_meshes(box: Node3D, quads: Array, bevels: Array, materials: Dictionary,
+		bevel_material: Material) -> void:
 	var groups: Array[Array] = []
-	var materials: Array[Material] = []
+	var used: Array[Material] = []
 	for surface: String in LevelLook.CLASSES:
 		var group: Array[Dictionary] = []
 		# Frames are drawn in the walls' own surfaces, so they cost no draw call.
-		for quad: Dictionary in _quads + _frames:
+		for quad: Dictionary in quads:
 			if LevelLook.surface_class(quad["normal"]) == surface:
 				group.append(quad)
 		if group.is_empty():
 			continue
 		groups.append(group)
-		materials.append(LevelLook.wall_material(_look, _look["%s_color" % surface]))
-	var walls: MeshInstance3D = _instance(WALLS_NAME, groups, materials)
-	# Walls block the headlight (the one shadow-casting light, GFX-4), so it
-	# cannot shine through a wall into the next room.
-	walls.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	add_child(walls)
-	add_child(_bevel_instance(_bevels, LevelLook.bevel_material(_look)))
-	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
+		used.append(materials[surface])
+	if not groups.is_empty():
+		var walls: MeshInstance3D = LevelViewMeshes.walls(WALLS_NAME, groups, used)
+		# Walls block the headlight (the one shadow-casting light, GFX-4), so it
+		# cannot shine through a wall into the next room.
+		walls.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		box.add_child(walls)
+	if not bevels.is_empty():
+		var typed: Array[Dictionary] = []
+		typed.assign(bevels)
+		box.add_child(LevelViewMeshes.bevels(typed, bevel_material))
 
 
 ## The wall quads of the last `build`, in `LevelFaces` layout.
@@ -127,55 +292,3 @@ static func triangles(quad: Dictionary) -> Array[Vector3]:
 	if float((quad["normal"] as Vector3)[axis]) > 0.0:
 		return [c00, c11, c10, c00, c01, c11]
 	return [c00, c10, c11, c00, c11, c01]
-
-
-## One mesh with a surface per list in `lists`, drawn in the matching material.
-static func _instance(node_name: String, lists: Array[Array], materials: Array[Material]) -> MeshInstance3D:
-	var instance: MeshInstance3D = MeshInstance3D.new()
-	instance.name = node_name
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var mesh: ArrayMesh = ArrayMesh.new()
-	for index: int in lists.size():
-		var list: Array = lists[index]
-		if list.is_empty():
-			continue
-		var vertices: PackedVector3Array = PackedVector3Array()
-		var normals: PackedVector3Array = PackedVector3Array()
-		for quad: Dictionary in list:
-			for corner: Vector3 in triangles(quad):
-				vertices.append(corner)
-				normals.append(quad["normal"])
-		var arrays: Array = []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = vertices
-		arrays[Mesh.ARRAY_NORMAL] = normals
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		mesh.surface_set_material(mesh.get_surface_count() - 1, materials[index])
-	if mesh.get_surface_count() > 0:
-		instance.mesh = mesh
-	return instance
-
-
-## One mesh of `bevels` in `material`. The bevels cast no shadow: they sit in
-## the corners, where the walls' own shadow already falls.
-static func _bevel_instance(bevels: Array[Dictionary], material: Material) -> MeshInstance3D:
-	var instance: MeshInstance3D = MeshInstance3D.new()
-	instance.name = BEVELS_NAME
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if bevels.is_empty():
-		return instance
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
-	for bevel: Dictionary in bevels:
-		for corner: Vector3 in LevelBevels.triangles(bevel):
-			vertices.append(corner)
-			normals.append(bevel["normal"])
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh.surface_set_material(0, material)
-	instance.mesh = mesh
-	return instance
