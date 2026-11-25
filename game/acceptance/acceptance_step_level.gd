@@ -73,6 +73,12 @@ static func level_hash(replay: Replay) -> int:
 
 ## Why `step`'s replay could not be flown, or "". `source` is null when the
 ## replay could not be read or has more than one ship.
+## Whether `step` may fly a replay of several ships (#1354): only a plain
+## replay step does; a seed or a controls script builds a one-ship session.
+static func flies_ships(step: AcceptanceStep) -> bool:
+	return step.controls_path == "" and step.level_seed == AcceptanceStep.NO_SEED
+
+
 static func replay_problem(step: AcceptanceStep, source: ReplayInputSource) -> String:
 	if step.replay_path == "":
 		return ""
@@ -80,7 +86,7 @@ static func replay_problem(step: AcceptanceStep, source: ReplayInputSource) -> S
 		var replay: Replay = Replay.load_file(step.replay_path)
 		if replay.error != "":
 			return "replay %s: %s" % [step.replay_path, replay.error]
-		return "replay %s: has %d ships; the scene flies one" % [step.replay_path, replay.ship_count]
+		return "replay %s: has %d ships; only a plain replay step flies more than one" % [step.replay_path, replay.ship_count]
 	if source.overrun_ticks > 0:
 		return "replay %s: flew %d ticks past its end" % [step.replay_path, source.overrun_ticks]
 	return ""

@@ -22,6 +22,8 @@ var salvage_ring: SalvageRing = null
 var component_view: ComponentView = null
 ## The trapped miners and their rescue rings (#1034), beside the heaps.
 var miner_view: MinerView = null
+## The ships flown beside the local one, drawn with the ship look (#1354).
+var ships_view: OtherShipsView = null
 ## Says on the hold row what was just picked up or slotted (#605).
 var hold_messages: HoldMessages = HoldMessages.new()
 ## The positional sound cues (#1290), beside the bolts once `attach` has run.
@@ -83,6 +85,8 @@ func attach(world: Node3D) -> void:
 	world.add_child(component_view)
 	miner_view = MinerView.new()
 	world.add_child(miner_view)
+	ships_view = OtherShipsView.new()
+	world.add_child(ships_view)
 	aim_reticle = AimReticle.new()
 	world.add_child(aim_reticle)
 	_world = world
@@ -144,6 +148,7 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	salvage_ring.show_rings(session.previous_salvage(), session.current_salvage(),
 		session.interpolation_fraction, session.current_ship(), session.sim.salvage_rules)
 	# Heaps and miners do not move; the views read the sim's lists and write nothing.
+	ships_view.show_ships(session.previous_others(), session.current_others(), session.interpolation_fraction)
 	component_view.show_heaps(session.sim, delta, point_in(component_view, camera) if camera != null else Vector3.INF)
 	miner_view.show_miners(session.sim.rescue, session.current_ship(), session.sim.walls, delta)
 	feed_sound(session)
@@ -171,8 +176,7 @@ func feed_sound(session: LocalSession) -> void:
 ## after it, a session copy (#618). Every shot that hit it starts the flash on
 ## its side and pulses that side's hand; every part it picked up pulses both.
 ## The strongest wall impact of the advance pulses the hand on that wall's side
-## (#828), so a corner hit reported twice is still one pulse. A heap taken
-## leaves a mark and a rescued miner is seen boarding (#1375).
+## (#828), so a corner hit reported twice is still one pulse. Taken heaps and rescued miners show (#1375).
 ## Call it after every advance, so a frame split for a snap loses no event.
 func feed_events(events: Array[SimEvent], ship: ShipState, xr_running: bool) -> void:
 	if component_view != null:

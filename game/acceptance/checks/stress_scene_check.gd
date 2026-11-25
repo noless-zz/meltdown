@@ -7,9 +7,10 @@ extends RefCounted
 ## ends, so the frame times the `frame_budget` check takes on the same step
 ## were measured with the meltdown's effects on.
 ##
-## The main scene flies one ship (`LocalSession`), so the step flies ship 0's
-## script; the four-ship run of the same scene is checked by
-## `tests/test_stress_scene.gd`. The report says how many ships were flown.
+## The step's replay holds all four ships (#1354): ship 0 is the local view
+## and ships 1 to 3 fly their scripts beside it with no network
+## (`LocalSession.fly_ships`), drawn by `OtherShipsView`. The check fails
+## unless all four were flown and the three others are drawn at the end.
 
 const ROBOTS: int = 20
 const SHIPS: int = 4
@@ -35,18 +36,24 @@ static func _stress_scene(step: AcceptanceStep, runner: AcceptanceRunner, measur
 	measurements["ships_in_scene"] = scene.ship_count()
 	measurements["ships_flown"] = session.sim.ships.size() if session != null else 0
 	measurements["lights_drawn"] = drawn
+	var ships_view: OtherShipsView = runner.main.get_node_or_null(OtherShipsView.NODE_NAME) as OtherShipsView
+	var ships_drawn: int = ships_view.shown() if ships_view != null else 0
+	measurements["ships_drawn"] = ships_drawn
 	measurements["meltdown_ticks_left"] = reactor.meltdown_ticks_left if reactor != null else 0
 	var problems: PackedStringArray = PackedStringArray()
 	if replay.robots.size() != ROBOTS:
 		problems.append("%d robots at the start, not %d" % [replay.robots.size(), ROBOTS])
 	if scene.ship_count() != SHIPS:
 		problems.append("the scene lists %d ships, not %d" % [scene.ship_count(), SHIPS])
+	if measurements["ships_flown"] != SHIPS or ships_drawn != SHIPS - 1:
+		problems.append("%d ships flown and %d drawn beside the local one, not %d and %d" % [
+			measurements["ships_flown"], ships_drawn, SHIPS, SHIPS - 1])
 	if scene.lights.size() != LIGHTS or drawn != LIGHTS:
 		problems.append("%d lights listed and %d drawn, not %d" % [scene.lights.size(), drawn, LIGHTS])
 	if reactor == null or not reactor.destroyed or reactor.meltdown_ticks_left <= 0:
 		problems.append("the meltdown is not running at the end")
 	if not problems.is_empty():
 		return [AcceptanceReport.RESULT_FAIL, "; ".join(problems)]
-	return [AcceptanceReport.RESULT_PASS, "%d robots (%d left), %d lights drawn, meltdown running with %d ticks left; %d of the scene's %d ships flown here" % [
+	return [AcceptanceReport.RESULT_PASS, "%d robots (%d left), %d lights drawn, meltdown running with %d ticks left; %d ships flown, %d drawn beside the local one" % [
 		replay.robots.size(), measurements["robots_left"], drawn, reactor.meltdown_ticks_left,
-		measurements["ships_flown"], scene.ship_count()]]
+		measurements["ships_flown"], ships_drawn]]
