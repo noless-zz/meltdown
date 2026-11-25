@@ -16,8 +16,9 @@ extends Node3D
 ## rules; the others show only their title. Like the panel it
 ## names no meta class and calls the hub text by method name (`HUB_METHODS`),
 ## writes no simulation state (MP-2), reads no comfort setting (ARC-3) and
-## moves nothing (CMF-8). The screens hang on the room's station meshes, so
-## the room is read only to find them.
+## moves no camera (CMF-8): only the screen in use comes towards the eye and
+## grows, so its rows can be read (#1359, `HubStationScreen`). The screens hang
+## on the room's station meshes, so the room is read only to find them.
 
 const NODE_NAME: String = "HubStations"
 ## The hub text's methods the stations call.
@@ -26,6 +27,8 @@ const HUB_METHODS: Array[String] = ["lines", "selected_line", "selected", "press
 ## How far the aim ray may pass from a screen's centre and still point at it;
 ## the screens are 0.45 m apart, so two never both qualify.
 const POINT_RADIUS_M: float = 0.2
+## Longer than any screen takes to come forward or go back.
+const SETTLE_SECONDS: float = 10.0
 
 var hub: Object = null
 ## Station ids in the room's order, the order the stick steps through.
@@ -44,7 +47,8 @@ var _pointed: String = ""
 
 
 ## Puts a screen on each station of `room`; a room that was not built gives none.
-func _init(room: HubRoom, look: Dictionary = HubPanelLook.load_file()) -> void:
+func _init(room: HubRoom, look: Dictionary = HubPanelLook.load_file(),
+		screen: Dictionary = HubScreenLook.load_file()) -> void:
 	name = NODE_NAME
 	visible = false
 	if room == null or not room.is_built():
@@ -58,8 +62,25 @@ func _init(room: HubRoom, look: Dictionary = HubPanelLook.load_file()) -> void:
 		ids.append(id)
 		_labels[id] = station["label"]
 		_points[id] = points[id]
-		_screens[id] = HubStationScreen.new(look, HubRoom.LAYER_BIT)
+		_screens[id] = HubStationScreen.new(look, HubRoom.LAYER_BIT, screen)
+		_screens[id].set_eye(HubScreenMeasure.in_space_of(mesh, room).affine_inverse() * Vector3.ZERO)
 		mesh.add_child(_screens[id])
+
+
+func _process(delta: float) -> void:
+	advance(delta)
+
+
+## Moves every screen `seconds` on towards where it is heading: the one in use
+## forward, the others back.
+func advance(seconds: float) -> void:
+	for id: String in ids:
+		_screens[id].advance(seconds)
+
+
+## The screen on station `id`, or null.
+func screen(id: String) -> HubStationScreen:
+	return _screens.get(id, null)
 
 
 func has_stations() -> bool:
@@ -92,6 +113,7 @@ func close() -> void:
 		hub.call("leave_station")
 	for id: String in ids:
 		_screens[id].show_title(_labels[id], false)
+	advance(SETTLE_SECONDS)  # Reopened, every screen starts at rest.
 
 
 func highlighted_id() -> String:
