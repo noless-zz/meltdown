@@ -1,0 +1,297 @@
+{
+	"size_m": 0.032,
+	"count_font_size": 32,
+	"pixel_size": 0.0005,
+	"count_gap_m": 0.006,
+	"count_color": [0.8, 0.87, 0.93],
+	"short_color": [1.0, 0.64, 0.52],
+	"backdrop_color": [0.02, 0.035, 0.05],
+	"min_contrast": 3.0,
+	"min_color_distance": 0.25,
+	"fallback": {
+		"color": [0.7, 0.72, 0.75],
+		"parts": [
+			{"shape": "ring", "size": [0.84, 0.84], "at": [0.0, 0.0]},
+			{"shape": "disc", "size": [0.2, 0.2], "at": [0.0, 0.0]}
+		]
+	},
+	"groups": {
+		"component": {
+			"scrap_alloy": {
+				"color": [0.604, 0.639, 0.678],
+				"parts": [
+					{"shape": "rect", "size": [0.62, 0.36], "at": [-0.08, -0.12], "turn_deg": -12.0},
+					{"shape": "rect", "size": [0.56, 0.32], "at": [0.1, 0.16], "turn_deg": 18.0, "color": [0.78, 0.8, 0.83]},
+					{"shape": "disc", "size": [0.1, 0.1], "at": [0.24, 0.2], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"cell_salts": {
+				"color": [0.373, 0.827, 0.769],
+				"parts": [
+					{"shape": "tri", "size": [0.3, 0.7], "at": [0.0, 0.1]},
+					{"shape": "tri", "size": [0.26, 0.52], "at": [-0.26, -0.06], "turn_deg": 14.0},
+					{"shape": "tri", "size": [0.26, 0.52], "at": [0.26, -0.06], "turn_deg": -14.0},
+					{"shape": "rect", "size": [0.8, 0.1], "at": [0.0, -0.36], "color": [0.25, 0.55, 0.52]}
+				]
+			},
+			"circuit_shards": {
+				"color": [0.878, 0.69, 0.29],
+				"parts": [
+					{"shape": "rect", "size": [0.76, 0.56], "at": [0.0, 0.0], "turn_deg": 10.0},
+					{"shape": "rect", "size": [0.5, 0.06], "at": [0.0, 0.1], "turn_deg": 10.0, "color": [0.05, 0.06, 0.08]},
+					{"shape": "rect", "size": [0.5, 0.06], "at": [0.0, -0.1], "turn_deg": 10.0, "color": [0.05, 0.06, 0.08]},
+					{"shape": "disc", "size": [0.12, 0.12], "at": [0.22, 0.04], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"core_glass": {
+				"color": [0.769, 0.42, 1.0],
+				"parts": [
+					{"shape": "rect", "size": [0.56, 0.56], "at": [0.0, 0.0], "turn_deg": 45.0},
+					{"shape": "rect", "size": [0.24, 0.24], "at": [0.0, 0.0], "turn_deg": 45.0, "color": [0.93, 0.82, 1.0]}
+				]
+			}
+		},
+		"weapon": {
+			"pulse_cannon": {
+				"color": [0.35, 0.7, 1.0],
+				"parts": [
+					{"shape": "rect", "size": [0.22, 0.6], "at": [0.0, -0.18]},
+					{"shape": "disc", "size": [0.4, 0.4], "at": [0.0, 0.26]},
+					{"shape": "disc", "size": [0.16, 0.16], "at": [0.0, 0.26], "color": [0.85, 0.95, 1.0]}
+				]
+			},
+			"needle_gun": {
+				"color": [0.6, 1.0, 0.5],
+				"parts": [
+					{"shape": "rect", "size": [0.08, 0.72], "at": [0.0, -0.1]},
+					{"shape": "tri", "size": [0.16, 0.24], "at": [0.0, 0.36]},
+					{"shape": "rect", "size": [0.3, 0.08], "at": [0.0, -0.36]}
+				]
+			},
+			"slug_thrower": {
+				"color": [0.7, 0.6, 0.45],
+				"parts": [
+					{"shape": "rect", "size": [0.4, 0.5], "at": [0.0, -0.22]},
+					{"shape": "disc", "size": [0.36, 0.36], "at": [0.0, 0.28]},
+					{"shape": "rect", "size": [0.2, 0.06], "at": [0.0, -0.1], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"arc_lance": {
+				"color": [0.72, 0.5, 1.0],
+				"parts": [
+					{"shape": "rect", "size": [0.1, 0.4], "at": [-0.14, 0.26], "turn_deg": -30.0},
+					{"shape": "rect", "size": [0.1, 0.4], "at": [0.0, 0.0], "turn_deg": 30.0},
+					{"shape": "rect", "size": [0.1, 0.4], "at": [-0.14, -0.26], "turn_deg": -30.0},
+					{"shape": "disc", "size": [0.16, 0.16], "at": [0.24, -0.34]}
+				]
+			},
+			"ember_coil": {
+				"color": [1.0, 0.4, 0.2],
+				"parts": [
+					{"shape": "ring", "size": [0.84, 0.84], "at": [0.0, 0.0]},
+					{"shape": "ring", "size": [0.5, 0.5], "at": [0.0, 0.0]},
+					{"shape": "disc", "size": [0.2, 0.2], "at": [0.0, 0.0], "color": [1.0, 0.85, 0.5]}
+				]
+			},
+			"hollow_spike": {
+				"color": [0.92, 0.93, 0.96],
+				"parts": [
+					{"shape": "tri", "size": [0.5, 0.9], "at": [0.0, 0.0]},
+					{"shape": "tri", "size": [0.2, 0.4], "at": [0.0, -0.12], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"quill_battery": {
+				"color": [1.0, 0.85, 0.25],
+				"parts": [
+					{"shape": "rect", "size": [0.1, 0.56], "at": [-0.26, -0.12]},
+					{"shape": "rect", "size": [0.1, 0.56], "at": [0.0, -0.12]},
+					{"shape": "rect", "size": [0.1, 0.56], "at": [0.26, -0.12]},
+					{"shape": "tri", "size": [0.16, 0.24], "at": [-0.26, 0.28]},
+					{"shape": "tri", "size": [0.16, 0.24], "at": [0.0, 0.28]},
+					{"shape": "tri", "size": [0.16, 0.24], "at": [0.26, 0.28]}
+				]
+			},
+			"drift_mortar": {
+				"color": [1.0, 0.45, 0.75],
+				"parts": [
+					{"shape": "rect", "size": [0.3, 0.44], "at": [-0.12, -0.24], "turn_deg": -20.0},
+					{"shape": "disc", "size": [0.34, 0.34], "at": [0.16, 0.24]},
+					{"shape": "disc", "size": [0.14, 0.14], "at": [-0.04, 0.04]}
+				]
+			}
+		},
+		"part_family": {
+			"engine": {
+				"color": [1.0, 0.6, 0.2],
+				"parts": [
+					{"shape": "rect", "size": [0.5, 0.36], "at": [0.0, 0.26], "color": [0.62, 0.66, 0.72]},
+					{"shape": "tri", "size": [0.5, 0.5], "at": [0.0, -0.22], "turn_deg": 180.0}
+				]
+			},
+			"hull": {
+				"color": [0.6, 0.68, 0.78],
+				"parts": [
+					{"shape": "rect", "size": [0.8, 0.8], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.6, 0.6], "at": [0.0, 0.0], "color": [0.38, 0.43, 0.5]},
+					{"shape": "disc", "size": [0.1, 0.1], "at": [-0.3, 0.3], "color": [0.05, 0.06, 0.08]},
+					{"shape": "disc", "size": [0.1, 0.1], "at": [0.3, -0.3], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"shield": {
+				"color": [0.3, 0.82, 1.0],
+				"parts": [
+					{"shape": "rect", "size": [0.64, 0.4], "at": [0.0, 0.2]},
+					{"shape": "tri", "size": [0.64, 0.5], "at": [0.0, -0.25], "turn_deg": 180.0}
+				]
+			},
+			"module": {
+				"color": [0.45, 0.9, 0.45],
+				"parts": [
+					{"shape": "rect", "size": [0.7, 0.04], "at": [0.0, 0.2]},
+					{"shape": "rect", "size": [0.7, 0.04], "at": [0.0, -0.2]},
+					{"shape": "rect", "size": [0.04, 0.7], "at": [0.2, 0.0]},
+					{"shape": "rect", "size": [0.04, 0.7], "at": [-0.2, 0.0]},
+					{"shape": "rect", "size": [0.54, 0.54], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.22, 0.22], "at": [0.0, 0.0], "color": [0.05, 0.06, 0.08]}
+				]
+			}
+		},
+		"utility": {
+			"aim_assist": {
+				"color": [1.0, 0.4, 0.4],
+				"parts": [
+					{"shape": "ring", "size": [0.7, 0.7], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.06, 0.96], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.96, 0.06], "at": [0.0, 0.0]}
+				]
+			},
+			"look_aim": {
+				"color": [1.0, 0.8, 0.35],
+				"parts": [
+					{"shape": "disc", "size": [0.9, 0.5], "at": [0.0, 0.0]},
+					{"shape": "disc", "size": [0.3, 0.3], "at": [0.0, 0.0], "color": [0.05, 0.06, 0.08]},
+					{"shape": "disc", "size": [0.08, 0.08], "at": [0.05, 0.05], "color": [1.0, 1.0, 1.0]}
+				]
+			},
+			"mine_scanner": {
+				"color": [0.45, 0.95, 0.5],
+				"parts": [
+					{"shape": "ring", "size": [0.9, 0.9], "at": [0.0, 0.0]},
+					{"shape": "ring", "size": [0.56, 0.56], "at": [0.0, 0.0]},
+					{"shape": "disc", "size": [0.18, 0.18], "at": [0.0, 0.0]}
+				]
+			},
+			"wide_radar": {
+				"color": [0.35, 0.75, 1.0],
+				"parts": [
+					{"shape": "ring", "size": [0.96, 0.56], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.4, 0.06], "at": [0.16, 0.08], "turn_deg": 24.0},
+					{"shape": "disc", "size": [0.14, 0.14], "at": [0.0, 0.0]},
+					{"shape": "disc", "size": [0.1, 0.1], "at": [-0.24, -0.08], "color": [1.0, 1.0, 1.0]}
+				]
+			}
+		},
+		"crew": {
+			"surveyor": {
+				"color": [0.45, 0.9, 0.5],
+				"parts": [
+					{"shape": "disc", "size": [0.3, 0.3], "at": [-0.18, 0.28], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.46, 0.4], "at": [-0.18, -0.16], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.36, 0.44], "at": [0.26, -0.06]},
+					{"shape": "tri", "size": [0.16, 0.2], "at": [0.26, -0.02], "turn_deg": 180.0, "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"shield_tech": {
+				"color": [0.3, 0.8, 1.0],
+				"parts": [
+					{"shape": "disc", "size": [0.3, 0.3], "at": [-0.18, 0.28], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.46, 0.4], "at": [-0.18, -0.16], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.36, 0.22], "at": [0.26, 0.04]},
+					{"shape": "tri", "size": [0.36, 0.26], "at": [0.26, -0.2], "turn_deg": 180.0}
+				]
+			},
+			"cargo_rigger": {
+				"color": [0.85, 0.55, 0.3],
+				"parts": [
+					{"shape": "disc", "size": [0.3, 0.3], "at": [-0.18, 0.28], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.46, 0.4], "at": [-0.18, -0.16], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.4, 0.4], "at": [0.26, -0.12]},
+					{"shape": "rect", "size": [0.4, 0.05], "at": [0.26, -0.12], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"reactor_hand": {
+				"color": [1.0, 0.85, 0.25],
+				"parts": [
+					{"shape": "disc", "size": [0.3, 0.3], "at": [-0.18, 0.28], "color": [0.86, 0.88, 0.92]},
+					{"shape": "rect", "size": [0.46, 0.4], "at": [-0.18, -0.16], "color": [0.86, 0.88, 0.92]},
+					{"shape": "disc", "size": [0.42, 0.42], "at": [0.26, -0.1]},
+					{"shape": "disc", "size": [0.14, 0.14], "at": [0.26, -0.1], "color": [0.05, 0.06, 0.08]}
+				]
+			}
+		},
+		"attribute": {
+			"hull": {
+				"color": [0.62, 0.7, 0.8],
+				"parts": [
+					{"shape": "rect", "size": [0.8, 0.6], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.8, 0.06], "at": [0.0, 0.0], "color": [0.05, 0.06, 0.08]},
+					{"shape": "rect", "size": [0.06, 0.3], "at": [-0.14, 0.15], "color": [0.05, 0.06, 0.08]},
+					{"shape": "rect", "size": [0.06, 0.3], "at": [0.14, -0.15], "color": [0.05, 0.06, 0.08]}
+				]
+			},
+			"shield": {
+				"color": [0.3, 0.82, 1.0],
+				"parts": [
+					{"shape": "ring", "size": [0.9, 0.9], "at": [0.0, 0.0]},
+					{"shape": "disc", "size": [0.3, 0.3], "at": [0.0, 0.0], "color": [0.62, 0.7, 0.8]}
+				]
+			},
+			"energy": {
+				"color": [1.0, 0.92, 0.3],
+				"parts": [
+					{"shape": "tri", "size": [0.44, 0.5], "at": [0.08, 0.2], "turn_deg": 195.0},
+					{"shape": "tri", "size": [0.36, 0.56], "at": [-0.06, -0.18], "turn_deg": 195.0}
+				]
+			},
+			"thrust": {
+				"color": [1.0, 0.6, 0.2],
+				"parts": [
+					{"shape": "rect", "size": [0.5, 0.2], "at": [-0.18, 0.0]},
+					{"shape": "tri", "size": [0.44, 0.4], "at": [0.24, 0.0], "turn_deg": -90.0}
+				]
+			},
+			"boost": {
+				"color": [1.0, 0.3, 0.3],
+				"parts": [
+					{"shape": "tri", "size": [0.5, 0.36], "at": [-0.16, 0.0], "turn_deg": -90.0},
+					{"shape": "tri", "size": [0.5, 0.36], "at": [0.2, 0.0], "turn_deg": -90.0}
+				]
+			},
+			"salvage_slots": {
+				"color": [0.8, 0.58, 0.38],
+				"parts": [
+					{"shape": "rect", "size": [0.36, 0.36], "at": [-0.2, 0.2]},
+					{"shape": "rect", "size": [0.36, 0.36], "at": [0.2, 0.2]},
+					{"shape": "rect", "size": [0.36, 0.36], "at": [-0.2, -0.2]},
+					{"shape": "rect", "size": [0.3, 0.3], "at": [0.2, -0.2], "color": [0.3, 0.24, 0.18]}
+				]
+			},
+			"meltdown_seconds": {
+				"color": [1.0, 0.36, 0.64],
+				"parts": [
+					{"shape": "ring", "size": [0.9, 0.9], "at": [0.0, 0.0]},
+					{"shape": "rect", "size": [0.06, 0.3], "at": [0.0, 0.14]},
+					{"shape": "rect", "size": [0.24, 0.06], "at": [0.11, 0.0]}
+				]
+			},
+			"map_reveal": {
+				"color": [0.45, 0.92, 0.55],
+				"parts": [
+					{"shape": "rect", "size": [0.8, 0.6], "at": [0.0, 0.0], "turn_deg": -6.0},
+					{"shape": "rect", "size": [0.06, 0.6], "at": [-0.13, 0.0], "turn_deg": -6.0, "color": [0.05, 0.06, 0.08]},
+					{"shape": "rect", "size": [0.06, 0.6], "at": [0.13, 0.0], "turn_deg": -6.0, "color": [0.05, 0.06, 0.08]}
+				]
+			}
+		}
+	}
+}

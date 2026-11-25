@@ -130,10 +130,11 @@ func test_every_quad_faces_into_its_box() -> String:
 			var drawn: Vector3 = (corners[start + 2] - a).cross(corners[start + 1] - a)
 			if result == "" and drawn.dot(quad["normal"]) <= 0.0:
 				result = "quad of box %d at %s is drawn facing out" % [quad["box"], _centre(quad)]
-	var walls: MeshInstance3D = view.get_node(LevelView.WALLS_NAME)
 	var vertex_count: int = 0
-	for surface: int in walls.mesh.get_surface_count():
-		vertex_count += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	for box: int in view.box_count():
+		var walls: MeshInstance3D = view.walls_of(box)
+		for surface: int in walls.mesh.get_surface_count() if walls != null else 0:
+			vertex_count += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 	# Opening frames are drawn in the walls' surfaces (#1323).
 	var drawn_quads: int = view.quads().size() + view.frames().size()
 	if result == "" and vertex_count != drawn_quads * 6:
@@ -176,7 +177,8 @@ func test_rebuilding_replaces_the_walls() -> String:
 		result = "second build has %d children and %d quads, first had %d and %d" % [
 				view.get_child_count(), view.quads().size(), children, quads]
 	view.build(_one_box())
-	if result == "" and (view.quads().size() != 6 or view.get_child_count() != children):
+	# One node per box, and the environment.
+	if result == "" and (view.quads().size() != 6 or view.get_child_count() != 2):
 		result = "building one box after G2 left %d quads and %d children" % [view.quads().size(), view.get_child_count()]
 	view.free()
 	return result
@@ -190,8 +192,8 @@ func test_the_look_is_dark_dim_and_adds_no_lights() -> String:
 	view.build(_g2())
 	for child: Node in view.find_children("*", "Light3D", true, false):
 		result = "the level view adds a light: %s" % child.name
-	var wall_mesh: Mesh = (view.get_node(LevelView.WALLS_NAME) as MeshInstance3D).mesh
-	var bevels: ShaderMaterial = (view.get_node(LevelView.BEVELS_NAME) as MeshInstance3D).mesh.surface_get_material(0)
+	var wall_mesh: Mesh = view.walls_of(0).mesh
+	var bevels: ShaderMaterial = view.bevels_of(0).mesh.surface_get_material(0)
 	for surface: int in wall_mesh.get_surface_count():
 		var material: ShaderMaterial = wall_mesh.surface_get_material(surface) as ShaderMaterial
 		var glow: Variant = material.get_shader_parameter("glow")

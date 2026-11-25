@@ -32,6 +32,13 @@
 			"expected_hash": 802400918,
 			"screenshot_at_ticks": [1275, 1815, 2340, 2625, 2745],
 			"screenshot_at_end": true
+		},
+		{
+			"id": "portal_visibility",
+			"level": "g2",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": ["final_hash", "no_script_errors", "ship_alive", "portal_visibility_counted"],
+			"expected_hash": 802400918
 		}
 	]
 }

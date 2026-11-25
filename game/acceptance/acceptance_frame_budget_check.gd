@@ -18,6 +18,10 @@ extends RefCounted
 ## it is stated in the suite file so the pass mark is visible and tunable
 ## (ARC-4). Frames longer than `FrameStats`'s dropped threshold (1.5 frame
 ## times, a missed display refresh) are reported as well.
+##
+## The same frames also sample draw calls, triangles and memory (`RenderStats`,
+## #1289, PRF-4 to PRF-6). The step fails when one's 95th percentile is over
+## its limit in `RenderBudget`, and reports the values either way.
 
 ## PRF-1: the rate the headset must hold.
 const REQUIRED_HZ: float = 90.0
@@ -34,6 +38,8 @@ var settle_seconds: float = 0.0
 var measure_seconds: float = 0.0
 ## Durations in seconds of the frames counted, in order.
 var frames: Array[float] = []
+## Draw calls, triangles and memory of the frames counted (#1289).
+var render: RenderStats = RenderStats.new()
 
 var _seen_seconds: float = 0.0
 
@@ -43,13 +49,15 @@ func _init(step: AcceptanceStep) -> void:
 	measure_seconds = step.measure_seconds
 
 
-## Records one frame. Frames inside the settle period are not kept.
+## Records one frame, with its render numbers read from the engine. Frames
+## inside the settle period are not kept.
 func add(frame_seconds: float) -> void:
 	if done() or not frame_seconds > 0.0:
 		return
 	_seen_seconds += frame_seconds
 	if _seen_seconds > settle_seconds:
 		frames.append(frame_seconds)
+		render.add_frame()
 
 
 ## Whether the measured period is over, so the step may be judged.
@@ -114,12 +122,29 @@ static func run(main: Node, xr_available: bool, on_headset: bool, step: Acceptan
 	var reason: String = AcceptanceRefresh120.not_offered_reason(rate) if step.refresh_120 else ""
 	if reason != "":
 		return [AcceptanceReport.RESULT_FAIL if step.required else AcceptanceReport.RESULT_SKIPPED, reason]
-	return judge(measured.frames, rate.in_use_hz, step, measurements)
+	return judge(measured.frames, rate.in_use_hz, step, measurements, FrameStats.BUDGET_PATH, measured.render)
 
 
-## [result, message] for `frames` (seconds each) flown at `in_use_hz`.
+## [result, message] for `frames` (seconds each) flown at `in_use_hz`, and for
+## `render`'s samples when given (#1289): the frame times and the render
+## numbers are both in the message and `measurements`, and either over its
+## budget fails the step.
 static func judge(frames: Array[float], in_use_hz: float, step: AcceptanceStep, measurements: Dictionary,
-		budget_path: String = FrameStats.BUDGET_PATH) -> Array:
+		budget_path: String = FrameStats.BUDGET_PATH, render: RenderStats = null,
+		render_budget_path: String = RenderBudget.BUDGET_PATH) -> Array:
+	var timed: Array = _judge_times(frames, in_use_hz, step, measurements, budget_path)
+	if render == null:
+		return timed
+	var drawn: Array = render.judge(RenderBudget.load_file(render_budget_path), measurements)
+	var summary: String = "%s; %s" % [timed[1], drawn[1]]
+	measurements["summary"] = summary
+	if timed[0] == AcceptanceReport.RESULT_FAIL or drawn[0] == AcceptanceReport.RESULT_FAIL:
+		return [AcceptanceReport.RESULT_FAIL, summary]
+	return [timed[0], summary]
+
+
+static func _judge_times(frames: Array[float], in_use_hz: float, step: AcceptanceStep, measurements: Dictionary,
+		budget_path: String) -> Array:
 	measurements["refresh_rate_in_use_hz"] = in_use_hz
 	if in_use_hz == RefreshRate.UNKNOWN:
 		return [AcceptanceReport.RESULT_FAIL, "the rate in use was not read back"]
