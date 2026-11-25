@@ -13,7 +13,8 @@ const PEDESTAL_SIZE_M: Vector2 = Vector2(0.3, 0.22)  # Width and depth.
 const PEDESTAL_GAP_M: float = 0.12
 const LABEL_RISE_M: float = 0.18
 const LABEL_PIXEL_SIZE: float = 0.0006
-const LABEL_FONT_SIZE: int = 40
+## 0.9 degrees of capital height at the seat (#1359): about 23 mm at 1.4 m.
+const LABEL_FONT_SIZE: int = 56
 const LABEL_COLOR: Color = Color(0.85, 0.95, 1.0)
 
 
