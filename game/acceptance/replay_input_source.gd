@@ -63,6 +63,12 @@ func new_session() -> LocalSession:
 	if _replay.rescue_rules != null and session.sim.set_rescue_rules(_replay.rescue_rules, _replay.miners) == "":
 		session.replay.rescue_rules = _replay.rescue_rules
 		session.replay.miners = _replay.miners.duplicate()
+	# A replay recorded with the alarm on (version 20, #1342) hashes the alarm
+	# level every tick, so without it the step flies, and hashes, the run
+	# without its alarm (#1374). A copy, as `RunLevelRules.install` keeps.
+	var alarm: Alarm = _replay.alarm_rules
+	if alarm != null and session.sim.set_alarm_rules(alarm, alarm.risk) == "":
+		session.replay.alarm_rules = alarm.with_risk(alarm.risk)
 	return session
 
 
