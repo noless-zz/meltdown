@@ -51,5 +51,6 @@
 		{"shape": "box", "yaw_deg": 46, "pitch_deg": -32.5, "distance_m": 0.335, "size_m": [0.049, 0.04, 0.025], "tone": 0.8},
 		{"shape": "box", "yaw_deg": 46, "pitch_deg": -33.0, "distance_m": 0.331, "size_m": [0.01, 0.006, 0.004], "tone": 0.6, "lamp_color": [0.9, 0.2, 0.15]}
 	],
+	"map_mount": {"yaw_deg": 27, "pitch_deg": -10, "distance_m": 0.4, "size_m": 0.075},
 	"instruments": []
 }

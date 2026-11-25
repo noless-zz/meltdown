@@ -39,5 +39,6 @@
 		"glass_fresnel_power": 3,
 		"glass_fresnel_color": [0.75, 0.85, 1.0]
 	},
+	"map_mount": {"yaw_deg": 27, "pitch_deg": -10, "distance_m": 0.4, "size_m": 0.075},
 	"instruments": []
 }

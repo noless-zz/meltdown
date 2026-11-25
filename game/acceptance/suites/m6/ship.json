@@ -31,6 +31,10 @@
 			"expected_outcome": "ESCAPED",
 			"expected_crew": 1,
 			"screenshot_at_ticks": [360, 990, 1230, 5670, 7230]
+		},
+		{
+			"id": "map_places",
+			"checks": ["no_script_errors", "map_places"]
 		}
 	]
 }
