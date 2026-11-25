@@ -1,21 +1,25 @@
 class_name ReplayInputSource
 extends ShipInputSource
 
-## Hands a one-ship replay's recorded inputs to a running session, one per
-## tick, in place of the controllers (DEV-6, #165). Indexed by the tick the
+## Hands a replay's recorded inputs to a running session, one per tick, in
+## place of the controllers (DEV-6, #165). A source flies one ship of the
+## replay, ship 0 unless told otherwise; a replay of more than one ship flies
+## the others beside it, each from a source of its own (#1354, PRF-8). Indexed by the tick the
 ## session asks for, so a dropped or doubled frame cannot shift the inputs.
 ## A looping source (#788, PRF-3) starts again from the replay's first input
 ## each time the ticks pass its end, so a short flight can fill a long soak.
 
 var _replay: Replay
 var _looping: bool = false
+var _ship: int = 0
 ## Ticks asked for beyond the end of the replay; each flew no input.
 var overrun_ticks: int = 0
 
 
-func _init(replay: Replay, looping: bool = false) -> void:
+func _init(replay: Replay, looping: bool = false, ship: int = 0) -> void:
 	_replay = replay
 	_looping = looping
+	_ship = ship
 
 
 ## A fresh session fed by this source, from the replay's own seed, walls,
@@ -24,6 +28,8 @@ func _init(replay: Replay, looping: bool = false) -> void:
 ## taken over, as `LocalSession.for_level` does (#334, #401, #332), and so is
 ## its debris (#456).
 func new_session() -> LocalSession:
+	if _replay.ship_count > 1:
+		return _session_for_ships()
 	var session: LocalSession = LocalSession.new(_replay.run_seed, self, _replay.bounds(), _replay.tuning,
 		_replay.robots, _replay.loadout, _replay.parts)
 	if _replay.box_mins_mm.size() > 1:
@@ -77,6 +83,25 @@ func next_input(tick: int) -> ShipInput:
 		overrun_ticks += 1
 		return ShipInput.new()
 	var frame: Array = _replay.frames[tick]
-	var recorded: ShipInput = frame[0]
+	var recorded: ShipInput = frame[_ship]
 	# A copy: the session records what it flew, and must not share the replay's object.
 	return LatestInputSource._copy(recorded)
+
+
+## A session flying every ship of the replay: this source flies ship 0 and a
+## source of the same replay flies each other ship, with no network (#1354).
+## The sim is built from the replay's own header, as `Replay.run` builds it.
+func _session_for_ships() -> LocalSession:
+	var session: LocalSession = LocalSession.new(_replay.run_seed, self)
+	var frames: Array[Array] = _replay.frames
+	_replay.frames = [] as Array[Array]
+	var header: Replay = Replay.from_text(_replay.to_text())
+	_replay.frames = frames
+	var others: Array[ShipInputSource] = []
+	for ship: int in range(1, _replay.ship_count):
+		others.append(ReplayInputSource.new(_replay, _looping, ship))
+	var problem: String = header.error if header.error != "" else session.fly_ships(header, others)
+	if problem != "":
+		print("Meltdown: the replay's %d ships cannot be flown (%s); ship 0 flies alone" % [
+			_replay.ship_count, problem])
+	return session

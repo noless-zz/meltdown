@@ -103,19 +103,24 @@ func test_the_meltdown_is_running_after_300_ticks() -> String:
 	return ""
 
 
-func test_the_step_replay_is_the_scene_ship_0() -> String:
+func test_the_step_replay_is_the_scenes_four_ships() -> String:
 	var shipped: Replay = Replay.load_file(REPLAY_PATH)
 	if shipped.error != "":
 		return "%s: %s" % [REPLAY_PATH, shipped.error]
-	var built: Replay = _scene().replay(shipped.frames.size(), 1)
+	var built: Replay = _scene().replay(shipped.frames.size())
 	if shipped.to_text() != built.to_text():
-		return "%s no longer matches StressScene.replay(%d, 1); write it again" % [REPLAY_PATH, shipped.frames.size()]
+		return "%s no longer matches StressScene.replay(%d); write it again" % [REPLAY_PATH, shipped.frames.size()]
+	if shipped.ship_count != 4:
+		return "the step's replay flies %d ships" % shipped.ship_count
 	# Long enough for the step's 2 s settle and 60 s measurement at 90 Hz.
 	if shipped.frames.size() < 62 * 90:
 		return "the replay is %d ticks" % shipped.frames.size()
 	var sim: Sim = shipped.run()
-	if sim.ships[0].is_destroyed() or sim.reactor.meltdown_ticks_left <= 0:
-		return "ship 0 is lost or the meltdown is over by the replay's end"
+	for index: int in sim.ships.size():
+		if sim.ships[index].is_destroyed():
+			return "ship %d is lost by the replay's end" % index
+	if sim.reactor.meltdown_ticks_left <= 0:
+		return "the meltdown is over by the replay's end"
 	return ""
 
 
