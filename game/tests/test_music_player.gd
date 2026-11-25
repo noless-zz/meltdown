@@ -49,7 +49,7 @@ func test_mood_follows_the_session() -> String:
 	session.sim.ships[0].escaped = true
 	if MusicWiring.mood(session, false) != MusicMix.Mood.ENDED:
 		return "an escape is not the end"
-	return "" if MusicWiring.alarm_level(session) == 0.0 else "an alarm before the core has one"
+	return "" if MusicWiring.alarm_level(session) == 0.0 else "an alarm on a level flown without one"
 
 
 func test_destroyed_ship_and_no_reactor() -> String:

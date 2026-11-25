@@ -87,10 +87,14 @@ static func _craft_fit_launch(main: Node, hub: HubWiring, measurements: Dictiona
 		weapon]
 
 
-## "" when the station in use shows rows and every other one only its title.
+## "" when the station in use shows rows, no more than the hub file allows
+## (#1300: the title, `max_rows_visible` rows, a note and a reason), and every
+## other one only its title.
 static func _only_in_use_shows_rows(hub: HubWiring) -> String:
 	if hub.stations.texts().size() < 2:
 		return "the station in use shows no rows: %s" % [hub.stations.texts()]
+	if hub.stations.texts().size() > hub.text.rows_shown() + 3:
+		return "the station in use shows %d lines: %s" % [hub.stations.texts().size(), hub.stations.texts()]
 	for id: String in hub.stations.ids:
 		var words: Node = hub.room.get_node_or_null("Station_%s/Screen/%s" % [id, HubStationScreen.NODE_NAME])
 		var count: int = 0

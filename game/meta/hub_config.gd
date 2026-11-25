@@ -20,7 +20,14 @@ const KEY_EMPTY_CREW: String = "empty_crew"
 const KEY_EMPTY_STORE: String = "empty_store"
 ## The row words, read by `HubWords` (#1058).
 const KEY_TEXT: String = "text"
+## Screen limits (#1300): rows on a station screen at once, and characters per
+## row. Optional; a file without them gets the defaults.
+const KEY_MAX_ROWS: String = "max_rows_visible"
+const KEY_MAX_CHARS: String = "max_row_chars"
+const DEFAULT_MAX_ROWS: int = 5
+const DEFAULT_MAX_CHARS: int = 28
 const KEYS: Array[String] = [KEY_PAGES, KEY_EMPTY_CREW, KEY_EMPTY_STORE, KEY_TEXT]
+const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS]
 const PAGE_KEYS: Array[String] = ["id", "title"]
 const TEXT_MAX_LENGTH: int = 120
 
@@ -28,6 +35,10 @@ const TEXT_MAX_LENGTH: int = 120
 var pages: Array[String] = []
 var empty_crew: String = ""
 var empty_store: String = ""
+## Rows a station screen shows at once; the window scrolls with the selection.
+var max_rows_visible: int = DEFAULT_MAX_ROWS
+## Characters a filled row may have; a test holds every shipped text to it.
+var max_row_chars: int = DEFAULT_MAX_CHARS
 ## The words of every row a hub panel shows (#1058).
 var words: HubWords = HubWords.new()
 ## Set by `parse_json` when the text was rejected; the config is then empty.
@@ -54,7 +65,7 @@ static func parse_json(text: String) -> HubConfig:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not KEYS.has(key):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key)):
 			return _failed("unknown key \"%s\"" % str(key))
 	for key: String in KEYS:
 		if not data.has(key):
@@ -65,6 +76,8 @@ static func parse_json(text: String) -> HubConfig:
 		message = _check_text(KEY_EMPTY_CREW, data[KEY_EMPTY_CREW])
 	if message == "":
 		message = _check_text(KEY_EMPTY_STORE, data[KEY_EMPTY_STORE])
+	if message == "":
+		message = config._read_limits(data)
 	var words: HubWords = HubWords.parse(data[KEY_TEXT], TEXT_MAX_LENGTH) if message == "" else null
 	if message == "" and words.error != "":
 		message = words.error
@@ -74,6 +87,20 @@ static func parse_json(text: String) -> HubConfig:
 	config.empty_crew = data[KEY_EMPTY_CREW]
 	config.empty_store = data[KEY_EMPTY_STORE]
 	return config
+
+
+## The optional screen limits, each a whole number of at least 1.
+func _read_limits(data: Dictionary) -> String:
+	for key: String in OPTIONAL_KEYS:
+		if not data.has(key):
+			continue
+		var value: Variant = data[key]
+		var number: bool = typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT
+		if not number or float(value) != floorf(float(value)) or float(value) < 1.0:
+			return "key \"%s\" must be a whole number of at least 1" % key
+	max_rows_visible = int(data.get(KEY_MAX_ROWS, DEFAULT_MAX_ROWS))
+	max_row_chars = int(data.get(KEY_MAX_CHARS, DEFAULT_MAX_CHARS))
+	return ""
 
 
 ## Title of page `id`, or "" for an unknown page.

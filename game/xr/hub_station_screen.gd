@@ -21,12 +21,14 @@ const NODE_NAME: String = "Words"
 const FACE_M: float = 0.017
 ## The words sit this far in front of the face, the frame half as far.
 const TEXT_LIFT_M: float = 0.002
+## Lines made up front: five rows and a note; more are made if a window asks.
+const LINES_MADE: int = 6
 ## Words keep this far inside the face's edge.
 const MARGIN_M: float = 0.012
 
 var _look: Dictionary
 var _screen: Dictionary
-var _rows_shown: int
+var _layers: int
 var _title: Label3D
 var _rows: Array[Label3D] = []
 var _reason: Label3D
@@ -42,14 +44,13 @@ func _init(look: Dictionary, layers: int, screen: Dictionary = HubScreenLook.loa
 	name = NODE_NAME
 	_look = look
 	_screen = screen
-	_rows_shown = int(screen["rows_shown"])
+	_layers = layers
 	position = _rest
 	add_child(_face(layers))
 	_frame = _make_frame(layers)
 	add_child(_frame)
 	_title = _label("Title", int(screen["title_font_size"]), layers)
-	for i: int in _rows_shown:
-		_rows.append(_wrapping(_label("Row%d" % i, int(screen["row_font_size"]), layers)))
+	_make_lines(LINES_MADE)
 	_reason = _wrapping(_label("Reason", int(screen["row_font_size"]), layers))
 	_reason.modulate = screen["reason_color"]
 
@@ -75,12 +76,13 @@ func show_title(title: String, highlighted: bool) -> void:
 	_focus_target = 0.0
 
 
-## The station in use: `title`, a window of `rows` around `selected` (an index
-## into `rows`, -1 for none) and `reason` when it is not "". A row too wide for
-## the face wraps onto a second line rather than run off it, so the window
-## holds fewer rows (#1359: fewer rows, not smaller words); the selected row
-## is always in it.
-func show_rows(title: String, rows: Array[String], selected: int, reason: String) -> void:
+## The station in use: `title`, the hub text's window of `rows` (#1300) with
+## row `selected` (-1 for none) marked, `note` on the line under it when it is
+## not "", and `reason` when it is not "". A line too wide for the face wraps
+## onto a second line rather than run off it; if the lines then overflow the
+## face, the ones furthest from the selected row are left off (#1359: fewer
+## rows, not smaller words), so the selected row and its note always show.
+func show_rows(title: String, rows: Array[String], selected: int, note: String, reason: String) -> void:
 	_put(_title, title, _screen["title_color"])
 	_title.font_size = int(_screen["open_title_font_size"])
 	_title.position = Vector3(0.0, float(_screen["title_y_m"]), TEXT_LIFT_M)
@@ -90,19 +92,30 @@ func show_rows(title: String, rows: Array[String], selected: int, reason: String
 	if _reason.visible:
 		bottom += _height(_reason) + float(_screen["row_step_m"]) - _line_m()
 	var texts: Array[String] = []
-	for index: int in rows.size():
-		texts.append((_look["mark_text"] + rows[index]) if index == selected else rows[index])
-	var start: int = window_start(rows.size(), selected, _rows_shown)
-	while selected > start and _fits(texts, start, selected + 1, bottom) <= selected - start:
-		start += 1  # Wrapped rows above push the selected one off the face.
-	var count: int = _fits(texts, start, mini(rows.size(), start + _rows_shown), bottom)
+	var colors: Array[Color] = []
+	var keep: int = -1  # The last line that must show: the selected row or its note.
+	for i: int in rows.size():
+		var chosen: bool = i == selected
+		texts.append((_look["mark_text"] + rows[i]) if chosen else rows[i])
+		colors.append(_screen["selected_color"] if chosen else _screen["text_color"])
+		if chosen:
+			keep = texts.size() - 1
+			if note != "":
+				texts.append(note)
+				colors.append(_screen["text_color"])
+				keep += 1
+	_make_lines(texts.size())
+	var start: int = 0
+	while keep > start and _fits(texts, start, keep + 1, bottom) <= keep - start:
+		start += 1  # Wrapped lines above push the selected one off the face.
+	var count: int = _fits(texts, start, texts.size(), bottom)
 	var top: float = _first_top()
-	for i: int in _rows_shown:
+	for i: int in _rows.size():
 		var index: int = start + i
 		_rows[i].visible = i < count
 		if not _rows[i].visible:
 			continue
-		_put(_rows[i], texts[index], _screen["selected_color"] if index == selected else _screen["text_color"])
+		_put(_rows[i], texts[index], colors[index])
 		_rows[i].position = Vector3(0.0, top, TEXT_LIFT_M)
 		top -= _height(_rows[i]) + float(_screen["row_step_m"]) - _line_m()
 	_reason.position = Vector3(0.0, top, TEXT_LIFT_M)
@@ -154,24 +167,16 @@ func texts() -> Array[String]:
 	return shown
 
 
-## The rows shown at once.
-func rows_shown() -> int:
-	return _rows_shown
-
-
-## The first row index shown so that `selected` sits in a window of `shown`
-## rows out of `count`, as near the window's middle as the ends allow.
-static func window_start(count: int, selected: int, shown: int) -> int:
-	if count <= shown or selected < 0:
-		return 0
-	return clampi(selected - shown / 2, 0, count - shown)
-
-
 ## The face's size: the screen box's front, less the inset on each side.
 func face_size() -> Vector2:
 	var box: Vector3 = HubRoomParts.SCREEN_SIZE_M
 	var inset: float = float(_screen["face_inset_m"]) * 2.0
 	return Vector2(box.x - inset, box.y - inset)
+
+
+func _make_lines(count: int) -> void:
+	while _rows.size() < count:
+		_rows.append(_wrapping(_label("Row%d" % _rows.size(), int(_screen["row_font_size"]), _layers)))
 
 
 ## The top of the first row: `first_row_y_m` is its first line's middle.

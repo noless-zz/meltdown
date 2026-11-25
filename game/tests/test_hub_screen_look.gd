@@ -23,7 +23,7 @@ func test_the_shipped_look_parses_and_matches_the_fallback() -> String:
 func test_a_bad_look_is_refused_with_the_key_named() -> String:
 	var shipped: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(HubScreenLook.DEFAULT_FILE))
 	var cases: Array[Array] = [
-		["rows_shown", 2.5, "whole"],
+		["row_font_size", 32.5, "whole"],
 		["focus_seconds", 0.05, "focus_seconds"],
 		["row_font_size", true, "row_font_size"],
 		["screen_color", [0.1, 0.2], "screen_color"],

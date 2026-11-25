@@ -1,0 +1,43 @@
+{
+	"level": "stress",
+	"seed": 20261124,
+	"module": "room_four_way",
+	"ship": "res://data/levels/stress_ship.json",
+	"ships": [
+		{"position": [-10.0, 0.0, 10.0], "facing": [1.0, 0.0, -1.0]},
+		{"position": [10.0, 0.0, 10.0], "facing": [-1.0, 0.0, -1.0]},
+		{"position": [0.0, 5.0, 12.0], "facing": [0.0, -0.4, -1.0]}
+	],
+	"inputs": [
+		{"loop_from": 1, "segments": [
+			{"ticks": 40, "thrust": [0.0, 0.0, -0.6], "fire": true},
+			{"ticks": 150, "thrust": [0.4, 0.0, 0.0], "turn": [0.0, 0.3, 0.0], "fire": true},
+			{"ticks": 150, "thrust": [-0.4, 0.0, 0.0], "turn": [0.0, -0.3, 0.0], "fire": true}
+		]},
+		{"loop_from": 1, "segments": [
+			{"ticks": 40, "thrust": [0.0, 0.0, -0.6]},
+			{"ticks": 120, "thrust": [0.0, 0.3, 0.0], "turn": [0.0, -0.4, 0.0], "fire": true},
+			{"ticks": 120, "thrust": [0.0, -0.3, 0.0], "turn": [0.0, 0.4, 0.0], "fire": true}
+		]},
+		{"loop_from": 1, "segments": [
+			{"ticks": 40, "thrust": [0.0, 0.0, -0.6]},
+			{"ticks": 130, "thrust": [0.0, -0.3, 0.0], "turn": [0.0, 0.4, 0.0], "fire": true},
+			{"ticks": 130, "thrust": [0.0, 0.3, 0.0], "turn": [0.0, -0.4, 0.0], "fire": true}
+		]},
+		{"loop_from": 1, "segments": [
+			{"ticks": 40, "thrust": [0.0, 0.0, -0.6]},
+			{"ticks": 100, "thrust": [0.3, 0.0, 0.0], "turn": [0.2, 0.0, 0.0], "fire": true},
+			{"ticks": 100, "thrust": [-0.3, 0.0, 0.0], "turn": [-0.2, 0.0, 0.0], "fire": true}
+		]}
+	],
+	"lights": [
+		{"position": [-13.0, 6.0, -13.0], "color": [1.0, 0.55, 0.25], "range": 12.0, "energy": 1.2},
+		{"position": [13.0, 6.0, -13.0], "color": [1.0, 0.55, 0.25], "range": 12.0, "energy": 1.2},
+		{"position": [-13.0, -6.0, -13.0], "color": [0.35, 0.6, 1.0], "range": 12.0, "energy": 1.0},
+		{"position": [13.0, -6.0, -13.0], "color": [0.35, 0.6, 1.0], "range": 12.0, "energy": 1.0},
+		{"position": [-13.0, 6.0, 13.0], "color": [0.35, 0.6, 1.0], "range": 12.0, "energy": 1.0},
+		{"position": [13.0, 6.0, 13.0], "color": [0.35, 0.6, 1.0], "range": 12.0, "energy": 1.0},
+		{"position": [-13.0, -6.0, 13.0], "color": [1.0, 0.55, 0.25], "range": 12.0, "energy": 1.2},
+		{"position": [13.0, -6.0, 13.0], "color": [1.0, 0.55, 0.25], "range": 12.0, "energy": 1.2}
+	]
+}

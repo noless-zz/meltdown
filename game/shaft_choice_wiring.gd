@@ -18,11 +18,18 @@ extends RefCounted
 ## behind the fade (CMF-8). Comfort settings are neither read nor changed. It
 ## sits beside `main.gd` because it reads `RunWiring`.
 ##
+## Each shaft is drawn as a thing with gauges from `ShaftPanelShapes` (#1320),
+## and pointing the right controller's aim at a shaft or row highlights it, as
+## at the hub's stations; the stick still steps and A still confirms. It is
+## presentation only: the shafts' rules and data are not read from here.
+##
 ## A run with a save store gets one more row after the shafts, "Suspend run"
 ## (#1107, RUN-8, `RunSuspend`): confirming it saves the run and answers the
 ## restart too, and `HubWiring.open_after` then opens the hub instead of a level.
 
 var look: Dictionary = ShaftPanelLook.load_file()
+## How the shafts are drawn; a refused file leaves today's text rows.
+var shapes: ShaftPanelShapes = ShaftPanelShapes.load_file()
 ## The suspend row's words (`data/run/suspend.json`).
 var suspend_words: Dictionary = RunSuspend.words()
 ## Under the rig origin once `attach` has run, null before.
@@ -31,14 +38,16 @@ var panel: ShaftPanel = null
 var model: ShaftPanelModel = null
 
 var _actions: Dictionary = {}
+var _aim: XRController3D = null
 
 
 ## Hangs the panel under `rig`. Calling it again adds nothing.
 func attach(rig: Node3D) -> void:
 	if panel != null or rig == null:
 		return
-	panel = ShaftPanel.new(look)
+	panel = ShaftPanel.new(look, shapes)
 	rig.add_child(panel)
+	_aim = rig.get_node_or_null("RightHand") as XRController3D
 
 
 func is_open() -> bool:
@@ -52,7 +61,7 @@ func open(run: RunWiring, collected: Dictionary, rescued: int = 0) -> bool:
 	var offered: Array[String] = run.escape_for_choice(collected, rescued) if run != null else []
 	if offered.is_empty():
 		return false
-	model = ShaftPanelModel.build(offered, run.shafts, look)
+	model = ShaftPanelModel.build(offered, run.shafts, look, shapes)
 	if run.saves != null:
 		model.add_row(RunSuspend.ROW_KIND, suspend_words["row_text"], suspend_words["detail_text"])
 	_actions = {}
@@ -83,8 +92,26 @@ func update(run: RunWiring, paused: bool, head_point: Transform3D, xr_running: b
 			return true
 	if panel != null:
 		panel.transform = head_point
+		if not paused:
+			_point()
 		panel.show_model(model, xr_running)
 	return false
+
+
+## Hands the model the entry the right controller's aim points at, in the
+## panel's space; a controller that is not tracked points at nothing.
+func _point() -> void:
+	if _aim == null or not _aim.get_is_active() or model == null:
+		return
+	var radius: float = shapes.lengths.get("point_radius_m", 0.0) if shapes.error == "" else 0.0
+	model.point(point_in(panel, _aim.transform, radius))
+
+
+## The kind of `panel`'s entry that an aim at `aim` (in the panel's parent's
+## space) points at, within `radius`; "" for none.
+static func point_in(shown: ShaftPanel, aim: Transform3D, radius: float) -> String:
+	var to_panel: Transform3D = shown.transform.affine_inverse()
+	return HubStations.pick(to_panel * aim.origin, to_panel.basis * -aim.basis.z, shown.entry_points(), radius)
 
 
 func close() -> void:

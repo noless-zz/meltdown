@@ -102,22 +102,23 @@ static func fly(replay: Replay, table: MusicTable) -> Dictionary:
 			var inputs: Array[ShipInput] = []
 			inputs.assign(frames[tick])
 			sim.step(inputs)
-		_hear_tick(heard, table, tick, sim.outcome(), SessionSnapshots.reactor(sim.reactor))
+		_hear_tick(heard, table, tick, sim.outcome(), SessionSnapshots.reactor(sim.reactor),
+			SessionSnapshots.alarm_level(sim.alarm))
 	return {"moments": heard["moments"], "reactor_destroyed": heard["destroyed_at"] >= 0,
 		"meltdown_ticks": heard["meltdown_ticks"], "largest_step": heard["largest_step"],
 		"hash": sim.state_hash()}
 
 
-## Moves `heard`'s mix one tick on for `outcome` and `reactor` (a copy) and
-## notes what changed.
+## Moves `heard`'s mix one tick on for `outcome`, `reactor` (a copy) and the
+## `alarm` level (#1342), and notes what changed.
 static func _hear_tick(heard: Dictionary, table: MusicTable, tick: int, outcome: ExitRule.Outcome,
-		reactor: ReactorState) -> void:
+		reactor: ReactorState, alarm: float = 0.0) -> void:
 	var mix: MusicMix = heard["mix"]
 	var moments: Array[String] = heard["moments"]
 	if heard["destroyed_at"] < 0 and reactor != null and reactor.destroyed:
 		heard["destroyed_at"] = tick
 	var before: Dictionary[String, float] = mix.gains.duplicate()
-	var gains: Dictionary[String, float] = mix.advance(MusicWiring.mood_of(outcome, reactor), 0.0,
+	var gains: Dictionary[String, float] = mix.advance(MusicWiring.mood_of(outcome, reactor), alarm,
 		ShipState.TICK_DT)
 	for id: String in gains:
 		heard["largest_step"] = maxf(heard["largest_step"], absf(gains[id] - before[id]))

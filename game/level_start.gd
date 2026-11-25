@@ -47,6 +47,7 @@ static func tunnel_session(input: ShipInputSource) -> LocalSession:
 ## null, drawing nothing, for "" or a rejected file.
 ## `rules`, when given, turns component drops and miner rescue on (#1028).
 ## `tuning`, when given, is the ship flown in place of the ship file's (#1057).
+## The stress level gets its scene file's eight lights in its drawing (#1288).
 static func level_session(world: Node3D, path: String, input: ShipInputSource,
 		rules: RunLevelRules = null, tuning: ShipTuning = null) -> LocalSession:
 	var level: LevelDef = LevelSwitch.load_level(path) if path != "" else null
@@ -56,7 +57,7 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource,
 		tuning if tuning != null else LocalSession.load_tuning(SHIP_TUNING_PATH))
 	if rules != null:
 		rules.install(session, level)
-	LevelSwitch.show_level(world, level)
+	SceneLights.place(LevelSwitch.show_level(world, level), StressScene.lights_for(path))
 	return AimData.apply(session)
 
 
@@ -113,7 +114,7 @@ func run_rules(path: String) -> RunLevelRules:
 	if run == null or not run.active() or not run.level_rules or path != run.level_source():
 		return null
 	return RunLevelRules.load_files(RunLevelRules.COMPONENTS_DIR, RunLevelRules.RESCUE_FILE,
-		run.level_reward())
+		run.level_reward(), RunLevelRules.ALARM_FILE, run.level_alarm_scale())
 
 
 ## Takes what the launch asks to fly (`LevelSwitch.requested_path`). A run,

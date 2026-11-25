@@ -12,6 +12,11 @@ extends Node3D
 ## The ship dart, exit, reactor, route, fires and miners are `MapOverlays` (#1120),
 ## fitted like the lines. `set_zoom` scales it all about the hand (#549). The look
 ## is `res://xr/map_look.json` (ARC-4), parsed by `MapLook`.
+##
+## Since #1321 the pilot may mount it in the cockpit instead (`mount_on`, placed
+## by `MapPlacement`), shrunk to the cockpit's `map_mount` size, and may have it
+## follow the ship: turned against the ship's orientation, so ahead on the map
+## is always ahead of the nose. Both only move this node (ARC-3, CMF-6).
 
 const NODE_NAME: String = "MapHologram"
 const LINES_NAME: String = "Lines"
@@ -36,6 +41,12 @@ var _lines: MeshInstance3D = MeshInstance3D.new()
 var _overlays: MapOverlays = MapOverlays.new()
 var _zoom: float = MapZoom.START
 var _toggle: MapToggle = MapToggle.new()
+## The ship's orientation last handed to `set_ship_orientation` (a copy).
+var _ship_turn: Basis = Basis.IDENTITY
+## Whether the map turns against `_ship_turn` (`MapChoice.TURN_FOLLOWS`).
+var _follows_ship: bool = false
+## This node's scale: 1 in the hand, the mount's size over the look's in the cockpit.
+var _mount_scale: float = 1.0
 
 
 func _init() -> void:
@@ -97,6 +108,37 @@ func marker_position() -> Vector3:
 ## Turns the marker to the ship's `orientation` (a copy); the fit only scales, so it carries over.
 func set_ship_orientation(orientation: Basis) -> void:
 	_overlays.set_ship_orientation(orientation)
+	_ship_turn = orientation.orthonormalized()
+	_apply_basis()
+
+
+## Turns the map against the ship's orientation while `follows` (#1321), so
+## the marker always points ahead; otherwise its level axes stay fixed to its holder.
+func set_follows_ship(follows: bool) -> void:
+	_follows_ship = follows
+	_apply_basis()
+
+
+func follows_ship() -> bool:
+	return _follows_ship
+
+
+## This node's scale: 1 in the hand, below 1 when mounted in a cockpit.
+func mount_scale() -> float:
+	return _mount_scale
+
+
+## Hangs this map under `holder` (the cockpit frame, eye at its origin) with
+## its centre at `at`, fitted into a cube of `edge_m` rather than the look's
+## `size_m` (#1321).
+func mount_on(holder: Node3D, at: Vector3, edge_m: float) -> void:
+	if get_parent() != holder:
+		if get_parent() != null:
+			get_parent().remove_child(self)
+		holder.add_child(self)
+	position = at
+	_mount_scale = edge_m / maxf(float(_look["size_m"]), 0.001)
+	_apply_basis()
 
 
 ## Marks the exit (the entrance, RUN-3) and the reactor at level-space copies of
@@ -201,6 +243,8 @@ func attach_to(rig: Node, mapping: ThumbstickMapping) -> bool:
 		get_parent().remove_child(self)
 	hand.add_child(self)
 	position = HAND_OFFSET
+	_mount_scale = 1.0
+	_apply_basis()
 	return true
 
 
@@ -221,6 +265,11 @@ func zoom() -> float:
 ## Level space -> hologram space; see `MapShapes.fit_transform`.
 static func fit_transform(points: PackedVector3Array, edge_m: float) -> Transform3D:
 	return MapShapes.fit_transform(points, edge_m)
+
+
+func _apply_basis() -> void:
+	var turn: Basis = _ship_turn.inverse() if _follows_ship else Basis.IDENTITY
+	basis = turn.scaled(Vector3.ONE * _mount_scale)
 
 
 func _place_route() -> void:

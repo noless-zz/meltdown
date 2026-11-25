@@ -117,7 +117,7 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 	var close: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_CLOSE], [DevMenuModel.CLOSE], true)
 	entries = [_update_entry, _corner, _comfort_entry, _break_entry,
 		refresh if refresh != null else no_refresh, swivel, DevMenuAutoLevel.started(p_comfort), _controls,
-		DevMenuFoveation.new(p_foveation), _restarts, _return, close]
+		DevMenuFoveation.new(p_foveation), DevMenuMap.new(), _restarts, _return, close]
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies

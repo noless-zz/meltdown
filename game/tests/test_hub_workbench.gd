@@ -28,7 +28,8 @@ func test_each_row_shows_the_cost_with_what_is_held_by_name() -> String:
 	var profile: Profile = Profile.new()
 	profile.bank({"cell_salts": 2, "scrap_alloy": 5})
 	var model: HubModel = _model(profile)
-	var lines: Array[String] = _craft_lines(model)
+	var hub: HubText = HubText.new(model)
+	hub.page = model.pages().find(HubConfig.CRAFT)
 	# Ember Coil costs 3 Cell Salts and 2 Scrap Alloy; 2 and 5 are held.
 	var expected: String = "Cost: Cell Salts 2/3, Scrap Alloy 5/2"
 	if HubCraftRows.cost_text(model, "ember_coil") != expected:
@@ -38,9 +39,13 @@ func test_each_row_shows_the_cost_with_what_is_held_by_name() -> String:
 		ids.append(entry["id"])
 	for id: String in ids:
 		var cost: String = HubCraftRows.cost_text(model, id)
-		var at: int = lines.find(cost)
-		if at < 0:
-			return "no cost row for %s in %s" % [id, lines]
+		# Details show only under the selected upgrade (#1300).
+		hub.move(-1000)
+		while hub.selected().get("id", "") != id and hub.selected_line() < hub.lines().size() - 1:
+			hub.move(1)
+		var lines: Array[String] = hub.lines()
+		if hub.selected().get("id", "") != id or lines[hub.selected_line() + 1] != cost:
+			return "no cost row under %s in %s" % [id, lines]
 		var upgrade: UpgradeDef = model.tree.get_upgrade(id)
 		for component: String in upgrade.cost:
 			var item: String = "%s %d/%d" % [model.components.get_kind(component).display_name,
@@ -108,16 +113,22 @@ func test_each_upgrade_shows_what_it_unlocks_by_name() -> String:
 func test_a_locked_row_says_why_in_words() -> String:
 	var model: HubModel = _model()
 	var cases: Dictionary[String, String] = {
-		"drift_mortar": "needs Slug Thrower first",
+		"drift_mortar": "Needs Slug Thrower",
 		"ember_coil": "3 more Cell Salts, 2 more Scrap Alloy",
 	}
-	var lines: Array[String] = _craft_lines(model)
+	var hub: HubText = HubText.new(model)
+	hub.page = model.pages().find(HubConfig.CRAFT)
 	for id: String in cases:
 		if HubCraftRows.reason(model, id) != cases[id]:
 			return "%s is locked because \"%s\"" % [id, HubCraftRows.reason(model, id)]
-		var row: String = "%s: %s" % [model.tree.get_upgrade(id).display_name, cases[id]]
-		if not lines.has(row):
-			return "no row \"%s\" in %s" % [row, lines]
+		# The reason is the locked row's note, shown under it while selected (#1300).
+		hub.move(-1000)
+		for i: int in 200:
+			if hub.selected().get("id", "") == id:
+				break
+			hub.move(1)
+		if hub.lines()[hub.selected_line()] != model.tree.get_upgrade(id).display_name or hub.note() != cases[id]:
+			return "%s's row is \"%s\" with note \"%s\"" % [id, hub.lines()[hub.selected_line()], hub.note()]
 	return ""
 
 

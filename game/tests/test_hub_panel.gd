@@ -93,6 +93,8 @@ func test_the_label_count_equals_the_line_count_on_every_page() -> String:
 	var failure: String = ""
 	for i: int in hub.model.pages().size():
 		var lines: Array[String] = hub.lines()
+		if hub.note() != "":
+			lines.insert(hub.selected_line() + 1, hub.note())  # The selected row's note (#1300).
 		var shown: Array[String] = panel.texts()
 		if shown.size() != lines.size():
 			failure = "page %s: %d labels for %d lines" % [hub.page_id(), shown.size(), lines.size()]
@@ -155,7 +157,7 @@ func test_a_locked_row_shows_its_reason_until_the_next_input() -> String:
 		failure = "the first craft row is %s" % picked
 	elif result != {"pressed": picked, "reason": expected}:
 		failure = "pressing the locked row returned %s" % result
-	elif panel.reason_text() != expected or not panel.texts()[hub.selected_line()].contains(expected):
+	elif panel.reason_text() != expected or panel.texts()[hub.selected_line() + 1] != expected:
 		failure = "the panel shows \"%s\" under %s" % [panel.reason_text(), panel.texts()]
 	else:
 		_tap(panel, DevMenuModel.DOWN)

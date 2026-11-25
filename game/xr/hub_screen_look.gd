@@ -10,9 +10,9 @@ extends RefCounted
 ## - `title_color`, `text_color`, `selected_color`, `reason_color`: the words.
 ## - `frame_color`, `frame_width_m`: the frame around the highlighted station
 ##   and the one in use, so the choice is marked by a shape, not only a glow.
+## How many rows show is the hub file's (`max_rows_visible`, #1300), not this file's.
 ## - `face_inset_m`: how far the face stops inside the screen box's edge, so
 ##   the box's own colour shows as a rim (the launch station's is orange).
-## - `rows_shown`: rows on a screen at once (#1300: at most five).
 ## - `title_font_size` (a station not in use, title only),
 ##   `open_title_font_size` and `row_font_size` (the station in use), with
 ##   `pixel_size`, the size of a font pixel in metres; `cap_height_ratio` is the
@@ -32,7 +32,6 @@ const COLOR_KEYS: Array[String] = ["screen_color", "title_color", "text_color", 
 const RANGES: Dictionary[String, Array] = {
 	"frame_width_m": [0.002, 0.05],
 	"face_inset_m": [0.0, 0.05],
-	"rows_shown": [1.0, 12.0],
 	"title_font_size": [16.0, 256.0],
 	"open_title_font_size": [16.0, 256.0],
 	"row_font_size": [16.0, 256.0],
@@ -54,7 +53,7 @@ const RANGES: Dictionary[String, Array] = {
 	"eye_height_px": [320.0, 8192.0],
 	"vertical_fov_deg": [30.0, 140.0],
 }
-const WHOLE_KEYS: Array[String] = ["rows_shown", "title_font_size", "open_title_font_size", "row_font_size"]
+const WHOLE_KEYS: Array[String] = ["title_font_size", "open_title_font_size", "row_font_size"]
 
 ## Used when the file is missing or rejected; matches the shipped file.
 const FALLBACK: Dictionary = {
@@ -66,7 +65,6 @@ const FALLBACK: Dictionary = {
 	"frame_color": Color(0.85, 0.66, 0.28),
 	"frame_width_m": 0.012,
 	"face_inset_m": 0.008,
-	"rows_shown": 5.0,
 	"title_font_size": 72.0,
 	"open_title_font_size": 52.0,
 	"row_font_size": 32.0,

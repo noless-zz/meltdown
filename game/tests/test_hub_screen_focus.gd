@@ -5,7 +5,7 @@ extends RefCounted
 ## station in use and settled forward; the station in use comes towards the eye
 ## and grows over the look's time and goes back when left, moving nothing but
 ## its screen; the station A would use and the one in use are framed, the
-## others not; a screen shows at most the look's rows.
+## others not; the selected row stays on the face when long lines wrap.
 
 const STATIONS_TEST: GDScript = preload("res://tests/test_hub_stations.gd")
 const CHECK: GDScript = preload("res://acceptance/checks/hub_screens_check.gd")
@@ -108,15 +108,21 @@ func test_the_choice_is_framed() -> String:
 	return result
 
 
-func test_a_screen_shows_at_most_the_rows_in_the_look() -> String:
-	var stations: HubStations = _open()
-	var shown: int = int(HubScreenLook.load_file()["rows_shown"])
-	var result: String = "" if shown <= 5 else "the look shows %d rows, over #1300's five" % shown
-	STATIONS_TEST._use(stations, "craft")
-	for i: int in 30:
-		STATIONS_TEST._tap(stations, DevMenuModel.DOWN)
-		var lines: int = stations.texts().size() - 1 - (1 if stations.reason_text() != "" else 0)
-		if result == "" and lines > shown:
-			result = "the craft station shows %d rows" % lines
+func test_wrapped_lines_stay_on_the_face_with_the_selection() -> String:
+	var hub: HubText = STATIONS_TEST._hub(STATIONS_TEST._rich_profile())
+	var stations: HubStations = STATIONS_TEST._open(hub)
+	var mark: String = str(HubPanelLook.load_file()["mark_text"])
+	var result: String = ""
+	for id: String in ["craft", "crew", "fit"]:
+		STATIONS_TEST._use(stations, id)
+		for i: int in 30:
+			var shown: Array[String] = stations.texts().slice(1)
+			var lines: int = shown.size() - (1 if stations.reason_text() != "" else 0)
+			if result == "" and lines > hub.rows_shown() + 1:
+				result = "the %s station shows %d lines, over %d rows and a note" % [id, lines, hub.rows_shown()]
+			if result == "" and hub.selected_line() > 0 and not shown.any(func(line: String) -> bool:
+					return line.begins_with(mark)):
+				result = "the %s station's selected row is off its face: %s" % [id, shown]
+			STATIONS_TEST._tap(stations, DevMenuModel.DOWN)
 	STATIONS_TEST._free(stations)
 	return result
