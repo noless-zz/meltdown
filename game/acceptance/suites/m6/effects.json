@@ -18,6 +18,13 @@
 			"checks": ["no_script_errors", "control_labels_clear"]
 		},
 		{
+			"id": "shaft_choice_look",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"checks": ["outcome", "no_script_errors", "shaft_choice_look"],
+			"expected_outcome": "ESCAPED"
+		},
+		{
 			"id": "wall_depth",
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_level.replay",

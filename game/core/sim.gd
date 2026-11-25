@@ -53,6 +53,8 @@ var rescue: MinerRescue = null
 var reactor: ReactorState = null
 ## Debris that falls once the reactor dies (RUN-4), or null; see `set_debris`. Hashed if any.
 var debris: MeltdownDebris = null
+## The level's alarm (RUN-6), or null when off; see `set_alarm_rules`. Hashed when set.
+var alarm: Alarm = null
 var salvage_rules: SalvageRules:
 	get: return rules.salvage_rules
 var look_aim: LookAim:
@@ -90,6 +92,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	_killers = {}
 	_stepping = true
 	var live_before: Array[bool] = ExitRule.live_ships(self)
+	var asleep: Array[RobotState] = Alarm.sleeping(self)
 	if tick == 0:
 		_reset.record(ships)
 	ExitRule.count_down(self)
@@ -98,6 +101,7 @@ func step(inputs: Array[ShipInput]) -> bool:
 	# Projectiles already in flight move before any new shot, so a shot
 	# spawns where its ship is at the end of the tick it was fired on.
 	ProjectileHits.advance(self, _hit_events, _killers)
+	var shots_before: int = projectiles.size()
 	var from: Array[Vector3] = []
 	var slot_drops: Array[SalvageItem] = []
 	for i: int in ships.size():
@@ -121,11 +125,13 @@ func step(inputs: Array[ShipInput]) -> bool:
 		PartSlotting.apply(self, i, inputs[i], slot_drops)
 		look_aim.turn_gun(ship, inputs[i].aim())
 		ProjectileHits.fire(self, i, inputs[i].fire_primary)
+	var shots: int = projectiles.size() - shots_before
 	last_events.append_array(_hit_events)
 	SalvagePickup.collect(self, from)
 	ComponentPickup.collect(self, from)
 	MinerRescue.step(self)
 	RobotTick.advance(self)
+	Alarm.step(self, shots, asleep)
 	SalvagePickup.drift(self, slot_drops)
 	ComponentPickup.drop(self)
 	RobotTick.remove_destroyed(self, _killers)
@@ -202,6 +208,11 @@ func set_component_rules(p_rules: ComponentPickup) -> String:
 ## Switches miner rescue on (`MinerRescue`, SLV-3), trapping `miners` in mm as `LevelDef.miners`.
 func set_rescue_rules(p_rules: MinerRescue, miners: Array[Vector3i] = []) -> String:
 	return MinerRescue.install(self, p_rules, miners, tick != 0 or _stepping)
+
+
+## Switches the alarm on with `p_rules` and the shaft's `risk` multiplier (`Alarm`, RUN-6).
+func set_alarm_rules(p_rules: Alarm, risk: float = 1.0) -> String:
+	return Alarm.install(self, p_rules, risk, tick != 0 or _stepping)
 
 
 ## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6).

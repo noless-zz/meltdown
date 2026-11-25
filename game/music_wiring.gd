@@ -7,9 +7,10 @@ extends RefCounted
 ##
 ## It sits beside `main.gd`, like `CombatWiring`, which owns it and calls it with
 ## the sound cues, because it reads the `net/` session, which `view/` may not
-## depend on. It only reads: the reactor through `SessionSnapshots.reactor`
-## and the outcome through `Sim.outcome`, so the simulation hash is the same
-## with the music on or off (ARC-1, MP-2).
+## depend on. It only reads: the reactor through `SessionSnapshots.reactor`,
+## the alarm through `SessionSnapshots.alarm_level` (#1342) and the outcome
+## through `Sim.outcome`, so the simulation hash is the same with the music
+## on or off (ARC-1, MP-2).
 
 ## The music, under the world node once `attach` has run, null before.
 var player: MusicPlayer = null
@@ -49,8 +50,8 @@ static func mood_of(outcome: ExitRule.Outcome, reactor: ReactorState) -> MusicMi
 	return MusicMix.Mood.RUN
 
 
-## The alarm level of `session`, 0..1. The core has no alarm yet (RUN-6, #1342), so
-## it is 0 and only the calm layer plays in flight; when the core gains one,
-## this reads its session copy and the tension layers join by the table.
-static func alarm_level(_session: LocalSession) -> float:
-	return 0.0
+## The alarm level of `session`, 0..1, from its session copy (RUN-6, #1342): the
+## tension layers join by the table as it rises. A level flown without an
+## alarm (alone, or the tunnel) stays at 0, so only the calm layer plays.
+static func alarm_level(session: LocalSession) -> float:
+	return SessionSnapshots.alarm_level(session.sim.alarm)

@@ -73,17 +73,18 @@ func test_a_flown_profile_shows_each_counter_line() -> String:
 		expected.append(words.row(HubWords.STATS_ROW_PREFIX + key, {"count": counts[key]}))
 	if hub.lines() != expected:
 		return "logbook is %s, expected %s" % [hub.lines(), expected]
-	if not hub.lines().has("Miners brought home: 9"):
+	if not hub.lines().has("Rescued 9"):
 		return "the miners line does not read its count: %s" % [hub.lines()]
 	return ""
 
 
-func test_the_logbook_has_no_selectable_row() -> String:
+## The rows are selectable only so the page scrolls (#1300); none does anything.
+func test_the_logbook_rows_do_nothing() -> String:
 	var hub: HubText = _hub(_flown_profile())
 	_to_page(hub, HubConfig.STATS)
 	hub.move(3)
-	if hub.selected_line() != -1 or hub.selected() != {}:
-		return "row %d is selectable" % hub.selected_line()
+	if hub.selected_line() != 4 or hub.selected() != {} or hub.note() != "":
+		return "row %d does %s, note \"%s\"" % [hub.selected_line(), hub.selected(), hub.note()]
 	if hub.press() != "" or hub.model.stats() != _flown_profile().stats.to_dict():
 		return "pressing on the logbook changed something"
 	return ""
@@ -101,11 +102,14 @@ func test_old_profile_files_show_zeros_and_the_empty_line() -> String:
 		var words: HubWords = hub.model.config.words
 		_to_page(hub, HubConfig.STATS)
 		var lines: Array[String] = hub.lines()
-		if lines.size() != 2 + ProfileStats.KEYS.size() or lines[1] != words.row("stats_empty"):
-			return "old profile logbook is %s" % [lines]
+		if lines.size() != 1 + ProfileStats.KEYS.size() or hub.note() != words.row("stats_empty"):
+			return "old profile logbook is %s, note \"%s\"" % [lines, hub.note()]
 		for i: int in ProfileStats.KEYS.size():
-			if lines[i + 2] != words.row(HubWords.STATS_ROW_PREFIX + ProfileStats.KEYS[i], {"count": 0}):
-				return "line %s is not zero" % lines[i + 2]
+			if lines[i + 1] != words.row(HubWords.STATS_ROW_PREFIX + ProfileStats.KEYS[i], {"count": 0}):
+				return "line %s is not zero" % lines[i + 1]
+		hub.move(1)
+		if hub.note() != "":
+			return "the empty-logbook note shows under the second row too"
 	var stripped: Profile = Profile.new()
 	stripped.stats = null
 	if _hub(stripped).model.stats() != ProfileStats.new().to_dict():

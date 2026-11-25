@@ -4,7 +4,8 @@ extends RefCounted
 ## The Workbench page's rows (CRF-3, CRF-6, CRW-2, #1317): under each upgrade
 ## that can be built or is out of reach, what it costs beside what is held of
 ## each component, what it does in numbers from its part file, and what it
-## unlocks next, all by name. A locked row says why in words. Every word comes
+## unlocks next, all by name. A locked row says why in words, in its note
+## under it while it is selected (#1300). Every word comes
 ## from `data/hub/hub.json` (ARC-4); the rules of crafting stay `UpgradeTree`'s,
 ## so a row is locked exactly when `HubModel.locked` lists it.
 
@@ -24,7 +25,9 @@ static func rows(model: HubModel) -> Array[Dictionary]:
 		out.append(_shown(words.row("locked_header")))
 	for entry: Dictionary in locked:
 		var id: String = entry["id"]
-		out.append(_acting(words.row("locked_row", {"name": upgrade_name(model, id), "reason": reason(model, id)}), id))
+		var row: Dictionary = _acting(words.row("locked_row", {"name": upgrade_name(model, id)}), id)
+		row["note"] = words.row("locked_note", {"reason": reason(model, id)})  # Only while selected (#1300).
+		out.append(row)
 		out.append_array(_details(model, id))
 	var built: Array[String] = model.crafted()
 	if not built.is_empty():
@@ -118,7 +121,9 @@ static func _details(model: HubModel, id: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for text: String in [cost_text(model, id), effect_text(model, id), unlocks_text(model, id)]:
 		if text != "":
-			out.append(_shown(text))
+			var detail: Dictionary = _shown(text)
+			detail["detail_of"] = id  # `HubText` shows it only while `id` is selected (#1300).
+			out.append(detail)
 	return out
 
 

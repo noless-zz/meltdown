@@ -88,6 +88,11 @@ enum Kind {
 	## this tick's rescues and `vector` where it waited. Reported after the
 	## component pickups, in miner order. Only with rescue rules set.
 	MINER_RESCUED,
+	## The level's alarm reached one of its data's `steps` this tick (RUN-6,
+	## #1342). `magnitude` is that step's level; `ship` is 0 and `vector` zero,
+	## because the alarm belongs to the level, not to a ship. Reported after
+	## the robots moved, in step order. Only with alarm rules set.
+	ALARM_RAISED,
 }
 
 var kind: Kind = Kind.AFTERBURNER_STARTED

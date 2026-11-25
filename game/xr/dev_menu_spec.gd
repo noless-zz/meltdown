@@ -38,6 +38,8 @@ extends RefCounted
 ## menu opens from the head (#1206): its centre that far along the head's
 ## forward direction, then moved across the view; both optional.
 ## `info_title_text` heads the read-only Info section (#1207); optional.
+## The `map_place` and `map_turn` entries (#1321) show `map_hand_text` /
+## `map_cockpit_text` and `map_fixed_text` / `map_follows_text`, each optional.
 ## The `return` entry (#1246) shows only while a run's level flies; once pressed
 ## it reads `confirm_return_text` until a second press abandons the run.
 ## `sections` (#1301, optional) groups entries under a row each:
@@ -65,16 +67,19 @@ const KIND_SWIVEL: String = "swivel"
 const KIND_FOVEATION: String = "foveation"
 const KIND_AUTO_LEVEL: String = "auto_level"
 const KIND_RETURN: String = "return"
+const KIND_MAP_PLACE: String = "map_place"
+const KIND_MAP_TURN: String = "map_turn"
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
 	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK, KIND_FLIGHT_TEST,
-	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_AUTO_LEVEL, KIND_RETURN]
+	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_AUTO_LEVEL, KIND_RETURN, KIND_MAP_PLACE,
+	KIND_MAP_TURN]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
 	"break_on_text", "break_off_text", "custom_text", "refresh_90_text", "refresh_120_text",
 	"refresh_note_text", "swivel_on_text", "swivel_off_text", "swivel_custom_text",
 	"foveation_off_text", "foveation_dynamic_text", "foveation_note_text", "info_title_text",
 	"auto_level_on_text", "auto_level_off_text", "auto_level_preset_text", "confirm_return_text",
-	"back_text"]
+	"back_text", "map_hand_text", "map_cockpit_text", "map_fixed_text", "map_follows_text"]
 const COUNT_KEYS: Array[String] = ["max_rows_visible", "max_row_chars"]
 const BUILT_IN_LABELS: Dictionary = {
 	KIND_CORNER: "Panel corner",
@@ -93,6 +98,8 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_FOVEATION: "Foveation",
 	KIND_AUTO_LEVEL: "Auto-level",
 	KIND_RETURN: "Return to base",
+	KIND_MAP_PLACE: "Map place",
+	KIND_MAP_TURN: "Map turn",
 }
 const PLACE_KEYS: Array[String] = ["distance_m", "offset_m"]
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.
@@ -125,6 +132,10 @@ var auto_level_preset_text: String = "(preset)"
 var foveation_off_text: String = "Off"
 var foveation_dynamic_text: String = "dynamic"
 var foveation_note_text: String = "(this session)"
+var map_hand_text: String = "hand"
+var map_cockpit_text: String = "cockpit"
+var map_fixed_text: String = "fixed"
+var map_follows_text: String = "follows ship"
 var distance_m: float = 1.0
 var offset_m: Vector2 = Vector2.ZERO
 ## The heading of the Info section under the entries (#1207, `DevMenuInfo`).
