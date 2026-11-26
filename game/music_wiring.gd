@@ -11,25 +11,54 @@ extends RefCounted
 ## the alarm through `SessionSnapshots.alarm_level` (#1342) and the outcome
 ## through `Sim.outcome`, so the simulation hash is the same with the music
 ## on or off (ARC-1, MP-2).
+##
+## It also drives the pilot's own engine (#1398, AUD-1), which plays in the
+## same moods the run music does and goes quiet with it on end screens and at
+## the base; keeping it here leaves `CombatWiring` at its size.
 
 ## The music, under the world node once `attach` has run, null before.
 var player: MusicPlayer = null
+## The pilot's engine, beside the music once `attach` has run, null before.
+var engine: EngineSound = null
+var _engine_sim: Sim = null
 
 
-## Puts the music player under `world`. Calling it again adds nothing.
+## Puts the music player and the engine under `world`. Calling it again adds nothing.
 func attach(world: Node) -> void:
 	if player != null:
 		return
 	player = MusicPlayer.new()
 	world.add_child(player)
+	engine = EngineSound.new()
+	world.add_child(engine)
 
 
-## Moves the music `seconds` on for `session`; `hub_open` says the home base
-## is up. Returns the layers sounding, empty before `attach`.
+## Moves the music and the engine `seconds` on for `session`; `hub_open` says
+## the home base is up. A new level starts the engine from silence. Returns
+## the music layers sounding, empty before `attach`.
 func update(session: LocalSession, hub_open: bool, seconds: float) -> Array[String]:
 	if player == null or session == null:
 		return []
-	return player.follow(mood(session, hub_open), alarm_level(session), seconds)
+	var now: MusicMix.Mood = mood(session, hub_open)
+	if session.sim != _engine_sim:
+		engine.reset()
+		_engine_sim = session.sim
+	follow_engine(engine, session, now, seconds)
+	return player.follow(now, alarm_level(session), seconds)
+
+
+## Moves `engine` `seconds` on with `session`'s local ship in `now`'s mood:
+## heard while flying and in the meltdown, faded out otherwise. Reads
+## session copies only (MP-2).
+static func follow_engine(engine_sound: EngineSound, session: LocalSession, now: MusicMix.Mood,
+		seconds: float) -> void:
+	if engine_sound == null:
+		return
+	var flying: bool = now == MusicMix.Mood.RUN or now == MusicMix.Mood.MELTDOWN
+	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
+		session.current_ship(), session.interpolation_fraction)
+	engine_sound.follow(session.previous_ship(), session.current_ship(), pose, session.frame_events(),
+		flying, seconds)
 
 
 ## The mood of `session`: the hub while it is open, the end while an end
