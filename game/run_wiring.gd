@@ -143,6 +143,13 @@ func level_alarm_scale() -> float:
 	return float(state.current_risk()["alarm"]) if active() else 1.0
 
 
+## The crew's salvage slots and seconds before meltdown for the run's levels
+## (#1386, CRW-1, CRW-3): `profile`'s crew summed and capped by `roles`. A crew
+## that cannot be read adds nothing; `RunShip` already notes why.
+func crew_bonus() -> CrewBonus:
+	return CrewBenefits.bonus(CrewBenefits.totals(profile, roles))
+
+
 ## The level source of the run's current level, or "" without a run:
 ## `seed:<n>`, with `:robots=<scale>` when its shaft scales the robots (#1011).
 func level_source() -> String:

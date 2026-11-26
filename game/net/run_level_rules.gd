@@ -2,7 +2,7 @@ class_name RunLevelRules
 extends RefCounted
 
 ## Turns component drops, miner rescue and the alarm on for a level a run
-## flies (#1028, #1342, CRF-1, CRF-2, SLV-3, RUN-6).
+## flies (#1028, #1342, CRF-1, CRF-2, SLV-3, RUN-6), with the crew's bonus (#1386, CRW-1).
 ## The alarm rises by the chosen shaft's `risk.alarm` (`RunWiring.level_alarm_scale`). The rules come from the data files; core opens no
 ## files, so they are read here and handed to the `Sim` and the `Replay`
 ## together, so a replay of the level installs the same rules (ARC-2).
@@ -29,16 +29,21 @@ var rescue: MinerRescue = null
 var alarm: Alarm = null
 ## The shaft's alarm multiplier the alarm rises by.
 var alarm_risk: float = 1.0
+## The crew's salvage slots and seconds before meltdown (#1386, CRW-1); null
+## or zero adds nothing, so the sim, the replay and the hash stay as they were.
+var crew: CrewBonus = null
 
 
 ## Reads the component kinds and pickup rules from `components_dir` and the
 ## rescue rules from `rescue_file`. `tier_weights`, when not empty, weighs the
 ## drops (`RunWiring.level_reward`). The alarm is read from `alarm_file` and
-## rises by `p_alarm_risk`.
+## rises by `p_alarm_risk`. `p_crew` is the crew's bonus (`RunWiring.crew_bonus`).
 static func load_files(components_dir: String = COMPONENTS_DIR,
 		rescue_file: String = RESCUE_FILE, tier_weights: Array = [],
-		alarm_file: String = ALARM_FILE, p_alarm_risk: float = 1.0) -> RunLevelRules:
+		alarm_file: String = ALARM_FILE, p_alarm_risk: float = 1.0,
+		p_crew: CrewBonus = null) -> RunLevelRules:
 	var rules: RunLevelRules = RunLevelRules.new()
+	rules.crew = p_crew
 	rules.components = read_components(components_dir, tier_weights)
 	rules.rescue = read_rescue(rescue_file)
 	rules.alarm = read_alarm(alarm_file)
@@ -107,6 +112,12 @@ func install(session: LocalSession, level: LevelDef) -> LocalSession:
 			session.replay.alarm_rules = alarm.with_risk(alarm_risk)
 		else:
 			print("%s: %s; flying with the alarm off" % [LOG_PREFIX, problem])
+	if crew != null and not crew.is_zero():
+		var crew_problem: String = session.sim.set_crew_bonus(crew)
+		if crew_problem == "":
+			session.replay.crew = crew
+		else:
+			print("%s: %s; flying without the crew's bonus" % [LOG_PREFIX, crew_problem])
 	return session
 
 

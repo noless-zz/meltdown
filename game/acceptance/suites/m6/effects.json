@@ -25,6 +25,13 @@
 			"expected_outcome": "ESCAPED"
 		},
 		{
+			"id": "crew_bonus",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"checks": ["outcome", "no_script_errors", "crew_bonus"],
+			"expected_outcome": "ESCAPED"
+		},
+		{
 			"id": "wall_depth",
 			"level": "g2",
 			"replay": "res://acceptance/replays/bot_g2_level.replay",
