@@ -43,6 +43,8 @@ var _look: Dictionary = FALLBACK_LOOK
 var _beacon_mesh: CylinderMesh = null
 var _track_mesh: ArrayMesh = null
 var _fill_material: StandardMaterial3D = null
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _markers: Array[Node3D] = []
 var _pod: MinerPod = MinerPod.new()
 ## The fill each marker's ring was last built for, 0..1, by marker index.
@@ -149,7 +151,7 @@ func show_miners(rescue: MinerRescue, ship: ShipState, walls: BoxUnion = null, d
 		var held: int = rescue.held[index] if index < rescue.held.size() else 0
 		var marker: Node3D = _markers[index]
 		marker.position = at
-		marker.visible = true
+		marker.visible = VisibleBoxes.allows(boxes, at, maxf(_look["ring"]["radius"], _look["beacon"]["height"]))
 		var ring: Node3D = marker.get_node("Ring") as Node3D
 		ring.basis = SalvageRing._facing(at, ship)  # The same turn as a part's ring.
 		_set_fill(index, clampf(float(held) / float(rescue.hold_ticks()), 0.0, 1.0))

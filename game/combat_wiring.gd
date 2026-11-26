@@ -133,6 +133,14 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	# The eye sits at the ship's centre, so the muzzles hang off this frame's pose.
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction)
+	# What lies in a box the level does not draw is not drawn either (#1382).
+	var boxes: VisibleBoxes = VisibleBoxes.of_world(_world)
+	projectile_view.boxes = boxes
+	robot_view.boxes = boxes
+	salvage_view.boxes = boxes
+	salvage_ring.boxes = boxes
+	component_view.boxes = boxes
+	miner_view.boxes = boxes
 	# Read only: the weapons tell each bolt's look, the rest where it ended (#1309).
 	projectile_view.set_scene([session.current_ship()] as Array[ShipState], session.previous_robots(),
 		session.sim.walls)

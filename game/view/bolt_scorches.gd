@@ -22,6 +22,8 @@ var fade_s: float = 0.0
 ## Colour of a new mark.
 var color: Color = Color(0.05, 0.04, 0.03)
 
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[Decal] = []
 var _ages: Array[float] = []
 var _texture: GradientTexture2D = null
@@ -68,9 +70,14 @@ func mark(at: Vector3, normal: Vector3) -> void:
 ## Moves every mark on by `delta` seconds.
 func age(delta: float) -> void:
 	for slot: int in _nodes.size():
-		if _nodes[slot].visible:
+		if is_fading(slot):
 			_ages[slot] += delta
 			_paint(slot)
+
+
+## Whether mark `slot` is still fading, drawn or in a hidden box.
+func is_fading(slot: int) -> bool:
+	return _ages[slot] < fade_s
 
 
 ## The marks showing now.
@@ -85,14 +92,14 @@ func shown() -> Array[Decal]:
 func _paint(slot: int) -> void:
 	var left: float = 0.0 if fade_s <= 0.0 else 1.0 - _ages[slot] / fade_s
 	var decal: Decal = _nodes[slot]
-	decal.visible = left > 0.0
+	decal.visible = left > 0.0 and VisibleBoxes.allows(boxes, decal.position, radius_m)
 	decal.modulate = Color(color, clampf(left, 0.0, 1.0))
 
 
 func _free_slot() -> int:
 	var oldest: int = 0
 	for slot: int in _nodes.size():
-		if not _nodes[slot].visible:
+		if not is_fading(slot):
 			return slot
 		if _ages[slot] > _ages[oldest]:
 			oldest = slot
@@ -104,5 +111,5 @@ func _free_slot() -> int:
 	decal.visible = false
 	add_child(decal)
 	_nodes.append(decal)
-	_ages.append(0.0)
+	_ages.append(INF)
 	return _nodes.size() - 1

@@ -54,6 +54,8 @@ var _looks: Dictionary[String, Dictionary] = {}
 var _default_look: Dictionary = FALLBACK_LOOK
 ## One shared mesh per part id (and "" for the default), built on first use.
 var _meshes: Dictionary[String, PrimitiveMesh] = {}
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[MeshInstance3D] = []
 var _models: PickupModel = PickupModel.new()
 
@@ -171,7 +173,7 @@ func show_salvage(previous: Array[SalvageItem], current: Array[SalvageItem], alp
 		_models.dress(node, item.part_id if _looks.has(item.part_id) else "", model, mesh.material)
 		node.transform = Transform3D(spin.scaled(Vector3.ONE * size),
 				before.position.lerp(item.position, blend))
-		node.visible = true
+		node.visible = VisibleBoxes.allows(boxes, node.position, size)
 	for index: int in range(current.size(), _nodes.size()):
 		_nodes[index].visible = false
 

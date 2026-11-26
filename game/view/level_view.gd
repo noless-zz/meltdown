@@ -15,7 +15,9 @@ extends Node3D
 ## Each box (room or tunnel) is its own node holding its walls, frames and
 ## bevels, and each frame only the boxes that can be seen from the camera are
 ## shown (`LevelVisibility`, #1364, GFX-3): the camera's own box and the boxes
-## seen through openings. `level_visibility.json` can switch that off.
+## seen through openings. `level_visibility.json` can switch that off. What
+## lies in a hidden box is hidden with it: the item views ask `shown_boxes`
+## (#1382).
 ##
 ## It only reads the union it is given and never writes to it (MP-2).
 ##
@@ -45,6 +47,9 @@ var _bevels: Array[Dictionary] = []
 var _boxes: Array[Node3D] = []
 var _visibility: LevelVisibility = null
 var _settings: Dictionary = LevelVisibility.DEFAULTS
+var _shown: VisibleBoxes = VisibleBoxes.new()
+## The process frame of the last `cull_camera`, so a frame is culled once.
+var _culled_frame: int = -1
 ## Set when the visibility file was rejected; empty otherwise.
 var visibility_error: String = ""
 ## Boxes and draw calls shown in the last culled frame, and totals over frames.
@@ -89,6 +94,7 @@ func set_culling(enabled: bool) -> void:
 	if not enabled:
 		for box: Node3D in _boxes:
 			box.visible = true
+		_shown.show_all()
 
 
 ## Parses the text of a look file; see `LevelLook.parse`.
@@ -146,6 +152,7 @@ func build(union: BoxUnion) -> void:
 		_boxes.append(box)
 	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
 	_visibility = LevelVisibility.new(union)
+	_shown = VisibleBoxes.new(union)
 
 
 ## The node of box `index` of the last `build`, or null.
@@ -183,6 +190,11 @@ func visibility() -> LevelVisibility:
 	return _visibility
 
 
+## Which boxes the last cull showed, for the views of things in the mine.
+func shown_boxes() -> VisibleBoxes:
+	return _shown
+
+
 ## The box whose node draws frame `quad`: a frame is sunk behind its face, into
 ## the box that opens there, so it is drawn (and hidden) with that box. The
 ## lowest such box holding the frame's centre; its own box if none does.
@@ -216,19 +228,28 @@ func cull(eye: Vector3, basis: Basis) -> void:
 		if flags[index]:
 			drawn_boxes += 1
 			drawn_surfaces += surfaces_of(index)
+	_shown.set_flags(flags)
 	culled_frames += 1
 	drawn_boxes_total += drawn_boxes
 	drawn_surfaces_total += drawn_surfaces
 
 
-func _process(_delta: float) -> void:
-	if not bool(_settings["enabled"]) or _boxes.is_empty():
+## Culls from the viewport's camera, once per process frame. The combat
+## wiring calls it once the rig is placed, before the item views draw, so they
+## ask this frame's boxes; `_process` covers a frame it did not.
+func cull_camera() -> void:
+	if not bool(_settings["enabled"]) or _boxes.is_empty() or _culled_frame == Engine.get_process_frames():
 		return
 	var camera: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
 	if camera == null:
 		return
+	_culled_frame = Engine.get_process_frames()
 	var to_level: Transform3D = global_transform.affine_inverse() * camera.global_transform
 	cull(to_level.origin, to_level.basis)
+
+
+func _process(_delta: float) -> void:
+	cull_camera()
 
 
 static func _add_box_meshes(box: Node3D, quads: Array, bevels: Array, wall_material: Material,
