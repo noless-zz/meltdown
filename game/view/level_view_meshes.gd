@@ -6,6 +6,13 @@ extends RefCounted
 ## surface (#1323, #1364): two draw calls a box. The walls' material carries
 ## the floor, wall and ceiling tints and the shader picks one per face from its
 ## normal (#1383), so the kinds no longer need a surface each.
+## With an `AmbientBake` each vertex also carries its box's ambient in CUSTOM0
+## (#1400), and walls near an opening are cut into pieces for the blend to show
+## on: more triangles, the same surfaces.
+
+## CUSTOM0 holds the baked ambient as three floats: 8-bit vertex colour would
+## band at ambient's dim values.
+const AMBIENT_FORMAT: int = Mesh.ARRAY_CUSTOM_RGB_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
 
 
 ## The material of a box's walls and frames: `LevelLook.wall_material` in the
@@ -19,8 +26,50 @@ static func kind_material(look: Dictionary, surface: Dictionary = {}) -> ShaderM
 	return material
 
 
+## Switches `material` to the ambient baked into the vertices.
+static func use_bake(material: ShaderMaterial) -> ShaderMaterial:
+	material.set_shader_parameter("baked_ambient", true)
+	return material
+
+
+## The quads `walls` draws for `list`: as given, or cut into pieces by `bake`.
+static func drawn_quads(list: Array, bake: AmbientBake) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for quad: Dictionary in list:
+		if bake == null:
+			result.append(quad)
+		else:
+			result.append_array(bake.pieces(quad))
+	return result
+
+
+## Puts box `box`'s walls and frames (`quads`) and its `bevels` under `box`,
+## baked by `bake` when not null. Returns how many wall pieces were drawn.
+static func add_box(box: Node3D, quads: Array, edge_bevels: Array, wall_material: Material,
+		bevel_material: Material, bake: AmbientBake) -> int:
+	var pieces: int = 0
+	if not quads.is_empty():
+		# Floor, wall and ceiling, and the opening frames, in one surface: the
+		# shader tints each face by its normal (#1383).
+		var lists: Array[Array] = [quads]
+		var used: Array[Material] = [wall_material]
+		var node: MeshInstance3D = walls(LevelView.WALLS_NAME, lists, used, bake)
+		# Walls block the headlight (the one shadow-casting light, GFX-4), so it
+		# cannot shine through a wall into the next room.
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		box.add_child(node)
+		pieces = (node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 6 \
+				if node.mesh != null else 0
+	if not edge_bevels.is_empty():
+		var typed: Array[Dictionary] = []
+		typed.assign(edge_bevels)
+		box.add_child(bevels(typed, bevel_material, bake))
+	return pieces
+
+
 ## One mesh with a surface per list in `lists`, drawn in the matching material.
-static func walls(node_name: String, lists: Array[Array], materials: Array[Material]) -> MeshInstance3D:
+static func walls(node_name: String, lists: Array[Array], materials: Array[Material],
+		bake: AmbientBake = null) -> MeshInstance3D:
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = node_name
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -31,15 +80,14 @@ static func walls(node_name: String, lists: Array[Array], materials: Array[Mater
 			continue
 		var vertices: PackedVector3Array = PackedVector3Array()
 		var normals: PackedVector3Array = PackedVector3Array()
-		for quad: Dictionary in list:
+		var ambient: PackedFloat32Array = PackedFloat32Array()
+		for quad: Dictionary in drawn_quads(list, bake):
 			for corner: Vector3 in LevelView.triangles(quad):
 				vertices.append(corner)
 				normals.append(quad["normal"])
-		var arrays: Array = []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = vertices
-		arrays[Mesh.ARRAY_NORMAL] = normals
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+				if bake != null:
+					_append_ambient(ambient, bake.at(corner, int(quad["box"])))
+		_add_surface(mesh, vertices, normals, ambient)
 		mesh.surface_set_material(mesh.get_surface_count() - 1, materials[index])
 	if mesh.get_surface_count() > 0:
 		instance.mesh = mesh
@@ -48,7 +96,7 @@ static func walls(node_name: String, lists: Array[Array], materials: Array[Mater
 
 ## One mesh of `bevels` in `material`. The bevels cast no shadow: they sit in
 ## the corners, where the walls' own shadow already falls.
-static func bevels(bevels: Array[Dictionary], material: Material) -> MeshInstance3D:
+static func bevels(bevels: Array[Dictionary], material: Material, bake: AmbientBake = null) -> MeshInstance3D:
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = LevelView.BEVELS_NAME
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -56,16 +104,64 @@ static func bevels(bevels: Array[Dictionary], material: Material) -> MeshInstanc
 		return instance
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
+	var ambient: PackedFloat32Array = PackedFloat32Array()
 	for bevel: Dictionary in bevels:
 		for corner: Vector3 in LevelBevels.triangles(bevel):
 			vertices.append(corner)
 			normals.append(bevel["normal"])
+			if bake != null:
+				_append_ambient(ambient, bake.at(corner, int(bevel["box"])))
+	var mesh: ArrayMesh = ArrayMesh.new()
+	_add_surface(mesh, vertices, normals, ambient)
+	mesh.surface_set_material(0, material)
+	instance.mesh = mesh
+	return instance
+
+
+static func _append_ambient(into: PackedFloat32Array, light: Color) -> void:
+	into.append(light.r)
+	into.append(light.g)
+	into.append(light.b)
+
+
+## One triangle surface; `ambient` (three floats a vertex) goes in CUSTOM0 when not empty.
+static func _add_surface(mesh: ArrayMesh, vertices: PackedVector3Array, normals: PackedVector3Array,
+		ambient: PackedFloat32Array) -> void:
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
-	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh.surface_set_material(0, material)
-	instance.mesh = mesh
-	return instance
+	if ambient.is_empty():
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		return
+	arrays[Mesh.ARRAY_CUSTOM0] = ambient
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, AMBIENT_FORMAT)
+
+
+## The baked ambient of each vertex of surface `surface` of `mesh`, or empty without one.
+static func baked(mesh: Mesh, surface: int = 0) -> PackedFloat32Array:
+	if mesh == null or surface >= mesh.get_surface_count():
+		return PackedFloat32Array()
+	var custom: Variant = mesh.surface_get_arrays(surface)[Mesh.ARRAY_CUSTOM0]
+	return custom if custom is PackedFloat32Array else PackedFloat32Array()
+
+
+## The six corners of the two triangles that draw `quad`. Godot draws the
+## side from which a triangle's corners run clockwise, so the order is picked
+## to make that the side the quad's normal points to: into its box.
+static func quad_triangles(quad: Dictionary) -> Array[Vector3]:
+	var axis: int = quad["axis"]
+	var u: int = (axis + 1) % 3
+	var v: int = (axis + 2) % 3
+	var low: Vector3 = quad["min"]
+	var high: Vector3 = quad["max"]
+	var c00: Vector3 = low
+	var c10: Vector3 = low
+	c10[u] = high[u]
+	var c11: Vector3 = high
+	var c01: Vector3 = low
+	c01[v] = high[v]
+	# Corners c00, c10, c11 run counter-clockwise seen from +axis.
+	if float((quad["normal"] as Vector3)[axis]) > 0.0:
+		return [c00, c11, c10, c00, c01, c11]
+	return [c00, c10, c11, c00, c11, c01]

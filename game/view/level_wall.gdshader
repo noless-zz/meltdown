@@ -23,7 +23,14 @@
 // A material can also carry all three tints and pick one per face by the same
 // rule (`tint_by_kind`, #1383): a box of the mine is then one surface, one
 // draw call, for its walls and frames together, instead of one per kind.
+// Ambient light is the shader's own, not the environment's (#1400, GFX-5):
+// albedo times `ambient_light`, the look's global ambient, or, when
+// `baked_ambient` is set, times the box's ambient baked into each vertex
+// (`AmbientBake`, in CUSTOM0), so each room has its own mood at no cost per
+// frame. Godot adds ambient the same way (albedo, none on metal), so with the
+// global value the walls draw as before.
 shader_type spatial;
+render_mode ambient_light_disabled;
 
 // The tint of every face, or of the walls only when `tint_by_kind` is set.
 uniform vec3 tint : source_color = vec3(0.16, 0.15, 0.14);
@@ -57,13 +64,18 @@ uniform float triplanar_sharpness = 4.0;
 // Only the bevels along box edges glow (`LevelLook.bevel_material`, #1323);
 // on the walls this stays black.
 uniform vec3 glow : source_color = vec3(0.0);
+// Linear and energy applied, as the renderer works out the environment's.
+uniform vec3 ambient_light = vec3(0.0);
+uniform bool baked_ambient = false;
 
 varying vec3 world_position;
 varying vec3 world_normal;
+varying vec3 ambient;
 
 void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	ambient = baked_ambient ? CUSTOM0.rgb : ambient_light;
 }
 
 // A steady value in 0..1 for each plate, so neighbouring plates differ a little.
@@ -191,13 +203,15 @@ void fragment() {
 
 	vec3 face_tint = tint_by_kind ? floor_tint * kind.x + tint * kind.y + ceiling_tint * kind.z : tint;
 	vec3 base = face_tint * plate_tone * seam_tone * (1.0 + albedo_noise * 2.0 * grain);
-	ALBEDO = clamp(base * mix(1.0, line_factor, on_line), vec3(0.0), vec3(1.0));
+	vec3 albedo = clamp(base * mix(1.0, line_factor, on_line), vec3(0.0), vec3(1.0));
+	ALBEDO = albedo;
 	float rough = metal ? metal_roughness : roughness_value;
 	ROUGHNESS = clamp(rough + roughness_noise * 2.0 * grain, 0.05, 1.0);
-	METALLIC = metal ? metallic_value : 0.0;
+	float metallic = metal ? metallic_value : 0.0;
+	METALLIC = metallic;
 	vec3 bent = normalize(unit_normal - (slope - dot(slope, unit_normal) * unit_normal));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);
 	// VERTEX is the view-space position here, so its length is the distance.
-	EMISSION = glow;
+	EMISSION = glow + albedo * (1.0 - metallic) * ambient;
 	FOG = vec4(fog_color, 1.0 - exp(-fog_density * length(VERTEX)));
 }

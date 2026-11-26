@@ -19,6 +19,9 @@ extends Node3D
 ## lies in a hidden box is hidden with it: the item views ask `shown_boxes`
 ## (#1382).
 ##
+## Each box's walls carry its own baked ambient (`AmbientBake`, #1400, GFX-5),
+## chosen by `ambient_rules` in the look from its size and the reactor.
+##
 ## It only reads the union it is given and never writes to it (MP-2).
 ##
 ## The look lives in `res://view/level_look.json` and is parsed by
@@ -39,11 +42,15 @@ const FALLBACK_LOOK: Dictionary = LevelLook.FALLBACK
 
 ## Set when the last look file was rejected; empty otherwise.
 var look_error: String = ""
+## Set when the last `build` found the look's ambient rules bad; empty otherwise.
+var ambient_error: String = ""
 
 var _look: Dictionary = FALLBACK_LOOK
 var _quads: Array[Dictionary] = []
 var _frames: Array[Dictionary] = []
 var _bevels: Array[Dictionary] = []
+var _bake: AmbientBake = null
+var _wall_pieces: int = 0
 var _boxes: Array[Node3D] = []
 var _visibility: LevelVisibility = null
 var _settings: Dictionary = LevelVisibility.DEFAULTS
@@ -122,8 +129,9 @@ func look() -> Dictionary:
 	return _look
 
 
-## Replaces whatever was drawn with the inside of `union`.
-func build(union: BoxUnion) -> void:
+## Replaces whatever was drawn with the inside of `union`. `reactor` is the
+## reactor's position in the union's space, or null for a level without one.
+func build(union: BoxUnion, reactor: Variant = null) -> void:
 	for child: Node in get_children():
 		remove_child(child)
 		child.free()
@@ -142,12 +150,22 @@ func build(union: BoxUnion) -> void:
 		per_box[frame_box(union, quad)].append(quad)
 	for bevel: Dictionary in _bevels:
 		bevels_per_box[int(bevel["box"])].append(bevel)
-	var wall_material: Material = LevelViewMeshes.kind_material(_look)
-	var bevel_material: Material = LevelLook.bevel_material(_look)
+	var baked: Dictionary = AmbientBake.for_look(union, _look, reactor)
+	_bake = baked["bake"]
+	ambient_error = baked["error"]
+	if ambient_error != "":
+		push_warning("LevelView uses the global ambient; %s" % ambient_error)
+	var wall_material: ShaderMaterial = LevelViewMeshes.kind_material(_look)
+	var bevel_material: ShaderMaterial = LevelLook.bevel_material(_look)
+	if _bake != null:
+		LevelViewMeshes.use_bake(wall_material)
+		LevelViewMeshes.use_bake(bevel_material)
+	_wall_pieces = 0
 	for index: int in union.boxes.size():
 		var box: Node3D = Node3D.new()
 		box.name = "%s%d" % [BOX_PREFIX, index]
-		_add_box_meshes(box, per_box[index], bevels_per_box[index], wall_material, bevel_material)
+		_wall_pieces += LevelViewMeshes.add_box(box, per_box[index], bevels_per_box[index], wall_material,
+				bevel_material, _bake)
 		add_child(box)
 		_boxes.append(box)
 	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
@@ -252,27 +270,19 @@ func _process(_delta: float) -> void:
 	cull_camera()
 
 
-static func _add_box_meshes(box: Node3D, quads: Array, bevels: Array, wall_material: Material,
-		bevel_material: Material) -> void:
-	if not quads.is_empty():
-		# Floor, wall and ceiling, and the opening frames, in one surface: the
-		# shader tints each face by its normal (#1383).
-		var lists: Array[Array] = [quads]
-		var used: Array[Material] = [wall_material]
-		var walls: MeshInstance3D = LevelViewMeshes.walls(WALLS_NAME, lists, used)
-		# Walls block the headlight (the one shadow-casting light, GFX-4), so it
-		# cannot shine through a wall into the next room.
-		walls.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		box.add_child(walls)
-	if not bevels.is_empty():
-		var typed: Array[Dictionary] = []
-		typed.assign(bevels)
-		box.add_child(LevelViewMeshes.bevels(typed, bevel_material))
-
-
 ## The wall quads of the last `build`, in `LevelFaces` layout.
 func quads() -> Array[Dictionary]:
 	return _quads
+
+
+## The bake of the last `build`, or null when the walls take the global ambient.
+func ambient_bake() -> AmbientBake:
+	return _bake
+
+
+## Wall and frame quads the last `build` drew, after the bake cut some into pieces.
+func wall_pieces() -> int:
+	return _wall_pieces
 
 
 ## The opening frames of the last `build`, in `LevelFaces` layout.
@@ -285,22 +295,7 @@ func bevels() -> Array[Dictionary]:
 	return _bevels
 
 
-## The six corners of the two triangles that draw `quad`. Godot draws the
-## side from which a triangle's corners run clockwise, so the order is picked
-## to make that the side the quad's normal points to: into its box.
+## The six corners of the two triangles that draw `quad`, facing into its box
+## (`LevelViewMeshes.quad_triangles`).
 static func triangles(quad: Dictionary) -> Array[Vector3]:
-	var axis: int = quad["axis"]
-	var u: int = (axis + 1) % 3
-	var v: int = (axis + 2) % 3
-	var low: Vector3 = quad["min"]
-	var high: Vector3 = quad["max"]
-	var c00: Vector3 = low
-	var c10: Vector3 = low
-	c10[u] = high[u]
-	var c11: Vector3 = high
-	var c01: Vector3 = low
-	c01[v] = high[v]
-	# Corners c00, c10, c11 run counter-clockwise seen from +axis.
-	if float((quad["normal"] as Vector3)[axis]) > 0.0:
-		return [c00, c11, c10, c00, c01, c11]
-	return [c00, c10, c11, c00, c11, c01]
+	return LevelViewMeshes.quad_triangles(quad)

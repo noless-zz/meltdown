@@ -136,7 +136,10 @@ func test_every_quad_faces_into_its_box() -> String:
 		for surface: int in walls.mesh.get_surface_count() if walls != null else 0:
 			vertex_count += (walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 	# Opening frames are drawn in the walls' surfaces (#1323).
-	var drawn_quads: int = view.quads().size() + view.frames().size()
+	# The ambient bake cuts walls near openings into pieces (#1400).
+	var drawn_quads: int = view.wall_pieces()
+	if result == "" and drawn_quads < view.quads().size() + view.frames().size():
+		result = "%d wall pieces for %d quads and frames" % [drawn_quads, view.quads().size() + view.frames().size()]
 	if result == "" and vertex_count != drawn_quads * 6:
 		result = "wall mesh has %d vertices for %d quads and frames" % [vertex_count, drawn_quads]
 	view.free()

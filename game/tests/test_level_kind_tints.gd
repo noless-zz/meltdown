@@ -110,8 +110,11 @@ func test_each_box_draws_walls_and_frames_in_one_surface() -> String:
 			if result != "":
 				break
 			vertices += (walls.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-		if result == "" and vertices != (view.quads().size() + view.frames().size()) * 6:
-			result = "%d wall vertices for %d quads and frames" % [vertices, view.quads().size() + view.frames().size()]
+		# The ambient bake may cut walls near openings into pieces (#1400).
+		if result == "" and (vertices != view.wall_pieces() * 6 \
+				or view.wall_pieces() < view.quads().size() + view.frames().size()):
+			result = "%d wall vertices for %d pieces of %d quads and frames" \
+					% [vertices, view.wall_pieces(), view.quads().size() + view.frames().size()]
 		view.free()
 		if result != "":
 			return result

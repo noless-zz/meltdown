@@ -17,7 +17,8 @@ extends RefCounted
 ##      "plate_floor_stagger", "plate_wall_stagger", "plate_ceiling_stagger": 0..0.5,
 ##      "plate_seam_m": 0.005..0.2, "plate_contrast": 0..0.25,
 ##      "fog_color": [r, g, b], "fog_density": 0..0.2,
-##      "ambient_color": [r, g, b], "ambient_energy": 0..0.3}
+##      "ambient_color": [r, g, b], "ambient_energy": 0..0.3,
+##      "ambient_rules": {...} (optional, `AmbientRules`)}
 ##
 ## Why each part is there (#609: the owner could not read the space):
 ## - Floor, ceiling and walls take different tints by which way they face, so
@@ -49,8 +50,14 @@ extends RefCounted
 ##   drawn with the walls. A depth or width of 0 draws no frames.
 ## - Ambient stays low so the mine is dark until the headlight, weapons or
 ##   flares light it (LGT-1); the range caps it.
+## - Each box can bake its own ambient by `ambient_rules` (#1400, GFX-5):
+##   tunnels cool and dim, big rooms warmer, a red cast near the reactor. The
+##   section is passed on as read and checked by `AmbientRules`, so a bad rule
+##   falls back to the global ambient rather than throwing the look away.
 
 const DEFAULT_FILE: String = "res://view/level_look.json"
+## The one key a look file may leave out; `AmbientRules` parses it.
+const RULES_KEY: String = "ambient_rules"
 const WALL_SHADER: String = "res://view/level_wall.gdshader"
 
 const COLOR_KEYS: Array[String] = ["wall_color", "floor_color", "ceiling_color", "edge_color",
@@ -149,7 +156,7 @@ static func parse(text: String) -> Dictionary:
 	var data: Dictionary = json.data
 	var all: Array[String] = keys()
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not all.has(key):
+		if typeof(key) != TYPE_STRING or not (all.has(key) or key == RULES_KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	for key: String in all:
 		if not data.has(key):
@@ -184,6 +191,8 @@ static func parse(text: String) -> Dictionary:
 	if float(look["frame_width_m"]) > float(look["frame_depth_m"]):
 		return _rejected("\"frame_width_m\" is %s, must be at most \"frame_depth_m\" (%s)"
 				% [look["frame_width_m"], look["frame_depth_m"]])
+	if data.has(RULES_KEY):
+		look[RULES_KEY] = data[RULES_KEY]
 	return look
 
 
@@ -248,6 +257,9 @@ static func wall_material(look: Dictionary, tint: Color, surface: Dictionary = {
 	material.set_shader_parameter("floor_min_up", FLOOR_MIN_UP)
 	material.set_shader_parameter("fog_color", look["fog_color"])
 	material.set_shader_parameter("fog_density", float(look["fog_density"]))
+	# The shader adds ambient itself (#1400); without a bake it is the global one.
+	var ambient: Color = AmbientBake.global(look)
+	material.set_shader_parameter("ambient_light", Vector3(ambient.r, ambient.g, ambient.b))
 	LevelWallMaterial.apply(material, surface if not surface.is_empty() else LevelWallMaterial.load_theme())
 	return material
 
