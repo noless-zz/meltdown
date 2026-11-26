@@ -45,6 +45,8 @@ var ids: Array[String] = []
 var highlighted: int = 0
 ## The station in use, or "" while choosing.
 var in_use: String = ""
+## The named action the last `update` pressed, or "" (for `HubStationSounds`).
+var last_acted: String = ""
 
 var _labels: Dictionary[String, String] = {}
 var _points: Dictionary[String, Vector3] = {}
@@ -154,6 +156,7 @@ func update(held: Dictionary) -> Dictionary:
 		if down and not bool(_held.get(action, false)) and acted == "":
 			acted = action
 		_held[action] = down
+	last_acted = acted
 	if acted == "":
 		return {}
 	_reason = ""  # Any input clears the last refusal.

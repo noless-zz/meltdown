@@ -1,0 +1,22 @@
+{
+	"voices": 4,
+	"sounds": {
+		"point": {"sound": "res://data/audio/hub_point.wav", "volume_db": -20.0, "min_gap_s": 0.09},
+		"select": {"sound": "res://data/audio/hub_select.wav", "volume_db": -16.0, "min_gap_s": 0.08},
+		"back": {"sound": "res://data/audio/hub_back.wav", "volume_db": -17.0, "min_gap_s": 0.08},
+		"refused": {"sound": "res://data/audio/hub_refused.wav", "volume_db": -14.0, "min_gap_s": 0.25},
+		"crafted": {"sound": "res://data/audio/hub_crafted.wav", "volume_db": -10.0, "min_gap_s": 0.2},
+		"mounted": {"sound": "res://data/audio/part_slotted.wav", "volume_db": -10.0, "min_gap_s": 0.15},
+		"unmounted": {"sound": "res://data/audio/hub_unmounted.wav", "volume_db": -12.0, "min_gap_s": 0.15},
+		"launch": {"sound": "res://data/audio/hub_launch.wav", "volume_db": -12.0, "min_gap_s": 0.5}
+	},
+	"pressed": {
+		"craft": "crafted",
+		"fit": "mounted",
+		"fit:empty": "unmounted",
+		"move": "mounted",
+		"strip": "unmounted",
+		"launch": "launch",
+		"resume": "launch"
+	}
+}
