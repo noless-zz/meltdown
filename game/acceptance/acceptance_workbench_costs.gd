@@ -59,5 +59,7 @@ static func judge(model: HubModel, seen: Dictionary[String, Array]) -> String:
 ## The line that states upgrade `id`'s cost with what is held. The one place
 ## this check reads how a cost is worded, so a new cost layout (#1367) changes
 ## only this function.
+## Since the tree (#1367) a cost is one component per line; the first is asked for.
 static func cost_line(model: HubModel, id: String) -> String:
-	return HubCraftRows.cost_text(model, id)
+	var lines: Array[String] = HubCraftRows.texts(HubCraftRows.cost_lines(model, id))
+	return lines[0] if not lines.is_empty() else ""
