@@ -11,7 +11,7 @@
 			"run": 12345,
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
-			"checks": ["no_script_errors", "hub_stations"]
+			"checks": ["no_script_errors", "hub_stations", "hub_sounds"]
 		},
 		{
 			"id": "fit_move",

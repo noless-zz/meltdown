@@ -2,15 +2,13 @@ class_name HubWiring
 extends RefCounted
 
 ## The hub between runs (#1093, CRW-2, CRF-3, CRF-4, RUN-1, RUN-7). When a run
-## ends, lost or won, the end screen's restart press opens the hub panel
-## instead of flying the next run at once: the run is moved on first, exactly
-## as the press always moved it (`RunWiring.after_session` banks, adds crew and
-## picks the next run's seed), and the hub shows the run's own profile, so what
-## was just banked can be crafted at once. "Drop into the mine" saves the
-## profile and fitting and answers the restart that flies the new run's first
-## level, through the end screen's fade (CMF-8); the level is built after the
-## save, so `RunShip` reads the fitting the pilot just chose. A launch the
-## fitting check refuses shows its reason on the panel and stays in the hub.
+## ends, lost or won, the end screen's restart press opens the hub instead of
+## flying the next run: the run is moved on first (`RunWiring.after_session`
+## banks, adds crew and picks the next seed), so what was just banked can be
+## crafted at once. Launching saves the profile and fitting, then answers the
+## restart through the end screen's fade (CMF-8); the level is built after the
+## save, so `RunShip` reads the fitting just chosen. A refused launch shows its
+## reason and stays in the hub.
 ##
 ## Single levels never open it, nor does an escape that leads to a shaft
 ## choice or the next level: only the end of a run, or the shaft panel's
@@ -20,25 +18,22 @@ extends RefCounted
 ## A save that will not resume is discarded, logged, and the hub stays open. A launch
 ## discards a waiting save; a `--run` launch starts straight into a run, as replays fly.
 ##
-## While it is open it takes the controls as the dev menu does (decision
-## record 0009): the frame's values reach the rest of `main.gd` idle, so the
-## ship gets neutral input, and the right stick and A drive the panel through
-## the dev menu's named actions. Every craft and fit is saved when it happens,
-## so a killed app keeps it. The hub changes only the profile and fitting it
-## was handed (MP-2) and reads no comfort setting (ARC-3). It sits beside
-## `main.gd` because it reads `RunWiring` and the `net/` session's outcome.
+## While open it takes the controls as the dev menu does (decision record
+## 0009): the ship gets neutral input and the right stick and A drive the hub
+## through named actions. Every craft and fit is saved at once, so a killed app
+## keeps it. It changes only the profile and fitting it was handed (MP-2),
+## reads no comfort setting (ARC-3), and sits beside `main.gd` as it reads
+## `RunWiring` and the `net/` session's outcome.
 ##
 ## Around the seated pilot it shows the home base room (#1298, `HubRoom`,
-## decision record 0012), placed at the head point like the panel. While the
-## room shows, the head camera draws only the room, so the mine is not drawn.
+## decision record 0012) at the head point; the head camera then draws only it.
 ## `HubLaunch` shows arriving and leaving (#1396, CMF-8): opening, after the end
 ## screen's fade to black, fades the room in; the launch row glows the cradle
 ## ship and fades out, then runs the unchanged `launch`, and the mine fades in.
 ##
-## In the room the pages are on its stations (#1299, `HubStations`): the pilot
-## chooses a station by pointing the right controller's aim at it or with the
-## stick, and uses its rows as the panel's. The flat panel is kept only for a
-## room that fails to load, so the hub still works in the dark.
+## In the room the pages are on its stations (#1299, `HubStations`), chosen by
+## the right controller's aim or the stick, with sounds (`HubStationSounds`,
+## #1401). The flat panel is kept only for a room that fails to load.
 
 const LOG_PREFIX: String = "[meltdown run]"
 
@@ -47,6 +42,8 @@ const LOG_PREFIX: String = "[meltdown run]"
 var panel: HubPanel = null
 ## The pages on the room's stations; null when the room was not built.
 var stations: HubStations = null
+## Their sounds (#1401); null without stations.
+var sounds: HubStationSounds = null
 ## The home base room under the rig origin once `attach` has run; null in tests without it.
 var room: HubRoom = null
 ## The open hub's text; null while closed.
@@ -68,7 +65,7 @@ var _camera: Camera3D = null
 var _aim: XRController3D = null
 
 
-## Hangs the panel and the room under `rig`. Calling it again adds nothing.
+## Hangs the panel, the room and its stations under `rig`; once only.
 func attach(rig: Node3D) -> void:
 	if panel != null or rig == null:
 		return
@@ -82,6 +79,9 @@ func attach(rig: Node3D) -> void:
 		if not stations.has_stations():
 			stations.queue_free()
 			stations = null
+		else:
+			sounds = HubStationSounds.new(stations)
+			rig.add_child(sounds)
 	_camera = rig.get_node_or_null("Camera") as Camera3D
 	_aim = rig.get_node_or_null("RightHand") as XRController3D
 	launching.attach(_camera, room if room.is_built() else null)
@@ -154,6 +154,7 @@ func open_for(p_run: RunWiring, config: HubConfig = null) -> bool:
 	text = HubText.new(model)
 	if stations != null:
 		stations.open(text)
+		sounds.opened()
 	else:
 		if panel == null:
 			panel = HubPanel.new()
@@ -191,9 +192,12 @@ func update(paused: bool, head_point: Transform3D, seconds: float = 0.0) -> bool
 			room.show_for(_camera)  # Placed first, so it never shows a frame at the rig origin.
 	if paused or _actions.is_empty() or launching.is_launching():  # Nothing pressed yet, or leaving.
 		return false
+	var before: Dictionary = HubSoundTable.state(stations) if stations != null else {}
 	if stations != null:
 		_point()
 	var result: Dictionary = stations.update(_actions) if stations != null else panel.update(_actions)
+	if sounds != null:
+		sounds.hear(before, result, seconds)
 	if result.is_empty() or str(result["reason"]) != "":
 		return false
 	match str((result["pressed"] as Dictionary).get("action", "")):
