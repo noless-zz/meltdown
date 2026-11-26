@@ -84,10 +84,10 @@ var utility_slots: Array[String] = []
 ## (decision record 0011, #1261), so each counts down on its own.
 var fire_cooldowns: Array[int] = [0, 0]
 
-## Salvage hold (SLV-1). Parts taken from the mine wait here, by id, until
-## they are slotted. One part, as it is pulled into the cockpit.
+## Salvage hold (SLV-1): parts taken from the mine wait here, by id, until slotted.
 const HOLD_CAPACITY: int = 1
-## Part ids in the order they were taken, at most HOLD_CAPACITY.
+var hold_capacity: int = HOLD_CAPACITY  # Plus the crew's salvage slots; the sim hashes `CrewBonus` (#1386).
+## Part ids in the order they were taken, at most `hold_capacity`.
 var hold: Array[String] = []
 ## Whether the slot control was held on the last tick this ship was stepped.
 ## Slotting needs a fresh press (#600): with the click held while flying
@@ -242,7 +242,7 @@ func is_destroyed() -> bool:
 
 
 func hold_has_room() -> bool:
-	return hold.size() < HOLD_CAPACITY
+	return hold.size() < hold_capacity
 
 
 ## Restitution actually used by a bounce: `wall_restitution` kept in

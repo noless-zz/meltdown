@@ -55,6 +55,8 @@ var reactor: ReactorState = null
 var debris: MeltdownDebris = null
 ## The level's alarm (RUN-6), or null when off; see `set_alarm_rules`. Hashed when set.
 var alarm: Alarm = null
+## The crew's bonus (`CrewBonus`, #1386), or null without one.
+var crew: CrewBonus = null
 var salvage_rules: SalvageRules:
 	get: return rules.salvage_rules
 var look_aim: LookAim:
@@ -213,6 +215,11 @@ func set_rescue_rules(p_rules: MinerRescue, miners: Array[Vector3i] = []) -> Str
 ## Switches the alarm on with `p_rules` and the shaft's `risk` multiplier (`Alarm`, RUN-6).
 func set_alarm_rules(p_rules: Alarm, risk: float = 1.0) -> String:
 	return Alarm.install(self, p_rules, risk, tick != 0 or _stepping)
+
+
+## Grows the holds and the countdown by the crew's `bonus` (`CrewBonus`, CRW-1). After the reactor.
+func set_crew_bonus(bonus: CrewBonus) -> String:
+	return CrewBonus.install(self, bonus, tick != 0 or _stepping)
 
 
 ## Sets the look-aim cone and gimbal rate (`LookAim`, CMB-6).
