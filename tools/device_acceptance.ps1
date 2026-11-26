@@ -42,6 +42,8 @@ param(
 	[int]$DeviceWaitSeconds = 20,
 	# Time for the display to come on after the wake-up key, before the lock check.
 	[int]$WakeSeconds = 3,
+	# Between activity lookups; one can come back empty right after an install (#1392).
+	[int]$ResolveRetrySeconds = 1,
 	# The headset's log buffer, raised so start-up lines survive a busy log (#599).
 	[string]$LogBufferSize = '16M'
 )
@@ -59,8 +61,9 @@ $script:warnings = New-Object System.Collections.Generic.List[string]
 $releaseUrl = if ($env:MELTDOWN_RELEASE_URL) { $env:MELTDOWN_RELEASE_URL } else { 'https://github.com/noless-zz/meltdown/releases/download/main-latest' }
 $apkName = 'meltdown-quest-debug.apk'
 $package = 'io.github.nolesszz.meltdown'
-# Godot's Android activity; asked from the package manager first.
-$fallbackActivity = "$package/com.godot.game.GodotApp"
+# Godot's Android activity; asked from the package manager first. Only the
+# launcher activity is exported, so only it can be started from adb (#1392).
+$fallbackActivity = "$package/com.godot.game.GodotAppLauncher"
 $intentExtra = 'meltdown_acceptance'
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -177,11 +180,10 @@ try {
 
 	# 5. Start the game with the acceptance extra, the log cleared and streamed
 	# from before the start so the engine banner and start-up lines are kept.
-	$activity = $fallbackActivity
-	$resolved = Invoke-Device @('shell', 'cmd', 'package', 'resolve-activity', '--brief', $package)
-	$last = ($resolved.Text -split "`n" | Where-Object { $_.Trim() -match '^[\w.]+/[\w.$]+$' } | Select-Object -Last 1)
-	if ($resolved.Ok -and $last) {
-		$activity = $last.Trim()
+	$lookup = Resolve-GameActivity -Package $package -Fallback $fallbackActivity -RetrySeconds $ResolveRetrySeconds
+	$activity = $lookup.Activity
+	if ($lookup.Reason) {
+		Write-Host "Fell back to $activity because $($lookup.Reason)."
 	}
 	Invoke-Device @('shell', 'am', 'force-stop', $package) | Out-Null
 	if (-not (Invoke-Device @('logcat', '-G', $LogBufferSize)).Ok) {
@@ -191,7 +193,12 @@ try {
 	$stream = Start-LogStream -Path $deviceLogPath
 	Write-Host "Starting $activity with $intentExtra=$Suite"
 	$started = Invoke-Device @('shell', 'am', 'start', '-n', $activity, '--es', $intentExtra, $Suite)
-	if (-not $started.Ok -or $started.Text -match 'Error') {
+	if ((Test-NotExported $started.Text) -and $activity -ne $fallbackActivity) {
+		Write-Host "Android refused $activity as not exported; trying $fallbackActivity once."
+		$activity = $fallbackActivity
+		$started = Invoke-Device @('shell', 'am', 'start', '-n', $activity, '--es', $intentExtra, $Suite)
+	}
+	if (-not $started.Ok -or $started.Text -match 'Error|Exception') {
 		Write-Host $started.Text
 		Stop-Run 'failed' "The game did not start: $(Format-Cell $started.Text)"
 	}

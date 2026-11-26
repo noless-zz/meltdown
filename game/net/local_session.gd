@@ -2,8 +2,8 @@ class_name LocalSession
 extends RefCounted
 
 ## Runs one `Sim` at a fixed 60 Hz from variable frame times, for a single
-## local ship (MP-3). The headset build, the desktop build and later the host
-## all drive the simulation through this, so they fly the same code.
+## local ship (MP-3), plus any ships a replay flies beside it (`fly_ships`).
+## The headset, the desktop and later the host all fly through this.
 ##
 ## Time arrives only through `advance`; nothing here reads the clock, nodes or
 ## input devices (ARC-1). The view reads `previous_ship()`, `current_ship()`,
@@ -31,6 +31,8 @@ var replay: Replay
 ## 0..1. The view blends the poses of `previous_ship()` and `current_ship()`
 ## by this amount.
 var interpolation_fraction: float = 0.0
+## Ships 1 and up when the session flies more than one (`fly_ships`); null otherwise.
+var other_ships: OtherShips = null
 ## Total frame time thrown away by the tick cap, in seconds.
 var dropped_seconds: float = 0.0
 ## Ticks run by the most recent `advance` call.
@@ -226,12 +228,49 @@ func current_salvage() -> Array[SalvageItem]:
 	return _current_salvage.duplicate()
 
 
+## Flies every ship of `header`, a replay with no ticks yet: ship 0 from this
+## session's source, ship 1 and up from `sources`, one each, with no network
+## (#1354, PRF-8). The sim is the header's own run, so the session flies
+## exactly what the replay records (ARC-2). Returns why it cannot, or "".
+func fly_ships(header: Replay, sources: Array[ShipInputSource]) -> String:
+	if not header.frames.is_empty() or sources.size() != header.ship_count - 1:
+		return "%d ships need %d more sources and no ticks yet" % [header.ship_count, header.ship_count - 1]
+	var built: Sim = header.run()
+	if built == null:
+		return header.run_error
+	replay = header
+	sim = built
+	other_ships = OtherShips.new(sources, sim)
+	reset_ship_snapshots()
+	_current_robots = SessionSnapshots.robots(sim.robots)
+	_previous_robots = _current_robots
+	_current_salvage = SessionSnapshots.salvage(sim.salvage)
+	_previous_salvage = _current_salvage
+	return ""
+
+
+## Ships 1 and up, before and after the latest tick, as `OtherShips` hands
+## them; empty when the session flies only the local ship.
+func previous_others() -> Array[ShipState]:
+	var none: Array[ShipState] = []
+	return other_ships.previous() if other_ships != null else none
+
+
+func current_others() -> Array[ShipState]:
+	var none: Array[ShipState] = []
+	return other_ships.current() if other_ships != null else none
+
+
 func _run_tick() -> void:
 	var inputs: Array[ShipInput] = [_input_source.next_input(sim.tick)]
+	if other_ships != null:
+		inputs.append_array(other_ships.inputs_at(sim.tick))
 	sim.step(inputs)
 	_frame_events.append_array(sim.last_events)
 	replay.add_tick(inputs)
 	_accumulator -= ShipState.TICK_DT
+	if other_ships != null:
+		other_ships.take(sim)
 	_previous_ship = _current_ship
 	_current_ship = SessionSnapshots.ship(sim.ships[0])
 	_snapshot_projectiles()

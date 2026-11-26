@@ -110,6 +110,37 @@ function Get-HeadsetLockReason {
 	return $null
 }
 
+# The activity to start, asked from the package manager up to $Tries times,
+# $RetrySeconds apart: right after an install the lookup can print no usable
+# line (#1392). Returns Activity, and Reason when it fell back to $Fallback.
+function Resolve-GameActivity {
+	param([string]$Package, [string]$Fallback, [int]$Tries = 3, [int]$RetrySeconds = 1)
+	$reason = 'no answer'
+	for ($try = 1; $try -le $Tries; $try++) {
+		if ($try -gt 1) {
+			Start-Sleep -Seconds $RetrySeconds
+		}
+		$resolved = Invoke-Device @('shell', 'cmd', 'package', 'resolve-activity', '--brief', $Package)
+		$last = ($resolved.Text -split "`n" | Where-Object { $_.Trim() -match '^[\w.]+/[\w.$]+$' } | Select-Object -Last 1)
+		if ($resolved.Ok -and $last) {
+			return [pscustomobject]@{ Activity = $last.Trim(); Reason = $null }
+		}
+		if ($resolved.Ok) {
+			$reason = 'the activity lookup printed no activity'
+		} else {
+			$reason = 'the activity lookup failed'
+		}
+	}
+	return [pscustomobject]@{ Activity = $Fallback; Reason = "$reason on all $Tries tries" }
+}
+
+# Whether `am start` was refused because the activity cannot be started from
+# adb (#1392: only the launcher activity is exported).
+function Test-NotExported {
+	param([string]$Text)
+	return ($Text -match 'SecurityException' -and $Text -match 'not exported')
+}
+
 # Whether the game's activity is the resumed (foreground) one.
 function Test-GameForeground {
 	param([string]$Package)
