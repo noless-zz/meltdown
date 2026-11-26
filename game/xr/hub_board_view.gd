@@ -5,7 +5,8 @@ extends Node3D
 ## CRW-1, CRW-2): crew cards (role icon, name, and what the role gives as an
 ## attribute icon and a number), attribute bars (a fill for the current value,
 ## a tick at stock, the number beside them) and Logbook figures with a short
-## caption and, for a part of a whole, a small bar. The selected item gets a
+## caption and, for a part of a whole, a small bar; on the Fitting Bay, a
+## mount's before and after as two bars on one scale (#1385). The selected item gets a
 ## frame in the selected colour, so the choice is a shape, not only a colour.
 ##
 ## It draws the hub text's `drawing()` data and nothing else: it reads no
@@ -18,6 +19,8 @@ const NODE_NAME: String = "BoardView"
 const CARD: String = "card"
 const BAR: String = "bar"
 const TILE: String = "tile"
+## A mount's before and after on the Fitting Bay (#1385).
+const PAIR: String = "pair"
 ## In front of the face like the words: backs, then bars and frames, then icons and words.
 const BACK_Z_M: float = 0.0008
 const BAR_Z_M: float = 0.0014
@@ -39,9 +42,12 @@ const TILE_LINE: float = 0.45
 var items: Dictionary[String, Node3D] = {}
 ## The item framed as selected, or "".
 var selected_item: String = ""
-## Bar item id to its drawn fill and stock mark, as fractions of its length.
+## Bar item id to its drawn fill and stock mark, as fractions of its length;
+## a pair's fill is its after bar's.
 var fills: Dictionary[String, float] = {}
 var marks: Dictionary[String, float] = {}
+## Pair item id to its before bar's fill.
+var befores: Dictionary[String, float] = {}
 
 var _icons: HubIcons
 var _screen: Dictionary
@@ -72,6 +78,8 @@ func show_drawing(drawing: Dictionary, _shown: Array[Dictionary], _first: int, f
 				_card(spot, item, drawing, width)
 			BAR:
 				_bar(spot, item, drawing, width)
+			PAIR:
+				_pair(spot, item, drawing, width)
 			TILE:
 				var tile: float = width / float(item["columns"])
 				at.x = -width * 0.5 + tile * (float(item["column"]) + 0.5)
@@ -129,6 +137,30 @@ func _bar(spot: Node3D, item: Dictionary, drawing: Dictionary, width: float) -> 
 	marks[str(item["id"])] = float(item["mark"])
 
 
+## Two bars on one scale, the before over the after, one stock tick across
+## both, so the change is seen as a difference in length (#1385).
+func _pair(spot: Node3D, item: Dictionary, drawing: Dictionary, width: float) -> void:
+	var height: float = float(drawing["strip_height_m"])
+	var icon: float = drawing["icon_size_m"]
+	var length: float = drawing["pair_bar_length_m"]
+	var thick: float = drawing["pair_bar_height_m"]
+	_back(spot, Vector2(width, height * BACK_FILL), false)
+	var left: float = -width * 0.5 + GAP_M
+	_put_icon(spot, item["icon"], icon, Vector2(left + icon * 0.5, 0.0))
+	var start: float = left + icon + GAP_M
+	var half: float = thick * 0.5 + FRAME_M * 0.5
+	_draw_bar(spot, start, half, length, thick, float(item["before"]), -1.0, drawing["before_color"])
+	_draw_bar(spot, start, -half, length, thick, float(item["after"]), -1.0, drawing["after_color"])
+	var mark: float = float(item["mark"])
+	if mark >= 0.0:
+		spot.add_child(_flat_box(Vector3(start + length * mark, 0.0, BAR_Z_M + 0.0004),
+			Vector3(FRAME_M, half * 2.0 + thick, HubIcon.THICK_M), _screen["frame_color"], "Stock"))
+		marks[str(item["id"])] = mark
+	_text(spot, item["figure"], Vector2(start + length + GAP_M, 0.0), HORIZONTAL_ALIGNMENT_LEFT, false)
+	befores[str(item["id"])] = float(item["before"])
+	fills[str(item["id"])] = float(item["after"])
+
+
 func _tile(spot: Node3D, item: Dictionary, drawing: Dictionary, tile: float) -> void:
 	var height: float = float(drawing["tile_height_m"])
 	_back(spot, Vector2(tile - GAP_M, height * BACK_FILL), item["selected"])
@@ -145,13 +177,15 @@ func _tile(spot: Node3D, item: Dictionary, drawing: Dictionary, tile: float) -> 
 		fills[str(item["id"])] = float(item["fill"])
 
 
-## A track from `start` of `length`, filled to `fill`, with a tick at `mark` (none below 0).
-func _draw_bar(spot: Node3D, start: float, y: float, length: float, thick: float, fill: float, mark: float) -> void:
+## A track from `start` of `length`, filled to `fill` in `color` (the text's
+## when unset), with a tick at `mark` (none below 0).
+func _draw_bar(spot: Node3D, start: float, y: float, length: float, thick: float, fill: float, mark: float,
+		color: Variant = null) -> void:
 	spot.add_child(_flat_box(Vector3(start + length * 0.5, y, BAR_Z_M), Vector3(length, thick, HubIcon.THICK_M),
 		(_screen["text_color"] as Color).darkened(0.7), "Track"))
 	if fill > 0.0:
 		spot.add_child(_flat_box(Vector3(start + length * fill * 0.5, y, BAR_Z_M + 0.0002),
-			Vector3(length * fill, thick, HubIcon.THICK_M), _screen["text_color"], "Fill"))
+			Vector3(length * fill, thick, HubIcon.THICK_M), _screen["text_color"] if color == null else color, "Fill"))
 	if mark >= 0.0:
 		spot.add_child(_flat_box(Vector3(start + length * mark, y, BAR_Z_M + 0.0004),
 			Vector3(FRAME_M, thick * TICK_HEIGHT, HubIcon.THICK_M), _screen["frame_color"], "Stock"))
@@ -238,4 +272,5 @@ func _clear() -> void:
 	items.clear()
 	fills.clear()
 	marks.clear()
+	befores.clear()
 	selected_item = ""

@@ -44,7 +44,7 @@ static func rows(model: HubModel, chosen: String) -> Array[Dictionary]:
 	if slot.is_empty():
 		return out
 	out.append(HubRows.shown(model.config.words.slot_name(slot["kind"], slot["index"])))
-	out.append_array(HubFitRows.choices(model, slot, built))
+	out.append_array(HubFitBoard.trim(model, HubFitRows.choices(model, slot, built)))  # Bars say them (#1385).
 	return out
 
 
@@ -82,7 +82,9 @@ static func upgrade_icon(model: HubModel, id: String) -> Dictionary:
 ## index of the selected one: {} when the hub file draws no ship. Otherwise
 ## {"choosing": bool, "outline": [Vector2], "center_y_m", "slot_size_m",
 ## "hull_color", "slots": [{"slot", "at", "icon", "selected"}] for each slot
-## the file places, and "row_icons": one icon ({} for none) per row}.
+## the file places, "row_icons": one icon ({} for none) per row, and "board":
+## the summary's or a mount's bars (`HubFitBoard.drawing`, #1385) or {}}; with
+## a board, "text_floor_m" too, so the words stay above it.
 static func drawing(model: HubModel, chosen: String, rows: Array[Dictionary], selected: int) -> Dictionary:
 	var layout: HubFitLayout = model.config.fit_layout
 	if not layout.has_ship():
@@ -101,8 +103,13 @@ static func drawing(model: HubModel, chosen: String, rows: Array[Dictionary], se
 		var action: Dictionary = entry["action"]
 		var shows: bool = chosen != "" and str(action.get("id", "")) != ""
 		icons.append(upgrade_icon(model, action["id"]) if shows else {})
-	return {"choosing": chosen != "", "outline": layout.outline, "center_y_m": layout.center_y_m,
-		"slot_size_m": layout.slot_size_m, "hull_color": layout.hull_color, "slots": slots, "row_icons": icons}
+	var board: Dictionary = HubFitBoard.drawing(model, chosen, rows, selected)
+	var out: Dictionary = {"choosing": chosen != "", "outline": layout.outline, "center_y_m": layout.center_y_m,
+		"slot_size_m": layout.slot_size_m, "hull_color": layout.hull_color, "slots": slots, "row_icons": icons,
+		"board": board}
+	if not board.is_empty():
+		out["text_floor_m"] = board["text_floor_m"]
+	return out
 
 
 ## Index among the selectable `rows` of the one for `slot`, or -1.

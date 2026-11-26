@@ -92,6 +92,17 @@
 			"runs_lost": "runs_started"
 		}
 	},
+	"fit_bars": {
+		"compare_rows_visible": 2,
+		"text_floor_m": 0.0,
+		"top_y_m": 0.0,
+		"strip_height_m": 0.02,
+		"strips_visible": 5,
+		"pair_bar_length_m": 0.11,
+		"pair_bar_height_m": 0.0055,
+		"before_color": [0.42, 0.48, 0.55],
+		"after_color": [0.8, 0.87, 0.93]
+	},
 	"empty_crew": "No crew yet",
 	"empty_store": "Locker empty",
 	"text": {

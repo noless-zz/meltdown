@@ -12,6 +12,10 @@ extends Node3D
 ## writes no simulation state (MP-2) and reads no comfort setting (ARC-3).
 ## Hung on the station's `HubStationScreen`, so it comes forward and grows
 ## with the words.
+##
+## The summary's and a mount's bars (#1385) are drawn by a `HubBoardView`
+## held here, since a station's view is made once: on a summary row it takes
+## the ship's place; under a chosen slot's item rows it sits below the words.
 
 const NODE_NAME: String = "FittingView"
 const SHIP_NAME: String = "Ship"
@@ -30,6 +34,8 @@ var slot_nodes: Dictionary[String, Node3D] = {}
 var selected_slot: String = ""
 ## Icons drawn beside item rows.
 var row_icons: Array[HubIcon] = []
+## The bars, hidden while the drawing has none.
+var board: HubBoardView
 
 var _icons: HubIcons
 var _screen: Dictionary
@@ -44,6 +50,9 @@ func _init(icons: HubIcons, screen: Dictionary, layers: int = 1) -> void:
 	ship = Node3D.new()
 	ship.name = SHIP_NAME
 	add_child(ship)
+	board = HubBoardView.new(icons, screen, layers)
+	board.visible = false
+	add_child(board)
 
 
 ## Draws `drawing` (`HubFitBay.drawing`) on a face of `face` metres, with
@@ -52,7 +61,11 @@ func _init(icons: HubIcons, screen: Dictionary, layers: int = 1) -> void:
 func show_drawing(drawing: Dictionary, shown: Array[Dictionary], first: int, face: Vector2) -> void:
 	visible = true
 	_clear()
-	ship.visible = not drawing["choosing"]
+	var bars: Dictionary = drawing.get("board", {})
+	board.visible = not bars.is_empty()
+	if board.visible:
+		board.show_drawing(bars, shown, first, face)
+	ship.visible = not drawing["choosing"] and not board.visible
 	if drawing["choosing"]:
 		var size: float = _icons.numbers["size_m"]
 		var icons: Array = drawing["row_icons"]
@@ -63,6 +76,8 @@ func show_drawing(drawing: Dictionary, shown: Array[Dictionary], first: int, fac
 				drawn.position = Vector3(-face.x * 0.5 + HubStationScreen.MARGIN_M + size * 0.5, line["y"], ICON_Z_M)
 				add_child(drawn)
 				row_icons.append(drawn)
+		return
+	if board.visible:
 		return
 	ship.position = Vector3(0.0, drawing["center_y_m"], 0.0)
 	ship.add_child(_hull(drawing["outline"], drawing["hull_color"]))

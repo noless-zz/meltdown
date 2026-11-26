@@ -63,6 +63,7 @@ func test_the_fitting_bay_and_crew_quarters_show_the_summary() -> String:
 
 func test_a_fit_shows_before_and_after_under_it_and_changes_nothing() -> String:
 	var model: HubModel = _engine_model()
+	model.config.fit_bars = HubFitBars.new()  # As words; the bars are `test_hub_fit_board.gd`'s (#1385).
 	var hub: HubText = HubText.new(model)
 	hub.choose_station("fit")
 	var mount: Dictionary = {"action": HubText.ACTION_FIT, "slot": "engine", "id": "tuned_thrusters"}

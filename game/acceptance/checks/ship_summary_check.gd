@@ -16,6 +16,11 @@ extends RefCounted
 ## against stock and the fitting file hold the part; the strip row must then
 ## empty the saved fitting and bring the summary back to stock. Whether the
 ## rows read well stays human-checked in the headset.
+##
+## With the hub file's bars (#1385) the summary row must draw the summary's
+## bars in place of the ship, and the mount row one pair of bars, before and
+## after, per attribute the part changes, its words beside them; a screenshot
+## of each is taken when the display draws.
 
 const CHECK: String = "ship_summary"
 const PROFILE_FILE: String = "user://meltdown_acceptance_ship_summary_profile.json"
@@ -41,14 +46,15 @@ static func _judge(_step: AcceptanceStep, runner: AcceptanceRunner, measurements
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = [AcceptanceReport.RESULT_FAIL, "the hub did not open"]
 	if hub.open_for(level_start.run):
-		verdict = _summary_fit_strip(main, hub, measurements)
+		verdict = _summary_fit_strip(runner, hub, measurements)
 	if hub.is_open():
 		hub.close()
 	_remove_scratch()
 	return verdict
 
 
-static func _summary_fit_strip(main: Node, hub: HubWiring, measurements: Dictionary) -> Array:
+static func _summary_fit_strip(runner: AcceptanceRunner, hub: HubWiring, measurements: Dictionary) -> Array:
+	var main: Node = runner.main
 	var model: HubModel = hub.text.model
 	var engine: String = _first_engine(model)
 	measurements["crafted"] = engine
@@ -64,12 +70,26 @@ static func _summary_fit_strip(main: Node, hub: HubWiring, measurements: Diction
 	var stock: String = _value_line(model, stat)
 	if not _scroll_to(main, hub, {}, stock):
 		return [AcceptanceReport.RESULT_FAIL, "the Fitting Bay never shows \"%s\": %s" % [stock, hub.text.lines()]]
+	var bars: bool = HubFitBoard.shows(model)
+	var board: HubBoardView = hub.stations.view(HubFitBay.STATION).board if hub.stations != null else null
+	if bars and (board == null or not board.visible or board.fills.is_empty() or board.marks.size() != board.fills.size()):
+		return [AcceptanceReport.RESULT_FAIL, "the summary row draws no bars against stock"]
+	if bars:
+		measurements["summary_bars"] = board.fills.size()
+		hub.stations.advance(HubStations.SETTLE_SECONDS)
+		measurements["screenshot_summary"] = _screenshot(runner, "summary")
 	var before_after: String = HubSummaryRows.change_text(model.config.words, changes[0])
 	measurements["before_after"] = before_after
 	var slot_row: Dictionary = {"action": HubFitBay.ACTION_SLOT, "slot": SLOT}
 	if not Helper.press_in_station(main, hub, slot_row) or not _scroll_to(main, hub, mount, before_after):
 		return [AcceptanceReport.RESULT_FAIL, "with the mount row selected the screen does not show \"%s\": %s" %
 			[before_after, hub.stations.texts()]]
+	if bars and (board.befores.size() != changes.size() or board.befores.size() != board.fills.size()):
+		return [AcceptanceReport.RESULT_FAIL, "the mount draws %s for %d changes" % [board.items.keys(), changes.size()]]
+	if bars:
+		measurements["before_after_pairs"] = board.befores.size()
+		hub.stations.advance(HubStations.SETTLE_SECONDS)
+		measurements["screenshot_before_after"] = _screenshot(runner, "before_after")
 	Helper._tap(main, Helper.A, Vector2.ZERO)
 	if FittingStore.new(FITTING_FILE).load_fitting().parts[SLOT] != engine:
 		return [AcceptanceReport.RESULT_FAIL, "mounting %s was not saved to the fitting" % engine]
@@ -82,8 +102,10 @@ static func _summary_fit_strip(main: Node, hub: HubWiring, measurements: Diction
 	if not FittingStore.new(FITTING_FILE).load_fitting().is_empty() or _value_line(model, stat) != stock:
 		return [AcceptanceReport.RESULT_FAIL, "after the strip the fitting is %s and the summary reads \"%s\"" %
 			[FittingStore.new(FITTING_FILE).load_fitting().to_json(), _value_line(model, stat)]]
-	return [AcceptanceReport.RESULT_PASS, "summary read \"%s\", mount showed \"%s\", then \"%s\", strip went back to stock" %
-		[stock, before_after, fitted]]
+	var drawn: String = "; %d summary bars, %d before and after pairs" % [measurements["summary_bars"],
+		measurements["before_after_pairs"]] if bars else ""
+	return [AcceptanceReport.RESULT_PASS, "summary read \"%s\", mount showed \"%s\", then \"%s\", strip went back to stock%s" %
+		[stock, before_after, fitted, drawn]]
 
 
 ## The first engine upgrade the profile can build now, or "".
@@ -122,10 +144,30 @@ static func _scroll_to(main: Node, hub: HubWiring, want: Dictionary, line: Strin
 
 
 ## Whether the station's screen shows `line`, plain or as the marked selected
-## row: picking a slot on the bay's ship leaves room for one row (#1366).
+## row (picking a slot on the bay's ship leaves room for one row, #1366), or
+## beside a bar the bay draws (#1385).
 static func _shows(hub: HubWiring, line: String) -> bool:
 	var texts: Array[String] = hub.stations.texts()
+	var view: HubFittingView = hub.stations.view(HubFitBay.STATION)
+	if view != null and view.board.visible:
+		for id: String in view.board.items:
+			texts.append_array(view.board.item_texts(id))
 	return texts.has(line) or texts.has(str(HubPanelLook.load_file()["mark_text"]) + line)
+
+
+## Draws the frame and saves it; returns the path, or why there is none.
+static func _screenshot(runner: AcceptanceRunner, what: String) -> String:
+	if DisplayServer.get_name() == "headless":
+		return "skipped: headless display, nothing is drawn"
+	RenderingServer.force_draw(true, 0.0)
+	var got: Variant = runner.screenshots.grab.call() if runner.screenshots.grab.is_valid() else "nothing to take it with"
+	if not got is Image:
+		return "skipped: %s" % str(got)
+	var folder: String = runner.screenshots.dir.path_join(CHECK)
+	DirAccess.make_dir_recursive_absolute(folder)
+	var path: String = folder.path_join("%s_%s.png" % [CHECK, what])
+	var error: Error = (got as Image).save_png(path)
+	return path if error == OK else "skipped: cannot write %s: %s" % [path, error_string(error)]
 
 
 static func _remove_scratch() -> void:
