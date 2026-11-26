@@ -19,15 +19,18 @@ const LABEL_COLOR: Color = Color(0.85, 0.95, 1.0)
 
 
 const SURFACE_SHADER: Shader = preload("res://view/hub_room_surface.gdshader")
+## The same worn surface for details merged into one mesh (#1397, `HubRoomDetails`).
+const DETAIL_SHADER: Shader = preload("res://view/hub_room_detail.gdshader")
 
 
 ## A plain lit material, or the worn surface shader when the look asks for
 ## wear, bare edges or seams (#1369); either way one material per look, shared
-## by every part that uses it.
-static func material(look: Dictionary) -> Material:
+## by every part that uses it. `merged` gives the worn surface that reads each
+## piece's values from its vertices, for `HubRoomDetails`' merged meshes.
+static func material(look: Dictionary, merged: bool = false) -> Material:
 	if float(look["wear"]) > 0.0 or float(look["edge"]) > 0.0 or float(look["panel_m"]) > 0.0:
 		var worn: ShaderMaterial = ShaderMaterial.new()
-		worn.shader = SURFACE_SHADER
+		worn.shader = DETAIL_SHADER if merged else SURFACE_SHADER
 		worn.set_shader_parameter("albedo", look["color"])
 		worn.set_shader_parameter("metallic", look["metallic"])
 		worn.set_shader_parameter("roughness", look["roughness"])
@@ -55,7 +58,7 @@ static func glow(made: Material) -> float:
 	if made is StandardMaterial3D and (made as StandardMaterial3D).emission_enabled:
 		color = (made as StandardMaterial3D).emission
 		energy = (made as StandardMaterial3D).emission_energy_multiplier
-	elif made is ShaderMaterial and (made as ShaderMaterial).shader == SURFACE_SHADER:
+	elif made is ShaderMaterial and [SURFACE_SHADER, DETAIL_SHADER].has((made as ShaderMaterial).shader):
 		color = (made as ShaderMaterial).get_shader_parameter("emission_color")
 		energy = (made as ShaderMaterial).get_shader_parameter("emission_energy")
 	return maxf(color.r, maxf(color.g, color.b)) * energy

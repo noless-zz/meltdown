@@ -12,10 +12,12 @@ extends RefCounted
 ## must then be open in the home base room, with its six stations present and
 ## each in reach of the seat, at most 8 lights, and the camera drawing the room
 ## alone. Closing the hub must hide the room and give the camera back its view.
-## The pilot's ship must stand on the cradle. With the room open, the frame is
-## drawn and saved as `<step id>_room.png` beside the replay screenshots, so a
-## reviewer can see the lit room and ship (decision record 0005); a screenshot
-## that cannot be taken is noted and never fails the step. It moves the run on,
+## The pilot's ship must stand on the cradle. With the room open, two frames
+## are drawn and saved beside the replay screenshots, so a reviewer can see the
+## lit hangar and ship (decision record 0005): `<step id>_room.png`, a wide
+## view from the seat, and `<step id>_room_ship.png`, the view turned towards
+## the ship on its cradle (#1397). The camera is put back as it was after each.
+## A screenshot that cannot be taken is noted and never fails the step. It moves the run on,
 ## so it is the step's last check. How the room looks and feels stays
 ## human-checked in the headset.
 
@@ -26,6 +28,8 @@ const SHOT_FOLDER: String = "m6"
 const FRAME: float = 1.0 / 72.0
 ## Long enough for the destroyed screen's fade and its restart prompt.
 const LOSE_SECONDS: float = 5.0
+## The wide view's field of view: the stations, walls and shaft mouth in one frame.
+const WIDE_FOV_DEG: float = 100.0
 
 
 static func judges() -> Dictionary[String, Callable]:
@@ -46,7 +50,8 @@ static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 	var verdict: Array = judge_open_room(main, hub, measurements)
 	if verdict[0] == AcceptanceReport.RESULT_PASS:
 		measurements["ship"] = hub.room.ship() != null
-		measurements["screenshot"] = _screenshot(runner, step.id)
+		measurements["screenshot"] = _view(runner, hub.room, "%s_room" % step.id, false)
+		measurements["screenshot_ship"] = _view(runner, hub.room, "%s_room_ship" % step.id, true)
 		if hub.room.ship() == null:
 			verdict = [AcceptanceReport.RESULT_FAIL, "the cradle holds no ship"]
 	hub.close()
@@ -94,17 +99,35 @@ static func _frame(main: Node, buttons: Dictionary) -> void:
 	main.call("advance_frame", FRAME)
 
 
-## Draws the frame and saves it; returns the path, or why there is none.
-static func _screenshot(runner: AcceptanceRunner, step_id: String) -> String:
+## Saves the room as `shot_name`.png, seen wide from the seat or turned
+## towards the ship; returns the path, or why there is none.
+static func _view(runner: AcceptanceRunner, room: HubRoom, shot_name: String, towards_ship: bool) -> String:
 	if DisplayServer.get_name() == "headless":
 		return "skipped: headless display, nothing is drawn"
+	var camera: Camera3D = room.get_viewport().get_camera_3d() if room.is_inside_tree() else null
+	if camera == null:
+		return "skipped: no camera draws the room"
+	var saved_transform: Transform3D = camera.global_transform
+	var saved_fov: float = camera.fov
+	if towards_ship and room.ship() != null:
+		camera.look_at(room.ship().global_position)
+	elif not towards_ship:
+		camera.fov = WIDE_FOV_DEG
+	var shot: String = _screenshot(runner, shot_name)
+	camera.global_transform = saved_transform
+	camera.fov = saved_fov
+	return shot
+
+
+## Draws the frame and saves it; returns the path, or why there is none.
+static func _screenshot(runner: AcceptanceRunner, shot_name: String) -> String:
 	RenderingServer.force_draw(true, 0.0)
 	var got: Variant = runner.screenshots.grab.call() if runner.screenshots.grab.is_valid() else "nothing to take it with"
 	if not got is Image:
 		return "skipped: %s" % str(got)
 	var folder: String = runner.screenshots.dir.path_join(SHOT_FOLDER)
 	DirAccess.make_dir_recursive_absolute(folder)
-	var path: String = folder.path_join("%s_room.png" % step_id)
+	var path: String = folder.path_join("%s.png" % shot_name)
 	var error: Error = (got as Image).save_png(path)
 	return path if error == OK else "skipped: cannot write %s: %s" % [path, error_string(error)]
 
