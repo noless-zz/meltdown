@@ -10,10 +10,13 @@ extends RefCounted
 ##      "stations": [station], ... optional keys below}
 ##
 ## A material is {"color": [r, g, b], "metallic": 0..1, "roughness": 0..1,
-## "emission": [r, g, b], "emission_energy": 0..8}; only `color` is required.
+## "emission": [r, g, b], "emission_energy": 0..8, "wear": 0..1, "edge": 0..1,
+## "panel_m": 0..4}; only `color` is required. `wear`, `edge` and `panel_m`
+## (#1369) give worn patches, bare metal on a box's edges and panel seams.
 ## A prop is {"id", "shape": one of SHAPES, "size_m", "position_m",
-## "rotation_deg", "material"}. A light is {"position_m", "color", "energy",
-## "range_m"}. A station is {"id": one of STATION_IDS, "label", "position_m",
+## "rotation_deg", "material"}. A light is `HubRoomLights`' (omni or spot,
+## with a role). `ship` is `HubRoomShip`'s: the pilot's ship on its cradle,
+## drawn by `ShipModel`. A station is {"id": one of STATION_IDS, "label", "position_m",
 ## "screen"}; `position_m` is its screen's centre. Each task the hub pages do
 ## has exactly one station, and each must sit in front of the seat within
 ## `max_station_distance_m` and `max_station_yaw_deg` of straight ahead, so
@@ -36,9 +39,10 @@ const DEFAULTS: Dictionary = {
 	"ambient_color": [0.5, 0.55, 0.6],
 	"ambient_energy": 0.35,
 	"props": [],
+	"ship": {},
 }
 const MATERIAL_DEFAULTS: Dictionary = {"metallic": 0.0, "roughness": 0.8, "emission": [0.0, 0.0, 0.0],
-	"emission_energy": 0.0}
+	"emission_energy": 0.0, "wear": 0.0, "edge": 0.0, "panel_m": 0.0}
 const DEFAULT_SCREEN: String = "screen"
 const DEFAULT_CONSOLE: String = "console"
 
@@ -60,8 +64,11 @@ var materials: Dictionary = {}
 var surfaces: Dictionary = {}
 ## Each {"id", "shape", "size": Vector3, "position": Vector3, "rotation": Vector3 (degrees), "material"}.
 var props: Array[Dictionary] = []
-## Each {"position": Vector3, "color": Color, "energy": float, "range": float}.
+## Each `HubRoomLights.parse`'s: {"role", "type", "position": Vector3, "aim": Vector3,
+## "angle": float, "color": Color, "energy": float, "range": float}.
 var lights: Array[Dictionary] = []
+## `HubRoomShip.parse`'s {"position": Vector3, "facing_deg", "scale"}, or empty for no ship.
+var ship: Dictionary = {}
 ## Each {"id", "label", "position": Vector3, "screen": material name, "console": material name}.
 var stations: Array[Dictionary] = []
 
@@ -113,6 +120,12 @@ func _read(data: Dictionary) -> String:
 		problem = _read_props(merged["props"])
 	if problem == "":
 		problem = _read_lights(merged["lights"])
+	if problem == "":
+		var read_ship: Variant = HubRoomShip.parse(merged["ship"])
+		if typeof(read_ship) == TYPE_STRING:
+			problem = read_ship
+		else:
+			ship = read_ship
 	if problem == "":
 		problem = _read_stations(merged["stations"])
 	return problem
@@ -183,21 +196,10 @@ func _read_props(raw: Variant) -> String:
 
 
 func _read_lights(raw: Variant) -> String:
-	if typeof(raw) != TYPE_ARRAY or (raw as Array).size() > MAX_LIGHTS:
-		return "\"lights\" must be a list of at most %d lights (GFX-4)" % MAX_LIGHTS
-	for i: int in (raw as Array).size():
-		var light: Variant = raw[i]
-		var field: String = "lights[%d]" % i
-		if typeof(light) != TYPE_DICTIONARY or not HubRoomValues.is_vector(light.get("position_m"), 3, -30.0, 30.0):
-			return "%s: \"position_m\" must be [x, y, z]" % field
-		if not HubRoomValues.is_vector(light.get("color", [1.0, 1.0, 1.0]), 3, 0.0, 1.0):
-			return "%s: \"color\" must be [red, green, blue], each 0..1" % field
-		if not HubRoomValues.is_number(light.get("energy", 1.0), 0.0, 16.0) \
-				or not HubRoomValues.is_number(light.get("range_m", 5.0), 0.1, 30.0):
-			return "%s: \"energy\" must be 0..16 and \"range_m\" 0.1..30" % field
-		lights.append({"position": HubRoomValues.vector3(light["position_m"]),
-			"color": HubRoomValues.color(light.get("color", [1.0, 1.0, 1.0])),
-			"energy": float(light.get("energy", 1.0)), "range": float(light.get("range_m", 5.0))})
+	var read: Variant = HubRoomLights.parse(raw, MAX_LIGHTS)
+	if typeof(read) == TYPE_STRING:
+		return read
+	lights.assign(read)
 	return ""
 
 

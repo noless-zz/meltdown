@@ -13,9 +13,9 @@ extends RefCounted
 ## controller values then go through the scene's own `apply_controls` and
 ## `advance_frame`: the stick steps to the craft station and A takes it into
 ## use, which must show its rows while the others show only their titles; its
-## screen must show the selected upgrade's cost with what is held, and every
-## Workbench upgrade must have its cost row (#1317); its first ready weapon is
-## built; the fit station mounts it in Primary 1; the
+## screen must show the selected upgrade's cost with what is held, and the
+## stick walked over its rows must show every buildable and locked upgrade's
+## cost while it is selected (#1317, #1394); its first ready weapon is built; the fit station mounts it in Primary 1; the
 ## launch station's launch row leaves the hub. The new run must fly the weapon
 ## first. The flat panel must stay hidden throughout. It moves the run on, so
 ## it is the step's last check. Pointing at a station is covered by unit tests;
@@ -63,7 +63,7 @@ static func _craft_fit_launch(main: Node, hub: HubWiring, measurements: Dictiona
 		return [AcceptanceReport.RESULT_FAIL, "the stick and A did not take the craft station into use"]
 	var shown: String = _only_in_use_shows_rows(hub)
 	if shown == "":
-		shown = _workbench_shows_costs(hub, measurements)
+		shown = _workbench_shows_costs(main, hub, measurements)
 	if shown != "":
 		return [AcceptanceReport.RESULT_FAIL, shown]
 	if not AcceptanceCraftAndFitCheck.press_in_station(main, hub, {"action": HubText.ACTION_CRAFT, "id": weapon}):
@@ -105,25 +105,32 @@ static func _only_in_use_shows_rows(hub: HubWiring) -> String:
 	return ""
 
 
-## "" when the craft station's screen shows its selected upgrade's cost and
-## every upgrade on the Workbench has a cost row (#1317).
-static func _workbench_shows_costs(hub: HubWiring, measurements: Dictionary) -> String:
+## "" when the craft station's screen shows its selected upgrade's cost, and
+## walking the stick over its rows shows each upgrade's cost in turn (#1394):
+## since #1351 a cost shows only under the selected upgrade.
+static func _workbench_shows_costs(main: Node, hub: HubWiring, measurements: Dictionary) -> String:
 	var model: HubModel = hub.text.model
 	var id: String = str(hub.text.selected().get("id", ""))
 	if id == "":
 		return "the craft station selects no upgrade"
-	var cost: String = HubCraftRows.texts(HubCraftRows.cost_lines(model, id))[0]
+	var cost: String = AcceptanceWorkbenchCosts.cost_line(model, id)
 	measurements["cost"] = cost
 	if not hub.stations.texts().has(cost):
 		return "the craft station's screen does not show \"%s\": %s" % [cost, hub.stations.texts()]
-	var lines: Array[String] = hub.text.lines()
-	var ids: Array[String] = model.craftable()
-	for entry: Dictionary in model.locked():
-		ids.append(entry["id"])
-	for each: String in ids:
-		if not lines.has(HubCraftRows.texts(HubCraftRows.cost_lines(model, each))[0]):
-			return "the Workbench shows no cost for %s" % HubCraftRows.upgrade_name(model, each)
-	return ""
+	var seen: Dictionary[String, Array] = AcceptanceWorkbenchCosts.walk(hub.text, hub.stations.texts,
+		func(delta: int) -> void: _stick(main, delta))
+	measurements["costs_seen"] = seen.size()
+	return AcceptanceWorkbenchCosts.judge(model, seen)
+
+
+## One stick move through the scene's own controls: a frame with nothing held,
+## then one with the stick held up (-1) or down (1), as `AcceptanceCraftAndFitCheck` taps.
+static func _stick(main: Node, delta: int) -> void:
+	for stick: Vector2 in [Vector2.ZERO, Vector2(0.0, -float(delta))]:
+		var values: Dictionary = ControllerSampler.idle_values()
+		values["right_stick"] = stick
+		main.call("apply_controls", values)
+		main.call("advance_frame", AcceptanceCraftAndFitCheck.FRAME)
 
 
 static func _remove_scratch() -> void:

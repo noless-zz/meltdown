@@ -8,6 +8,7 @@
 		"fill_color": [0.55, 1.0, 0.6],
 		"fill_energy": 3.5
 	},
+	"leave": {"seconds": 0.9, "end_scale": 0.1, "rise_m": 1.5},
 	"pod": {
 		"glow_color": [0.75, 0.95, 1.0],
 		"glow_energy": 2.5,

@@ -12,12 +12,17 @@ extends RefCounted
 ## must then be open in the home base room, with its six stations present and
 ## each in reach of the seat, at most 8 lights, and the camera drawing the room
 ## alone. Closing the hub must hide the room and give the camera back its view.
-## It moves the run on, so it is the step's last check. How the room looks
-## and feels stays human-checked in the headset.
+## The pilot's ship must stand on the cradle. With the room open, the frame is
+## drawn and saved as `<step id>_room.png` beside the replay screenshots, so a
+## reviewer can see the lit room and ship (decision record 0005); a screenshot
+## that cannot be taken is noted and never fails the step. It moves the run on,
+## so it is the step's last check. How the room looks and feels stays
+## human-checked in the headset.
 
 const CHECK: String = "hub_room"
 const PROFILE_FILE: String = "user://meltdown_acceptance_hub_room_profile.json"
 const FITTING_FILE: String = "user://meltdown_acceptance_hub_room_fitting.json"
+const SHOT_FOLDER: String = "m6"
 const FRAME: float = 1.0 / 72.0
 ## Long enough for the destroyed screen's fade and its restart prompt.
 const LOSE_SECONDS: float = 5.0
@@ -27,7 +32,7 @@ static func judges() -> Dictionary[String, Callable]:
 	return {CHECK: _judge}
 
 
-static func _judge(_step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
 	if not runner.flown():
 		return [AcceptanceReport.RESULT_FAIL, "no replay was flown"]
 	var main: Node = runner.main
@@ -39,6 +44,11 @@ static func _judge(_step: AcceptanceStep, runner: AcceptanceRunner, measurements
 	level_start.run.store = ProfileStore.new(PROFILE_FILE)
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = judge_open_room(main, hub, measurements)
+	if verdict[0] == AcceptanceReport.RESULT_PASS:
+		measurements["ship"] = hub.room.ship() != null
+		measurements["screenshot"] = _screenshot(runner, step.id)
+		if hub.room.ship() == null:
+			verdict = [AcceptanceReport.RESULT_FAIL, "the cradle holds no ship"]
 	hub.close()
 	if verdict[0] == AcceptanceReport.RESULT_PASS and hub.room.visible:
 		verdict = [AcceptanceReport.RESULT_FAIL, "closing the hub left the room showing"]
@@ -82,6 +92,21 @@ static func _frame(main: Node, buttons: Dictionary) -> void:
 	values["buttons"] = buttons
 	main.call("apply_controls", values)
 	main.call("advance_frame", FRAME)
+
+
+## Draws the frame and saves it; returns the path, or why there is none.
+static func _screenshot(runner: AcceptanceRunner, step_id: String) -> String:
+	if DisplayServer.get_name() == "headless":
+		return "skipped: headless display, nothing is drawn"
+	RenderingServer.force_draw(true, 0.0)
+	var got: Variant = runner.screenshots.grab.call() if runner.screenshots.grab.is_valid() else "nothing to take it with"
+	if not got is Image:
+		return "skipped: %s" % str(got)
+	var folder: String = runner.screenshots.dir.path_join(SHOT_FOLDER)
+	DirAccess.make_dir_recursive_absolute(folder)
+	var path: String = folder.path_join("%s_room.png" % step_id)
+	var error: Error = (got as Image).save_png(path)
+	return path if error == OK else "skipped: cannot write %s: %s" % [path, error_string(error)]
 
 
 static func _remove_scratch() -> void:

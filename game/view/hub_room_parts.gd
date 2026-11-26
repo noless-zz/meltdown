@@ -18,7 +18,25 @@ const LABEL_FONT_SIZE: int = 56
 const LABEL_COLOR: Color = Color(0.85, 0.95, 1.0)
 
 
-static func material(look: Dictionary) -> StandardMaterial3D:
+const SURFACE_SHADER: Shader = preload("res://view/hub_room_surface.gdshader")
+
+
+## A plain lit material, or the worn surface shader when the look asks for
+## wear, bare edges or seams (#1369); either way one material per look, shared
+## by every part that uses it.
+static func material(look: Dictionary) -> Material:
+	if float(look["wear"]) > 0.0 or float(look["edge"]) > 0.0 or float(look["panel_m"]) > 0.0:
+		var worn: ShaderMaterial = ShaderMaterial.new()
+		worn.shader = SURFACE_SHADER
+		worn.set_shader_parameter("albedo", look["color"])
+		worn.set_shader_parameter("metallic", look["metallic"])
+		worn.set_shader_parameter("roughness", look["roughness"])
+		worn.set_shader_parameter("emission_color", look["emission"])
+		worn.set_shader_parameter("emission_energy", look["emission_energy"])
+		worn.set_shader_parameter("wear", look["wear"])
+		worn.set_shader_parameter("edge", look["edge"])
+		worn.set_shader_parameter("panel_m", look["panel_m"])
+		return worn
 	var made: StandardMaterial3D = StandardMaterial3D.new()
 	made.albedo_color = look["color"]
 	made.metallic = look["metallic"]
@@ -28,6 +46,19 @@ static func material(look: Dictionary) -> StandardMaterial3D:
 		made.emission = look["emission"]
 		made.emission_energy_multiplier = look["emission_energy"]
 	return made
+
+
+## The brightest channel `made` emits, times its energy: how much it glows.
+static func glow(made: Material) -> float:
+	var color: Color = Color.BLACK
+	var energy: float = 0.0
+	if made is StandardMaterial3D and (made as StandardMaterial3D).emission_enabled:
+		color = (made as StandardMaterial3D).emission
+		energy = (made as StandardMaterial3D).emission_energy_multiplier
+	elif made is ShaderMaterial and (made as ShaderMaterial).shader == SURFACE_SHADER:
+		color = (made as ShaderMaterial).get_shader_parameter("emission_color")
+		energy = (made as ShaderMaterial).get_shader_parameter("emission_energy")
+	return maxf(color.r, maxf(color.g, color.b)) * energy
 
 
 ## A primitive mesh of `shape` (one of `HubRoomSpec.SHAPES`) filling `size`.
@@ -67,6 +98,9 @@ static func part(part_name: String, shape: String, size: Vector3, at: Transform3
 	instance.transform = at
 	instance.layers = layers
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # GFX-4: headlight shadows only.
+	if look is ShaderMaterial:
+		instance.set_instance_shader_parameter("part_size", size)
+		instance.set_instance_shader_parameter("edge_on", 1.0 if shape == "box" else 0.0)
 	return instance
 
 
@@ -88,18 +122,6 @@ static func shell(spec: HubRoomSpec, looks: Dictionary, layers: int) -> Array[Me
 		part("WallFront", "box", Vector3(w.x, w.y, t), Transform3D(Basis(), mid - Vector3(0, 0, half.z)), walls, layers),
 		part("WallBack", "box", Vector3(w.x, w.y, t), Transform3D(Basis(), mid + Vector3(0, 0, half.z)), walls, layers),
 	]
-
-
-static func light(index: int, data: Dictionary, layers: int) -> OmniLight3D:
-	var made: OmniLight3D = OmniLight3D.new()
-	made.name = "Light%d" % index
-	made.position = data["position"]
-	made.light_color = data["color"]
-	made.light_energy = data["energy"]
-	made.omni_range = data["range"]
-	made.shadow_enabled = false  # GFX-4: shadows from the player's headlight only.
-	made.light_cull_mask = layers  # The room's lights never light the mine.
-	return made
 
 
 ## A station: a pedestal from the floor, a screen at the station's point
