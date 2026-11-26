@@ -45,7 +45,7 @@ static func rows(model: HubModel, station: String) -> Array[Dictionary]:
 		out.append_array(kept)
 	if out.is_empty() and spec["group"] == GROUP_RESUME:
 		out.append(HubRows.shown(model.config.words.row("resume_none")))
-	return out
+	return HubBoard.trim(model, station, out)
 
 
 ## Page `id`'s rows, as the flat panel shows them.

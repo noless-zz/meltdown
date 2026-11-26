@@ -51,6 +51,47 @@
 			"scan_radius_m": "map_reveal"
 		}
 	},
+	"boards": {
+		"rows_visible": 1,
+		"text_floor_m": 0.0,
+		"top_y_m": -0.004,
+		"strip_height_m": 0.024,
+		"strips_visible": 4,
+		"icon_size_m": 0.02,
+		"bar_length_m": 0.15,
+		"bar_height_m": 0.009,
+		"bar_headroom": 1.5,
+		"tile_columns": 4,
+		"tile_height_m": 0.048,
+		"attribute_icons": {
+			"max_speed": "thrust",
+			"acceleration": "thrust",
+			"afterburner_max_speed": "boost",
+			"afterburner_acceleration": "boost",
+			"afterburner_drain": "boost",
+			"max_hull": "hull",
+			"wall_damage_per_speed": "hull",
+			"max_shield": "shield",
+			"shield_recharge": "shield",
+			"shield_energy_cost": "energy",
+			"map_reveal": "map_reveal",
+			"meltdown_seconds": "meltdown_seconds",
+			"salvage_slots": "salvage_slots"
+		},
+		"log_captions": {
+			"runs_started": "Runs",
+			"runs_won": "Won",
+			"runs_lost": "Lost",
+			"levels_escaped": "Escaped",
+			"deepest_level": "Deepest",
+			"miners_rescued": "Rescued",
+			"components_banked": "Banked"
+		},
+		"log_bars": {
+			"runs_won": "runs_started",
+			"runs_lost": "runs_started"
+		}
+	},
 	"empty_crew": "No crew yet",
 	"empty_store": "Locker empty",
 	"text": {

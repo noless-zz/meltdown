@@ -31,7 +31,9 @@ const KEYS: Array[String] = [KEY_PAGES, KEY_EMPTY_CREW, KEY_EMPTY_STORE, KEY_TEX
 ## without it keeps the bay's rows only.
 const KEY_FIT_SHIP: String = "fit_ship"
 const KEY_CRAFT_TREE: String = "craft_tree"
-const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS, KEY_FIT_SHIP, KEY_CRAFT_TREE]
+## The Crew Quarters' and Logbook's boards (#1368, `HubBoardLayout`).
+const KEY_BOARDS: String = "boards"
+const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS, KEY_FIT_SHIP, KEY_CRAFT_TREE, KEY_BOARDS]
 const PAGE_KEYS: Array[String] = ["id", "title"]
 const TEXT_MAX_LENGTH: int = 120
 
@@ -49,6 +51,8 @@ var words: HubWords = HubWords.new()
 var fit_layout: HubFitLayout = HubFitLayout.new()
 ## How the Workbench draws its tech tree; `has_tree()` is false without one (#1367).
 var craft_tree: HubTreeLayout = HubTreeLayout.new()
+## How the Crew Quarters and Logbook draw; `has_boards()` is false without it (#1368).
+var boards: HubBoardLayout = HubBoardLayout.new()
 ## Set by `parse_json` when the text was rejected; the config is then empty.
 var error: String = ""
 var _titles: Dictionary[String, String] = {}
@@ -92,6 +96,9 @@ static func parse_json(text: String) -> HubConfig:
 	if message == "" and data.has(KEY_CRAFT_TREE):
 		config.craft_tree = HubTreeLayout.parse(data[KEY_CRAFT_TREE])
 		message = config.craft_tree.error
+	if message == "" and data.has(KEY_BOARDS):
+		config.boards = HubBoardLayout.parse(data[KEY_BOARDS])
+		message = config.boards.error
 	var words: HubWords = HubWords.parse(data[KEY_TEXT], TEXT_MAX_LENGTH) if message == "" else null
 	if message == "" and words.error != "":
 		message = words.error

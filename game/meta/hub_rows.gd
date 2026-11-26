@@ -15,8 +15,10 @@ static func crew(model: HubModel) -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for group: Dictionary in model.crew_groups():
 		var role: String = group["role_name"] if group["role_name"] != "" else group["role"]
-		rows.append(noted(info(words.row("crew_capped_row" if group["capped"] else "crew_row", {"role": role, "count": group["count"]})),
-			words.row("crew_note", {"amount": group["total"], "stat": words.stat_name(group["stat"])})))
+		var row: Dictionary = noted(info(words.row("crew_capped_row" if group["capped"] else "crew_row", {"role": role, "count": group["count"]})),
+			words.row("crew_note", {"amount": group["total"], "stat": words.stat_name(group["stat"])}))
+		row["item"] = HubBoard.CREW_PREFIX + str(group["role"])  # Its card on the board (#1368).
+		rows.append(row)
 	if rows.is_empty():
 		rows.append(noted(info(model.config.empty_crew), words.row("empty_crew_note")))
 	return rows
@@ -31,7 +33,9 @@ static func stats(model: HubModel) -> Array[Dictionary]:
 	var any: bool = false
 	for key: String in ProfileStats.KEYS:
 		any = any or int(counters.get(key, 0)) != 0
-		rows.append(info(words.row(HubWords.STATS_ROW_PREFIX + key, {"count": int(counters.get(key, 0))})))
+		var row: Dictionary = info(words.row(HubWords.STATS_ROW_PREFIX + key, {"count": int(counters.get(key, 0))}))
+		row["item"] = HubBoard.STATS_PREFIX + key  # Its figure on the board (#1368).
+		rows.append(row)
 	if not any:
 		noted(rows[0], words.row("stats_empty"))
 	return rows

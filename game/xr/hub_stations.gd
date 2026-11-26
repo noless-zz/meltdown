@@ -25,7 +25,8 @@ extends Node3D
 ## (`HubFittingView`), stick left steps back from choosing an item to the ship
 ## before it leaves the station, and the aim picks a slot on the ship. The
 ## Workbench draws its tech tree the same way (`HubTreeView`, #1367) and the
-## aim picks a node on it.
+## aim picks a node on it; the Crew Quarters and Logbook draw boards
+## (`HubBoardView`, #1368).
 
 const NODE_NAME: String = "HubStations"
 ## The hub text's methods the stations call.
@@ -234,6 +235,11 @@ func tree_view(id: String) -> HubTreeView:
 	return _views.get(id, null) as HubTreeView
 
 
+## The board view on station `id` (Crew Quarters, Logbook; #1368), or null.
+func board_view(id: String) -> HubBoardView:
+	return _views.get(id, null) as HubBoardView
+
+
 ## Only a slot the aim newly reaches is selected, so a still hand does not
 ## undo a stick step.
 func _point_in_station(origin: Vector3, direction: Vector3) -> String:
@@ -283,7 +289,8 @@ func _draw(id: String, first: int, drawing: Dictionary) -> void:
 			_views[id].visible = false
 		return
 	if not _views.has(id):
-		_views[id] = HubTreeView.new(_icons, _screen_look, HubRoom.LAYER_BIT) if drawing.get("kind", "") == "tree" \
-			else HubFittingView.new(_icons, _screen_look, HubRoom.LAYER_BIT)
+		var kinds: Dictionary = {"tree": HubTreeView, "board": HubBoardView}
+		var made: GDScript = kinds.get(str(drawing.get("kind", "")), HubFittingView)
+		_views[id] = made.new(_icons, _screen_look, HubRoom.LAYER_BIT)
 		_screens[id].add_child(_views[id])
 	_views[id].call("show_drawing", drawing, _screens[id].shown_rows(), first, _screens[id].face_size())
