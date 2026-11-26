@@ -25,6 +25,8 @@ const FALLBACK_LOOK: Dictionary = {
 var look_error: String = ""
 var _look: Dictionary = FALLBACK_LOOK
 var _mesh: TorusMesh = null
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[MeshInstance3D] = []
 
 
@@ -125,7 +127,7 @@ func show_rings(previous: Array[SalvageItem], current: Array[SalvageItem], alpha
 		node.transform = Transform3D(_facing(at, ship), at)
 		var material: StandardMaterial3D = node.material_override as StandardMaterial3D
 		material.emission_energy_multiplier = energy_for(item, ship, rules)
-		node.visible = true
+		node.visible = VisibleBoxes.allows(boxes, at, float(_look["radius"]))
 	for index: int in range(current.size(), _nodes.size()):
 		_nodes[index].visible = false
 

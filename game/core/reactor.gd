@@ -57,6 +57,10 @@ var meltdown_ticks_left: int = 0
 ## Radius of the exit sphere at the start (RUN-3). Fixed for the run, so not
 ## part of the hash.
 var exit_radius_mm: int = LevelDefaults.FALLBACK_EXIT_RADIUS_MM
+## Whole seconds the crew adds to the countdown, after the level's clamp
+## (`CrewBonus`, #1386). Never in the JSON: the replay's crew line carries it,
+## and the sim hashes the bonus. 0 for the level's own reactor.
+var crew_seconds: int = 0
 ## Set by `parse` when the data was rejected; empty otherwise.
 var error: String = ""
 
@@ -144,7 +148,7 @@ static func read_radius_mm(value: Variant, key: String, read: Array[int]) -> Str
 
 ## Ticks the countdown starts from when the reactor dies.
 func meltdown_ticks() -> int:
-	return roundi(meltdown_seconds * TICKS_PER_SECOND)
+	return roundi(meltdown_seconds * TICKS_PER_SECOND) + crew_seconds * TICKS_PER_SECOND
 
 
 ## Ticks the countdown starts from when the reactor dies with the longest
@@ -155,7 +159,7 @@ func meltdown_ticks_for_path(path_mm: int) -> int:
 	var seconds: float = meltdown_base_seconds \
 		+ meltdown_seconds_per_metre * path_mm / float(RobotSpawn.SCALE)
 	seconds = clampf(seconds, meltdown_min_seconds, meltdown_max_seconds)
-	return roundi(seconds * TICKS_PER_SECOND)
+	return roundi(seconds * TICKS_PER_SECOND) + crew_seconds * TICKS_PER_SECOND
 
 
 ## Where the segment `from`..`to` first enters the reactor sphere, as a

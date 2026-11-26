@@ -47,6 +47,8 @@ var impacts: BoltImpacts = BoltImpacts.new()
 ## Each weapon's bolt meshes.
 var meshes: BoltMeshes = BoltMeshes.new()
 
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _bolts: Array[MeshInstance3D] = []
 var _lamps: BoltLights = null
 ## Each projectile shown on the last call, with the position it had when it
@@ -132,6 +134,9 @@ func set_scene(ships: Array[ShipState], robots: Array[RobotState], walls: BoxUni
 func show_projectiles(projectiles: Array[Projectile], alpha: float,
 		ship_poses: Array[Transform3D] = []) -> void:
 	var blend: float = clampf(alpha, 0.0, 1.0)
+	muzzle_flashes.boxes = boxes
+	impact_flashes.boxes = boxes
+	impacts.set_boxes(boxes)
 	while _bolts.size() < projectiles.size():
 		_add_bolt()
 	var seen: Dictionary[Projectile, Vector3] = {}
@@ -159,7 +164,10 @@ func show_projectiles(projectiles: Array[Projectile], alpha: float,
 		bolt.transform = Transform3D(bolt_basis(projectile.velocity), drawn)
 		bolt.mesh = meshes.head(_weapons[projectile])
 		_show_trail(bolt, _weapons[projectile], drawn.distance_to(first_position + offsets[projectile]))
-		bolt.visible = true
+		var look: Dictionary = meshes.look(_weapons[projectile])
+		# The trail is the bolt's child, so the bolt reaches as far as its trail.
+		bolt.visible = VisibleBoxes.allows(boxes, drawn,
+			float(look["bolt_length_m"]) + float(look["trail_length_m"]))
 		positions.append(drawn)
 	for index: int in range(projectiles.size(), _bolts.size()):
 		_bolts[index].visible = false

@@ -17,6 +17,8 @@ var radius_m: float = 0.1
 ## How long a flash lasts, seconds; 0 turns new flashes off.
 var lifetime_s: float = 0.1
 
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[MeshInstance3D] = []
 ## Seconds each pooled flash has shown; at or past `lifetime_s` it is free.
 var _ages: Array[float] = []
@@ -74,7 +76,7 @@ func flash(at: Vector3, ship: int = -1, local: Vector3 = Vector3.ZERO, radius: f
 func follow(poses: Array[Transform3D]) -> void:
 	for slot: int in _nodes.size():
 		var ship: int = _ships[slot]
-		if ship >= 0 and ship < poses.size() and _nodes[slot].visible:
+		if ship >= 0 and ship < poses.size() and _ages[slot] < lifetime_s:
 			_nodes[slot].position = poses[ship] * _locals[slot]
 
 
@@ -125,6 +127,6 @@ func _rescale() -> void:
 	for slot: int in _nodes.size():
 		var left: float = 0.0 if lifetime_s <= 0.0 else 1.0 - _ages[slot] / lifetime_s
 		var node: MeshInstance3D = _nodes[slot]
-		node.visible = left > 0.0
+		node.visible = left > 0.0 and VisibleBoxes.allows(boxes, node.position, _radii[slot])
 		if node.visible:
 			node.scale = Vector3.ONE * (_radii[slot] * left)

@@ -86,6 +86,16 @@ func show_drawing(drawing: Dictionary, shown: Array[Dictionary], first: int, fac
 		slot_nodes[slot["slot"]] = spot
 
 
+## Whether the aim can pick a slot here now (the ship is shown).
+func can_point() -> bool:
+	return visible and ship.visible
+
+
+## `point_on_ship`, under the name every station drawing shares (#1367).
+func point_on(origin: Vector3, direction: Vector3, ancestor: Node) -> Variant:
+	return point_on_ship(origin, direction, ancestor)
+
+
 ## Where a ray from `origin` along `direction` (both in the space of
 ## `ancestor`, which holds this view) meets the ship's plane, in the ship's
 ## metres, or null when it runs along or away from it.

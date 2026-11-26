@@ -91,7 +91,7 @@ func _ready() -> void:
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping, level_start.crew_totals_for)  # A Surveyor reveals the level (#1393).
 	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
-	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
+	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller, level_start)  # #1376.
 	hub.attach($XRRig)
 	if opens_hub: StartChoice.open_hub(hub, level_start, destroyed)  # After `destroyed` and the hub attach.
 	place_rig()
@@ -138,7 +138,7 @@ func apply_controls(values: Dictionary) -> void:
 	map.buttons = buttons
 	destroyed.read_buttons(buttons)
 	reset_hold.press(ResetHold.is_held(values) and not flight_test.takes_menu_hold())  # Skips the test.
-	var held: bool = ShipHold.is_held(dev_menu, flight_test, session, destroyed)
+	var held: bool = ShipHold.is_held(dev_menu, flight_test, session, destroyed) or hub.alpha() > 0.0  # Also while the mine fades in (#1396).
 	var input: ShipInput = combat.slot_input(flight_test.held(scheme.map_values(mapping, values)), values, mapping, session, held)  # #1263.
 	comfort.hand_input(input, session.current_ship().orientation, reset_hold.reset_due(), held)
 
@@ -162,10 +162,10 @@ func advance_frame(delta_seconds: float) -> void:
 		_end_one_tick_if_flown()
 	# A paused view holds still (CMF-8), shake included.
 	comfort.advance_hit_shake(0.0 if session.paused else delta_seconds)
-	if hub.is_open():  # The end screens wait behind the hub, dark (#1093).
-		if hub.update(session.paused, RigViews.head_point(head_recentre)):
-			restart_level(true)
-	elif destroyed.update(session, delta_seconds, head_recentre, _xr_running) \
+	if hub.update(session.paused, RigViews.head_point(head_recentre), delta_seconds):  # End screens wait behind it.
+		destroyed.reset()  # Their fade is done: the hub's own fades the mine in (#1396).
+		restart_level(true)
+	elif not hub.is_open() and destroyed.update(session, delta_seconds, head_recentre, _xr_running) \
 			and not hub.open_after(level_start, session):
 		restart_level()
 	if fade_overlay != null:

@@ -7,14 +7,21 @@ extends RefCounted
 ## large crew widens options without trivialising early levels (CRW-3).
 ##
 ## Pure functions over plain data: the same crew and roles always give the
-## same totals whatever order the crew is listed in (ARC-1). Applying the
-## totals at run start is wired later by the run wiring (lane-b); a lost run
-## never changes the crew, so nothing here touches run state (RUN-7).
+## same totals whatever order the crew is listed in (ARC-1). The shield goes
+## into the ship's data (`apply_to_ship`); the salvage slots and the seconds
+## before meltdown reach the simulation as a `CrewBonus` (`bonus`), installed
+## by `RunLevelRules` before a run level's first tick (#1386); the map reveal
+## is read by the map (#1393). A lost run never changes the crew, so nothing
+## here touches run state (RUN-7).
 
 ## Benefit stat that raises the ship's `max_shield`.
 const SHIELD_STAT: String = "shield_max"
 ## Ship data key the shield benefit adds to.
 const SHIELD_KEY: String = "max_shield"
+## Benefit stat that adds slots to the salvage hold.
+const SALVAGE_STAT: String = "salvage_slots"
+## Benefit stat that adds seconds to the meltdown countdown.
+const MELTDOWN_STAT: String = "meltdown_seconds"
 
 
 ## Stat to summed amount for the profile's crew, each clamped to its cap in
@@ -49,8 +56,8 @@ static func totals(profile: Profile, roles: CrewRoles, problems: Array[String] =
 
 
 ## Copy of `ship_data` (the parsed ship file) with the crew's shield bonus
-## added to its `max_shield`, kept inside `ShipTuning.RANGES`. The other stats
-## are applied by the issues that use them. `ship_data` is never edited.
+## added to its `max_shield`, kept inside `ShipTuning.RANGES`. Only the shield
+## lives in the ship file; see `bonus` for the rest. `ship_data` is never edited.
 static func apply_to_ship(ship_data: Dictionary, crew_totals: Dictionary) -> Dictionary:
 	var ship: Dictionary = ship_data.duplicate(true)
 	if not crew_totals.has(SHIELD_STAT) or not ship.has(SHIELD_KEY):
@@ -59,6 +66,13 @@ static func apply_to_ship(ship_data: Dictionary, crew_totals: Dictionary) -> Dic
 	var raised: float = float(ship[SHIELD_KEY]) + float(crew_totals[SHIELD_STAT])
 	ship[SHIELD_KEY] = clampf(raised, float(bounds[0]), float(bounds[1]))
 	return ship
+
+
+## The salvage slots and seconds before meltdown of `crew_totals` (already
+## capped by `totals`) as the simulation's `CrewBonus`. Zero without either;
+## a value core refuses comes back with `error` set and is not installed.
+static func bonus(crew_totals: Dictionary) -> CrewBonus:
+	return CrewBonus.of(int(crew_totals.get(SALVAGE_STAT, 0)), int(crew_totals.get(MELTDOWN_STAT, 0)))
 
 
 ## Role id of a crew entry, or "" when the entry has none.

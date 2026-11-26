@@ -52,6 +52,14 @@ func set_look(look: Dictionary) -> void:
 	scorches.set_look(look["scorch_radius_m"], look["scorch_fade_s"], look["scorch_color"])
 
 
+## Hides flashes, sparks and scorches in boxes not drawn (#1382).
+func set_boxes(boxes: VisibleBoxes) -> void:
+	hit_flashes.boxes = boxes
+	wall_sparks.boxes = boxes
+	hit_sparks.boxes = boxes
+	scorches.boxes = boxes
+
+
 ## Shows what `kind` of end happened at `at`, facing `normal`, for a bolt
 ## whose weapon sparks in `spark_color`.
 func strike(kind: Kind, at: Vector3, normal: Vector3, spark_color: Color) -> void:

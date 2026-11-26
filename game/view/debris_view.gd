@@ -47,6 +47,8 @@ var mesh_builds: int = 0
 var _look: Dictionary = DebrisLook.FALLBACK
 var _meshes: DebrisMeshes
 var _materials: DebrisMaterials = DebrisMaterials.new()
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _entries: Array[MeshInstance3D] = []
 var _states: Array[EntryState] = []
 var _boxes: Array[bool] = []
@@ -148,7 +150,8 @@ func show_debris(positions_m: Array[Vector3], radii_m: Array[float], solid: Arra
 		_states[index] = state
 		_boxes[index] = is_box
 		_fires[index] = is_fire
-		entry.visible = state != EntryState.HIDDEN
+		entry.visible = state != EntryState.HIDDEN and VisibleBoxes.allows(boxes, positions_m[index],
+			maxf(radii_m[index], size_m.length() * 0.5))
 		entry.position = positions_m[index]
 		if is_box:
 			entry.scale = size_m.max(Vector3.ONE * 0.001)

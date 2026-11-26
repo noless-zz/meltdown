@@ -41,6 +41,8 @@ var _look: Dictionary = FALLBACK_LOOK
 var _mesh: PrimitiveMesh = null
 ## One shared material per kind id (and "" for the fallback), built on first use.
 var _materials: Dictionary[String, StandardMaterial3D] = {}
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[MeshInstance3D] = []
 var _models: PickupModel = PickupModel.new()
 ## Where heaps were drawn on the last `show_heaps`, so a mark is placed where
@@ -184,7 +186,7 @@ func show_heaps(sim: Sim, delta: float = 0.0, viewer: Vector3 = Vector3.INF) -> 
 		instance.mesh = _mesh if model.is_empty() else null
 		_models.dress(instance, heap.kind_id, model, instance.material_override)
 		instance.transform = Transform3D(turn, heap.position)
-		instance.visible = true
+		instance.visible = VisibleBoxes.allows(boxes, heap.position, size)
 		_drawn_at.append(heap.position)
 	for index: int in range(heaps.size(), _nodes.size()):
 		_nodes[index].visible = false
