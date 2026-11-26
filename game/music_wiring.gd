@@ -14,16 +14,20 @@ extends RefCounted
 ##
 ## It also drives the pilot's own engine (#1398, AUD-1), which plays in the
 ## same moods the run music does and goes quiet with it on end screens and at
-## the base; keeping it here leaves `CombatWiring` at its size.
+## the base; keeping it here leaves `CombatWiring` at its size. The room
+## tones (#1399, AUD-1) follow the same moods: the space the ship is in while
+## flying, the meltdown rumble once the reactor is gone, the hangar at the base.
 
 ## The music, under the world node once `attach` has run, null before.
 var player: MusicPlayer = null
 ## The pilot's engine, beside the music once `attach` has run, null before.
 var engine: EngineSound = null
+## The room tones, beside the music once `attach` has run, null before.
+var room_tones: RoomTones = null
 var _engine_sim: Sim = null
 
 
-## Puts the music player and the engine under `world`. Calling it again adds nothing.
+## Puts the music player, the engine and the room tones under `world`. Calling it again adds nothing.
 func attach(world: Node) -> void:
 	if player != null:
 		return
@@ -31,10 +35,13 @@ func attach(world: Node) -> void:
 	world.add_child(player)
 	engine = EngineSound.new()
 	world.add_child(engine)
+	room_tones = RoomTones.new()
+	world.add_child(room_tones)
 
 
-## Moves the music and the engine `seconds` on for `session`; `hub_open` says
-## the home base is up. A new level starts the engine from silence. Returns
+## Moves the music, the engine and the room tones `seconds` on for `session`;
+## `hub_open` says the home base is up. A new level starts the engine and the
+## tones from silence. Returns
 ## the music layers sounding, empty before `attach`.
 func update(session: LocalSession, hub_open: bool, seconds: float) -> Array[String]:
 	if player == null or session == null:
@@ -42,8 +49,11 @@ func update(session: LocalSession, hub_open: bool, seconds: float) -> Array[Stri
 	var now: MusicMix.Mood = mood(session, hub_open)
 	if session.sim != _engine_sim:
 		engine.reset()
+		room_tones.reset()
 		_engine_sim = session.sim
 	follow_engine(engine, session, now, seconds)
+	room_tones.follow(now, session.sim.walls, session.current_ship().position,
+		SessionSnapshots.reactor(session.sim.reactor), seconds)
 	return player.follow(now, alarm_level(session), seconds)
 
 
