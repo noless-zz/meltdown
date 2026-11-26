@@ -112,7 +112,8 @@ func test_the_display_section_lists_the_two_rows_after_the_corner() -> String:
 	for section: Dictionary in spec.sections:
 		if section["label"] == "Display":
 			var kinds: Array = section["kinds"]
-			if kinds != [DevMenuSpec.KIND_CORNER, DevMenuSpec.KIND_MAP_PLACE, DevMenuSpec.KIND_MAP_TURN]:
+			# Rows added after them (Render scale, #1417) do not move them.
+			if kinds.slice(0, 3) != [DevMenuSpec.KIND_CORNER, DevMenuSpec.KIND_MAP_PLACE, DevMenuSpec.KIND_MAP_TURN]:
 				return "the Display section lists %s" % [kinds]
 			for row: String in ["Map place: " + spec.map_hand_text, "Map place: " + spec.map_cockpit_text,
 					"Map turn: " + spec.map_fixed_text, "Map turn: " + spec.map_follows_text]:

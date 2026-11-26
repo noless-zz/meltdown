@@ -71,10 +71,11 @@ const KIND_RETURN: String = "return"
 const KIND_MAP_PLACE: String = "map_place"
 const KIND_MAP_TURN: String = "map_turn"
 const KIND_CHECKLIST: String = "checklist"
+const KIND_RENDER_SCALE: String = "render_scale"  # Shows the render scale; read-only (#1417).
 const KINDS: Array[String] = [KIND_CORNER, KIND_LEVEL, KIND_RESTART, KIND_CLOSE, KIND_UPDATE,
 	KIND_CONTROLS, KIND_HANDS, KIND_PITCH, KIND_COMFORT, KIND_BREAK, KIND_FLIGHT_TEST,
 	KIND_REFRESH, KIND_SWIVEL, KIND_FOVEATION, KIND_AUTO_LEVEL, KIND_RETURN, KIND_MAP_PLACE,
-	KIND_MAP_TURN, KIND_CHECKLIST]
+	KIND_MAP_TURN, KIND_CHECKLIST, KIND_RENDER_SCALE]
 const TEXT_KEYS: Array[String] = ["tunnel_text", "seed_text", "random_text", "cancel_update_text",
 	"right_handed_text", "left_handed_text", "normal_pitch_text", "inverted_pitch_text",
 	"break_on_text", "break_off_text", "custom_text", "refresh_90_text", "refresh_120_text",
@@ -103,6 +104,7 @@ const BUILT_IN_LABELS: Dictionary = {
 	KIND_MAP_PLACE: "Map place",
 	KIND_MAP_TURN: "Map turn",
 	KIND_CHECKLIST: "Test checklist",
+	KIND_RENDER_SCALE: "Render scale",
 }
 const PLACE_KEYS: Array[String] = ["distance_m", "offset_m"]
 ## Corner names are lower-case letters and underscores, like `PanelCorner`'s.

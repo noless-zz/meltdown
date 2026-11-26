@@ -17,6 +17,7 @@
 		{"kind": "flight_test", "label": "Flight test"},
 		{"kind": "map_place", "label": "Map place"},
 		{"kind": "map_turn", "label": "Map turn"},
+		{"kind": "render_scale", "label": "Render scale"},
 		{"kind": "checklist", "label": "Test checklist"},
 		{"kind": "close", "label": "Close"}
 	],
@@ -24,7 +25,7 @@
 		{"label": "Comfort", "entries": ["comfort", "break", "refresh", "swivel", "auto_level", "foveation"]},
 		{"label": "Controls", "entries": ["controls", "hands", "pitch"]},
 		{"label": "Mine", "entries": ["level", "restart", "return", "flight_test"]},
-		{"label": "Display", "entries": ["corner", "map_place", "map_turn"]}
+		{"label": "Display", "entries": ["corner", "map_place", "map_turn", "render_scale"]}
 	],
 	"back_text": "Back",
 	"max_rows_visible": 6,

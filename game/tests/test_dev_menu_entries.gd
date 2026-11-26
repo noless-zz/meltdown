@@ -25,6 +25,7 @@ const SAMPLE_RESULTS: Dictionary = {
 	DevMenuSpec.KIND_MAP_PLACE: MapChoice.PLACE_PREFIX + MapChoice.PLACE_COCKPIT,
 	DevMenuSpec.KIND_MAP_TURN: MapChoice.TURN_PREFIX + MapChoice.TURN_FOLLOWS,
 	DevMenuSpec.KIND_CHECKLIST: DevMenuModel.CHECKLIST,
+	DevMenuSpec.KIND_RENDER_SCALE: DevMenuValueRenderScale.PREFIX + "85",
 }
 
 

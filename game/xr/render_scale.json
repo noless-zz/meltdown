@@ -1,0 +1,11 @@
+{
+	"enabled": true,
+	"floor": 0.7,
+	"ceiling": 1.0,
+	"step": 0.1,
+	"high_water": 0.9,
+	"low_water": 0.7,
+	"frames_down": 5,
+	"frames_up": 45,
+	"interval_frames": 30
+}

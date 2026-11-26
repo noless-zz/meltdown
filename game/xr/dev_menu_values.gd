@@ -22,6 +22,7 @@ var level: DevMenuValueLevel
 ## On is the cockpit place and the map following the ship (#1321).
 var map_place: DevMenuValueToggle
 var map_turn: DevMenuValueToggle
+var render_scale: DevMenuValueRenderScale = DevMenuValueRenderScale.new()  # Read-only (#1417).
 
 var _by_kind: Dictionary[String, DevMenuValue] = {}
 
@@ -59,7 +60,7 @@ func _init(spec: DevMenuSpec, levels: DevMenuLevels) -> void:
 		DevMenuSpec.KIND_REFRESH: refresh, DevMenuSpec.KIND_SWIVEL: swivel,
 		DevMenuSpec.KIND_FOVEATION: foveation, DevMenuSpec.KIND_AUTO_LEVEL: auto_level,
 		DevMenuSpec.KIND_LEVEL: level, DevMenuSpec.KIND_MAP_PLACE: map_place,
-		DevMenuSpec.KIND_MAP_TURN: map_turn}
+		DevMenuSpec.KIND_MAP_TURN: map_turn, DevMenuSpec.KIND_RENDER_SCALE: render_scale}
 
 
 ## The value helper of entry kind `entry_kind`, or null for an action entry.

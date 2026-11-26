@@ -20,6 +20,9 @@ extends XROrigin3D
 ## at the recentred head point, which is the ship's centre with the ship's
 ## axes. The main scene places the frame there every frame before the rig
 ## runs, so the rig only copies that placement.
+##
+## The rig also carries the `RenderScaler` (#1417), which lowers and raises
+## the headset's render scale with the frame times.
 
 const LEFT_COLOR: Color = Color(0.2, 0.6, 1.0)
 const RIGHT_COLOR: Color = Color(1.0, 0.5, 0.2)
@@ -99,6 +102,8 @@ func build() -> void:
 		add_child(report)
 	if headlight() == null:
 		add_child(Headlight.new())
+	if get_node_or_null(RenderScaler.NODE_NAME) == null:
+		add_child(RenderScaler.new())  # Dynamic resolution, headset only (#1417).
 	place_headlight()
 	refresh_labels()
 

@@ -11,7 +11,7 @@ const SHIPPED_SECTIONS: Array = [
 	["Comfort", ["comfort", "break", "refresh", "swivel", "auto_level", "foveation"]],
 	["Controls", ["controls", "hands", "pitch"]],
 	["Mine", ["level", "restart", "return", "flight_test"]],
-	["Display", ["corner", "map_place", "map_turn"]],
+	["Display", ["corner", "map_place", "map_turn", "render_scale"]],
 ]
 
 

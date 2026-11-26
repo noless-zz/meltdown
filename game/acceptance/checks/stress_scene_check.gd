@@ -5,7 +5,8 @@ extends RefCounted
 ## the 20 robots, the scene file lists 4 ships and 8 lights, the 8 lights are
 ## drawn in the level, and the meltdown is still counting down when the step
 ## ends, so the frame times the `frame_budget` check takes on the same step
-## were measured with the meltdown's effects on.
+## were measured with the meltdown's effects on. That check reports the
+## render scale the frames were drawn at beside their times (#1417).
 ##
 ## The step's replay holds all four ships (#1354): ship 0 is the local view
 ## and ships 1 to 3 fly their scripts beside it with no network
