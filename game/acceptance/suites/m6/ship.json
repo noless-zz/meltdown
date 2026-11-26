@@ -26,7 +26,7 @@
 			"id": "pickup_look",
 			"run": 12345,
 			"replay": "res://acceptance/replays/crew_joins.replay",
-			"checks": ["final_hash", "outcome", "no_script_errors", "tally_counts", "crew_joins"],
+			"checks": ["final_hash", "outcome", "no_script_errors", "tally_counts", "end_screen_lists", "crew_joins"],
 			"expected_hash": 2982118127,
 			"expected_outcome": "ESCAPED",
 			"expected_crew": 1,

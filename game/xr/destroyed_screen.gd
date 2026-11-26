@@ -8,7 +8,9 @@ extends Node3D
 ## the highest render priority, one step above the fade (`FadeOverlay`).
 ##
 ## It only shows what `DestroyedSequence` answers; it never reads the ship.
-## Nothing here moves or animates (CMF-3, CMF-8).
+## Nothing here moves or animates (CMF-3, CMF-8). Under the prompt, in a run,
+## it lists what earlier escapes kept and what this level lost (#1376,
+## `EndScreenLists`).
 
 const NODE_NAME: String = "DestroyedScreen"
 const LINE_NAME: String = "Line"
@@ -30,23 +32,32 @@ const RENDER_PRIORITY: int = Material.RENDER_PRIORITY_MAX
 
 var _line: Label3D
 var _prompt: Label3D
+var _lists: Label3D
 
 
-func _init() -> void:
+func _init(lists: EndScreenLists = EndScreenLists.new()) -> void:
 	name = NODE_NAME
 	_line = _label(LINE_NAME, LINE_TEXT, LINE_POSITION, LINE_FONT, LINE_COLOR)
 	_prompt = _label(PROMPT_NAME, PROMPT_XR, PROMPT_POSITION, PROMPT_FONT, PROMPT_COLOR)
+	_lists = lists.make_label(lists.look["destroyed_position_m"])
+	add_child(_lists)
 	visible = false
 
 
 ## Shows the line when `line` is true and the prompt under it when `prompt` is
-## true; `xr_running` picks the button the prompt names.
-func show_state(line: bool, prompt: bool, xr_running: bool) -> void:
+## true; `xr_running` picks the button the prompt names. `lists` is shown
+## under the prompt, and `base_prompt`, when not empty, replaces the prompt's
+## words: the press ends the run and opens the base (#1376).
+func show_state(line: bool, prompt: bool, xr_running: bool, lists: String = "", base_prompt: String = "") -> void:
 	visible = line
 	_prompt.visible = line and prompt
 	var wanted: String = PROMPT_XR if xr_running else PROMPT_FLAT
+	if base_prompt != "":
+		wanted = base_prompt
 	if _prompt.text != wanted:
 		_prompt.text = wanted
+	if _lists.text != lists:
+		_lists.text = lists
 
 
 func line_visible() -> bool:
@@ -59,6 +70,10 @@ func prompt_visible() -> bool:
 
 func prompt_text() -> String:
 	return _prompt.text
+
+
+func lists_text() -> String:
+	return _lists.text
 
 
 func _label(label_name: String, text: String, at: Vector3, font_size: int, color: Color) -> Label3D:

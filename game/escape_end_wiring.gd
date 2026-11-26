@@ -16,6 +16,11 @@ extends RefCounted
 ## In a run with shafts, the press after a level that is not the last opens the
 ## shaft panel (`ShaftChoiceWiring`, #990) instead of answering the restart:
 ## the view stays dark, and the restart is answered when a shaft is confirmed.
+##
+## In a run the screen lists what the level banks on the press and the miners
+## brought out, from copies of the sim's counts (#1376, MP-2); when the press
+## ends the run (its last level won) the prompt names the base, as
+## `DestroyedWiring` tells it through `to_base`.
 
 var look: Dictionary = EscapeScreenLook.load_file()
 var sequence: DestroyedSequence = DestroyedSequence.new(EscapeScreenLook.times(look))
@@ -26,6 +31,12 @@ var screen: EscapeScreen = null
 ## `LevelStart` moves it on.
 var run: RunWiring = null
 var choice: ShaftChoiceWiring = ShaftChoiceWiring.new()
+## The end screens' list words, shared with the destroyed screen (#1376).
+var lists: EndScreenLists = EndScreenLists.load_shipped()
+## Set by `DestroyedWiring` each frame: the press ends the run and opens the base.
+var to_base: bool = false
+## The lists the screen was last told to show; read where there is no screen node.
+var lists_shown: String = ""
 
 
 ## Hangs the screen under `rig`. Calling it again adds nothing.
@@ -33,7 +44,7 @@ func attach(rig: Node3D) -> void:
 	choice.attach(rig)
 	if screen != null or rig == null:
 		return
-	screen = EscapeScreen.new(look)
+	screen = EscapeScreen.new(look, lists)
 	rig.add_child(screen)
 
 
@@ -53,10 +64,11 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 	var escaped: bool = session.sim.outcome() == ExitRule.Outcome.ESCAPED
 	var due: bool = sequence.update(0.0 if escaped else 1.0, 0.0 if session.paused else delta_seconds,
 		restart_held)
+	lists_shown = banked_lists(session) if escaped and sequence.line_shown() else ""
 	if screen != null:
 		screen.transform = head_point
 		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), seconds_left(session), xr_running,
-			run_won())
+			run_won(), lists_shown, lists.base_prompt(xr_running) if to_base else "")
 	if due and escaped and run != null and run.choice_due_after_escape() \
 			and choice.open(run, session.sim.collected.duplicate(), RunWiring.rescued_in(session.sim)):
 		return choice.update(run, session.paused, head_point, xr_running)
@@ -66,6 +78,14 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 ## True when the escape shown ends the run's last level: the screen says the run is won.
 func run_won() -> bool:
 	return run != null and run.on_last_level()
+
+
+## What the escape banks and brings out, from copies of `session`'s counts;
+## "" outside a run, where nothing is banked.
+func banked_lists(session: LocalSession) -> String:
+	if run == null or run.state == null:
+		return ""
+	return lists.escape_text(session.sim.collected.duplicate(), RunWiring.rescued_in(session.sim))
 
 
 ## The meltdown time `session`'s reactor holds, in seconds; 0 without a reactor.
@@ -84,5 +104,6 @@ func fade_alpha() -> float:
 func reset() -> void:
 	sequence = DestroyedSequence.new(EscapeScreenLook.times(look))
 	choice.close()
+	lists_shown = ""
 	if screen != null:
 		screen.visible = false
