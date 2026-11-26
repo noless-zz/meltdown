@@ -61,7 +61,9 @@ static func judge_view(view: LevelView, measurements: Dictionary) -> Array:
 		return [AcceptanceReport.RESULT_FAIL, "no box edge is bevelled"]
 	if view.get_node_or_null(OLD_EDGES_NAME) != null:
 		return [AcceptanceReport.RESULT_FAIL, "the old glowing edge strips are still drawn"]
-	if wall_vertices != (view.quads().size() + view.frames().size()) * 6:
+	# The ambient bake cuts walls near openings into pieces (#1400), so the
+	# walls draw at least every quad and frame, and exactly the pieces.
+	if wall_vertices != view.wall_pieces() * 6 or view.wall_pieces() < view.quads().size() + view.frames().size():
 		return [AcceptanceReport.RESULT_FAIL, "the frames are not drawn in the walls' surfaces"]
 	var glow: Color = bevel_material.get_shader_parameter("glow")
 	if glow.r > 1.0 or glow.g > 1.0 or glow.b > 1.0:

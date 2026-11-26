@@ -249,7 +249,11 @@ static func show_level(world: Node3D, level: LevelDef) -> LevelView:
 	if view == null:
 		view = LevelView.new()
 		world.add_child(view)
-	view.build(level.union)
+	# The reactor tints the ambient of the boxes near it (#1400, GFX-5).
+	var reactor: Variant = null
+	if level.reactor != null:
+		reactor = Vector3(level.reactor.position_mm) / float(RobotSpawn.SCALE)
+	view.build(level.union, reactor)
 	return view
 
 
