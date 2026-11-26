@@ -125,11 +125,11 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	if projectile_view == null:
 		return
 	if camera != null:
-		projectile_view.set_viewer(point_in(projectile_view, camera))
+		projectile_view.set_viewer(NodePoints.point_in(projectile_view, camera))
 		# Blasts keep clear of the eye (#1309); the burst node is the robot view's own.
 		var bursts: RobotBursts = robot_view.get_node_or_null(RobotBursts.NODE_NAME) as RobotBursts
 		if bursts != null:
-			bursts.set_viewer(point_in(bursts, camera))
+			bursts.set_viewer(NodePoints.point_in(bursts, camera))
 	# The eye sits at the ship's centre, so the muzzles hang off this frame's pose.
 	var pose: Transform3D = ComfortWiring.interpolated_pose(session.previous_ship(),
 		session.current_ship(), session.interpolation_fraction)
@@ -149,7 +149,7 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 		session.interpolation_fraction, session.current_ship(), session.sim.salvage_rules)
 	# Heaps and miners do not move; the views read the sim's lists and write nothing.
 	ships_view.show_ships(session.previous_others(), session.current_others(), session.interpolation_fraction)
-	component_view.show_heaps(session.sim)
+	component_view.show_heaps(session.sim, delta, NodePoints.point_in(component_view, camera) if camera != null else Vector3.INF)
 	miner_view.show_miners(session.sim.rescue, session.current_ship(), session.sim.walls, delta)
 	feed_sound(session)
 
@@ -176,9 +176,12 @@ func feed_sound(session: LocalSession) -> void:
 ## after it, a session copy (#618). Every shot that hit it starts the flash on
 ## its side and pulses that side's hand; every part it picked up pulses both.
 ## The strongest wall impact of the advance pulses the hand on that wall's side
-## (#828), so a corner hit reported twice is still one pulse.
+## (#828), so a corner hit reported twice is still one pulse. Taken heaps and rescued miners show (#1375).
 ## Call it after every advance, so a frame split for a snap loses no event.
 func feed_events(events: Array[SimEvent], ship: ShipState, xr_running: bool) -> void:
+	if component_view != null:
+		component_view.feed(events)
+		miner_view.feed(events)
 	if hit_flash != null:
 		for side: String in hit_flash.feed(events, 0, ship.orientation, ship.shield, ship.hull):
 			hit_haptics.hit(side, xr_running)
@@ -279,22 +282,3 @@ static func weapon_range(ship: ShipState) -> float:
 	if weapon == null:
 		return 0.0
 	return weapon.projectile_speed * weapon.lifetime
-
-
-## Where `node` is, in `space`'s coordinates: its global position seen from
-## `space`. Outside the scene tree (tests, the first frame) global transforms
-## cannot be read, so the parents' transforms are multiplied up instead.
-static func point_in(space: Node3D, node: Node3D) -> Vector3:
-	if space.is_inside_tree() and node.is_inside_tree():
-		return space.to_local(node.global_position)
-	return _to_top(space).affine_inverse() * _to_top(node).origin
-
-
-## `node`'s transform in the space of its topmost 3D ancestor.
-static func _to_top(node: Node3D) -> Transform3D:
-	var total: Transform3D = Transform3D.IDENTITY
-	var current: Node = node
-	while current is Node3D:
-		total = (current as Node3D).transform * total
-		current = current.get_parent()
-	return total

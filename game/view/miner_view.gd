@@ -13,6 +13,7 @@ extends Node3D
 ## them (MP-2). The ring faces the ship, like `SalvageRing`, so it reads as a
 ## dial. Nodes are pooled. The look lives in `res://view/miner_look.json`
 ## (ARC-4), with an optional escape pod under the beacon (#1308, `MinerPod`).
+## A rescued miner is seen boarding the ship (#1375, `MinerLeave`).
 
 const NODE_NAME: String = "MinerView"
 const MARKER_PREFIX: String = "Miner"
@@ -48,10 +49,12 @@ var _pod: MinerPod = MinerPod.new()
 var _fills: Array[float] = []
 ## Says what a miner is, the first time it comes into sight (#1220).
 var label: MinerLabel = MinerLabel.new()
+var leave: MinerLeave = MinerLeave.new()
 
 
 func _init() -> void:
 	name = NODE_NAME
+	add_child(leave)
 	load_look()
 	add_child(label)
 
@@ -69,9 +72,13 @@ static func parse_look(text: String) -> Dictionary:
 		return {"error": "top level must be a JSON object"}
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == MinerPod.KEY):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or key == MinerPod.KEY or key == MinerLeave.KEY):
 			return {"error": "unknown key \"%s\"" % str(key)}
 	var look: Dictionary = {}
+	if data.has(MinerLeave.KEY):
+		look[MinerLeave.KEY] = MinerLeave.parse(data[MinerLeave.KEY])
+		if look[MinerLeave.KEY].has("error"):
+			return look[MinerLeave.KEY]
 	if data.has(MinerPod.KEY):
 		look[MinerPod.KEY] = MinerPod.parse(data[MinerPod.KEY])
 		if look[MinerPod.KEY].has("error"):
@@ -118,7 +125,14 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 	if _track_mesh != null:
 		_track_mesh.surface_set_material(0, _glow(ring["track_color"], ring["track_energy"]))
 	_fill_material = _glow(ring["fill_color"], ring["fill_energy"])
+	leave.configure(_look.get(MinerLeave.KEY, {}), _beacon_mesh, _pod)
 	return look_error
+
+
+## Takes in the copies of one advance's events: each rescued miner starts
+## boarding from where its marker was drawn (#1375).
+func feed(events: Array[SimEvent]) -> void:
+	leave.feed(events, _markers)
 
 
 ## Draws a marker per miner of `rescue.trapped`, its ring filled by how long a
@@ -126,6 +140,7 @@ func load_look(path: String = DEFAULT_LOOK_FILE) -> String:
 ## A miner first in sight through `walls` gets its label for a while (#1220).
 func show_miners(rescue: MinerRescue, ship: ShipState, walls: BoxUnion = null, delta: float = 0.0) -> void:
 	label.show_labels(rescue, ship, walls, delta)
+	leave.advance(delta, ship)
 	var count: int = rescue.trapped.size() if rescue != null else 0
 	while _markers.size() < count:
 		_add_marker()
@@ -136,7 +151,7 @@ func show_miners(rescue: MinerRescue, ship: ShipState, walls: BoxUnion = null, d
 		marker.position = at
 		marker.visible = true
 		var ring: Node3D = marker.get_node("Ring") as Node3D
-		ring.basis = _facing(at, ship)
+		ring.basis = SalvageRing._facing(at, ship)  # The same turn as a part's ring.
 		_set_fill(index, clampf(float(held) / float(rescue.hold_ticks()), 0.0, 1.0))
 	for index: int in range(count, _markers.size()):
 		_markers[index].visible = false
@@ -244,16 +259,6 @@ static func _glow(color: Color, energy: float) -> StandardMaterial3D:
 	# The band is flat; it must show from either side.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
-
-
-## A basis turning the ring's axis (+Y) towards the ship; level without one.
-static func _facing(at: Vector3, ship: ShipState) -> Basis:
-	if ship == null or at.is_equal_approx(ship.position):
-		return Basis.IDENTITY
-	var direction: Vector3 = at.direction_to(ship.position)
-	if direction.dot(Vector3.UP) < -0.999:
-		return Basis.IDENTITY
-	return Basis(Quaternion(Vector3.UP, direction))
 
 
 ## Rebuilds the fill band only when the fill changed, since a held miner

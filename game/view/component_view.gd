@@ -15,6 +15,7 @@ extends Node3D
 ## its own small shape (#1308, see `PickupModel`): a lit body with pieces
 ## glowing softly in the kind's colour, so kinds differ before any colour or
 ## label is read. A kind without a model keeps the single glowing shape.
+## A heap the local ship takes leaves a short fading mark (#1375, `PickupMarks`).
 
 const NODE_NAME: String = "ComponentView"
 const MESH_PREFIX: String = "Heap"
@@ -42,11 +43,17 @@ var _mesh: PrimitiveMesh = null
 var _materials: Dictionary[String, StandardMaterial3D] = {}
 var _nodes: Array[MeshInstance3D] = []
 var _models: PickupModel = PickupModel.new()
+## Where heaps were drawn on the last `show_heaps`, so a mark is placed where
+## the pilot saw the heap.
+var _drawn_at: Array[Vector3] = []
+## Where taken heaps lay, fading out (#1375).
+var marks: PickupMarks = PickupMarks.new()
 
 
 func _init() -> void:
 	name = NODE_NAME
 	load_look()
+	add_child(marks)
 
 
 func _process(delta: float) -> void:
@@ -148,9 +155,20 @@ func looked_kinds() -> Array[String]:
 	return ids
 
 
+## Takes in the copies of one advance's events: every heap ship 0, the local
+## ship, took starts a mark in its kind's colour where it lay (#1375).
+func feed(events: Array[SimEvent]) -> void:
+	for event: SimEvent in events:
+		if event.ship == 0 and event.kind == SimEvent.Kind.COMPONENT_COLLECTED:
+			marks.start(event.vector, color_for(event.component), _drawn_at)
+
+
 ## Draws one node per heap of `sim.components`; none while component drops are
-## off. Heaps do not move, so there is nothing to blend.
-func show_heaps(sim: Sim) -> void:
+## off. Heaps do not move, so there is nothing to blend. The marks run on by
+## `delta` seconds, kept clear of `viewer`, the eye in this node's space.
+func show_heaps(sim: Sim, delta: float = 0.0, viewer: Vector3 = Vector3.INF) -> void:
+	marks.advance(delta, viewer)
+	_drawn_at.clear()
 	var heaps: Array[ComponentItem] = []
 	if sim.component_rules != null:
 		heaps = sim.components
@@ -167,6 +185,7 @@ func show_heaps(sim: Sim) -> void:
 		_models.dress(instance, heap.kind_id, model, instance.material_override)
 		instance.transform = Transform3D(turn, heap.position)
 		instance.visible = true
+		_drawn_at.append(heap.position)
 	for index: int in range(heaps.size(), _nodes.size()):
 		_nodes[index].visible = false
 

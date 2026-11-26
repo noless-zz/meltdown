@@ -39,6 +39,15 @@
 			"replay": "res://acceptance/replays/bot_g2_level.replay",
 			"checks": ["final_hash", "no_script_errors", "ship_alive", "portal_visibility_counted"],
 			"expected_hash": 802400918
+		},
+		{
+			"id": "pickup_marks",
+			"run": 12345,
+			"replay": "res://acceptance/replays/crew_joins.replay",
+			"checks": ["final_hash", "outcome", "no_script_errors", "pickup_marks_shown", "crew_joins"],
+			"expected_hash": 2982118127,
+			"expected_outcome": "ESCAPED",
+			"expected_crew": 1
 		}
 	]
 }
