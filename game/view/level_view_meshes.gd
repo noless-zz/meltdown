@@ -2,8 +2,21 @@ class_name LevelViewMeshes
 extends RefCounted
 
 ## The meshes `LevelView` draws a box with, kept apart so the node stays small:
-## the box's walls and opening frames in one surface per surface class, and its
-## bevels in one surface (#1323, #1364).
+## the box's walls and opening frames in one surface, and its bevels in one
+## surface (#1323, #1364): two draw calls a box. The walls' material carries
+## the floor, wall and ceiling tints and the shader picks one per face from its
+## normal (#1383), so the kinds no longer need a surface each.
+
+
+## The material of a box's walls and frames: `LevelLook.wall_material` in the
+## wall tint, with the floor and ceiling tints for the shader to pick by face.
+## The tints stay in `level_look.json` (ARC-4).
+static func kind_material(look: Dictionary, surface: Dictionary = {}) -> ShaderMaterial:
+	var material: ShaderMaterial = LevelLook.wall_material(look, look["wall_color"], surface)
+	material.set_shader_parameter("tint_by_kind", true)
+	material.set_shader_parameter("floor_tint", look["floor_color"])
+	material.set_shader_parameter("ceiling_tint", look["ceiling_color"])
+	return material
 
 
 ## One mesh with a surface per list in `lists`, drawn in the matching material.
