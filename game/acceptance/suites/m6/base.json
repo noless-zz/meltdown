@@ -46,6 +46,13 @@
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
 			"checks": ["no_script_errors", "fitting_ship"]
+		},
+		{
+			"id": "workbench_tree",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
+			"checks": ["no_script_errors", "workbench_tree"]
 		}
 	]
 }

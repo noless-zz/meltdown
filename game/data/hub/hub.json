@@ -25,6 +25,32 @@
 			"engine": [[-0.115, 0.0]]
 		}
 	},
+	"craft_tree": {
+		"rows_visible": 3,
+		"text_floor_m": -0.045,
+		"top_y_m": -0.063,
+		"tier_step_m": 0.019,
+		"column_step_m": 0.022,
+		"branch_gap_m": 0.012,
+		"window_m": 0.3,
+		"node_size_m": 0.016,
+		"pick_radius_m": 0.011,
+		"edge_width_m": 0.0018,
+		"effect_icons": {
+			"max_shield": "shield",
+			"shield_recharge": "shield",
+			"shield_energy_cost": "energy",
+			"max_hull": "hull",
+			"wall_damage_per_speed": "hull",
+			"max_speed": "thrust",
+			"acceleration": "thrust",
+			"afterburner_max_speed": "boost",
+			"afterburner_acceleration": "boost",
+			"afterburner_drain": "boost",
+			"reveal_radius_m": "map_reveal",
+			"scan_radius_m": "map_reveal"
+		}
+	},
 	"empty_crew": "No crew yet",
 	"empty_store": "Locker empty",
 	"text": {

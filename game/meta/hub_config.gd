@@ -30,7 +30,8 @@ const KEYS: Array[String] = [KEY_PAGES, KEY_EMPTY_CREW, KEY_EMPTY_STORE, KEY_TEX
 ## The Fitting Bay's ship drawing (#1366, `HubFitLayout`). Optional; a file
 ## without it keeps the bay's rows only.
 const KEY_FIT_SHIP: String = "fit_ship"
-const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS, KEY_FIT_SHIP]
+const KEY_CRAFT_TREE: String = "craft_tree"
+const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS, KEY_FIT_SHIP, KEY_CRAFT_TREE]
 const PAGE_KEYS: Array[String] = ["id", "title"]
 const TEXT_MAX_LENGTH: int = 120
 
@@ -46,6 +47,8 @@ var max_row_chars: int = DEFAULT_MAX_CHARS
 var words: HubWords = HubWords.new()
 ## The ship the Fitting Bay draws; `has_ship()` is false when the file has none.
 var fit_layout: HubFitLayout = HubFitLayout.new()
+## How the Workbench draws its tech tree; `has_tree()` is false without one (#1367).
+var craft_tree: HubTreeLayout = HubTreeLayout.new()
 ## Set by `parse_json` when the text was rejected; the config is then empty.
 var error: String = ""
 var _titles: Dictionary[String, String] = {}
@@ -86,6 +89,9 @@ static func parse_json(text: String) -> HubConfig:
 	if message == "" and data.has(KEY_FIT_SHIP):
 		config.fit_layout = HubFitLayout.parse(data[KEY_FIT_SHIP])
 		message = config.fit_layout.error
+	if message == "" and data.has(KEY_CRAFT_TREE):
+		config.craft_tree = HubTreeLayout.parse(data[KEY_CRAFT_TREE])
+		message = config.craft_tree.error
 	var words: HubWords = HubWords.parse(data[KEY_TEXT], TEXT_MAX_LENGTH) if message == "" else null
 	if message == "" and words.error != "":
 		message = words.error

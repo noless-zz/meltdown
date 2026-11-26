@@ -22,3 +22,41 @@ const STATIONS: Dictionary[String, Dictionary] = {
 	"resume": {"pages": [HubConfig.FIT], "group": GROUP_RESUME},
 	"launch": {"pages": [HubConfig.FIT], "group": GROUP_LAUNCH},
 }
+
+
+## Station `station`'s rows: its pages' rows of its group, a later page
+## starting under its title. A station with no row of its group shows the
+## group's empty line. The Workbench draws its tree in place of the Workbench
+## page's rows when the hub file has one (#1367); the Parts Locker stays under it.
+static func rows(model: HubModel, station: String) -> Array[Dictionary]:
+	var spec: Dictionary = STATIONS[station]
+	var out: Array[Dictionary] = []
+	var pages: Array = spec["pages"]
+	for i: int in pages.size():
+		var kept: Array[Dictionary] = []
+		var page: String = str(pages[i])
+		var page_rows_of: Array[Dictionary] = HubCraftTree.rows(model) \
+			if page == HubConfig.CRAFT and HubCraftTree.shows(model, station) else page_rows(model, page)
+		for entry: Dictionary in page_rows_of:
+			if str(entry.get("group", "")) == str(spec["group"]):
+				kept.append(entry)
+		if i > 0 and not kept.is_empty():
+			out.append(HubRows.shown(model.page_title(page)))
+		out.append_array(kept)
+	if out.is_empty() and spec["group"] == GROUP_RESUME:
+		out.append(HubRows.shown(model.config.words.row("resume_none")))
+	return out
+
+
+## Page `id`'s rows, as the flat panel shows them.
+static func page_rows(model: HubModel, id: String) -> Array[Dictionary]:
+	match id:
+		HubConfig.CREW:
+			return HubRows.crew(model) + HubSummaryRows.rows(model)
+		HubConfig.STATS:
+			return HubRows.stats(model)
+		HubConfig.STORE:
+			return HubRows.store(model)
+		HubConfig.CRAFT:
+			return HubCraftRows.rows(model)  # Costs, numbers and unlocks (#1317).
+	return HubFitRows.rows(model)

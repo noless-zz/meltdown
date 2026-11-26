@@ -40,6 +40,8 @@ var _focus: float = 0.0
 var _focus_target: float = 0.0
 ## Each row line shown: {"row": index into the rows last given, "y": its first line's middle}.
 var _shown: Array[Dictionary] = []
+## No row goes below this, so a drawing under the rows keeps its part of the face (#1367).
+var text_floor_m: float = -INF
 
 
 func _init(look: Dictionary, layers: int, screen: Dictionary = HubScreenLook.load_file()) -> void:
@@ -91,7 +93,7 @@ func show_rows(title: String, rows: Array[String], selected: int, note: String, 
 	_title.position = Vector3(0.0, float(_screen["title_y_m"]), TEXT_LIFT_M)
 	_reason.text = reason
 	_reason.visible = reason != ""
-	var bottom: float = -face_size().y * 0.5 + MARGIN_M
+	var bottom: float = maxf(-face_size().y * 0.5 + MARGIN_M, text_floor_m)
 	if _reason.visible:
 		bottom += _height(_reason) + float(_screen["row_step_m"]) - _line_m()
 	var texts: Array[String] = []

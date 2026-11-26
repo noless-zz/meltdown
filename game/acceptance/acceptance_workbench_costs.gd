@@ -60,4 +60,4 @@ static func judge(model: HubModel, seen: Dictionary[String, Array]) -> String:
 ## this check reads how a cost is worded, so a new cost layout (#1367) changes
 ## only this function.
 static func cost_line(model: HubModel, id: String) -> String:
-	return HubCraftRows.cost_text(model, id)
+	return HubCraftRows.texts(HubCraftRows.cost_lines(model, id))[0]  # One fact per line (#1367).

@@ -13,8 +13,11 @@ const WIDE_COUNT: int = 999
 const WIDE_LEVEL: int = 99
 const WIDE_TIER: int = 9
 const WIDE_SEED: int = 2147483647
-## Rows whose length is not the hub file's to bound: see the length test.
-const LIST_ROWS: Array[String] = ["locked_note", "cost_row", "effect_row", "unlocks_row"]
+## Wider than any number a part file gives an upgrade's effect.
+const WIDE_EFFECT: String = "-100%"
+## Rows whose length is not the hub file's to bound: none since the Workbench
+## shows one fact per line (#1367, #1353).
+const LIST_ROWS: Array[String] = []
 
 
 static func _texts(dir: String) -> Dictionary:
@@ -76,9 +79,8 @@ func test_the_file_sets_the_screen_limits() -> String:
 ## Every text the hub file holds, filled with the longest names the shipped
 ## data can put in it, fits `max_row_chars`. A slot row is filled per slot
 ## kind with the longest thing that kind can hold, since only that can show.
-## Left out: `locked_note` and the Workbench's list rows (`cost_row`,
-## `effect_row`, `unlocks_row`, #1317), whose length grows with the number of
-## components, numbers or unlocks joined into them (follow-up #1353).
+## The Workbench's rows hold one fact each (#1367): one component's cost, one
+## number, one unlock, one reason, each filled with the longest the data gives.
 func test_every_shipped_text_fits_a_row() -> String:
 	var hub: HubText = _hub(Profile.new())
 	var config: HubConfig = hub.model.config
@@ -111,6 +113,14 @@ func test_every_shipped_text_fits_a_row() -> String:
 		"current": str(WIDE_COUNT), "stock": str(WIDE_COUNT), "before": str(WIDE_COUNT), "after": str(WIDE_COUNT),
 		"change": "+%d" % amounts.max(),
 	}
+	# One fact per Workbench line (#1367): one component's cost, one number, one reason.
+	filled["cost"] = words.row("cost_item", {"name": _longest(components), "have": WIDE_COUNT, "need": WIDE_COUNT})
+	var effects: Array[String] = []
+	for key: String in words.effect_names:
+		effects.append(words.effect(key, WIDE_EFFECT))
+	filled["effect"] = _longest(effects)
+	filled["reason"] = _longest([words.row("locked_needs", filled), words.row("locked_short", {"count": WIDE_COUNT,
+		"name": _longest(components)})])
 	var texts: Dictionary[String, String] = {"empty_crew": config.empty_crew, "empty_store": config.empty_store}
 	for id: String in config.pages:
 		texts["title " + id] = config.title(id)
@@ -164,8 +174,9 @@ func test_only_the_selected_row_shows_its_explanation() -> String:
 	for line: String in hub.lines():
 		if line.contains(first) or line.contains(second):
 			return "a reason is a row of its own: \"%s\"" % line
-	var cost: String = HubCraftRows.cost_text(hub.model, locked[0]["id"])
-	if hub.lines().has(cost) or not hub.lines().has(HubCraftRows.cost_text(hub.model, locked[1]["id"])):
+	var cost: String = HubCraftRows.texts(HubCraftRows.cost_lines(hub.model, locked[0]["id"]))[0]
+	var second_cost: String = HubCraftRows.texts(HubCraftRows.cost_lines(hub.model, locked[1]["id"]))[0]
+	if (hub.lines().has(cost) and cost != second_cost) or not hub.lines().has(second_cost):
 		return "the cost rows shown are not only the selected upgrade's: %s" % [hub.lines()]
 	return ""
 

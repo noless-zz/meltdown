@@ -23,7 +23,9 @@ extends Node3D
 ## A hub text may also draw on the station in use (`drawing`, `back`,
 ## `slot_at`, `point_slot`; #1366): the Fitting Bay shows its ship with slots
 ## (`HubFittingView`), stick left steps back from choosing an item to the ship
-## before it leaves the station, and the aim picks a slot on the ship.
+## before it leaves the station, and the aim picks a slot on the ship. The
+## Workbench draws its tech tree the same way (`HubTreeView`, #1367) and the
+## aim picks a node on it.
 
 const NODE_NAME: String = "HubStations"
 ## The hub text's methods the stations call.
@@ -54,8 +56,9 @@ var _pointed_slot: String = ""
 var _room: HubRoom
 var _screen_look: Dictionary = {}
 var _icons: HubIcons
-## Station id to its drawing, made the first time the hub text draws there.
-var _views: Dictionary[String, HubFittingView] = {}
+## Station id to its drawing (a `HubFittingView` or `HubTreeView`), made the
+## first time the hub text draws there.
+var _views: Dictionary[String, Node3D] = {}
 
 
 ## Puts a screen on each station of `room`; a room that was not built gives none.
@@ -128,7 +131,7 @@ func close() -> void:
 		hub.call("leave_station")
 	for id: String in ids:
 		_screens[id].show_title(_labels[id], false)
-	for drawn: HubFittingView in _views.values():
+	for drawn: Node3D in _views.values():
 		drawn.visible = false
 	advance(SETTLE_SECONDS)  # Reopened, every screen starts at rest.
 
@@ -221,18 +224,23 @@ func reason_text() -> String:
 	return _reason
 
 
-## The view on station `id`, or null when nothing was drawn there.
+## The Fitting Bay view on station `id`, or null when none was drawn there.
 func view(id: String) -> HubFittingView:
-	return _views.get(id, null)
+	return _views.get(id, null) as HubFittingView
+
+
+## The tech tree view on station `id`, or null when none was drawn there.
+func tree_view(id: String) -> HubTreeView:
+	return _views.get(id, null) as HubTreeView
 
 
 ## Only a slot the aim newly reaches is selected, so a still hand does not
 ## undo a stick step.
 func _point_in_station(origin: Vector3, direction: Vector3) -> String:
-	var drawn: HubFittingView = view(in_use)
+	var drawn: Node3D = _views.get(in_use, null)
 	var at: Variant = null
-	if drawn != null and drawn.visible and drawn.ship.visible and hub.has_method("point_slot"):
-		at = drawn.point_on_ship(origin, direction, _room)
+	if drawn != null and drawn.call("can_point") and hub.has_method("point_slot"):
+		at = drawn.call("point_on", origin, direction, _room)
 	var slot: String = hub.call("slot_at", at) if at != null else ""
 	if slot != _pointed_slot and slot != "":
 		hub.call("point_slot", at)
@@ -261,18 +269,21 @@ func _refresh() -> void:
 		var first: int = hub.call("first_shown")
 		var rows: Array[String] = lines.slice(1 + first, 1 + first + int(hub.call("rows_shown")))
 		var chosen: int = int(hub.call("selected_line")) - 1 - first
+		var drawing: Dictionary = hub.call("drawing") if hub.has_method("drawing") else {}
+		_screens[id].text_floor_m = float(drawing.get("text_floor_m", -INF))
 		_screens[id].show_rows(_labels[id], rows, chosen, str(hub.call("note")), _reason)
-		_draw(id, first)
+		_draw(id, first, drawing)
 
 
-## Draws the hub text's `drawing` on station `id`, or hides what was drawn.
-func _draw(id: String, first: int) -> void:
-	var drawing: Dictionary = hub.call("drawing") if hub.has_method("drawing") else {}
+## Draws `drawing` (the hub text's) on station `id`, or hides what was drawn.
+## A station draws one kind of thing, so its view is made once.
+func _draw(id: String, first: int, drawing: Dictionary) -> void:
 	if drawing.is_empty():
 		if _views.has(id):
 			_views[id].visible = false
 		return
 	if not _views.has(id):
-		_views[id] = HubFittingView.new(_icons, _screen_look, HubRoom.LAYER_BIT)
+		_views[id] = HubTreeView.new(_icons, _screen_look, HubRoom.LAYER_BIT) if drawing.get("kind", "") == "tree" \
+			else HubFittingView.new(_icons, _screen_look, HubRoom.LAYER_BIT)
 		_screens[id].add_child(_views[id])
-	_views[id].show_drawing(drawing, _screens[id].shown_rows(), first, _screens[id].face_size())
+	_views[id].call("show_drawing", drawing, _screens[id].shown_rows(), first, _screens[id].face_size())

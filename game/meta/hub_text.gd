@@ -109,6 +109,8 @@ func turn_page(delta: int) -> void:
 func rows_shown() -> int:
 	if station == HubFitBay.STATION and fit_slot == "" and model.config.fit_layout.has_ship():
 		return model.config.fit_layout.slot_rows_visible
+	if HubCraftTree.shows(model, station):
+		return model.config.craft_tree.rows_visible  # The tree has the rest of the face (#1367).
 	return model.config.max_rows_visible
 
 
@@ -179,21 +181,30 @@ func back() -> bool:
 	return true
 
 
-## The slot at `at` (metres on the bay's drawn ship) while one is picked, or "".
+## The slot at `at` (metres on the bay's drawn ship) while one is picked, or
+## the Workbench tree's node there (#1367), or "".
 func slot_at(at: Vector2) -> String:
+	if HubCraftTree.shows(model, station):
+		return HubCraftTree.node_at(model, HubCraftTree.selected_node(_rows(), selected_line() - 1), at)
 	return HubFitBay.slot_at(model, at) if station == HubFitBay.STATION and fit_slot == "" else ""
 
 
-## Pointing at `at` selects the slot there (`slot_at`), which it returns.
+## Pointing at `at` selects the slot or node there (`slot_at`), which it returns.
 func point_slot(at: Vector2) -> String:
 	var slot: String = slot_at(at)
-	if slot != "":
+	if slot != "" and HubCraftTree.shows(model, station):
+		row = HubCraftTree.selectable_index(_rows(), slot)
+		_scroll()
+	elif slot != "":
 		_select_slot("", slot)
 	return slot
 
 
-## What the station in use draws besides its words (`HubFitBay.drawing`), or {}.
+## What the station in use draws besides its words (`HubFitBay.drawing`,
+## `HubCraftTree.drawing`), or {}.
 func drawing() -> Dictionary:
+	if HubCraftTree.shows(model, station):
+		return HubCraftTree.drawing(model, _rows(), selected_line() - 1)
 	if station != HubFitBay.STATION:
 		return {}
 	return HubFitBay.drawing(model, fit_slot, _rows(), selected_line() - 1)
@@ -226,38 +237,14 @@ func _rows() -> Array[Dictionary]:
 	return rows.filter(func(entry: Dictionary) -> bool: return str(entry.get("detail_of", owner)) == owner)
 
 
-## The station's pages' rows of its group; a later page starts under its
-## title. A station with no row of its group shows the group's empty line.
 func _station_rows() -> Array[Dictionary]:
 	if station == HubFitBay.STATION:
 		return HubFitBay.rows(model, fit_slot)
-	var spec: Dictionary = HubStationPages.STATIONS[station]
-	var rows: Array[Dictionary] = []
-	var pages: Array = spec["pages"]
-	for i: int in pages.size():
-		var kept: Array[Dictionary] = []
-		for entry: Dictionary in _page_rows(str(pages[i])):
-			if str(entry.get("group", "")) == str(spec["group"]):
-				kept.append(entry)
-		if i > 0 and not kept.is_empty():
-			rows.append(HubRows.shown(model.page_title(str(pages[i]))))
-		rows.append_array(kept)
-	if rows.is_empty() and spec["group"] == HubStationPages.GROUP_RESUME:
-		rows.append(HubRows.shown(_words().row("resume_none")))
-	return rows
+	return HubStationPages.rows(model, station)
 
 
 func _page_rows(id: String) -> Array[Dictionary]:
-	match id:
-		HubConfig.CREW:
-			return HubRows.crew(model) + HubSummaryRows.rows(model)
-		HubConfig.STATS:
-			return HubRows.stats(model)
-		HubConfig.STORE:
-			return HubRows.store(model)
-		HubConfig.CRAFT:
-			return HubCraftRows.rows(model)  # Costs, numbers and unlocks (#1317).
-	return HubFitRows.rows(model)
+	return HubStationPages.page_rows(model, id)
 
 
 ## Indexes into `_rows()` of the selectable rows.
@@ -299,7 +286,3 @@ func _scroll() -> void:
 	var last: int = selection_end()
 	if last >= top + rows_shown():
 		top = last - rows_shown() + 1
-
-
-func _words() -> HubWords:
-	return model.config.words
