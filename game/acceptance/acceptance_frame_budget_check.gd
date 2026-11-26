@@ -22,6 +22,10 @@ extends RefCounted
 ## The same frames also sample draw calls, triangles and memory (`RenderStats`,
 ## #1289, PRF-4 to PRF-6). The step fails when one's 95th percentile is over
 ## its limit in `RenderBudget`, and reports the values either way.
+##
+## They also sample the render scale dynamic resolution scaling drew them at
+## (`AcceptanceRenderScaleStats`, #1417, GFX-7): reported beside the frame
+## times, never judged.
 
 ## PRF-1: the rate the headset must hold.
 const REQUIRED_HZ: float = 90.0
@@ -40,6 +44,8 @@ var measure_seconds: float = 0.0
 var frames: Array[float] = []
 ## Draw calls, triangles and memory of the frames counted (#1289).
 var render: RenderStats = RenderStats.new()
+## The render scale of the frames counted (#1417).
+var scales: AcceptanceRenderScaleStats = AcceptanceRenderScaleStats.new()
 
 var _seen_seconds: float = 0.0
 
@@ -58,6 +64,7 @@ func add(frame_seconds: float) -> void:
 	if _seen_seconds > settle_seconds:
 		frames.append(frame_seconds)
 		render.add_frame()
+		scales.add(RenderScaler.in_use)
 
 
 ## Whether the measured period is over, so the step may be judged.
@@ -122,25 +129,29 @@ static func run(main: Node, xr_available: bool, on_headset: bool, step: Acceptan
 	var reason: String = AcceptanceRefresh120.not_offered_reason(rate) if step.refresh_120 else ""
 	if reason != "":
 		return [AcceptanceReport.RESULT_FAIL if step.required else AcceptanceReport.RESULT_SKIPPED, reason]
-	return judge(measured.frames, rate.in_use_hz, step, measurements, FrameStats.BUDGET_PATH, measured.render)
+	return judge(measured.frames, rate.in_use_hz, step, measurements, FrameStats.BUDGET_PATH, measured.render,
+		RenderBudget.BUDGET_PATH, measured.scales)
 
 
 ## [result, message] for `frames` (seconds each) flown at `in_use_hz`, and for
 ## `render`'s samples when given (#1289): the frame times and the render
 ## numbers are both in the message and `measurements`, and either over its
-## budget fails the step.
+## budget fails the step. `scales`, when given (#1417), adds the render
+## scale to both and never changes the result.
 static func judge(frames: Array[float], in_use_hz: float, step: AcceptanceStep, measurements: Dictionary,
 		budget_path: String = FrameStats.BUDGET_PATH, render: RenderStats = null,
-		render_budget_path: String = RenderBudget.BUDGET_PATH) -> Array:
-	var timed: Array = _judge_times(frames, in_use_hz, step, measurements, budget_path)
-	if render == null:
-		return timed
-	var drawn: Array = render.judge(RenderBudget.load_file(render_budget_path), measurements)
-	var summary: String = "%s; %s" % [timed[1], drawn[1]]
-	measurements["summary"] = summary
-	if timed[0] == AcceptanceReport.RESULT_FAIL or drawn[0] == AcceptanceReport.RESULT_FAIL:
-		return [AcceptanceReport.RESULT_FAIL, summary]
-	return [timed[0], summary]
+		render_budget_path: String = RenderBudget.BUDGET_PATH, scales: AcceptanceRenderScaleStats = null) -> Array:
+	var verdict: Array = _judge_times(frames, in_use_hz, step, measurements, budget_path)
+	if render != null:
+		var drawn: Array = render.judge(RenderBudget.load_file(render_budget_path), measurements)
+		var failed: bool = verdict[0] == AcceptanceReport.RESULT_FAIL or drawn[0] == AcceptanceReport.RESULT_FAIL
+		verdict = [AcceptanceReport.RESULT_FAIL if failed else verdict[0], "%s; %s" % [verdict[1], drawn[1]]]
+		measurements["summary"] = verdict[1]
+	if scales != null:
+		measurements.merge(scales.to_measurements(), true)
+		verdict = [verdict[0], "%s; %s" % [verdict[1], scales.summary()]]
+		measurements["summary"] = verdict[1]
+	return verdict
 
 
 static func _judge_times(frames: Array[float], in_use_hz: float, step: AcceptanceStep, measurements: Dictionary,

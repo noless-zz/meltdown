@@ -24,7 +24,7 @@ static func _select(model: DevMenuModel, kind: String) -> void:
 
 func test_entries_and_their_order_come_from_the_data_file() -> String:
 	var shipped: DevMenuSpec = DevMenuSpec.load_file()
-	if shipped.error != "" or shipped.entries.size() != 19:
+	if shipped.error != "" or shipped.entries.size() != 20:
 		return "the shipped file was not read: %s" % shipped.error
 	var text: String = JSON.stringify({"entries": [{"kind": "close", "label": "Done"},
 		{"kind": "level", "label": "Fly"}], "corners": ["top_left"]})
