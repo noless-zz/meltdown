@@ -9,7 +9,8 @@ extends Node3D
 ##
 ## It only shows what it is handed; it never reads the session. Nothing here
 ## moves or animates (CMF-3, CMF-8). Words, colours, sizes and placement come
-## from `EscapeScreenLook` (ARC-4).
+## from `EscapeScreenLook` (ARC-4). Under the prompt, in a run, it lists what
+## the level banked and the miners brought out (#1376, `EndScreenLists`).
 
 const NODE_NAME: String = "EscapeScreen"
 const LINE_NAME: String = "Line"
@@ -20,23 +21,28 @@ var _look: Dictionary
 var _line: Label3D
 var _time: Label3D
 var _prompt: Label3D
+var _lists: Label3D
 
 
-func _init(look: Dictionary = EscapeScreenLook.FALLBACK) -> void:
+func _init(look: Dictionary = EscapeScreenLook.FALLBACK, lists: EndScreenLists = EndScreenLists.new()) -> void:
 	name = NODE_NAME
 	_look = look
 	_line = _label(LINE_NAME, look["line_text"], look["line_position_m"], look["line_font_size"], look["line_color"])
 	_time = _label(TIME_NAME, "", look["time_position_m"], look["time_font_size"], look["time_color"])
 	_prompt = _label(PROMPT_NAME, look["prompt_xr"], look["prompt_position_m"], look["prompt_font_size"],
 		look["prompt_color"])
+	_lists = lists.make_label(lists.look["escape_position_m"])
+	add_child(_lists)
 	visible = false
 
 
 ## Shows the line and the time line with `seconds_left` when `line` is true,
 ## and the prompt under them when `prompt` is true; `xr_running` picks the
 ## button the prompt names. `won` shows the run's won line in place of the
-## escape's (#989).
-func show_state(line: bool, prompt: bool, seconds_left: float, xr_running: bool, won: bool = false) -> void:
+## escape's (#989). `lists` is shown under the prompt, and `base_prompt`, when
+## not empty, replaces the prompt's words (#1376).
+func show_state(line: bool, prompt: bool, seconds_left: float, xr_running: bool, won: bool = false,
+		lists: String = "", base_prompt: String = "") -> void:
 	visible = line
 	_prompt.visible = line and prompt
 	if not line:
@@ -49,8 +55,12 @@ func show_state(line: bool, prompt: bool, seconds_left: float, xr_running: bool,
 	if _time.text != time:
 		_time.text = time
 	var wanted: String = _look["prompt_xr"] if xr_running else _look["prompt_flat"]
+	if base_prompt != "":
+		wanted = base_prompt
 	if _prompt.text != wanted:
 		_prompt.text = wanted
+	if _lists.text != lists:
+		_lists.text = lists
 
 
 func line_visible() -> bool:
@@ -71,6 +81,10 @@ func time_text() -> String:
 
 func prompt_text() -> String:
 	return _prompt.text
+
+
+func lists_text() -> String:
+	return _lists.text
 
 
 func _label(label_name: String, text: String, at: Vector3, font_size: float, color: Color) -> Label3D:

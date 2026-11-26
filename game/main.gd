@@ -91,7 +91,7 @@ func _ready() -> void:
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
 	map.attach($XRRig, mapping)
 	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
-	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
+	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller, level_start)  # #1376.
 	hub.attach($XRRig)
 	if opens_hub: StartChoice.open_hub(hub, level_start, destroyed)  # After `destroyed` and the hub attach.
 	place_rig()

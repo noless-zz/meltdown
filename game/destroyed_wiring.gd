@@ -11,6 +11,10 @@ extends RefCounted
 ##
 ## It also runs the escape's end screen (`EscapeEndWiring`, #751) on the same
 ## restart button, so `main.gd` restarts after either end without growing.
+##
+## In a run the screen lists what earlier escapes kept and what this level
+## lost, from copies (#1376, RUN-7, MP-2). When the press ends the run and
+## opens the base (`HubWiring.ends_run`), both end screens' prompts say so.
 
 ## The A button, on the right Touch controller in either hand mode.
 const RESTART_BUTTON: String = "right_button_lower"
@@ -29,6 +33,10 @@ var cover: EndScreenCover = EndScreenCover.new()
 ## Whether the fade went down on some frame while an end screen was up, since
 ## the last `reset`; the acceptance check reads it (#1228, CMF-8).
 var fade_dropped: bool = false
+## The launch's level and run, read to tell whether the press ends the run; null in tests without one.
+var level_start: LevelStart = null
+## The lists the screen was last told to show; read where there is no screen node.
+var lists_shown: String = ""
 
 var _last_alpha: float = 0.0
 
@@ -36,8 +44,10 @@ var _restart_held: bool = false
 
 
 ## Hangs the screen under `rig` and hands the warnings the controllers.
-## Calling it again adds nothing.
-func attach(rig: Node3D, left: XRController3D, right: XRController3D) -> void:
+## `p_level_start` tells whether a press ends the run (#1376). Calling it again adds nothing.
+func attach(rig: Node3D, left: XRController3D, right: XRController3D, p_level_start: LevelStart = null) -> void:
+	if p_level_start != null:
+		level_start = p_level_start
 	haptics.left_controller = left
 	haptics.right_controller = right
 	escape.attach(rig)
@@ -45,7 +55,7 @@ func attach(rig: Node3D, left: XRController3D, right: XRController3D) -> void:
 		cover.attach(rig)
 	if screen != null or rig == null:
 		return
-	screen = DestroyedScreen.new()
+	screen = DestroyedScreen.new(escape.lists)
 	rig.add_child(screen)
 
 
@@ -68,13 +78,31 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 	var due: bool = sequence.update(ship.hull, 0.0 if session.paused else delta_seconds, _restart_held)
 	if due:
 		haptics.reset()
+	escape.to_base = ends_run(session)
+	lists_shown = lost_lists(session) if sequence.line_shown() else ""
 	if screen != null:
 		screen.transform = RigViews.head_point(recentre)
-		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), xr_running)
+		screen.show_state(sequence.line_shown(), sequence.prompt_shown(), xr_running, lists_shown,
+			escape.lists.base_prompt(xr_running) if escape.to_base else "")
 	var escape_due: bool = escape.update(session, delta_seconds, _restart_held, RigViews.head_point(recentre),
 		xr_running)
 	_watch_fade()
 	return due or escape_due
+
+
+## True when the restart press after `session` ends the run and opens the base.
+func ends_run(session: LocalSession) -> bool:
+	return level_start != null and HubWiring.ends_run(level_start, session)
+
+
+## What earlier escapes kept and this level lost, from copies of the run's
+## banked counts and `session`'s; "" outside a run.
+func lost_lists(session: LocalSession) -> String:
+	var run: RunWiring = escape.run
+	if run == null or run.state == null:
+		return ""
+	return escape.lists.destroyed_text(run.state.banked.duplicate(), session.sim.collected.duplicate(),
+		RunWiring.rescued_in(session.sim))
 
 
 ## True from the frame either end screen starts its fade until the press that
@@ -108,6 +136,7 @@ func reset() -> void:
 	if screen != null:
 		screen.visible = false
 	escape.reset()
+	lists_shown = ""
 	cover.restore()
 	fade_dropped = false
 	_last_alpha = 0.0
