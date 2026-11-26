@@ -17,6 +17,9 @@ extends RefCounted
 ## headset check.
 
 const CHECK: String = "craft_moment"
+## The base room opens behind an arrival fade; the mid-craft picture must wait
+## for it or it shows a dark room (#1425).
+const ROOM_CHECK: GDScript = preload("res://acceptance/checks/hub_room_check.gd")
 const PROFILE_FILE: String = "user://meltdown_acceptance_craft_moment_profile.json"
 const FITTING_FILE: String = "user://meltdown_acceptance_craft_moment_fitting.json"
 const STATION: String = "craft"
@@ -42,7 +45,9 @@ static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = [AcceptanceReport.RESULT_FAIL, "the hub did not open"]
 	if hub.open_for(level_start.run):
-		verdict = _build_and_watch(runner, step.id, hub, measurements)
+		var arrival: String = ROOM_CHECK.wait_for_arrival(main, hub)
+		verdict = _build_and_watch(runner, step.id, hub, measurements) if arrival == "" \
+			else [AcceptanceReport.RESULT_FAIL, arrival]
 	if hub.is_open():
 		hub.close()
 	_remove_scratch()
@@ -68,6 +73,7 @@ static func _build_and_watch(runner: AcceptanceRunner, step_id: String, hub: Hub
 	var half: float = float(HubScreenLook.load_file()["craft_fill_seconds"]) * 0.5
 	view.advance(maxf(0.0, half - view.moment.elapsed))
 	measurements["fill_at_screenshot"] = snappedf(view.moment.fill(), 0.01)
+	measurements["room_fade"] = ROOM_CHECK.room_fade(hub.launching)  # What covers the room as the picture is taken.
 	measurements["screenshot"] = _screenshot(runner, step_id)
 	view.advance(view.moment.duration())
 	if view.moment.running():

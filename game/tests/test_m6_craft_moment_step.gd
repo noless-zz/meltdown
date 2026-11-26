@@ -67,6 +67,8 @@ func test_the_runner_passes_the_step_and_leaves_no_scratch_files() -> String:
 		if str(measured.get("unlocked", "")).find("arc_lance") < 0 or int(measured.get("components_flying", 0)) < 1 \
 				or float(measured.get("fill_at_screenshot", 0.0)) <= 0.0 or float(measured.get("fill_at_screenshot", 1.0)) >= 1.0:
 			problem = "the step measured %s" % measured
+		elif not measured.has("room_fade") or float(measured["room_fade"]) != 0.0:
+			problem = "the mid-craft picture was taken through the arrival fade: %s" % measured.get("room_fade")
 	var check: GDScript = load(CHECK_SCRIPT)
 	for path: String in [check.PROFILE_FILE, check.FITTING_FILE]:
 		if FileAccess.file_exists(path):
