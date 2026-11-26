@@ -53,6 +53,13 @@
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/craft_and_fit_profile.json",
 			"checks": ["no_script_errors", "workbench_tree"]
+		},
+		{
+			"id": "hub_boards",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"profile": "res://acceptance/fittings/hub_boards_profile.json",
+			"checks": ["no_script_errors", "hub_boards"]
 		}
 	]
 }

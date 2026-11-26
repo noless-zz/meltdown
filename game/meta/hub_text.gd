@@ -111,6 +111,8 @@ func rows_shown() -> int:
 		return model.config.fit_layout.slot_rows_visible
 	if HubCraftTree.shows(model, station):
 		return model.config.craft_tree.rows_visible  # The tree has the rest of the face (#1367).
+	if HubBoard.shows(model, station):
+		return model.config.boards.rows_visible  # So has the board (#1368).
 	return model.config.max_rows_visible
 
 
@@ -201,10 +203,12 @@ func point_slot(at: Vector2) -> String:
 
 
 ## What the station in use draws besides its words (`HubFitBay.drawing`,
-## `HubCraftTree.drawing`), or {}.
+## `HubCraftTree.drawing`, `HubBoard.drawing`), or {}.
 func drawing() -> Dictionary:
 	if HubCraftTree.shows(model, station):
 		return HubCraftTree.drawing(model, _rows(), selected_line() - 1)
+	if HubBoard.shows(model, station):
+		return HubBoard.drawing(model, station, _rows(), selected_line() - 1)
 	if station != HubFitBay.STATION:
 		return {}
 	return HubFitBay.drawing(model, fit_slot, _rows(), selected_line() - 1)
