@@ -17,10 +17,8 @@ extends RefCounted
 ## "Suspend run" row (#1107, RUN-8). While a suspended run waits in the run's
 ## `RunSaveStore`, the hub offers to resume it: the save is taken (so it resumes
 ## once only), the run rebuilt and its next level flown through the same fade.
-## A save that will not resume is discarded with one logged line and the hub
-## stays open. A launch discards a waiting save, as the hub's note says. A `--run` launch still
-## starts straight into a run, so the acceptance suites and replays fly as
-## before.
+## A save that will not resume is discarded, logged, and the hub stays open. A launch
+## discards a waiting save; a `--run` launch starts straight into a run, as replays fly.
 ##
 ## While it is open it takes the controls as the dev menu does (decision
 ## record 0009): the frame's values reach the rest of `main.gd` idle, so the
@@ -32,9 +30,10 @@ extends RefCounted
 ##
 ## Around the seated pilot it shows the home base room (#1298, `HubRoom`,
 ## decision record 0012), placed at the head point like the panel. While the
-## room shows, the head camera draws only the room, so the mine is not drawn;
-## opening comes after the end screen's fade to black and a launch hands the
-## dark back to the restart's fade (CMF-8). The room is presentation only.
+## room shows, the head camera draws only the room, so the mine is not drawn.
+## `HubLaunch` shows arriving and leaving (#1396, CMF-8): opening, after the end
+## screen's fade to black, fades the room in; the launch row glows the cradle
+## ship and fades out, then runs the unchanged `launch`, and the mine fades in.
 ##
 ## In the room the pages are on its stations (#1299, `HubStations`): the pilot
 ## chooses a station by pointing the right controller's aim at it or with the
@@ -62,6 +61,7 @@ var components_dir: String = ComponentList.COMPONENTS_DIR
 ## The scene's level start, kept by `open_after` so a launch or resume can
 ## name the level to fly; null when opened by `open_for` alone (tests).
 var level_start: LevelStart = null
+var launching: HubLaunch = HubLaunch.new()  # The glow, sound and fades of leaving and arriving (#1396).
 
 var _actions: Dictionary = {}
 var _camera: Camera3D = null
@@ -84,6 +84,7 @@ func attach(rig: Node3D) -> void:
 			stations = null
 	_camera = rig.get_node_or_null("Camera") as Camera3D
 	_aim = rig.get_node_or_null("RightHand") as XRController3D
+	launching.attach(_camera, room if room.is_built() else null)
 
 
 func is_open() -> bool:
@@ -158,6 +159,7 @@ func open_for(p_run: RunWiring, config: HubConfig = null) -> bool:
 			panel = HubPanel.new()
 		panel.open(text)
 	_actions = {}
+	launching.arrive()
 	print("%s the hub opens" % LOG_PREFIX)
 	return true
 
@@ -171,20 +173,23 @@ func read(values: Dictionary) -> Dictionary:
 	return DevMenuWiring.neutral(values)
 
 
-## Once per frame while open, with the panel's and the room's place
-## `head_point`; the room shows from the first call after opening. Returns
-## true on the frame a launch passes: the profile and fitting are saved, the
-## panel is closed and the caller flies the run's current level. The panel
-## holds still while the session is paused.
-func update(paused: bool, head_point: Transform3D) -> bool:
+## Once per frame with the panel's and room's place `head_point` and the frame's
+## `seconds` (closed, it only runs the fade in). True on the frame a resume, or a
+## launch whose fade out is dark, passes: saved, closed, and the caller flies the
+## run's level. The panel and the fades hold still while the session is paused.
+func update(paused: bool, head_point: Transform3D, seconds: float = 0.0) -> bool:
+	var due: bool = launching.advance(0.0 if paused else seconds)
 	if not is_open():
 		return false
+	if due:
+		launch()
+		return true
 	panel.transform = head_point
 	if room != null:
 		room.transform = head_point  # The seat's eye point: only a recentre moves the room.
 		if not room.visible:
 			room.show_for(_camera)  # Placed first, so it never shows a frame at the rig origin.
-	if paused or _actions.is_empty():  # No frame read since opening: nothing pressed yet.
+	if paused or _actions.is_empty() or launching.is_launching():  # Nothing pressed yet, or leaving.
 		return false
 	if stations != null:
 		_point()
@@ -197,8 +202,7 @@ func update(paused: bool, head_point: Transform3D) -> bool:
 		HubText.ACTION_FIT, HubText.ACTION_MOVE, HubText.ACTION_STRIP:
 			save_fitting()
 		HubText.ACTION_LAUNCH:
-			launch()
-			return true
+			launching.start()  # `launch` runs once the view is dark.
 		HubText.ACTION_RESUME:
 			return resume_run()
 	return false
@@ -241,12 +245,13 @@ func resume_run() -> bool:
 	if level_start != null:
 		level_start.source = run.level_source()
 	close()
+	launching.left()
 	return true
 
 
-## The fade's opacity: dark while the hub is open.
+## The scene's fade's opacity: dark while the hub is open, then the fade in.
 func alpha() -> float:
-	return 1.0 if is_open() else 0.0
+	return 1.0 if is_open() else launching.alpha()
 
 
 func close() -> void:

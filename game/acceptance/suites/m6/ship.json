@@ -43,6 +43,12 @@
 		{
 			"id": "checklist",
 			"checks": ["no_script_errors", "checklist"]
+		},
+		{
+			"id": "launch_fade",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "launch_fade"]
 		}
 	]
 }

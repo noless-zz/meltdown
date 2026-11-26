@@ -26,6 +26,8 @@ const SLOT: String = "primary[0]"
 const FRAME: float = 1.0 / 72.0
 ## Stick moves and page turns tried before a row counts as missing.
 const MAX_MOVES: int = 200
+## Longer than any launch fade file's glow and fade out (`LaunchFade.RANGES`).
+const LAUNCH_SECONDS: float = 7.0
 const STICK_DOWN: Vector2 = Vector2(0.0, -1.0)
 const STICK_RIGHT: Vector2 = Vector2(1.0, 0.0)
 const STICK_LEFT: Vector2 = Vector2(-1.0, 0.0)
@@ -109,6 +111,7 @@ static func press_row(main: Node, hub: HubWiring, want: Dictionary) -> bool:
 			return false
 		if hub.text.selected() == want:
 			_tap(main, A, Vector2.ZERO)
+			_finish_launch(main, hub)
 			return true
 		var line: int = hub.text.selected_line()
 		_tap(main, {}, STICK_RIGHT if line == last else STICK_DOWN)  # At a page's foot, turn it.
@@ -161,12 +164,22 @@ static func _press_from_top(main: Node, hub: HubWiring, want: Dictionary) -> boo
 			return false
 		if hub.text.selected() == want:
 			_tap(main, A, Vector2.ZERO)
+			_finish_launch(main, hub)
 			return true
 		var line: int = hub.text.selected_line()
 		_tap(main, {}, STICK_DOWN)
 		if hub.text.selected_line() == line:
 			return false
 	return false
+
+
+## A pressed launch leaves once its glow and fade out are over (#1396): flies
+## frames until it has, so a press on the launch row returns with the hub left.
+static func _finish_launch(main: Node, hub: HubWiring) -> void:
+	for i: int in ceili(LAUNCH_SECONDS / FRAME):
+		if not hub.launching.is_launching():
+			return
+		_frame(main, {}, Vector2.ZERO)
 
 
 ## A frame with nothing held, then one with `buttons` and `stick` held.
