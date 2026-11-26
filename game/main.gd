@@ -39,19 +39,18 @@ var boost_haptics: BoostHaptics = BoostHaptics.new()  # Logs the afterburner, pu
 var combat: CombatWiring = CombatWiring.new()  # Bolts, robots, shield, hull from session copies (#189, #228, MP-2).
 var map: MapWiring = MapWiring.new()  # Hologram map in the hand, filled in as the ship explores (#339).
 var meltdown: MeltdownWiring = MeltdownWiring.new()  # Reactor, countdown and outcome row (#359, RUN-2).
-## When the slot label says to fly through a part to pick it up (#606, #600).
-var pickup_hint: PickupHint = PickupHint.load_file()
+var pickup_hint: PickupHint = PickupHint.load_file()  # Fly through a part to pick it up (#606, #600).
 var refresh_rate: RefreshRate = RefreshRate.new()  # Preset's rate, asked for and read back (#598).
 var foveation: FoveationSwitch = FoveationSwitch.from_launch()  # --foveation switches, logged (#738).
 var update: UpdateWiring = UpdateWiring.new()  # Newer-build check, debug headset builds (#646).
-## SHIP DESTROYED and the restart of what the launch flies, and the warning pulses (#616).
-var destroyed: DestroyedWiring = DestroyedWiring.new()
+var destroyed: DestroyedWiring = DestroyedWiring.new()  # SHIP DESTROYED, its restart, warning pulses (#616).
 var level_start: LevelStart = LevelStart.new(comfort)
 var flight_test: FlightTestWiring = FlightTestWiring.new()  # First-launch flight test, CMF-4 (#715).
 var break_prompt: BreakPromptWiring = BreakPromptWiring.new()  # Take-a-break prompt, CMF-10 (#716).
 var vignette: VignetteWiring = VignetteWiring.new()  # Comfort vignette from the shown motion, CMF-1 (#931).
 var dev_menu: DevMenuWiring = DevMenuWiring.new(scheme, mapping, comfort, break_prompt, refresh_rate, foveation)  # #763, #852, #871.
 var hub: HubWiring = HubWiring.new()  # The hub between runs: craft, fit, launch (#1093).
+var checklist: ChecklistWiring = ChecklistWiring.new()  # In-headset test checklist, development builds (#1325).
 
 
 func _ready() -> void:
@@ -100,6 +99,7 @@ func _ready() -> void:
 	update.attach(self, status_panel, build_info)
 	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
 	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed, null, hub.is_open, get.bind("session"))
+	checklist.attach($XRRig, dev_menu, comfort, level_start, get.bind("session"), build_info.commit)  # After the menu it joins.
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 
@@ -131,7 +131,7 @@ func sample_controls() -> Dictionary:
 
 ## Maps raw values through the comfort filter to the input ticks fly until the next frame; public for tests.
 func apply_controls(values: Dictionary) -> void:
-	values = hub.read(destroyed.escape.read(dev_menu.read(values)))  # An open menu or panel takes the controls.
+	values = hub.read(destroyed.escape.read(checklist.read(dev_menu.read(values))))  # An open menu or panel takes the controls.
 	var buttons: Dictionary = flight_test.read_buttons(values.get("buttons", {}), ResetHold.is_held(values))
 	if comfort.read_label_button(buttons):
 		$XRRig.show_labels = not $XRRig.show_labels  # View only (ARC-3, #181).
