@@ -14,6 +14,10 @@ extends Node3D
 ## tree pans inside the screen when it is wider than the window; the pilot's
 ## view never moves (CMF-8). Hung on the station's `HubStationScreen`, so it
 ## comes forward and grows with the words.
+##
+## A drawing that shows a node built that the last drawing showed buildable
+## plays the crafting moment over it (`HubCraftMoment`, #1402): the cost rows'
+## component icons fly in, the node fills, and the nodes it unlocked glow up.
 
 const NODE_NAME: String = "TreeView"
 ## The node states the drawing names (the hub text's; `xr/` names no meta class).
@@ -43,6 +47,10 @@ var edge_count: int = 0
 var lit_edges: int = 0
 ## Icons drawn beside detail rows.
 var row_icons: Array[HubIcon] = []
+## The crafting moment over the tree (#1402).
+var moment: HubCraftMoment
+## False draws every change at rest at once, with no moment (for tests).
+var moments_enabled: bool = true
 
 var _icons: HubIcons
 var _screen: Dictionary
@@ -60,12 +68,27 @@ func _init(icons: HubIcons, screen: Dictionary, layers: int = 1) -> void:
 	_drawn = Node3D.new()
 	_drawn.name = "Tree"
 	add_child(_drawn)
+	moment = HubCraftMoment.new(screen, LOCKED_SCALE)
+	add_child(moment)
+
+
+func _process(delta: float) -> void:
+	advance(delta)
+
+
+## Moves the crafting moment `seconds` on; once hidden it ends at once.
+func advance(seconds: float) -> void:
+	moment.advance(seconds if visible else INF, nodes)
 
 
 ## Draws `drawing` (the hub text's `drawing()`) on a face of `face` metres, with
 ## `shown` the screen's row lines (`HubStationScreen.shown_rows`) of a window
 ## starting at row `first`.
 func show_drawing(drawing: Dictionary, shown: Array[Dictionary], first: int, face: Vector2) -> void:
+	var before: Dictionary[String, String] = {}
+	if visible:  # A view shown again after the hub closed starts afresh.
+		before.assign(states)
+	var spent: Array[Dictionary] = _component_icons()
 	visible = true
 	_clear()
 	var size: float = drawing["node_size_m"]
@@ -80,8 +103,40 @@ func show_drawing(drawing: Dictionary, shown: Array[Dictionary], first: int, fac
 		if index < icons.size() and not (icons[index] as Dictionary).is_empty():
 			var drawn: HubIcon = _icon(icons[index], row_size)
 			drawn.position = Vector3(-face.x * 0.5 + HubStationScreen.MARGIN_M + row_size * 0.5, line["y"], ICON_Z_M)
+			drawn.set_meta(&"icon", icons[index])
 			add_child(drawn)
 			row_icons.append(drawn)
+	_start_moment(before, spent, size)
+	moment.apply(nodes)
+
+
+## Starts the moment when a node shown buildable before is built now; the
+## nodes that went from locked to buildable with it are the ones it unlocked.
+func _start_moment(before: Dictionary[String, String], spent: Array[Dictionary], size: float) -> void:
+	var built: String = ""
+	var opened: Array[String] = []
+	for id: String in states:
+		if before.get(id, "") == READY and states[id] == BUILT:
+			built = id
+		elif before.get(id, "") == LOCKED and states[id] == READY:
+			opened.append(id)
+	if built == "" or not moments_enabled:
+		return
+	var flying: Array[Dictionary] = []
+	for each: Dictionary in spent:
+		flying.append({"icon": _icon(each["icon"], each["size"]), "at": each["at"]})
+	moment.start(built, opened, flying, size, _layers)
+
+
+## The component icons beside the rows shown now, where they are: what a
+## craft from here spends.
+func _component_icons() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for drawn: HubIcon in row_icons:
+		var icon: Dictionary = drawn.get_meta(&"icon", {})
+		if str(icon.get("group", "")) == "component":
+			out.append({"icon": icon, "at": drawn.position, "size": drawn.size_m})
+	return out
 
 
 ## Whether the aim can pick a node here now.

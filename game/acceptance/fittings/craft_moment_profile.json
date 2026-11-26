@@ -1,0 +1,19 @@
+{
+	"banked": {
+		"cell_salts": 5,
+		"circuit_shards": 3,
+		"scrap_alloy": 3
+	},
+	"crafted": [],
+	"crew": [],
+	"stats": {
+		"components_banked": 0,
+		"deepest_level": 0,
+		"levels_escaped": 0,
+		"miners_rescued": 0,
+		"runs_lost": 0,
+		"runs_started": 0,
+		"runs_won": 0
+	},
+	"version": 3
+}

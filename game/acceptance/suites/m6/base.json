@@ -55,6 +55,13 @@
 			"checks": ["no_script_errors", "workbench_tree"]
 		},
 		{
+			"id": "craft_moment",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"profile": "res://acceptance/fittings/craft_moment_profile.json",
+			"checks": ["no_script_errors", "craft_moment"]
+		},
+		{
 			"id": "hub_boards",
 			"run": 12345,
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
