@@ -14,6 +14,10 @@
 # - $STUB_ADB_LOCKED: `asleep` or `keyguard` makes dumpsys say so.
 # - $STUB_ADB_BACKGROUND=1: the game's activity is never the resumed one.
 # - `pidof` succeeds unless $STUB_ADB_DEAD is 1.
+# - `cmd package resolve-activity` follows $STUB_ADB_RESOLVE_SEQUENCE like
+#   installs: `ok` prints $STUB_ADB_RESOLVE_ACTIVITY (the launcher by default),
+#   `empty` prints no activity line (as right after an install, #1392).
+# - `am start` refuses $STUB_ADB_NOT_EXPORTED (an activity class) as not exported.
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
 state="$(dirname "$STUB_ADB_LOG")"
@@ -125,12 +129,26 @@ case "${1:-}" in
 				esac
 				;;
 			cmd)
+				read -r -a answers <<< "${STUB_ADB_RESOLVE_SEQUENCE:-ok}"
+				attempt="$(count resolve)"
+				index=$((attempt - 1))
+				if [ "$index" -ge "${#answers[@]}" ]; then
+					index=$((${#answers[@]} - 1))
+				fi
 				echo "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true"
-				echo "io.github.nolesszz.meltdown/com.godot.game.GodotApp"
+				if [ "${answers[$index]}" = "ok" ]; then
+					echo "io.github.nolesszz.meltdown/${STUB_ADB_RESOLVE_ACTIVITY:-com.godot.game.GodotAppLauncher}"
+				fi
 				;;
 			am)
 				if [ "${3:-}" = "start" ]; then
-					echo "Starting: Intent { cmp=io.github.nolesszz.meltdown/com.godot.game.GodotApp (has extras) }"
+					if [ -n "${STUB_ADB_NOT_EXPORTED:-}" ] && [ "${5:-}" = "io.github.nolesszz.meltdown/$STUB_ADB_NOT_EXPORTED" ]; then
+						echo "Starting: Intent { cmp=${5} (has extras) }"
+						echo "Exception occurred while executing 'start':"
+						echo "java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=${5} (has extras) } from null (pid=4321, uid=2000) not exported from uid 10207"
+						exit 255
+					fi
+					echo "Starting: Intent { cmp=${5:-} (has extras) }"
 				fi
 				;;
 		esac

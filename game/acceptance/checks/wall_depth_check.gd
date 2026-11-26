@@ -6,7 +6,7 @@ extends RefCounted
 ## ship faces a doorway at 8 to 12 m, then this check reads the level view in
 ## the main scene: openings are framed, box edges are bevelled, the old
 ## glowing edge strips are gone, and the frames cost no draw call of their
-## own. It reads the view only; the step's pinned hash holds the simulation
+## own: a box draws its walls and frames in one surface (#1383). It reads the view only; the step's pinned hash holds the simulation
 ## (ARC-1, ARC-2). Whether walls look like they have mass stays human-checked
 ## in the headset.
 
@@ -37,7 +37,8 @@ static func judge_view(view: LevelView, measurements: Dictionary) -> Array:
 		var walls: MeshInstance3D = view.walls_of(box)
 		var bevels: MeshInstance3D = view.bevels_of(box)
 		if walls != null and walls.mesh != null:
-			if walls.mesh.get_surface_count() > LevelLook.CLASSES.size():
+			# Floor, wall and ceiling share one surface since #1383.
+			if walls.mesh.get_surface_count() != 1:
 				return [AcceptanceReport.RESULT_FAIL, "the walls of box %d take %d surfaces" % [box, walls.mesh.get_surface_count()]]
 			surfaces += walls.mesh.get_surface_count()
 			for surface: int in walls.mesh.get_surface_count():

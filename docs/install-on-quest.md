@@ -77,7 +77,7 @@ with the log switched on (`-S` stops a copy that is already running):
 
 ```sh
 adb logcat -c
-adb shell am start -S -n io.github.nolesszz.meltdown/com.godot.game.GodotApp --es meltdown_view_log 1
+adb shell am start -S -n io.github.nolesszz.meltdown/com.godot.game.GodotAppLauncher --es meltdown_view_log 1
 ```
 
 Fly until it goes dark, wait a few seconds, then save the lines to a file and send it:

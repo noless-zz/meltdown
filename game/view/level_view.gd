@@ -4,10 +4,11 @@ extends Node3D
 ## Draws the inside of a box-union level (GEN-5): every box's walls, facing
 ## into the box, with the openings where boxes overlap left open
 ## (`LevelFaces`). Floor, ceiling and walls are tinted apart and carry a
-## world-space grid; the walls darken with distance (#609). Every opening is
-## framed as deep as the wall is thick (`LevelFrames`) and every box edge is
-## bevelled, with a dim glow so the shape reads in the dark (`LevelBevels`),
-## so walls have mass rather than reading as paper (#1323). The view adds no
+## world-space grid; the walls darken with distance (#609). The shader picks
+## each face's tint, so a box's walls and frames are one surface (#1383).
+## Every opening is framed as deep as the wall is thick (`LevelFrames`) and
+## every box edge is bevelled, with a dim glow so the shape reads in the dark
+## (`LevelBevels`), so walls have mass rather than reading as paper (#1323). The view adds no
 ## lights of its own: the ship's headlight, weapons and flares light the mine
 ## (LGT-1).
 ##
@@ -135,14 +136,12 @@ func build(union: BoxUnion) -> void:
 		per_box[frame_box(union, quad)].append(quad)
 	for bevel: Dictionary in _bevels:
 		bevels_per_box[int(bevel["box"])].append(bevel)
-	var materials: Dictionary = {}
-	for surface: String in LevelLook.CLASSES:
-		materials[surface] = LevelLook.wall_material(_look, _look["%s_color" % surface])
+	var wall_material: Material = LevelViewMeshes.kind_material(_look)
 	var bevel_material: Material = LevelLook.bevel_material(_look)
 	for index: int in union.boxes.size():
 		var box: Node3D = Node3D.new()
 		box.name = "%s%d" % [BOX_PREFIX, index]
-		_add_box_meshes(box, per_box[index], bevels_per_box[index], materials, bevel_material)
+		_add_box_meshes(box, per_box[index], bevels_per_box[index], wall_material, bevel_material)
 		add_child(box)
 		_boxes.append(box)
 	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
@@ -232,22 +231,14 @@ func _process(_delta: float) -> void:
 	cull(to_level.origin, to_level.basis)
 
 
-static func _add_box_meshes(box: Node3D, quads: Array, bevels: Array, materials: Dictionary,
+static func _add_box_meshes(box: Node3D, quads: Array, bevels: Array, wall_material: Material,
 		bevel_material: Material) -> void:
-	var groups: Array[Array] = []
-	var used: Array[Material] = []
-	for surface: String in LevelLook.CLASSES:
-		var group: Array[Dictionary] = []
-		# Frames are drawn in the walls' own surfaces, so they cost no draw call.
-		for quad: Dictionary in quads:
-			if LevelLook.surface_class(quad["normal"]) == surface:
-				group.append(quad)
-		if group.is_empty():
-			continue
-		groups.append(group)
-		used.append(materials[surface])
-	if not groups.is_empty():
-		var walls: MeshInstance3D = LevelViewMeshes.walls(WALLS_NAME, groups, used)
+	if not quads.is_empty():
+		# Floor, wall and ceiling, and the opening frames, in one surface: the
+		# shader tints each face by its normal (#1383).
+		var lists: Array[Array] = [quads]
+		var used: Array[Material] = [wall_material]
+		var walls: MeshInstance3D = LevelViewMeshes.walls(WALLS_NAME, lists, used)
 		# Walls block the headlight (the one shadow-casting light, GFX-4), so it
 		# cannot shine through a wall into the next room.
 		walls.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
