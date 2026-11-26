@@ -3,7 +3,8 @@ extends Node3D
 
 ## The home base as a modelled room around the seated pilot (#1298, CRW-2,
 ## decision record 0012): walls, floor, ceiling, props, the pilot's ship on its
-## cradle (#1369, `HubRoomShip`), up to 8 lights (`HubRoomLights`) and a
+## cradle (#1369, `HubRoomShip`), the hangar details merged by material
+## (#1397, `HubRoomDetails`), up to 8 lights (`HubRoomLights`) and a
 ## station for each task the hub pages do, all built from `HubRoomSpec`
 ## (`data/hub/room.json`, ARC-4, ARC-5). The node's origin is the seated eye
 ## point, so the hub wiring places it where it places the hub panel and the
@@ -19,8 +20,9 @@ const NODE_NAME: String = "HubRoom"
 ## Render layer 20, unused by anything else in the game.
 const LAYER_BIT: int = 1 << 19
 ## The room's share of PRF-4's 150 draw calls: the rest is for the station
-## screens' words and icons, the hands and the controllers (#1369).
-const MAX_DRAW_CALLS: int = 80
+## screens' words and icons, the hands and the controllers (#1369). Lowered
+## from 80 to 60 with the hangar details (#1397).
+const MAX_DRAW_CALLS: int = 60
 
 var spec: HubRoomSpec = null
 
@@ -49,6 +51,8 @@ func _init(p_spec: HubRoomSpec = HubRoomSpec.load_shipped()) -> void:
 		var at: Transform3D = Transform3D(Basis.from_euler(rotation_rad), prop["position"])
 		add_child(HubRoomParts.part("Prop_%s" % prop["id"], prop["shape"], prop["size"], at,
 			looks[prop["material"]], LAYER_BIT))
+	for detail: MeshInstance3D in HubRoomDetails.build(spec, LAYER_BIT):
+		add_child(detail)
 	if not spec.ship.is_empty():
 		add_child(HubRoomShip.build(spec.ship, LAYER_BIT))
 	for i: int in spec.lights.size():

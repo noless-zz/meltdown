@@ -2,8 +2,9 @@ extends RefCounted
 
 ## The m6 `hub_room` step (#1369, CRW-2, GFX-2, decision record 0005): after
 ## the replay a lost run opens the hub in the home base room, the ship stands on
-## the cradle, and the open room is saved as a screenshot. Headless, the
-## screenshot is noted as skipped and never fails the step.
+## the cradle, and the open room is saved as two screenshots, wide from the
+## seat and towards the ship (#1397). Headless, the screenshots are noted as
+## skipped and never fail the step.
 
 const SUITE_PATH: String = "res://acceptance/suites/m6.json"
 const STEP_ID: String = "hub_room"
@@ -21,12 +22,15 @@ func test_the_step_passes_with_the_ship_and_notes_the_screenshot() -> String:
 	else:
 		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
 		var shot: String = str(measured.get("screenshot", ""))
+		var ship_shot: String = str(measured.get("screenshot_ship", ""))
 		if measured.get("ship") != true:
 			problem = "no ship measured on the cradle: %s" % measured
-		elif DisplayServer.get_name() == "headless" and not shot.begins_with("skipped"):
-			problem = "a headless run claims a screenshot: %s" % shot
+		elif DisplayServer.get_name() == "headless" and not (shot.begins_with("skipped") and ship_shot.begins_with("skipped")):
+			problem = "a headless run claims a screenshot: %s, %s" % [shot, ship_shot]
 		elif DisplayServer.get_name() != "headless" and not (shot.begins_with("skipped") or shot.ends_with("%s_room.png" % STEP_ID)):
 			problem = "the screenshot was saved under another name: %s" % shot
+		elif DisplayServer.get_name() != "headless" and not (ship_shot.begins_with("skipped") or ship_shot.ends_with("%s_room_ship.png" % STEP_ID)):
+			problem = "the ship screenshot was saved under another name: %s" % ship_shot
 		elif (runner.main.get("hub") as HubWiring).is_open():
 			problem = "the check left the hub open"
 	_done(runner)

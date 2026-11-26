@@ -16,7 +16,10 @@ extends RefCounted
 ## A prop is {"id", "shape": one of SHAPES, "size_m", "position_m",
 ## "rotation_deg", "material"}. A light is `HubRoomLights`' (omni or spot,
 ## with a role). `ship` is `HubRoomShip`'s: the pilot's ship on its cradle,
-## drawn by `ShipModel`. A station is {"id": one of STATION_IDS, "label", "position_m",
+## drawn by `ShipModel`. `details` (#1397) are the hangar's small pieces, in
+## the same form as props, merged into one mesh per material by
+## `HubRoomDetails`; at most `MAX_DETAILS` of them. No prop or detail may stand
+## between the seat and a station's screen (`HubRoomSight`). A station is {"id": one of STATION_IDS, "label", "position_m",
 ## "screen"}; `position_m` is its screen's centre. Each task the hub pages do
 ## has exactly one station, and each must sit in front of the seat within
 ## `max_station_distance_m` and `max_station_yaw_deg` of straight ahead, so
@@ -28,6 +31,9 @@ const SHAPES: Array[String] = ["box", "cylinder", "sphere", "capsule", "prism"]
 const SURFACES: Array[String] = ["walls", "floor", "ceiling"]
 ## GFX-4: at most 8 dynamic lights in view.
 const MAX_LIGHTS: int = 8
+## Merging keeps the details' draw calls to one per material; this bounds the
+## vertices they add.
+const MAX_DETAILS: int = 96
 const REQUIRED: Array[String] = ["size_m", "materials", "surfaces", "lights", "stations"]
 ## Optional top-level keys and their defaults.
 const DEFAULTS: Dictionary = {
@@ -39,6 +45,7 @@ const DEFAULTS: Dictionary = {
 	"ambient_color": [0.5, 0.55, 0.6],
 	"ambient_energy": 0.35,
 	"props": [],
+	"details": [],
 	"ship": {},
 }
 const MATERIAL_DEFAULTS: Dictionary = {"metallic": 0.0, "roughness": 0.8, "emission": [0.0, 0.0, 0.0],
@@ -64,6 +71,8 @@ var materials: Dictionary = {}
 var surfaces: Dictionary = {}
 ## Each {"id", "shape", "size": Vector3, "position": Vector3, "rotation": Vector3 (degrees), "material"}.
 var props: Array[Dictionary] = []
+## The hangar details, each as a prop.
+var details: Array[Dictionary] = []
 ## Each `HubRoomLights.parse`'s: {"role", "type", "position": Vector3, "aim": Vector3,
 ## "angle": float, "color": Color, "energy": float, "range": float}.
 var lights: Array[Dictionary] = []
@@ -117,7 +126,11 @@ func _read(data: Dictionary) -> String:
 	if problem == "":
 		problem = _read_materials(merged["materials"], merged["surfaces"])
 	if problem == "":
-		problem = _read_props(merged["props"])
+		problem = _read_pieces("props", merged["props"], props)
+	if problem == "":
+		problem = _read_pieces("details", merged["details"], details)
+	if problem == "" and details.size() > MAX_DETAILS:
+		problem = "\"details\" has %d pieces, over %d" % [details.size(), MAX_DETAILS]
 	if problem == "":
 		problem = _read_lights(merged["lights"])
 	if problem == "":
@@ -128,6 +141,10 @@ func _read(data: Dictionary) -> String:
 			ship = read_ship
 	if problem == "":
 		problem = _read_stations(merged["stations"])
+	if problem == "":
+		problem = HubRoomSight.problem("props", props, stations)
+	if problem == "":
+		problem = HubRoomSight.problem("details", details, stations)
 	return problem
 
 
@@ -171,12 +188,13 @@ func _read_materials(raw: Variant, raw_surfaces: Variant) -> String:
 	return ""
 
 
-func _read_props(raw: Variant) -> String:
+## Reads the list `key` (props or details) into `into`.
+func _read_pieces(key: String, raw: Variant, into: Array[Dictionary]) -> String:
 	if typeof(raw) != TYPE_ARRAY:
-		return "\"props\" must be a list"
+		return "\"%s\" must be a list" % key
 	for i: int in (raw as Array).size():
 		var prop: Variant = raw[i]
-		var field: String = "props[%d]" % i
+		var field: String = "%s[%d]" % [key, i]
 		if typeof(prop) != TYPE_DICTIONARY or not SHAPES.has(str((prop as Dictionary).get("shape", ""))):
 			return "%s: \"shape\" must be one of %s" % [field, ", ".join(SHAPES)]
 		if not HubRoomValues.is_vector(prop.get("size_m"), 3, 0.01, 30.0):
@@ -189,7 +207,7 @@ func _read_props(raw: Variant) -> String:
 		var problem: String = _known_material(field + ".material", prop.get("material"))
 		if problem != "":
 			return problem
-		props.append({"id": str(prop.get("id", field)), "shape": str(prop["shape"]),
+		into.append({"id": str(prop.get("id", field)), "shape": str(prop["shape"]),
 			"size": HubRoomValues.vector3(prop["size_m"]), "position": HubRoomValues.vector3(prop["position_m"]),
 			"rotation": HubRoomValues.vector3(rotation), "material": str(prop["material"])})
 	return ""
