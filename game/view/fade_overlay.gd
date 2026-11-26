@@ -42,6 +42,19 @@ func set_alpha(value: float) -> void:
 	visible = clamped > 0.0
 
 
+## Makes the quad `value`'s colour, keeping the opacity shown; the launch
+## fade's colour is data (#1396), every other fade is black.
+func set_color(value: Color) -> void:
+	var material: StandardMaterial3D = material_override as StandardMaterial3D
+	material.albedo_color = Color(value.r, value.g, value.b, material.albedo_color.a)
+
+
+## The colour shown, without its opacity.
+func get_color() -> Color:
+	var shown: Color = (material_override as StandardMaterial3D).albedo_color
+	return Color(shown.r, shown.g, shown.b)
+
+
 ## The opacity currently shown, 0..1.
 func get_alpha() -> float:
 	return (material_override as StandardMaterial3D).albedo_color.a
