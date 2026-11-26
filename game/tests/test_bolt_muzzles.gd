@@ -246,7 +246,7 @@ func test_main_scene_bolts_keep_clear_of_the_camera() -> String:
 	var drawn: int = 0
 	for frame: int in 60:
 		main.call("advance_frame", 1.0 / 90.0)
-		var eye: Vector3 = CombatWiring.point_in(view, camera)
+		var eye: Vector3 = NodePoints.point_in(view, camera)
 		for index: int in view.bolt_count():
 			if view.bolt(index).visible:
 				drawn += 1
