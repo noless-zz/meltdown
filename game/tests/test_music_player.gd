@@ -69,8 +69,8 @@ func test_wiring_reads_only() -> String:
 	var wiring: MusicWiring = MusicWiring.new()
 	wiring.attach(world)
 	wiring.attach(world)
-	# The music player and the pilot's engine (#1398).
-	var result: String = "" if world.get_child_count() == 2 else "%d children" % world.get_child_count()
+	# The music player, the pilot's engine (#1398) and the room tones (#1399).
+	var result: String = "" if world.get_child_count() == 3 else "%d children" % world.get_child_count()
 	for frame: int in 120:
 		flown.advance(ShipState.TICK_DT)
 		plain.advance(ShipState.TICK_DT)

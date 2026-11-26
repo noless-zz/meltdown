@@ -137,6 +137,7 @@ func _follow_debris(snapshot: Dictionary, tick: int) -> void:
 			return
 		debris_view = DebrisView.new()
 		_world.add_child(debris_view)
+	debris_view.boxes = VisibleBoxes.of_world(_world)  # Hidden with its box (#1382).
 	debris_view.show_debris(positions, snapshot[SessionSnapshots.DEBRIS_RADII],
 		snapshot[SessionSnapshots.DEBRIS_SOLID], snapshot[SessionSnapshots.DEBRIS_HELD],
 		snapshot[SessionSnapshots.DEBRIS_SECONDS], snapshot[SessionSnapshots.DEBRIS_SIZES],

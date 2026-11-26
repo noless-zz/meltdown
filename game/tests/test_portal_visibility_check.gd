@@ -41,6 +41,12 @@ func test_shipped_step_passes_and_culls() -> String:
 	print("portal_visibility: %s" % outcome[1])
 	if int(measurements.get("portal_frames", 0)) == 0 or float(measurements.get("portal_boxes_mean", 0.0)) <= 0.0:
 		return "nothing measured: %s" % measurements
+	# Items hidden with their box are reported per frame (#1382).
+	for key: String in ["portal_items_mean", "portal_items_hidden_mean", "portal_items_hidden_most"]:
+		if not measurements.has(key):
+			return "%s not measured: %s" % [key, measurements]
+	if float(measurements["portal_items_hidden_mean"]) > float(measurements["portal_items_mean"]):
+		return "more items hidden than there are: %s" % measurements
 	return ""
 
 

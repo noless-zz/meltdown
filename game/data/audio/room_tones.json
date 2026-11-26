@@ -1,0 +1,37 @@
+{
+	"fade_seconds": 1.0,
+	"spaces": [
+		{
+			"id": "tunnel",
+			"from_span_m": 0.0,
+			"sound": "res://data/audio/tone_tunnel.wav",
+			"volume_db": -38.0
+		},
+		{
+			"id": "room",
+			"from_span_m": 10.0,
+			"sound": "res://data/audio/tone_room.wav",
+			"volume_db": -37.0
+		},
+		{
+			"id": "chamber",
+			"from_span_m": 16.0,
+			"sound": "res://data/audio/tone_chamber.wav",
+			"volume_db": -35.0
+		}
+	],
+	"reactor": {
+		"sound": "res://data/audio/tone_reactor.wav",
+		"volume_db": -35.0,
+		"near_m": 30.0,
+		"full_m": 10.0
+	},
+	"meltdown": {
+		"sound": "res://data/audio/tone_meltdown.wav",
+		"volume_db": -33.0
+	},
+	"hangar": {
+		"sound": "res://data/audio/tone_hangar.wav",
+		"volume_db": -38.0
+	}
+}

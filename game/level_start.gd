@@ -109,12 +109,13 @@ func hand_loadout(session: LocalSession) -> LocalSession:
 
 ## The rules a session for `path` gets: the data files' when the run flies
 ## `path` now and has `RunWiring.level_rules` on, otherwise null. Drops are
-## weighted by the run's chosen shaft (`RunWiring.level_reward`, #1000).
+## weighted by the run's chosen shaft (`RunWiring.level_reward`, #1000), and the
+## crew's bonus grows the hold and the countdown (`RunWiring.crew_bonus`, #1386).
 func run_rules(path: String) -> RunLevelRules:
 	if run == null or not run.active() or not run.level_rules or path != run.level_source():
 		return null
 	return RunLevelRules.load_files(RunLevelRules.COMPONENTS_DIR, RunLevelRules.RESCUE_FILE,
-		run.level_reward(), RunLevelRules.ALARM_FILE, run.level_alarm_scale())
+		run.level_reward(), RunLevelRules.ALARM_FILE, run.level_alarm_scale(), run.crew_bonus())
 
 
 ## Takes what the launch asks to fly (`LevelSwitch.requested_path`). A run,

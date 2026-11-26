@@ -29,6 +29,8 @@ const SPARK_COUNT: int = 18
 ## Sparks fly this many robot radii per second at their fastest.
 const SPARK_RADII_PER_S: float = 9.0
 
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _shells: Array[MeshInstance3D] = []
 var _cores: Array[MeshInstance3D] = []
 var _mesh: PrimitiveMesh = RobotView.build_mesh("sphere")
@@ -83,7 +85,16 @@ func show_bursts(bursts: Array[Dictionary], effects: Dictionary, now: float) -> 
 		var core_t: float = clampf(t / CORE_SHARE, 0.0, 1.0)
 		_paint(core, at, minf(radius * CORE_RADII * (1.0 - core_t), room),
 			color.lerp(Color.WHITE, CORE_WHITEN), (1.0 - core_t) * near_fade, 0.2)
+		if not VisibleBoxes.allows(boxes, at, radius * float(effects["burst_radii"])):
+			shell.visible = false
+			core.visible = false
 	_sparked = keys
+
+
+## Hides blasts, and the sparks they throw, in boxes not drawn (#1382).
+func set_boxes(drawn: VisibleBoxes) -> void:
+	boxes = drawn
+	_sparks.boxes = drawn
 
 
 ## Bursts drawn by the last `show_bursts`.

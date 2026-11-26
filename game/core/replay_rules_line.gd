@@ -30,10 +30,11 @@ const WEIGHTS_KEY: String = "tier_weights"
 const TIERS_KEY: String = "kind_tiers"
 
 
-## The format version `replay.to_text()` writes; an alarm line (#1342) needs a later one.
+## The format version `replay.to_text()` writes; an alarm line (#1342) or a crew line (#1386) needs a later one.
 static func format_version(replay: Replay) -> int:
 	var version: int = VERSION if replay.component_rules != null or replay.rescue_rules != null else PLAIN_VERSION
-	return maxi(version, ReplayAlarmLine.format_version(replay))
+	return maxi(maxi(version, ReplayAlarmLine.format_version(replay)),
+		ReplayCrewLine.format_version(replay))
 
 
 static func lines(replay: Replay) -> PackedStringArray:
@@ -52,6 +53,7 @@ static func lines(replay: Replay) -> PackedStringArray:
 		out.append("rescue " + JSON.stringify({"rescue_reach": replay.rescue_rules.rescue_reach,
 			"hold_seconds": replay.rescue_rules.hold_seconds, MINERS_KEY: miners}, "", true, true))
 	out.append_array(ReplayAlarmLine.lines(replay))
+	out.append_array(ReplayCrewLine.lines(replay))
 	return out
 
 
@@ -62,6 +64,7 @@ static func apply(replay: Replay, sim: Sim) -> void:
 	if replay.rescue_rules != null:
 		sim.set_rescue_rules(replay.rescue_rules, replay.miners)
 	ReplayAlarmLine.apply(replay, sim)
+	ReplayCrewLine.apply(replay, sim)
 
 
 ## A robot type's drop table as its data file writes it, for the robot line.
