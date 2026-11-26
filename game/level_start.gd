@@ -25,6 +25,10 @@ var run: RunWiring = null
 ## Told each new session's ship loadout (CMB-8, #1050), so a fitted look-aim
 ## module takes effect; null in tests that need no comfort.
 var comfort: ComfortWiring = null
+## The session `session_for` built last and the run's crew totals for it
+## (#1393), so `crew_totals_for` answers for that session only.
+var _crew_session: LocalSession = null
+var _crew_totals: Dictionary = {}
 
 
 func _init(p_comfort: ComfortWiring = null) -> void:
@@ -66,7 +70,26 @@ static func level_session(world: Node3D, path: String, input: ShipInputSource,
 ## run's level flies the fitted ship too (`run_tuning`, #1057), and its loadout
 ## is the one handed to the comfort wiring.
 func session_for(world: Node3D, path: String, input: ShipInputSource) -> LocalSession:
-	return hand_loadout(level_session(world, path, input, run_rules(path), run_tuning(path)))
+	var session: LocalSession = hand_loadout(level_session(world, path, input, run_rules(path), run_tuning(path)))
+	_crew_session = session
+	_crew_totals = run_crew(path)
+	return session
+
+
+## The run's crew totals (`CrewBenefits.totals`, CRW-1) when the run flies
+## `path` now, otherwise `{}`, as `run_tuning` decides (#1393).
+func run_crew(path: String) -> Dictionary:
+	if run == null or not run.active() or path != run.level_source():
+		return {}
+	return CrewBenefits.totals(run.profile, run.roles)
+
+
+## A copy of the crew totals of `session` when `session_for` built it for the
+## run's level, else `{}`: the map's Surveyor reveal reads it (#1393, MP-2).
+func crew_totals_for(session: LocalSession) -> Dictionary:
+	if session == null or session != _crew_session:
+		return {}
+	return _crew_totals.duplicate(true)
 
 
 ## The ship a session for `path` flies (#1057, CRF-4, CRW-1): the run's fitted

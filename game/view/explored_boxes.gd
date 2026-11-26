@@ -33,6 +33,16 @@ func explored() -> Array[int]:
 	return result
 
 
+## Indices of the boxes not marked yet, lowest first: what the Surveyor's
+## reveal draws dimmer (#1393, CRW-1).
+func unexplored() -> Array[int]:
+	var result: Array[int] = []
+	for index: int in _seen.size():
+		if not _seen[index]:
+			result.append(index)
+	return result
+
+
 ## Marks every box whose nearest point to `position` is within `radius` metres,
 ## walls ignored: the wide radar sees tunnels through rock (#1059, CRF-5).
 ## A box holding `position` is at distance zero, so this marks what `visit`

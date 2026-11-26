@@ -76,16 +76,59 @@ static func reactor_marker(look: Dictionary, destroyed: bool, energy: float) -> 
 	return MapMarkerShapes.mesh(look["reactor_shape"], height, material)
 
 
+## Surface names of the outline mesh: the explored lines and, with a Surveyor
+## in the crew, the revealed ones (#1393).
+const EXPLORED_SURFACE: String = "explored"
+const REVEALED_SURFACE: String = "revealed"
+
+
 ## The explored outline `points` (segment pairs, level space) fitted into a cube
 ## of `edge_m` as one glowing line mesh in the look's line colour; null when there
-## is nothing explored (moved here from `MapHologram.build`, #1120).
-static func outline(points: PackedVector3Array, edge_m: float, look: Dictionary) -> ArrayMesh:
-	if points.is_empty():
+## is nothing explored or revealed (moved here from `MapHologram.build`, #1120).
+## `revealed` (#1393) are the outlines of boxes not flown yet, drawn as a second
+## surface in the look's see-through `unexplored_color`. Both are fitted
+## together, so a revealed level keeps its size as the pilot explores it.
+static func outline(points: PackedVector3Array, edge_m: float, look: Dictionary,
+		revealed: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
+	if points.is_empty() and revealed.is_empty():
 		return null
+	var fitted: PackedVector3Array = MapWireframe.fit_to_cube(points + revealed, edge_m)
+	var mesh: ArrayMesh = ArrayMesh.new()
+	if not points.is_empty():
+		_add_lines(mesh, fitted.slice(0, points.size()), EXPLORED_SURFACE,
+			glow(look["line_color"], float(look["line_energy"])))
+	if not revealed.is_empty():
+		_add_lines(mesh, fitted.slice(points.size()), REVEALED_SURFACE, dim(look))
+	return mesh
+
+
+## Segments in the surface `surface` of `mesh` (0 when it has none), so a
+## test or check can count explored and revealed lines apart.
+static func segments_in(mesh: ArrayMesh, surface: String) -> int:
+	if mesh == null:
+		return 0
+	var index: int = mesh.surface_find_by_name(surface)
+	return 0 if index < 0 else mesh.surface_get_array_len(index) / 2
+
+
+## The revealed lines' material: unshaded and see-through in the look's
+## `unexplored_color` at `unexplored_alpha`, never writing depth, so the
+## explored lines it shares edges with stay bright (#1393).
+static func dim(look: Dictionary) -> StandardMaterial3D:
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	var color: Color = look["unexplored_color"]
+	material.albedo_color = Color(color.r, color.g, color.b, float(look["unexplored_alpha"]))
+	return material
+
+
+static func _add_lines(mesh: ArrayMesh, points: PackedVector3Array, surface: String, material: Material) -> void:
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = MapWireframe.fit_to_cube(points, edge_m)
-	var mesh: ArrayMesh = ArrayMesh.new()
+	arrays[Mesh.ARRAY_VERTEX] = points
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
-	mesh.surface_set_material(0, glow(look["line_color"], float(look["line_energy"])))
-	return mesh
+	var index: int = mesh.get_surface_count() - 1
+	mesh.surface_set_name(index, surface)
+	mesh.surface_set_material(index, material)

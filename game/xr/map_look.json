@@ -27,5 +27,7 @@
 	"miner_size_m": 0.01,
 	"reactor_shape": "diamond",
 	"miner_shape": "pin",
-	"fire_shape": "flame"
+	"fire_shape": "flame",
+	"unexplored_color": [0.15, 0.42, 0.5],
+	"unexplored_alpha": 0.35
 }

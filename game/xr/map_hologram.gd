@@ -75,24 +75,29 @@ func look() -> Dictionary:
 	return _look
 
 
-## Redraws the map from the boxes of `union` listed in `explored`.
-func build(union: BoxUnion, explored: Array[int]) -> void:
+## Redraws the map from the boxes of `union` listed in `explored`, and the
+## boxes in `revealed` (a Surveyor's reveal, #1393) dimmer, fitted together.
+func build(union: BoxUnion, explored: Array[int], revealed: Array[int] = []) -> void:
 	var points: PackedVector3Array = MapWireframe.segments(union, explored)
+	var dim: PackedVector3Array = MapWireframe.segments(union, revealed) if not revealed.is_empty() \
+		else PackedVector3Array()
 	_overlays.set_explored(union, explored)
 	var size: float = float(_look["size_m"])
-	_fit = fit_transform(points, size)
-	_lines.mesh = MapShapes.outline(points, size, _look)
+	_fit = fit_transform(points + dim, size)
+	_lines.mesh = MapShapes.outline(points, size, _look, dim)
 	_overlays.rebuild_meshes(_look)
 	_overlays.place_markers(_view())
 	_place_route()
 
 
-## Number of line segments drawn by the last `build`.
+## Number of explored line segments drawn by the last `build`.
 func segment_count() -> int:
-	var mesh: ArrayMesh = _lines.mesh as ArrayMesh
-	if mesh == null or mesh.get_surface_count() == 0:
-		return 0
-	return mesh.surface_get_array_len(0) / 2
+	return MapShapes.segments_in(_lines.mesh as ArrayMesh, MapShapes.EXPLORED_SURFACE)
+
+
+## Number of revealed, dimmer line segments drawn by the last `build` (#1393).
+func revealed_segment_count() -> int:
+	return MapShapes.segments_in(_lines.mesh as ArrayMesh, MapShapes.REVEALED_SURFACE)
 
 
 ## Moves the marker to the ship's level-space `position` (a copy), fitted like the lines.
