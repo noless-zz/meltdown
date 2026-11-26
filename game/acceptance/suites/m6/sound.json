@@ -45,6 +45,15 @@
 				"engine_follows_thrust"
 			],
 			"expected_hash": 802400918
+		},
+		{
+			"id": "room_tones",
+			"replay": "res://acceptance/replays/bot_g2_escape_alarm.replay",
+			"checks": [
+				"final_hash",
+				"room_tones_change"
+			],
+			"expected_hash": 2803663058
 		}
 	]
 }
