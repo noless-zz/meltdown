@@ -18,7 +18,8 @@ extends RefCounted
 ##      "min_zoom": 0.1..10, "max_zoom": 0.1..10, "zoom_per_second": 1.01..10,
 ##      "fires_explored_only": true | false,
 ##      "miner_color": [r, g, b], "miner_size_m": 0.002..0.05,
-##      "reactor_shape": shape, "miner_shape": shape, "fire_shape": shape}
+##      "reactor_shape": shape, "miner_shape": shape, "fire_shape": shape,
+##      "unexplored_color": [r, g, b], "unexplored_alpha": 0.05..1}
 ##
 ## `exit_radius_m` is half the edge of the exit cube, drawn see-through with
 ## opacity `exit_alpha` so it never hides the tunnel beside it (#913). Once the
@@ -47,14 +48,19 @@ extends RefCounted
 ## one of `MapMarkerShapes.NAMES`, and no two may name the same shape, so the
 ## reactor, a trapped miner and a fire differ by outline as well as colour; the
 ## ship keeps its dart (#679), which none of them can name.
+##
+## `unexplored_color` and `unexplored_alpha` (optional, #1393) draw the boxes a
+## Surveyor in the crew reveals before they are flown: see-through and dimmer
+## than `line_color`, so the tunnels already flown still stand out.
 
 const REQUIRED_KEYS: Array[String] = ["line_color", "line_energy", "size_m", "marker_color", "marker_radius_m"]
 const OPTIONAL_KEYS: Array[String] = ["exit_color", "exit_radius_m", "reactor_color", "reactor_radius_m",
 		"route_color", "route_width_m", "blocked_color", "blocked_size_m", "distance_color", "distance_height_m",
 		"distance_offset_m", "fire_color", "fire_size_m", "min_zoom", "max_zoom", "zoom_per_second", "fires_explored_only", "reactor_dead_color",
-		"exit_alpha", "miner_color", "miner_size_m", "reactor_shape", "miner_shape", "fire_shape"]
+		"exit_alpha", "miner_color", "miner_size_m", "reactor_shape", "miner_shape", "fire_shape",
+		"unexplored_color", "unexplored_alpha"]
 const COLOR_KEYS: Array[String] = ["line_color", "marker_color", "exit_color", "reactor_color", "route_color",
-		"blocked_color", "distance_color", "fire_color", "reactor_dead_color", "miner_color"]
+		"blocked_color", "distance_color", "fire_color", "reactor_dead_color", "miner_color", "unexplored_color"]
 const BOOL_KEYS: Array[String] = ["fires_explored_only"]
 ## Keys naming a marker shape; each must differ from the others (#1219).
 const SHAPE_KEYS: Array[String] = ["reactor_shape", "miner_shape", "fire_shape"]
@@ -67,6 +73,8 @@ const RANGES: Dictionary[String, Array] = {
 	"reactor_radius_m": [0.002, 0.05],
 	# Below 5 % the exit vanishes against the room; 1 is solid, as before #913.
 	"exit_alpha": [0.05, 1.0],
+	# Below 5 % a revealed tunnel vanishes; 1 would read as already flown.
+	"unexplored_alpha": [0.05, 1.0],
 	# Thinner than half a millimetre vanishes at arm's length on the Quest 3
 	# panel; thicker than a centimetre hides the wireframe under it.
 	"route_width_m": [0.0005, 0.01],
@@ -131,6 +139,10 @@ const FALLBACK: Dictionary = {
 	"zoom_per_second": 1.5,
 	# MAP-1 maps explored tunnels only; a mark further out would reveal layout (#562).
 	"fires_explored_only": true,
+	# The lines' cyan at half brightness and a third opaque: the layout reads,
+	# the flown tunnels stand out (#1393).
+	"unexplored_color": Color(0.15, 0.42, 0.5),
+	"unexplored_alpha": 0.35,
 }
 
 

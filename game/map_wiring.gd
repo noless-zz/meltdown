@@ -35,6 +35,16 @@ extends RefCounted
 ## While the meltdown runs, `MapRouteWiring` hands the map the escape route the
 ## player knows (#402, MAP-2). It lives in its own file because it searches the
 ## meltdown's debris and names the simulation, which this file never does.
+##
+## With a Surveyor in the run's crew (`map_reveal` of 1 or more, #1393, CRW-1)
+## every box of the level is drawn from the first frame of each run level, the
+## boxes not flown yet dimmer (`MapShapes.REVEALED_SURFACE`). The crew totals
+## come from `crew_totals`, a copy per session (`LevelStart.crew_totals_for`),
+## which gives `{}` outside a run, so `--seed`, `--level` and the tunnel never
+## reveal. Only the view's `ExploredBoxes` is read; nothing is written back.
+
+## The crew benefit stat that reveals the level (`data/crew/roles.json`).
+const REVEAL_STAT: String = "map_reveal"
 
 ## The map, under a hand of the rig once `attach` has run, null before. A
 ## wiring that was never attached does nothing, so a scene can go without it.
@@ -45,6 +55,13 @@ var explored: ExploredBoxes = null
 var rebuilds: int = 0
 ## This frame's sampled buttons; `update` reads `show_map` from them.
 var buttons: Dictionary = {}
+## Gives the run's crew totals for a session, as a copy (#1393); unset reads `{}`.
+var crew_totals: Callable = Callable()
+## Whether the current session's map shows the whole level (#1393).
+var revealed: bool = false
+## Boxes drawn, explored and revealed, at the first frame of the current
+## session; the acceptance check `map_reveal` reads it.
+var start_boxes: int = 0
 
 var _rig: Node = null
 var _mapping: ThumbstickMapping = null
@@ -73,7 +90,9 @@ var _miners_shown: PackedVector3Array = PackedVector3Array()
 ## Creates the hologram and hangs it in the hand that clicks `show_map` under
 ## `mapping` (`MapHologram.hand_for`), or in the cockpit when the saved
 ## `MapChoice` says so. Calling it again adds nothing.
-func attach(rig: Node, mapping: ThumbstickMapping) -> void:
+## `p_crew_totals` becomes `crew_totals` (#1393).
+func attach(rig: Node, mapping: ThumbstickMapping, p_crew_totals: Callable = Callable()) -> void:
+	crew_totals = p_crew_totals
 	if hologram != null or rig == null:
 		return
 	_rig = rig
@@ -96,15 +115,8 @@ func attach(rig: Node, mapping: ThumbstickMapping) -> void:
 func update(session: LocalSession, _delta_seconds: float, shared: ClickHold = null) -> void:
 	if hologram == null or session == null:
 		return
-	if session != _session:
-		_start(session)
-	_explore(session.current_ship())
-	var now: Array[int] = explored.explored()
-	var grew: bool = now != _drawn
-	if grew:
-		_drawn = now
-		hologram.build(_union, _drawn)
-		rebuilds += 1
+	var grew: bool = begin(session) if session != _session else _refresh()
+	var now: Array[int] = _drawn
 	var destroyed: bool = MapRouteWiring.reactor_destroyed(session)
 	var known: bool = _reactor_known or destroyed or _reactor_seen(now, session.current_ship().position)
 	if known != _reactor_known or destroyed != _reactor_destroyed:
@@ -123,6 +135,32 @@ func update(session: LocalSession, _delta_seconds: float, shared: ClickHold = nu
 		hologram.close()  # Closed through the end screen and the restart (#914).
 
 
+## Starts the map for `session` as its first frame does: the level's boxes,
+## the ones the ship is in marked and, with the reveal, the rest dimmer.
+## `start_boxes` counts what is drawn. True when the ship marked a box.
+func begin(session: LocalSession) -> bool:
+	_start(session)
+	var grew: bool = _refresh()
+	start_boxes = _drawn.size() + (explored.unexplored().size() if revealed else 0)
+	return grew
+
+
+## Marks the ship's boxes and redraws the map when that set grew; true if it did.
+func _refresh() -> bool:
+	_explore(_session.current_ship())
+	var now: Array[int] = explored.explored()
+	if now == _drawn:
+		return false
+	_drawn = now
+	_build()
+	return true
+
+
+func _build() -> void:
+	hologram.build(_union, _drawn, explored.unexplored() if revealed else ([] as Array[int]))
+	rebuilds += 1
+
+
 ## Starts a new map for `session`'s walls: the level's boxes, or the test
 ## tunnel's one box. Open space has no walls and maps nothing.
 func _start(session: LocalSession) -> void:
@@ -132,8 +170,9 @@ func _start(session: LocalSession) -> void:
 	_union = walls if walls != null else BoxUnion.new()
 	explored = ExploredBoxes.new(_union)
 	_drawn = []
-	hologram.build(_union, _drawn)
-	rebuilds += 1
+	var totals: Dictionary = crew_totals.call(session) if crew_totals.is_valid() else {}
+	revealed = int(totals.get(REVEAL_STAT, 0)) >= 1
+	_build()
 	_reactor_boxes = []
 	var reactor: ReactorState = session.replay.reactor
 	if reactor != null:

@@ -89,7 +89,7 @@ func _ready() -> void:
 	attach_status_panel()
 	flight_test.attach(self, comfort, level_start.source, $XRRig)  # After the panel it sits above.
 	combat.attach(self)  # Main's space is the simulation's; the tunnel is offset.
-	map.attach($XRRig, mapping)
+	map.attach($XRRig, mapping, level_start.crew_totals_for)  # A Surveyor reveals the level (#1393).
 	meltdown.attach(self, session, map.route_wiring)  # One route search for map and arrow (#695).
 	destroyed.attach($XRRig, boost_haptics.left_controller, boost_haptics.right_controller)
 	hub.attach($XRRig)
