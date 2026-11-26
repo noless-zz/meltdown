@@ -17,6 +17,7 @@
 		{"kind": "flight_test", "label": "Flight test"},
 		{"kind": "map_place", "label": "Map place"},
 		{"kind": "map_turn", "label": "Map turn"},
+		{"kind": "checklist", "label": "Test checklist"},
 		{"kind": "close", "label": "Close"}
 	],
 	"sections": [
