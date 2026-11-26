@@ -20,9 +20,16 @@
 // edges. With every strength at 0 the walls draw exactly as before. Noise and
 // bevels fade out where they get too small on screen, like the plating, so
 // nothing shimmers far away.
+// A material can also carry all three tints and pick one per face by the same
+// rule (`tint_by_kind`, #1383): a box of the mine is then one surface, one
+// draw call, for its walls and frames together, instead of one per kind.
 shader_type spatial;
 
+// The tint of every face, or of the walls only when `tint_by_kind` is set.
 uniform vec3 tint : source_color = vec3(0.16, 0.15, 0.14);
+uniform bool tint_by_kind = false;
+uniform vec3 floor_tint : source_color = vec3(0.22, 0.19, 0.15);
+uniform vec3 ceiling_tint : source_color = vec3(0.1, 0.11, 0.13);
 uniform float roughness_value = 0.9;
 uniform float grid_spacing = 2.0;
 uniform float line_width = 0.06;
@@ -182,7 +189,8 @@ void fragment() {
 	}
 	bool metal = plate_hash(floor(cell) + vec2(17.0, 31.0)) < metal_share;
 
-	vec3 base = tint * plate_tone * seam_tone * (1.0 + albedo_noise * 2.0 * grain);
+	vec3 face_tint = tint_by_kind ? floor_tint * kind.x + tint * kind.y + ceiling_tint * kind.z : tint;
+	vec3 base = face_tint * plate_tone * seam_tone * (1.0 + albedo_noise * 2.0 * grain);
 	ALBEDO = clamp(base * mix(1.0, line_factor, on_line), vec3(0.0), vec3(1.0));
 	float rough = metal ? metal_roughness : roughness_value;
 	ROUGHNESS = clamp(rough + roughness_noise * 2.0 * grain, 0.05, 1.0);

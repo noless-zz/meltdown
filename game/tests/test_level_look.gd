@@ -137,15 +137,17 @@ func test_level_view_draws_each_class_in_its_tint_with_fog() -> String:
 	view.build(_one_box())
 	var walls: MeshInstance3D = view.walls_of(0)
 	var result: String = ""
-	if walls.mesh.get_surface_count() != LevelLook.CLASSES.size():
-		result = "one box gave %d wall surfaces, expected one per class" % walls.mesh.get_surface_count()
-	for surface: int in walls.mesh.get_surface_count() if result == "" else 0:
-		var normals: PackedVector3Array = walls.mesh.surface_get_arrays(surface)[Mesh.ARRAY_NORMAL]
-		var material: ShaderMaterial = walls.mesh.surface_get_material(surface) as ShaderMaterial
-		for normal: Vector3 in normals:
-			if material.get_shader_parameter("tint") != LevelLook.tint_for(view.look(), normal):
-				result = "surface %d draws a face pointing %s in the wrong tint" % [surface, normal]
-				break
+	# One surface for every kind since #1383; the shader picks the tint by face.
+	if walls.mesh.get_surface_count() != 1:
+		result = "one box gave %d wall surfaces, expected one" % walls.mesh.get_surface_count()
+	var material: ShaderMaterial = walls.mesh.surface_get_material(0) as ShaderMaterial
+	var normals: PackedVector3Array = walls.mesh.surface_get_arrays(0)[Mesh.ARRAY_NORMAL] if result == "" else PackedVector3Array()
+	for normal: Vector3 in normals:
+		var uniform: String = {LevelLook.FLOOR: "floor_tint", LevelLook.WALL: "tint",
+				LevelLook.CEILING: "ceiling_tint"}[LevelLook.surface_class(normal)]
+		if material.get_shader_parameter(uniform) != LevelLook.tint_for(view.look(), normal):
+			result = "a face pointing %s is drawn in the wrong tint" % normal
+			break
 	var world: WorldEnvironment = view.get_node_or_null(LevelView.ENVIRONMENT_NAME) as WorldEnvironment
 	if result == "" and (world == null or world.environment.background_color != view.look()["fog_color"]):
 		result = "the level view has no dark environment in the fog's colour"
