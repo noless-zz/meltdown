@@ -64,9 +64,9 @@ static func drawing(model: HubModel, station: String, rows: Array[Dictionary], s
 	if station == LOG_STATION:
 		items = _tiles(model, chosen)
 	elif chosen.begins_with(HubSummaryRows.OWNS_PREFIX):
-		items = _window(layout, _bars(model, chosen))
+		items = window(layout, bars(model, chosen))
 	else:
-		items = _window(layout, _cards(model, chosen))
+		items = window(layout, _cards(model, chosen))
 	return {"kind": "board", "text_floor_m": layout.text_floor_m, "strip_height_m": layout.strip_height_m,
 		"icon_size_m": layout.icon_size_m, "bar_length_m": layout.bar_length_m, "bar_height_m": layout.bar_height_m,
 		"tile_height_m": layout.tile_height_m, "items": items}
@@ -83,12 +83,12 @@ static func _cards(model: HubModel, chosen: String) -> Array[Dictionary]:
 		var id: String = CREW_PREFIX + role
 		out.append({"type": CARD, "id": id, "selected": id == chosen, "icon": {"group": "crew", "id": role},
 			"name": words.row("crew_capped_row" if group["capped"] else "crew_row", {"role": name, "count": group["count"]}),
-			"figure_icon": _attribute(model, stat), "figure": HubSummaryRows.signed(float(group["total"]))})
+			"figure_icon": attribute(model, stat), "figure": HubSummaryRows.signed(float(group["total"]))})
 	return out
 
 
 ## One bar per summary attribute the hub file names (as its rows do).
-static func _bars(model: HubModel, chosen: String) -> Array[Dictionary]:
+static func bars(model: HubModel, chosen: String) -> Array[Dictionary]:
 	var words: HubWords = model.config.words
 	var headroom: float = model.config.boards.bar_headroom
 	var out: Array[Dictionary] = []
@@ -97,12 +97,12 @@ static func _bars(model: HubModel, chosen: String) -> Array[Dictionary]:
 			continue
 		var stock: float = entry["stock"]
 		var current: float = entry["current"]
-		var full: float = maxf(maxf(stock * headroom, current), stock + float(_crew_cap(model, entry["stat"])))
+		var full: float = maxf(maxf(stock * headroom, current), stock + float(crew_cap(model, entry["stat"])))
 		full = full if full > 0.0 else 1.0
 		var figure: String = words.row("summary_value", {"current": HubSummaryRows.number(current),
 			"stock": HubSummaryRows.number(stock)}) if entry["ship"] else HubSummaryRows.number(current)
 		var id: String = HubSummaryRows.OWNS_PREFIX + str(entry["stat"])
-		out.append({"type": BAR, "id": id, "selected": id == chosen, "icon": _attribute(model, entry["stat"]),
+		out.append({"type": BAR, "id": id, "selected": id == chosen, "icon": attribute(model, entry["stat"]),
 			"figure": figure, "fill": clampf(current / full, 0.0, 1.0), "mark": clampf(stock / full, 0.0, 1.0)})
 	return out
 
@@ -128,7 +128,7 @@ static func _tiles(model: HubModel, chosen: String) -> Array[Dictionary]:
 
 
 ## The `strips_visible` strips around the selected one, placed top down.
-static func _window(layout: HubBoardLayout, strips: Array[Dictionary]) -> Array[Dictionary]:
+static func window(layout: HubBoardLayout, strips: Array[Dictionary]) -> Array[Dictionary]:
 	var chosen: int = strips.find_custom(func(each: Dictionary) -> bool: return each["selected"])
 	var start: int = maxi(0, chosen - layout.strips_visible + 1)
 	var out: Array[Dictionary] = strips.slice(start, start + layout.strips_visible)
@@ -138,13 +138,13 @@ static func _window(layout: HubBoardLayout, strips: Array[Dictionary]) -> Array[
 
 
 ## The `attribute` icon of summary stat `stat`, or {} when the file names none.
-static func _attribute(model: HubModel, stat: String) -> Dictionary:
+static func attribute(model: HubModel, stat: String) -> Dictionary:
 	var id: String = model.config.boards.attribute_icon(stat)
 	return {"group": "attribute", "id": id} if id != "" else {}
 
 
 ## The most the crew may add to summary stat `stat`, or 0.
-static func _crew_cap(model: HubModel, stat: String) -> int:
+static func crew_cap(model: HubModel, stat: String) -> int:
 	if model.roles == null or model.roles.error != "":
 		return 0
 	for crew_stat: String in model.roles.caps():

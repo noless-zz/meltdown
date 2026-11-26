@@ -109,6 +109,8 @@ func turn_page(delta: int) -> void:
 func rows_shown() -> int:
 	if station == HubFitBay.STATION and fit_slot == "" and model.config.fit_layout.has_ship():
 		return model.config.fit_layout.slot_rows_visible
+	if station == HubFitBay.STATION and HubFitBoard.rows_shown(model, fit_slot) > 0:
+		return HubFitBoard.rows_shown(model, fit_slot)  # A mount's bars have the rest (#1385).
 	if HubCraftTree.shows(model, station):
 		return model.config.craft_tree.rows_visible  # The tree has the rest of the face (#1367).
 	if HubBoard.shows(model, station):

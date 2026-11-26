@@ -192,6 +192,7 @@ func test_the_highlighted_item_shows_its_before_and_after() -> String:
 	var mount: Dictionary = {"action": HubText.ACTION_FIT, "slot": "engine", "id": engine}
 	if engine == "" or changes.is_empty():
 		return "no engine part changes anything"
+	hub.model.config.fit_bars = HubFitBars.new()  # As words; the bars are `test_hub_fit_board.gd`'s (#1385).
 	_select(hub, {"action": HubFitBay.ACTION_SLOT, "slot": "engine"})
 	hub.press()
 	_select(hub, mount)
