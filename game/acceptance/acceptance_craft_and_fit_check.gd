@@ -135,8 +135,22 @@ static func choose_station(main: Node, hub: HubWiring, id: String) -> bool:
 
 
 ## Inside the station in use, moves the stick from the top row down until the
-## selected row does `want` and presses A on it. False when no row does.
+## selected row does `want` and presses A on it. False when no row does. A fit
+## or move in the Fitting Bay's ship (#1366) first takes its slot, as a pilot
+## would, and steps back to the ship if the slot does not offer it.
 static func press_in_station(main: Node, hub: HubWiring, want: Dictionary) -> bool:
+	if _press_from_top(main, hub, want):
+		return true
+	var slot: Dictionary = {"action": HubFitBay.ACTION_SLOT, "slot": want.get("slot", "")}
+	if not want.has("slot") or not _press_from_top(main, hub, slot):
+		return false
+	if _press_from_top(main, hub, want):
+		return true
+	_tap(main, {}, STICK_LEFT)  # Back to the ship, still in the station.
+	return false
+
+
+static func _press_from_top(main: Node, hub: HubWiring, want: Dictionary) -> bool:
 	for i: int in MAX_MOVES:
 		var before: int = hub.text.selected_line()
 		_tap(main, {}, STICK_UP)

@@ -69,8 +69,12 @@ static func _use(stations: HubStations, id: String) -> void:
 	_tap(stations, DevMenuModel.CONFIRM)
 
 
-## Moves down from the top until the selected row does `want` and presses A.
+## Moves down from the top until the selected row does `want` and presses A;
+## a fit takes its slot on the bay's ship first (#1366).
 static func _press(stations: HubStations, hub: HubText, want: Dictionary) -> Dictionary:
+	if want.get("action", "") != HubFitBay.ACTION_SLOT and want.has("slot") and hub.station == HubFitBay.STATION and hub.fit_slot == "":
+		_press(stations, hub, {"action": HubFitBay.ACTION_SLOT, "slot": want["slot"]})
+	hub.move(-1000)
 	for i: int in 200:
 		if hub.selected() == want:
 			return _tap(stations, DevMenuModel.CONFIRM)
@@ -183,8 +187,10 @@ func test_only_the_station_in_use_shows_rows() -> String:
 			shown += 1 if label is Label3D and (label as Label3D).visible else 0
 		if result == "" and id != "fit" and shown != 1:
 			result = "%s shows %d lines while fit is in use" % [id, shown]
-		if result == "" and id == "fit" and shown < 3:
+		if result == "" and id == "fit" and shown < 2:
 			result = "the fit station shows %d lines" % shown
+	if result == "" and (stations.view("fit") == null or stations.view("fit").slot_nodes.is_empty()):
+		result = "the fit station draws no ship with slots"
 	_free(stations)
 	return result
 

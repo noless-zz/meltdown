@@ -66,7 +66,7 @@ func test_a_fit_shows_before_and_after_under_it_and_changes_nothing() -> String:
 	var hub: HubText = HubText.new(model)
 	hub.choose_station("fit")
 	var mount: Dictionary = {"action": HubText.ACTION_FIT, "slot": "engine", "id": "tuned_thrusters"}
-	if not _select(hub, mount):
+	if not _select(hub, {"action": HubFitBay.ACTION_SLOT, "slot": "engine"}) or hub.press() != "" or not _select(hub, mount):
 		return "no row mounts the thrusters: %s" % [hub.lines()]
 	var words: HubWords = model.config.words
 	var shown: Array[String] = []

@@ -175,7 +175,6 @@ func test_only_the_selected_row_shows_its_explanation() -> String:
 ## stepping inside the window does not move it.
 func test_scrolling_keeps_the_selection_on_screen() -> String:
 	var hub: HubText = _hub(_rich_profile())
-	var shown: int = hub.rows_shown()
 	var places: Array[String] = []
 	for i: int in hub.model.pages().size():
 		places.append("page")
@@ -187,6 +186,7 @@ func test_scrolling_keeps_the_selection_on_screen() -> String:
 			hub.move(-1000)
 		else:
 			hub.choose_station(places[i])
+		var shown: int = hub.rows_shown()  # The bay's ship leaves fewer rows (#1366).
 		var count: int = hub.lines().size() - 1
 		for step: int in count * 2:
 			var before: int = hub.first_shown()
