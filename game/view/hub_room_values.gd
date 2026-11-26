@@ -30,8 +30,8 @@ static func color(value: Variant) -> Color:
 
 
 ## The material in `raw` with `defaults` for missing keys, as
-## {"color": Color, "metallic", "roughness", "emission": Color, "emission_energy"},
-## or a String naming what is wrong.
+## {"color": Color, "metallic", "roughness", "emission": Color, "emission_energy",
+## "wear", "edge", "panel_m"}, or a String naming what is wrong.
 static func material(raw: Variant, defaults: Dictionary) -> Variant:
 	if typeof(raw) != TYPE_DICTIONARY:
 		return "must be an object"
@@ -48,6 +48,12 @@ static func material(raw: Variant, defaults: Dictionary) -> Variant:
 			return "\"%s\" must be 0..1" % key
 	if not is_number(data["emission_energy"], 0.0, 8.0):
 		return "\"emission_energy\" must be 0..8"
+	for key: String in ["wear", "edge"]:
+		if not is_number(data[key], 0.0, 1.0):
+			return "\"%s\" must be 0..1" % key
+	if not is_number(data["panel_m"], 0.0, 4.0):
+		return "\"panel_m\" must be 0..4 metres (0 for no seams)"
 	return {"color": color(data["color"]), "metallic": float(data["metallic"]),
 		"roughness": float(data["roughness"]), "emission": color(data["emission"]),
-		"emission_energy": float(data["emission_energy"])}
+		"emission_energy": float(data["emission_energy"]), "wear": float(data["wear"]),
+		"edge": float(data["edge"]), "panel_m": float(data["panel_m"])}

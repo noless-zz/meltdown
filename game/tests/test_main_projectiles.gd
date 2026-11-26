@@ -166,7 +166,7 @@ func test_point_in_matches_global_positions_outside_the_tree() -> String:
 	camera.position = Vector3(0.1, 1.6, 0.0)
 	var expected: Vector3 = (root.transform * space.transform).affine_inverse() \
 			* (root.transform * rig.transform * camera.transform).origin
-	var point: Vector3 = CombatWiring.point_in(space, camera)
+	var point: Vector3 = NodePoints.point_in(space, camera)
 	root.free()
 	if not point.is_equal_approx(expected):
 		return "camera at %s, expected %s" % [point, expected]
