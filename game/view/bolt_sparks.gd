@@ -15,6 +15,8 @@ const SPARK_SIZE: Vector3 = Vector3(0.015, 0.12, 0.015)
 ## Radians between one spark's way round the spiral and the next's.
 const GOLDEN_ANGLE: float = 2.39996323
 
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[MultiMeshInstance3D] = []
 ## Per pooled burst: seconds shown, lifetime, start, normal, speed, whole sphere.
 var _ages: Array[float] = []
@@ -63,7 +65,7 @@ func burst(at: Vector3, normal: Vector3, count: int, speed: float, lifetime: flo
 ## Moves every burst on by `delta` seconds.
 func age(delta: float) -> void:
 	for slot: int in _nodes.size():
-		if _nodes[slot].visible:
+		if is_running(slot):
 			_ages[slot] += delta
 			_place(slot)
 
@@ -75,6 +77,11 @@ func shown() -> Array[MultiMeshInstance3D]:
 		if node.visible:
 			showing.append(node)
 	return showing
+
+
+## Whether pooled burst `slot` is still flying, drawn or in a hidden box.
+func is_running(slot: int) -> bool:
+	return _ages[slot] < _lifetimes[slot]
 
 
 ## Number of burst nodes in the pool, shown or hidden.
@@ -98,8 +105,10 @@ static func direction(index: int, count: int, normal: Vector3, whole_sphere: boo
 func _place(slot: int) -> void:
 	var t: float = _ages[slot] / _lifetimes[slot]
 	var node: MultiMeshInstance3D = _nodes[slot]
-	node.visible = t < 1.0
-	if not node.visible:
+	# The farthest a spark gets, so a burst at an opening shows on either side.
+	var reach: float = _speeds[slot] * _lifetimes[slot] * 0.5
+	node.visible = t < 1.0 and VisibleBoxes.allows(boxes, _starts[slot], reach)
+	if t >= 1.0:
 		return
 	node.position = _starts[slot]
 	var multimesh: MultiMesh = node.multimesh
@@ -117,7 +126,7 @@ func _place(slot: int) -> void:
 
 func _free_slot() -> int:
 	for slot: int in _nodes.size():
-		if not _nodes[slot].visible:
+		if not is_running(slot):
 			return slot
 	var node: MultiMeshInstance3D = MultiMeshInstance3D.new()
 	node.name = "%s%d" % [BURST_PREFIX, _nodes.size()]
@@ -130,7 +139,7 @@ func _free_slot() -> int:
 	node.visible = false
 	add_child(node)
 	_nodes.append(node)
-	_ages.append(0.0)
+	_ages.append(INF)
 	_lifetimes.append(1.0)
 	_starts.append(Vector3.ZERO)
 	_normals.append(Vector3.UP)

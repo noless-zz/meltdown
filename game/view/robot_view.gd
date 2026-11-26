@@ -44,6 +44,8 @@ var _effects: Dictionary = RobotLook.DEFAULT_EFFECTS
 var _meshes: Dictionary[String, PrimitiveMesh] = {}
 ## Pooled robot nodes. The root carries the pose and no mesh of its own; its
 ## children are the body and the parts of the type in `_node_ids`.
+## The boxes drawn this frame (#1382); null draws everything.
+var boxes: VisibleBoxes = null
 var _nodes: Array[MeshInstance3D] = []
 var _node_ids: Array[String] = []
 var _body_materials: Array[ShaderMaterial] = []
@@ -143,10 +145,11 @@ func show_robots(previous: Array[RobotState], current: Array[RobotState], alpha:
 				RobotHitTracker.windup_fraction(robot)), robot.awake, RobotTells.eye_share(robot, look["tell"]))
 		RobotFinish.paint_thruster(_thruster_materials[index], look["emission_color"],
 				RobotFinish.thrust_energy(look["thrust"], robot.velocity.length()))
-		node.visible = true
+		node.visible = VisibleBoxes.allows(boxes, node.position, size)
 	for index: int in range(current.size(), _nodes.size()):
 		_nodes[index].visible = false
 	_tracker.prune_bursts(now, _effects["burst_seconds"])
+	_bursts.set_boxes(boxes)
 	_bursts.show_bursts(_tracker.bursts, _effects, now)
 
 
