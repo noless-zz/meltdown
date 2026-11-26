@@ -1,0 +1,193 @@
+{
+	"id": "g6",
+	"title": "Gate G6: look, sound, speed",
+	"issue": 1304,
+	"remarks": ["too hard", "unclear", "looks wrong", "broken", "too loud", "too quiet"],
+	"parts": [
+		{
+			"title": "Home base",
+			"steps": [
+				{
+					"id": "base_room",
+					"do": "Sit in the home base on preset 1 and look around.",
+					"look_for": "A room, not the dark; every station visible and reachable from the seat without turning your body; brightness comfortable.",
+					"action": {"comfort": 1},
+					"remarks": ["too dark", "too bright", "unclear", "looks wrong", "broken"]
+				},
+				{
+					"id": "base_stations",
+					"do": "Craft, fit and launch from the stations by pointing.",
+					"look_for": "The aim ray points where the hand points; each station is read at a glance.",
+					"remarks": ["unclear", "looks wrong", "broken"]
+				},
+				{
+					"id": "base_reading",
+					"do": "Spend two minutes reading every station from the seat.",
+					"look_for": "No strain; the station in use comes forward comfortably on presets 1 to 3; the note under the selected row stands apart.",
+					"remarks": ["unclear", "too small", "looks wrong", "broken"]
+				},
+				{
+					"id": "workbench_costs",
+					"do": "Open the Workbench and read a recipe.",
+					"look_for": "Cost, held count and effect readable with no ids."
+				},
+				{
+					"id": "one_item_one_slot",
+					"do": "Mount a gun in Primary 1, then look at Primary 2.",
+					"look_for": "Primary 2 offers it as \"Move here\"; Crew Quarters shows one row per role."
+				}
+			]
+		},
+		{
+			"title": "Menus, controls and map",
+			"steps": [
+				{
+					"id": "menu_sections",
+					"do": "Tap the menu and scroll inside Comfort.",
+					"look_for": "A short list read at a glance; scrolling is easy to follow; #31 reads as a seed."
+				},
+				{
+					"id": "controller_labels",
+					"do": "Show the controller labels in a resting grip and with hands close.",
+					"look_for": "Every label reads; none overlaps or sits inside a controller; text size comfortable."
+				},
+				{
+					"id": "map_place",
+					"do": "Hold up the map on preset 1, then try the cockpit place and both turns.",
+					"look_for": "Readable at 27° right, 10° down, 40 cm; note whether turning with the ship or fixed should be the default.",
+					"action": {"comfort": 1}
+				}
+			]
+		},
+		{
+			"title": "In the mine: look",
+			"steps": [
+				{
+					"id": "mine_walls",
+					"do": "Fly seed #31 and look at the walls under the headlight.",
+					"look_for": "Worn rock and metal, not flat grey; nothing shimmers at a distance; openings and edges look solid.",
+					"action": {"seed": 31}
+				},
+				{
+					"id": "cockpit",
+					"do": "Look around the cockpit on each preset.",
+					"look_for": "Metal and glass under the headlight; nothing moves with the view; seams calm in peripheral vision on presets 1 and 2."
+				},
+				{
+					"id": "robots_look",
+					"do": "Meet each robot type at a distance and up close.",
+					"look_for": "Each type known by its lights far off and its shape near; thrusters brighten with speed."
+				},
+				{
+					"id": "weapon_effects",
+					"do": "Fire each gun at walls and robots, and kill one close.",
+					"look_for": "Each shot known half-way with eyes closed; wall, robot and ship hits differ; a close blast never fills the view."
+				},
+				{
+					"id": "pickups_miners",
+					"do": "Find dropped guns, components and a trapped miner in a dark tunnel.",
+					"look_for": "Guns told apart at 5 to 15 m; component kinds told apart without reading; the miner reads as someone to rescue."
+				},
+				{
+					"id": "pickup_tally",
+					"do": "Pick something up and rescue a miner.",
+					"look_for": "Both noticed without looking for them; the count on the panel reads at a glance on preset 1."
+				},
+				{
+					"id": "fire_debris",
+					"do": "On preset 1, fly near fire and a cave-in.",
+					"look_for": "They feel urgent; blue flames do not read as the reactor; dust never hides the tunnel.",
+					"action": {"comfort": 1}
+				},
+				{
+					"id": "reactor",
+					"do": "Reach the reactor, blow it and look at the wreck.",
+					"look_for": "The heart of the mine, then a disaster; flames fade, never flash; comfortable on preset 1."
+				},
+				{
+					"id": "portals",
+					"do": "Turn fast at a junction and fly through doors.",
+					"look_for": "Nothing pops in or flickers at an opening; smooth in a large room cluster."
+				},
+				{
+					"id": "shaft_choice",
+					"do": "Escape a level and look at the shaft choice.",
+					"look_for": "The three shafts compared on robots, alarm and finds without reading; pointing highlights a shaft at every preset."
+				},
+				{
+					"id": "ship_model",
+					"do": "Look at the ship on its cradle and in the ship_model screenshots.",
+					"look_for": "It reads as a ship; say if 2.5 m nose to tail looks too big."
+				}
+			]
+		},
+		{
+			"title": "In the mine: sound",
+			"steps": [
+				{
+					"id": "sound_cues",
+					"do": "Fire, get hit and kill a robot, turning your head.",
+					"look_for": "Each has its own sound from the right direction."
+				},
+				{
+					"id": "room_reverb",
+					"do": "Fly from a narrow tunnel into a big room and fire.",
+					"look_for": "The echo opens up over about a second, no jump."
+				},
+				{
+					"id": "music",
+					"do": "Play a run to the reactor and an end screen, then the base.",
+					"look_for": "Calm in flight, urgent within a second of the reactor blowing, fades on the end screens, hub track at the base; never drowns a robot."
+				},
+				{
+					"id": "alarm",
+					"do": "Fight steadily for half a minute.",
+					"look_for": "Tension layers fade in; the alarm chime is not too loud; a level flown alone stays calm."
+				},
+				{
+					"id": "robot_voices",
+					"do": "Listen with eyes closed and round corners.",
+					"look_for": "A drone told from a hauler or warden; a robot heard before it appears; dull behind a wall, open in the same room."
+				}
+			]
+		},
+		{
+			"title": "Owed from gate G4",
+			"steps": [
+				{
+					"id": "suspend_resume",
+					"do": "Suspend at a shaft choice, quit the game completely, start it and resume.",
+					"look_for": "The same guns and hull as when suspended."
+				},
+				{
+					"id": "return_to_base",
+					"do": "In a run, choose Return to base from the menu.",
+					"look_for": "It counts as a lost ship."
+				},
+				{
+					"id": "device_suites",
+					"do": "Run the device suites m1, m3, m4 and m6 from the PC.",
+					"look_for": "Each passes; the report is posted to the gate issue."
+				}
+			]
+		},
+		{
+			"title": "Verdict",
+			"steps": [
+				{
+					"id": "quality",
+					"do": "Play for a while as a player would.",
+					"look_for": "It looks, sounds and runs well enough to keep playing.",
+					"remarks": ["looks wrong", "sounds wrong", "too slow", "menus too wordy"]
+				},
+				{
+					"id": "sensitive_tester",
+					"do": "A VR-sensitive tester flies 10 minutes on preset 1.",
+					"look_for": "They finish without discomfort.",
+					"action": {"comfort": 1},
+					"remarks": ["stopped early", "mild discomfort", "strong discomfort"]
+				}
+			]
+		}
+	]
+}

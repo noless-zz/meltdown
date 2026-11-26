@@ -27,6 +27,8 @@ const ACTION_FIT: String = "fit"
 const ACTION_MOVE: String = "move"
 const ACTION_LAUNCH: String = "launch"
 const ACTION_RESUME: String = "resume"
+## Unmounts every fitted upgrade at once (#1357).
+const ACTION_STRIP: String = "strip"
 ## Upgrade kind that fits each slot kind; a kind not listed offers no upgrade.
 ## A part slot (#1094) takes only upgrades of its own kind.
 const FITS: Dictionary[String, String] = {"primary": "weapon", "utility": "module",
@@ -119,7 +121,7 @@ func note() -> String:
 
 ## What the selected row does: {"action": "craft", "id"}, {"action": "fit",
 ## "slot", "id"} ("" empties the slot), {"action": "move", "slot", "id"},
-## {"action": "launch"}, {"action": "resume"}, or {} for a row
+## {"action": "launch"}, {"action": "resume"}, {"action": "strip"}, or {} for a row
 ## that only shows information.
 func selected() -> Dictionary:
 	var line: int = selected_line()
@@ -143,6 +145,8 @@ func press() -> String:
 			reason = model.fit(action["slot"], action["id"])
 		ACTION_MOVE:
 			reason = model.move(action["slot"], action["id"])
+		ACTION_STRIP:
+			reason = model.strip()
 		ACTION_LAUNCH:
 			reason = model.launch_check()
 			if reason == "":
@@ -161,6 +165,7 @@ func press() -> String:
 ## `selectable`, and on some Fitting Bay rows a `group`.
 ## A Workbench upgrade's detail rows (`detail_of`) show only under the selected
 ## upgrade (#1300); they cannot be selected, so hiding them moves no selection.
+## A row with no action id may own detail rows by its `owns` key (#1357).
 func _rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = _page_rows(page_id()) if station == "" else _station_rows()
 	var owner: String = ""
@@ -168,7 +173,7 @@ func _rows() -> Array[Dictionary]:
 	for entry: Dictionary in rows:
 		if entry["selectable"]:
 			if selectable == row:
-				owner = str((entry["action"] as Dictionary).get("id", ""))
+				owner = str(entry.get("owns", (entry["action"] as Dictionary).get("id", "")))
 			selectable += 1
 	return rows.filter(func(entry: Dictionary) -> bool: return str(entry.get("detail_of", owner)) == owner)
 
@@ -195,7 +200,7 @@ func _station_rows() -> Array[Dictionary]:
 func _page_rows(id: String) -> Array[Dictionary]:
 	match id:
 		HubConfig.CREW:
-			return HubRows.crew(model)
+			return HubRows.crew(model) + HubSummaryRows.rows(model)
 		HubConfig.STATS:
 			return HubRows.stats(model)
 		HubConfig.STORE:
@@ -220,50 +225,9 @@ func _craft_rows() -> Array[Dictionary]:
 	return HubCraftRows.rows(model)
 
 
-## Each slot with what it holds, the crafted upgrades of its kind it could take,
-## and a row to strip a fitted upgrade. One crafted upgrade is one item (#1336):
-## one fitted nowhere is offered as a mount, one fitted in another slot as a
-## move that names where it is now. While a suspended run waits, a row to
-## resume it (#1106, RUN-8) sits directly above the launch row, so the two ways
-## into the mine are side by side (owner's decision, #1172); the launch row's
-## note says launching discards the waiting run.
+## The Fitting Bay rows (`HubFitRows`).
 func _fit_rows() -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
-	var waiting: Dictionary = model.waiting()
-	var built: Array[String] = model.crafted()
-	for slot: Dictionary in model.fit_slots():
-		var fitted: String = _words().row("slot_empty")
-		if slot["upgrade"] != "":
-			fitted = _words().row("slot_upgrade", {"name": _name(slot["upgrade"])})
-		elif slot["part"] != "":
-			var part: String = model.parts.weapon_name(slot["part"])
-			fitted = _words().row("slot_part", {"part": part}) if part != "" else _words().row("slot_stock")
-		elif Fitting.PART_KEYS.has(slot["kind"]):
-			fitted = _words().row("slot_stock")
-		rows.append(HubRows.info(_words().row("slot_row", {"slot": _words().slot_name(slot["kind"], slot["index"]), "fitted": fitted})))
-		for id: String in built:
-			if id != slot["upgrade"] and model.tree.get_upgrade(id).kind == FITS.get(slot["kind"], ""):
-				rows.append(_option(slot["slot"], id))
-		if slot["upgrade"] != "":
-			rows.append(HubRows.acting(_words().row("clear_row"), {"action": ACTION_FIT, "slot": slot["slot"], "id": ""}))
-	if not waiting.is_empty():
-		rows.append(HubRows.grouped(HubRows.noted(HubRows.acting(_words().row("resume_row", waiting), {"action": ACTION_RESUME}),
-			_words().row("resume_note", waiting)), HubStationPages.GROUP_RESUME))
-	var launch: Dictionary = HubRows.acting(_words().row("launch_row"), {"action": ACTION_LAUNCH})
-	if not waiting.is_empty():
-		HubRows.noted(launch, _words().row("launch_discard_note"))
-	rows.append(HubRows.grouped(launch, HubStationPages.GROUP_LAUNCH))
-	return rows
-
-
-## The row offering upgrade `id` for `slot`: a mount, or a move whose note
-## says where it is now.
-func _option(slot: String, id: String) -> Dictionary:
-	var now: String = model.fitting.slot_of(id)
-	if now == "":
-		return HubRows.acting(_words().row("fit_option_row", {"name": _name(id)}), {"action": ACTION_FIT, "slot": slot, "id": id})
-	return HubRows.noted(HubRows.acting(_words().row("move_option_row", {"name": _name(id)}),
-		{"action": ACTION_MOVE, "slot": slot, "id": id}), _words().row("move_note", {"from": _words().named_slot(now)}))
+	return HubFitRows.rows(model)
 
 
 ## Selects the first selectable row and shows the top of the rows.
@@ -273,18 +237,29 @@ func _first_row() -> void:
 	_scroll()
 
 
-func _scroll() -> void:
+## Index into the rows (`lines()` without the title) of the selection's last
+## row: the selected row, or the last of the detail rows under it as far as a
+## window can show them with it (#1357); -1 when nothing is selected.
+func selection_end() -> int:
 	var rows: Array[Dictionary] = _rows()
+	var chosen: int = selected_line() - 1
+	var last: int = chosen
+	while chosen >= 0 and last + 1 < rows.size() and rows[last + 1].has("detail_of") and last - chosen + 1 < rows_shown():
+		last += 1
+	return last
+
+
+## Keeps the selected row in view and, as far as the window allows, the detail
+## rows under it, so a fit's before and after is seen with it (#1357).
+func _scroll() -> void:
 	var selectable: Array[bool] = []
-	for entry: Dictionary in rows:
+	for entry: Dictionary in _rows():
 		selectable.append(bool(entry["selectable"]))
 	top = HubWindow.scrolled(top, selected_line() - 1, selectable, rows_shown())
+	var last: int = selection_end()
+	if last >= top + rows_shown():
+		top = last - rows_shown() + 1
 
 
 func _words() -> HubWords:
 	return model.config.words
-
-
-## The upgrade's name from its data file, or its id when the tree lacks it.
-func _name(id: String) -> String:
-	return model.tree.get_upgrade(id).display_name if model.tree.has_upgrade(id) else id

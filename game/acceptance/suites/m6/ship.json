@@ -39,6 +39,10 @@
 		{
 			"id": "ship_model",
 			"checks": ["no_script_errors", "ship_model"]
+		},
+		{
+			"id": "checklist",
+			"checks": ["no_script_errors", "checklist"]
 		}
 	]
 }
