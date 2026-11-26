@@ -2,7 +2,8 @@ class_name HubRoom
 extends Node3D
 
 ## The home base as a modelled room around the seated pilot (#1298, CRW-2,
-## decision record 0012): walls, floor, ceiling, props, up to 8 lights and a
+## decision record 0012): walls, floor, ceiling, props, the pilot's ship on its
+## cradle (#1369, `HubRoomShip`), up to 8 lights (`HubRoomLights`) and a
 ## station for each task the hub pages do, all built from `HubRoomSpec`
 ## (`data/hub/room.json`, ARC-4, ARC-5). The node's origin is the seated eye
 ## point, so the hub wiring places it where it places the hub panel and the
@@ -17,6 +18,9 @@ extends Node3D
 const NODE_NAME: String = "HubRoom"
 ## Render layer 20, unused by anything else in the game.
 const LAYER_BIT: int = 1 << 19
+## The room's share of PRF-4's 150 draw calls: the rest is for the station
+## screens' words and icons, the hands and the controllers (#1369).
+const MAX_DRAW_CALLS: int = 80
 
 var spec: HubRoomSpec = null
 
@@ -45,8 +49,10 @@ func _init(p_spec: HubRoomSpec = HubRoomSpec.load_shipped()) -> void:
 		var at: Transform3D = Transform3D(Basis.from_euler(rotation_rad), prop["position"])
 		add_child(HubRoomParts.part("Prop_%s" % prop["id"], prop["shape"], prop["size"], at,
 			looks[prop["material"]], LAYER_BIT))
+	if not spec.ship.is_empty():
+		add_child(HubRoomShip.build(spec.ship, LAYER_BIT))
 	for i: int in spec.lights.size():
-		add_child(HubRoomParts.light(i, spec.lights[i], LAYER_BIT))
+		add_child(HubRoomLights.build(i, spec.lights[i], LAYER_BIT))
 	for station: Dictionary in spec.stations:
 		add_child(HubRoomParts.station(spec, station, looks, LAYER_BIT))
 	_environment = Environment.new()
@@ -106,3 +112,24 @@ func light_count() -> int:
 		if child is Light3D:
 			count += 1
 	return count
+
+
+## The pilot's ship on the cradle, or null when the room file gives none.
+func ship() -> ShipModel:
+	return get_node_or_null(HubRoomShip.NODE_NAME) as ShipModel
+
+
+## What the room costs to draw: one draw call per mesh and per label (each
+## has one surface and one material), the distinct materials, and the lights.
+func cost() -> Dictionary:
+	var draw_calls: int = 0
+	var materials: Array[Material] = []
+	var pending: Array[Node] = [self]
+	while not pending.is_empty():
+		var node: Node = pending.pop_back()
+		pending.append_array(node.get_children())
+		if node is MeshInstance3D or node is Label3D:
+			draw_calls += 1
+		if node is MeshInstance3D and not materials.has((node as MeshInstance3D).material_override):
+			materials.append((node as MeshInstance3D).material_override)
+	return {"draw_calls": draw_calls, "materials": materials.size(), "lights": light_count()}
