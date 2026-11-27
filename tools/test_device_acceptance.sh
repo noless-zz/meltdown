@@ -92,6 +92,8 @@ run_headset() {
 		printf '%s\n' "$EARLY_LOG" > "$dir/early.log"
 	fi
 	: > "$dir/adb.log"
+	local extra=()
+	read -r -a extra <<< "${EXTRA_ARGS:-}"
 	out="$dir/out"
 	status=0
 	output="$(PATH="$fixtures/bin:$PATH" \
@@ -109,10 +111,17 @@ run_headset() {
 		STUB_ADB_RESOLVE_SEQUENCE="${RESOLVES:-ok}" \
 		STUB_ADB_RESOLVE_ACTIVITY="${RESOLVED:-}" \
 		STUB_ADB_NOT_EXPORTED="${NOT_EXPORTED:-}" \
+		STUB_ADB_DROP_AT="${DROP_AT:-}" \
+		STUB_ADB_DROP_FOR="${DROP_FOR:-never}" \
+		STUB_ADB_HARDWARE="${HARDWARE:-}" \
+		STUB_GAME_FILES="${GAME_FILES:-}" \
+		ANDROID_SERIAL="${SERIAL_ENV:-}" \
+		GITHUB_EVENT_NAME="${EVENT:-}" \
 		GITHUB_STEP_SUMMARY="$dir/summary.md" \
 		pwsh -NoProfile -NonInteractive -File "$tools/device_acceptance.ps1" \
 		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds 3 \
-		-WakeSeconds 0 -ForegroundGraceSeconds 0 -ResolveRetrySeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" 2>&1)" || status=$?
+		-WakeSeconds 0 -ForegroundGraceSeconds 0 -ResolveRetrySeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" \
+		-ReconnectSeconds "${RECONNECT:-5}" -ReconnectPollSeconds 0 ${extra[@]+"${extra[@]}"} 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
 }
 
@@ -301,6 +310,10 @@ if [ "$status" -eq 1 ] && [ "$(status_of "$out")" = "failed" ] \
 else
 	fail "launcher refused: fails once, no retry loop"
 fi
+
+# Adb drops, reports from the game's storage, the serial and unattended runs (#1436).
+# shellcheck source=tools/device_acceptance_drop_checks.sh
+source "$tools/device_acceptance_drop_checks.sh"
 
 # The simulator job skips cleanly away from Windows.
 sim_out="$work/simulator"

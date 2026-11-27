@@ -91,6 +91,48 @@ func test_a_pose_only_profile_fails() -> String:
 	return ""
 
 
+## Unattended (#1436): nobody wears the headset, so sleeping controllers are a
+## skip that says why, as a locked headset is; an attended run still fails.
+func test_untracked_hands_are_skipped_only_in_an_unattended_run() -> String:
+	var check: AcceptanceControllersCheck = _check(false, false, "")
+	check.unattended = true
+	var result: Array = check.run(true, false, {})
+	if result[0] != AcceptanceReport.RESULT_SKIPPED:
+		return "unattended with both hands asleep gave %s" % [result]
+	var message: String = str(result[1])
+	for part: String in ["left controller is not tracked", "right controller is not tracked", "unattended",
+			"not worn"]:
+		if not message.contains(part):
+			return "the skip does not say '%s': %s" % [part, message]
+	if message.contains("unbound"):
+		return "the skip names unbound controls it could not judge: %s" % message
+	check.unattended = false
+	if check.run(true, false, {})[0] != AcceptanceReport.RESULT_FAIL:
+		return "an attended run with both hands asleep did not fail"
+	return ""
+
+
+## Tracked hands are still judged when unattended: a missing binding fails.
+func test_an_unattended_run_still_fails_an_unbound_control() -> String:
+	var check: AcceptanceControllersCheck = _check(true, true, TOUCH,
+		_touch_without("trigger /user/hand/right/input/trigger/value"))
+	check.unattended = true
+	var result: Array = check.run(true, false, {})
+	return "" if result[0] == AcceptanceReport.RESULT_FAIL else "an unbound trigger gave %s unattended" % [result]
+
+
+func test_unattended_comes_from_the_switch_or_the_intent_extra() -> String:
+	if not AcceptanceControllersCheck.unattended_requested(PackedStringArray(["--acceptance-unattended"]), ""):
+		return "the switch was ignored"
+	if not AcceptanceControllersCheck.unattended_requested(PackedStringArray(), "1"):
+		return "the intent extra 1 was ignored"
+	if AcceptanceControllersCheck.unattended_requested(PackedStringArray(["--acceptance=m0"]), ""):
+		return "unattended without being asked"
+	if AcceptanceControllersCheck.unattended_requested(PackedStringArray(), "0"):
+		return "the intent extra 0 counted as unattended"
+	return ""
+
+
 func test_skipped_without_a_runtime_and_failed_when_required() -> String:
 	var check: AcceptanceControllersCheck = _check(true, true, TOUCH)
 	if check.run(false, false, {})[0] != AcceptanceReport.RESULT_SKIPPED:
