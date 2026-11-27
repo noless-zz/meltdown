@@ -33,6 +33,10 @@
 			"checks": ["final_hash", "guide_lights_drawn", "no_script_errors"],
 			"expected_hash": 802400918,
 			"screenshot_at_ticks": [1275, 2340]
+		},
+		{
+			"id": "status_panel_place",
+			"checks": ["no_script_errors", "status_panel_place"]
 		}
 	]
 }
