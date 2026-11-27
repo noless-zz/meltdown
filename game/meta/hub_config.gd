@@ -35,8 +35,10 @@ const KEY_CRAFT_TREE: String = "craft_tree"
 const KEY_BOARDS: String = "boards"
 ## The Fitting Bay's before and after bars (#1385, `HubFitBars`).
 const KEY_FIT_BARS: String = "fit_bars"
+## The Workbench's Parts Locker face (#1413, `HubLockerLayout`).
+const KEY_LOCKER: String = "locker"
 const OPTIONAL_KEYS: Array[String] = [KEY_MAX_ROWS, KEY_MAX_CHARS, KEY_FIT_SHIP, KEY_CRAFT_TREE, KEY_BOARDS,
-	KEY_FIT_BARS]
+	KEY_FIT_BARS, KEY_LOCKER]
 const PAGE_KEYS: Array[String] = ["id", "title"]
 const TEXT_MAX_LENGTH: int = 120
 
@@ -58,6 +60,8 @@ var craft_tree: HubTreeLayout = HubTreeLayout.new()
 var boards: HubBoardLayout = HubBoardLayout.new()
 ## How the Fitting Bay draws a mount's before and after; `has_bars()` is false without it (#1385).
 var fit_bars: HubFitBars = HubFitBars.new()
+## How the Workbench draws its Parts Locker face; `has_locker()` is false without it (#1413).
+var locker: HubLockerLayout = HubLockerLayout.new()
 ## Set by `parse_json` when the text was rejected; the config is then empty.
 var error: String = ""
 var _titles: Dictionary[String, String] = {}
@@ -107,6 +111,9 @@ static func parse_json(text: String) -> HubConfig:
 	if message == "" and data.has(KEY_FIT_BARS):
 		config.fit_bars = HubFitBars.parse(data[KEY_FIT_BARS])
 		message = config.fit_bars.error
+	if message == "" and data.has(KEY_LOCKER):
+		config.locker = HubLockerLayout.parse(data[KEY_LOCKER])
+		message = config.locker.error
 	var words: HubWords = HubWords.parse(data[KEY_TEXT], TEXT_MAX_LENGTH) if message == "" else null
 	if message == "" and words.error != "":
 		message = words.error

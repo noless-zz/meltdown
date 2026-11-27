@@ -1,5 +1,6 @@
 {
 	"id": "skimmer",
+	"name": "Skimmer",
 	"hull": 30.0,
 	"radius": 1.0,
 	"max_speed": 14.0,

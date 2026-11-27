@@ -59,6 +59,11 @@ var lose_target_seconds: float = LOSE_TARGET_DEFAULT_SECONDS
 ## Components it may drop when destroyed (CRF-1), from the optional key
 ## `components`; see `ComponentDrop`. No key means no components.
 var components: Array[ComponentDrop] = []
+## Shown name of the type (#1413), from the key `name`, so the hub can say which
+## robots drop a component without showing ids (#1317). Optional when parsing,
+## since a replay's robot line carries no name; `check_name` refuses a data file
+## without one. Never hashed: renaming a robot changes no replay.
+var display_name: String = ""
 
 ## Default of `lose_target_seconds`, for files that leave the key out.
 const LOSE_TARGET_DEFAULT_SECONDS: float = 2.0
@@ -88,6 +93,8 @@ const OPTIONAL_KEYS: Array[String] = [
 
 ## Optional key holding the component drop table, read by `ComponentDrop`.
 const COMPONENTS_KEY: String = "components"
+const NAME_KEY: String = "name"
+const NAME_MAX_LENGTH: int = 24
 
 ## Keys whose value is an id string rather than a number.
 const ID_KEYS: Array[String] = ["id", "weapon", "salvage"]
@@ -136,7 +143,7 @@ static func parse_json(text: String, kinds: ComponentList = null) -> RobotDef:
 		return _failed("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key) or key == COMPONENTS_KEY):
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or OPTIONAL_KEYS.has(key) or key in [COMPONENTS_KEY, NAME_KEY]):
 			return _failed("unknown key \"%s\"" % str(key))
 	var robot: RobotDef = RobotDef.new()
 	for key: String in KEYS:
@@ -168,6 +175,11 @@ static func parse_json(text: String, kinds: ComponentList = null) -> RobotDef:
 	robot.wake_range = roundf(robot.wake_range * MM_PER_M) / MM_PER_M
 	if robot.strafe_min_distance > robot.strafe_max_distance:
 		return _failed("key \"strafe_min_distance\" is %s, must not exceed \"strafe_max_distance\" %s" % [robot.strafe_min_distance, robot.strafe_max_distance])
+	if data.has(NAME_KEY):
+		var shown: Variant = data[NAME_KEY]
+		if typeof(shown) != TYPE_STRING or str(shown).strip_edges() == "" or str(shown).length() > NAME_MAX_LENGTH:
+			return _failed("key \"%s\" must be a string of 1 to %d characters" % [NAME_KEY, NAME_MAX_LENGTH])
+		robot.display_name = str(shown).strip_edges()
 	if data.has(COMPONENTS_KEY):
 		var problem: Array[String] = []
 		robot.components = ComponentDrop.parse_table(data[COMPONENTS_KEY], problem)
@@ -188,6 +200,12 @@ func check_components(kinds: ComponentList) -> String:
 		if not kinds.has_kind(drop.id):
 			return "key \"components\", entry %d: unknown component \"%s\"" % [index + 1, drop.id]
 	return ""
+
+
+## Returns "" when the file gave the type a shown name, or the problem: a data
+## file must name its robot (#1413), a replay's robot line need not.
+func check_name() -> String:
+	return "missing key \"%s\"" % NAME_KEY if display_name == "" else ""
 
 
 ## Reads a wake range given outside a robot file, such as on one spawn in a

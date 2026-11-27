@@ -14,8 +14,12 @@ extends RefCounted
 ## a card per crew role with the selected one framed; the stick down onto the
 ## ship numbers must draw them as bars with a stock mark. The Logbook must
 ## draw a figure per counter with the won runs as a bar. A screenshot is taken
-## settled forward on each. Telling at a glance what the crew give and how the
-## last runs went stays a headset check.
+## settled forward on each. Then the Workbench's top row switches it to its
+## Parts Locker face (#1413): it must draw a tile (icon and count) per banked
+## kind with the selected one framed, and the selected one's note must name a
+## robot that drops it, by its shown name. A screenshot is taken there too.
+## Telling at a glance what the crew give, how the last runs went and where a
+## component comes from stays a headset check.
 
 const CHECK: String = "hub_boards"
 const ROOM_CHECK: GDScript = preload("res://acceptance/checks/hub_room_check.gd")
@@ -23,6 +27,7 @@ const PROFILE_FILE: String = "user://meltdown_acceptance_hub_boards_profile.json
 const FITTING_FILE: String = "user://meltdown_acceptance_hub_boards_fitting.json"
 const CREW: String = "crew"
 const LOGBOOK: String = "logbook"
+const WORKBENCH: String = "craft"
 const MAX_MOVES: int = 40
 
 
@@ -85,8 +90,40 @@ static func _boards(runner: AcceptanceRunner, step_id: String, hub: HubWiring, m
 	measurements["won_bar"] = snappedf(log.fills["stats:runs_won"], 0.01)
 	hub.stations.advance(HubStations.SETTLE_SECONDS)
 	measurements["screenshot_logbook"] = _screenshot(runner, step_id, "logbook")
-	return [AcceptanceReport.RESULT_PASS, "%d crew cards, %d bars, %d Logbook figures (won bar %.2f)" %
-		[cards, view.fills.size(), log.items.size(), log.fills["stats:runs_won"]]]
+	var locker: Array = _locker(runner, step_id, hub, measurements)
+	if locker[0] != AcceptanceReport.RESULT_PASS:
+		return locker
+	return [AcceptanceReport.RESULT_PASS, "%d crew cards, %d bars, %d Logbook figures (won bar %.2f), %s" %
+		[cards, view.fills.size(), log.items.size(), log.fills["stats:runs_won"], locker[1]]]
+
+
+## The Workbench switched to its Parts Locker face, on its first component.
+static func _locker(runner: AcceptanceRunner, step_id: String, hub: HubWiring, measurements: Dictionary) -> Array:
+	var main: Node = runner.main
+	if not AcceptanceCraftAndFitCheck.choose_station(main, hub, WORKBENCH):
+		return [AcceptanceReport.RESULT_FAIL, "the stick and A did not take the Workbench into use"]
+	var switch: Dictionary = {"action": HubText.ACTION_FACE, "face": HubLocker.LOCKER}
+	if not AcceptanceCraftAndFitCheck.press_in_station(main, hub, switch):
+		return [AcceptanceReport.RESULT_FAIL, "the Workbench has no row that opens the Parts Locker"]
+	AcceptanceCraftAndFitCheck._tap(main, {}, AcceptanceCraftAndFitCheck.STICK_DOWN)  # Onto the first component.
+	var view: HubTreeView = hub.stations.tree_view(WORKBENCH)
+	if view == null or not view.board.visible:
+		return [AcceptanceReport.RESULT_FAIL, "the Workbench draws no Parts Locker"]
+	var tiles: HubBoardView = view.board
+	var held: Array[Dictionary] = HubLocker.kinds(hub.text.model)
+	measurements["locker_tiles"] = tiles.items.size()
+	if held.is_empty() or tiles.items.size() != mini(held.size(), hub.text.model.config.locker.tile_columns) \
+			or not tiles.selected_item.begins_with(HubLocker.ITEM_PREFIX) \
+			or tiles.items[tiles.selected_item].get_node_or_null("Selected") == null:
+		return [AcceptanceReport.RESULT_FAIL, "the Parts Locker drew %s with %s framed" % [tiles.items.keys(), tiles.selected_item]]
+	var from: String = hub.text.note()
+	var robots: Array[String] = hub.text.model.parts.drops.names(tiles.selected_item.trim_prefix(HubLocker.ITEM_PREFIX))
+	measurements["locker_from"] = from
+	if robots.is_empty() or not from.contains(robots[0]):
+		return [AcceptanceReport.RESULT_FAIL, "the Parts Locker says \"%s\" of %s" % [from, tiles.selected_item]]
+	hub.stations.advance(HubStations.SETTLE_SECONDS)
+	measurements["screenshot_locker"] = _screenshot(runner, step_id, "locker")
+	return [AcceptanceReport.RESULT_PASS, "%d locker tiles (%s)" % [tiles.items.size(), from]]
 
 
 ## Draws the frame and saves it; returns the path, or why there is none.

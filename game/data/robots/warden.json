@@ -1,5 +1,6 @@
 {
 	"id": "warden",
+	"name": "Warden",
 	"hull": 90.0,
 	"radius": 2.0,
 	"max_speed": 2.0,

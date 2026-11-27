@@ -101,8 +101,8 @@ func test_the_fit_station_keeps_the_slots_and_the_launch_station_the_launch_row(
 	if hub.selected() != {"action": HubText.ACTION_LAUNCH} or hub.lines().size() != 2:
 		return "the launch station shows %s" % [hub.lines()]
 	hub.choose_station("craft")
-	if not hub.lines().has(hub.model.page_title(HubConfig.STORE)):
-		return "the craft station has no Parts Locker rows: %s" % [hub.lines()]
+	if hub.lines()[1] != hub.model.config.words.row("face_locker_row"):  # Its own face since #1413.
+		return "the craft station does not open the Parts Locker: %s" % [hub.lines()]
 	hub.leave_station()
 	if hub.station != "" or hub.lines()[0] != hub.model.page_title(hub.page_id()):
 		return "leaving the station did not go back to the pages"

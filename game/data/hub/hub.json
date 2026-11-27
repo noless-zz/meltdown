@@ -103,6 +103,15 @@
 		"before_color": [0.42, 0.48, 0.55],
 		"after_color": [0.8, 0.87, 0.93]
 	},
+	"locker": {
+		"rows_visible": 3,
+		"text_floor_m": -0.04,
+		"top_y_m": -0.05,
+		"tile_columns": 4,
+		"tile_height_m": 0.045,
+		"icon_size_m": 0.026,
+		"uses_shown": 2
+	},
 	"empty_crew": "No crew yet",
 	"empty_store": "Locker empty",
 	"text": {
@@ -160,6 +169,14 @@
 		"stats_deepest_level": "Deepest level {count}",
 		"stats_miners_rescued": "Rescued {count}",
 		"stats_components_banked": "Banked {count}",
+		"face_locker_row": "Open Parts Locker",
+		"face_tree_row": "Back to tech tree",
+		"locker_from": "From {names}",
+		"locker_from_more": "From {names} +{count}",
+		"locker_from_none": "No robot drops it",
+		"locker_use_ready": "Ready: {name}",
+		"locker_use": "For {name}",
+		"locker_use_more": "+{count} more upgrades",
 		"slot_names": {"primary": "Primary {number}", "secondary": "Secondary {number}", "utility": "Utility {number}",
 			"shield": "Shield", "hull": "Hull", "engine": "Engine"},
 		"stat_names": {

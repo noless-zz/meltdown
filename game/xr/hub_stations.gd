@@ -24,9 +24,9 @@ extends Node3D
 ## `slot_at`, `point_slot`; #1366): the Fitting Bay shows its ship with slots
 ## (`HubFittingView`), stick left steps back from choosing an item to the ship
 ## before it leaves the station, and the aim picks a slot on the ship. The
-## Workbench draws its tech tree the same way (`HubTreeView`, #1367) and the
-## aim picks a node on it; the Crew Quarters and Logbook draw boards
-## (`HubBoardView`, #1368).
+## Workbench draws its tech tree or its Parts Locker (#1413) the same way
+## (`HubTreeView`, #1367) and the aim picks a node on the tree; the Crew
+## Quarters and Logbook draw boards (`HubBoardView`, #1368).
 
 const NODE_NAME: String = "HubStations"
 ## The hub text's methods the stations call.
@@ -292,7 +292,7 @@ func _draw(id: String, first: int, drawing: Dictionary) -> void:
 			_views[id].visible = false
 		return
 	if not _views.has(id):
-		var kinds: Dictionary = {"tree": HubTreeView, "board": HubBoardView}
+		var kinds: Dictionary = {"tree": HubTreeView, "locker": HubTreeView, "board": HubBoardView}
 		var made: GDScript = kinds.get(str(drawing.get("kind", "")), HubFittingView)
 		_views[id] = made.new(_icons, _screen_look, HubRoom.LAYER_BIT)
 		_screens[id].add_child(_views[id])
