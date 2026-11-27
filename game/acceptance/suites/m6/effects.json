@@ -55,6 +55,14 @@
 			"expected_hash": 2982118127,
 			"expected_outcome": "ESCAPED",
 			"expected_crew": 1
+		},
+		{
+			"id": "step_label",
+			"replay": "res://acceptance/replays/both_primaries_fire.replay",
+			"checks": ["final_hash", "no_script_errors", "step_label_shown"],
+			"expected_hash": 1302297426,
+			"screenshot_at_ticks": [12],
+			"screenshot_at_end": true
 		}
 	]
 }
