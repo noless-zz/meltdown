@@ -60,7 +60,7 @@ func read(values: Dictionary) -> Dictionary:
 func update(session: LocalSession, delta_seconds: float, restart_held: bool, head_point: Transform3D,
 		xr_running: bool) -> bool:
 	if choice.is_open():
-		return choice.update(run, session.paused, head_point, xr_running)
+		return choice.update(run, session.paused, head_point, xr_running, delta_seconds)
 	var escaped: bool = session.sim.outcome() == ExitRule.Outcome.ESCAPED
 	var due: bool = sequence.update(0.0 if escaped else 1.0, 0.0 if session.paused else delta_seconds,
 		restart_held)
@@ -71,7 +71,7 @@ func update(session: LocalSession, delta_seconds: float, restart_held: bool, hea
 			run_won(), lists_shown, lists.base_prompt(xr_running) if to_base else "")
 	if due and escaped and run != null and run.choice_due_after_escape() \
 			and choice.open(run, session.sim.collected.duplicate(), RunWiring.rescued_in(session.sim)):
-		return choice.update(run, session.paused, head_point, xr_running)
+		return choice.update(run, session.paused, head_point, xr_running, delta_seconds)
 	return due
 
 

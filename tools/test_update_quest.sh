@@ -31,7 +31,9 @@ make_release() {
 }
 
 # Runs the script in a fresh scenario. Sets $output, $status, $log (the adb
-# calls, one per line) and $tmp (the script's temporary folder).
+# calls, one per line), $downloads (the URLs fetched) and $tmp (the script's
+# temporary folder, which holds the APK cache). $CACHE_FROM hands over an
+# earlier scenario's temporary folder, so its cache is reused (#1437).
 run_scenario() {
 	local devices="$1"
 	shift
@@ -45,10 +47,18 @@ run_scenario() {
 			> "$dir/release/meltdown-quest-debug.apk.sha256"
 	fi
 	: > "$dir/adb.log"
+	: > "$dir/curl.log"
+	if [ -n "${CACHE_FROM:-}" ]; then
+		cp -R "$CACHE_FROM/." "$tmp/"
+	fi
 	status=0
 	output="$(PATH="$fixtures/bin:$PATH" \
 		STUB_RELEASE_DIR="$dir/release" \
 		STUB_ADB_LOG="$dir/adb.log" \
+		STUB_CURL_LOG="$dir/curl.log" \
+		STUB_ADB_INSTALLED_SHA="${HEADSET_SHA:-}" \
+		STUB_ADB_PM="${PM:-}" \
+		MELTDOWN_FORCE_INSTALL="${FORCE_ENV:-}" \
 		STUB_ADB_STATE="$dir/state" \
 		STUB_ADB_DEVICES="$devices" \
 		STUB_ADB_INCOMPATIBLE="${INCOMPATIBLE:-0}" \
@@ -56,10 +66,22 @@ run_scenario() {
 		STUB_ADB_SEQUENCE="${SEQUENCE:-}" \
 		STUB_ADB_WAIT="${WAIT:-}" \
 		MELTDOWN_DEVICE_WAIT_SECONDS=1 \
+		MELTDOWN_APK_DIR="${APK_DIR_FOR_PS:+$dir/release}" \
+		MELTDOWN_RELEASE_API="${APK_DIR_FOR_PS:+file:///nonexistent/release.json}" \
 		TMPDIR="$tmp" \
-		"$script" "$@" 2>&1)" || status=$?
+		"${runner[@]}" "$@" 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
+	downloads="$(cat "$dir/curl.log")"
 }
+
+# The bash script by default; ps_mode switches to update_quest.ps1 under pwsh,
+# which reads the release from MELTDOWN_APK_DIR (it has no curl to stub).
+runner=("$script")
+ps_mode() {
+	runner=(pwsh -NoProfile -NonInteractive -File "$tools/update_quest.ps1")
+	APK_DIR_FOR_PS=1
+}
+APK_DIR_FOR_PS=""
 
 count_lines() {
 	grep -c -- "$1" <<< "$log" || true
@@ -175,15 +197,16 @@ if [ "$status" -eq 0 ] \
 	&& [ "$(count_lines "install -r --no-streaming")" -eq 1 ] \
 	&& grep -qxF "  Installed." <<< "$output" \
 	&& ! grep -q "Install failed" <<< "$output" \
-	&& [ -z "$(ls -A "$tmp")" ]; then
+	&& [ "$(ls -A "$tmp")" = "meltdown-apk-cache" ]; then
 	pass "a blank streamed failure that works without streaming reports Installed."
 else
 	fail "a blank streamed failure that works without streaming reports Installed. (status $status)"
 fi
 
 # #589: the connection is woken before the first install: wait, wake, install.
+# (The build check before it, #1437, wakes it the same way.)
 run_scenario "$one"
-order="$(grep -E "^-s QUEST3A (wait-for-device|shell true|install)" <<< "$log" | cut -d' ' -f3- | cut -d' ' -f1-2)"
+order="$(sed -n '/ shell pm path /,$p' <<< "$log" | grep -E "^-s QUEST3A (wait-for-device|shell true|install)" | cut -d' ' -f3- | cut -d' ' -f1-2)"
 if [ "$status" -eq 0 ] && [ "$order" = $'wait-for-device\nshell true\ninstall -r' ]; then
 	pass "waits for the headset and wakes it before the first install"
 else
@@ -192,7 +215,7 @@ fi
 
 # #589: blank, then `not found`, then success, as on the owner's headset.
 SEQUENCE="blank notfound ok" run_scenario "$one"
-order="$(grep -E "^-s QUEST3A (wait-for-device|install)" <<< "$log" | cut -d' ' -f3)"
+order="$(sed -n '/ shell pm path /,$p' <<< "$log" | grep -E "^-s QUEST3A (wait-for-device|install)" | cut -d' ' -f3)"
 if [ "$status" -eq 0 ] \
 	&& [ "$(count_lines " install -r ")" -eq 3 ] \
 	&& [ "$order" = $'wait-for-device\ninstall\nwait-for-device\ninstall\nwait-for-device\ninstall' ] \
@@ -268,6 +291,108 @@ if [ "$status" -eq 2 ]; then
 else
 	fail "unknown option is refused (status $status)"
 fi
+
+# #1437: skip a headset that already holds the build; never skip on doubt.
+fixture_sha="$(printf '%s\n' "Not a real APK: a fixture for tools/test_update_quest.sh." | sha256sum | cut -d' ' -f1)"
+other_sha="1111111111111111111111111111111111111111111111111111111111111111"
+for mode in sh ps; do
+	if [ "$mode" = "ps" ]; then
+		if ! command -v pwsh > /dev/null; then
+			echo "FAIL pwsh is missing, so update_quest.ps1 was not checked" >&2
+			failures=$((failures + 1))
+			break
+		fi
+		ps_mode
+		launch_arg="-Launch"
+		force_arg="-Force"
+		build_name="this build"
+	else
+		launch_arg="--launch"
+		force_arg="--force"
+		build_name="build ${release_commit:0:7}"
+	fi
+
+	HEADSET_SHA="$fixture_sha" run_scenario "$one" "$launch_arg"
+	if [ "$status" -eq 0 ] && [ "$(count_lines "install")" -eq 0 ] \
+		&& grep -qxF "Headset QUEST3A already has $build_name (checksum ${fixture_sha:0:12} matches); skipping download and install." <<< "$output" \
+		&& ! grep -q "Checksum verified" <<< "$output" \
+		&& ! grep -q "/meltdown-quest-debug.apk$" <<< "$downloads" \
+		&& [ "$(count_lines "shell monkey")" -eq 1 ]; then
+		pass "$mode: same checksum skips download and install, --launch still starts it"
+	else
+		fail "$mode: same checksum skips download and install, --launch still starts it (status $status)"
+	fi
+
+	for case in "other:$other_sha:" "missing::" "pmfail:$fixture_sha:fail" "nosum:$fixture_sha:nosum"; do
+		IFS=: read -r name sha pm <<< "$case"
+		HEADSET_SHA="$sha" PM="$pm" run_scenario "$one" "$launch_arg"
+		if [ "$status" -eq 0 ] && [ "$(count_lines " install -r ")" -eq 1 ] \
+			&& grep -q "Checksum verified" <<< "$output" && ! grep -q "skipping download" <<< "$output"; then
+			pass "$mode: headset build check '$name' installs"
+		else
+			fail "$mode: headset build check '$name' installs (status $status)"
+		fi
+	done
+
+	HEADSET_SHA="$fixture_sha" run_scenario "$one" "$launch_arg" "$force_arg"
+	if [ "$status" -eq 0 ] && [ "$(count_lines " install -r ")" -eq 1 ] && [ "$(count_lines "pm path")" -eq 0 ]; then
+		pass "$mode: $force_arg installs the same build"
+	else
+		fail "$mode: $force_arg installs the same build (status $status)"
+	fi
+	HEADSET_SHA="$fixture_sha" FORCE_ENV=1 run_scenario "$one" "$launch_arg"
+	if [ "$status" -eq 0 ] && [ "$(count_lines " install -r ")" -eq 1 ] && [ "$(count_lines "pm path")" -eq 0 ]; then
+		pass "$mode: MELTDOWN_FORCE_INSTALL=1 installs the same build"
+	else
+		fail "$mode: MELTDOWN_FORCE_INSTALL=1 installs the same build (status $status)"
+	fi
+
+	# Per headset: the current one is skipped, the other installed, one download.
+	HEADSET_SHA="QUEST3A=$fixture_sha 192.168.1.20:5555=$other_sha" run_scenario "$two" "$launch_arg"
+	if [ "$status" -eq 0 ] \
+		&& [ "$(count_lines "^-s QUEST3A install")" -eq 0 ] \
+		&& [ "$(count_lines "^-s 192.168.1.20:5555 install -r ")" -eq 1 ] \
+		&& [ "$(grep -c "Checksum verified" <<< "$output")" -eq 1 ] \
+		&& [ "$(count_lines "shell monkey")" -eq 2 ]; then
+		pass "$mode: two headsets, one current: only the other installs, one download"
+	else
+		fail "$mode: two headsets, one current: only the other installs, one download (status $status)"
+	fi
+
+	# Both need it: still one download.
+	run_scenario "$two" "$launch_arg"
+	if [ "$status" -eq 0 ] && [ "$(count_lines " install -r ")" -eq 2 ] \
+		&& [ "$(grep -c "Checksum verified" <<< "$output")" -eq 1 ]; then
+		pass "$mode: two headsets that both need it: one download"
+	else
+		fail "$mode: two headsets that both need it: one download (status $status)"
+	fi
+
+	# A rerun after a failed install takes the cached APK; older builds go.
+	BLANK=always run_scenario "$one" "$launch_arg"
+	first_tmp="$tmp"
+	mkdir -p "$first_tmp/meltdown-apk-cache/$other_sha"
+	CACHE_FROM="$first_tmp" run_scenario "$one" "$launch_arg"
+	if [ "$status" -eq 0 ] && [ "$(count_lines " install -r ")" -eq 1 ] \
+		&& grep -qxF "Using the copy already downloaded (${fixture_sha:0:12})." <<< "$output" \
+		&& ! grep -q "Checksum verified" <<< "$output" \
+		&& ! grep -q "/meltdown-quest-debug.apk$" <<< "$downloads" \
+		&& [ "$(ls "$tmp/meltdown-apk-cache")" = "$fixture_sha" ]; then
+		pass "$mode: rerun after a failed install uses the cached APK, older builds deleted"
+	else
+		fail "$mode: rerun after a failed install uses the cached APK, older builds deleted (status $status)"
+	fi
+
+	# The download is still checked against the release's checksum.
+	BAD_CHECKSUM=1 run_scenario "$one" "$launch_arg"
+	if [ "$status" -ne 0 ] && [ "$(count_lines "install")" -eq 0 ] && grep -q "Checksum mismatch" <<< "$output"; then
+		pass "$mode: checksum mismatch installs nothing"
+	else
+		fail "$mode: checksum mismatch installs nothing (status $status)"
+	fi
+done
+runner=("$script")
+APK_DIR_FOR_PS=""
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures update script check(s) failed" >&2

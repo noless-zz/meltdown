@@ -64,6 +64,10 @@ uniform float triplanar_sharpness = 4.0;
 // Only the bevels along box edges glow (`LevelLook.bevel_material`, #1323);
 // on the walls this stays black.
 uniform vec3 glow : source_color = vec3(0.0);
+// Guide light strips (#1463) are drawn in the bevels' surface with their glow
+// in the vertex colour, black on the bevels. Every surface with this above 0
+// must carry vertex colours: without them COLOR reads white.
+uniform float strip_energy = 0.0;
 // Linear and energy applied, as the renderer works out the environment's.
 uniform vec3 ambient_light = vec3(0.0);
 uniform bool baked_ambient = false;
@@ -71,11 +75,13 @@ uniform bool baked_ambient = false;
 varying vec3 world_position;
 varying vec3 world_normal;
 varying vec3 ambient;
+varying vec3 strip_glow;
 
 void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
 	ambient = baked_ambient ? CUSTOM0.rgb : ambient_light;
+	strip_glow = COLOR.rgb * strip_energy;
 }
 
 // A steady value in 0..1 for each plate, so neighbouring plates differ a little.
@@ -212,6 +218,6 @@ void fragment() {
 	vec3 bent = normalize(unit_normal - (slope - dot(slope, unit_normal) * unit_normal));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);
 	// VERTEX is the view-space position here, so its length is the distance.
-	EMISSION = glow + albedo * (1.0 - metallic) * ambient;
+	EMISSION = glow + strip_glow + albedo * (1.0 - metallic) * ambient;
 	FOG = vec4(fog_color, 1.0 - exp(-fog_density * length(VERTEX)));
 }
