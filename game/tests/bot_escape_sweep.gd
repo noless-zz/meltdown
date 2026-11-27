@@ -75,6 +75,33 @@ class SeedResult extends RefCounted:
 	func line() -> String:
 		return "seed %d: %s at tick %d: %s" % [level_seed, outcome, tick, reason]
 
+	## Where the flight ended, in full, so two flights of one seed can be
+	## compared without flying a whole sweep twice (#1483, ARC-2).
+	func describe() -> String:
+		return "seed %d: %s tick %d hash %d hull %.3f robots destroyed %d awake %d" % [level_seed,
+				outcome, tick, state_hash, hull, robots_destroyed, awake]
+
+
+## Every seed `run` flew in this process, by `_key`, so a test that needs one
+## seed a sweep already flew reads it instead of flying it again (#1483).
+static var _flown: Dictionary[String, SeedResult] = {}
+
+
+static func _key(level_seed: int, with_robots: bool, with_debris: bool) -> String:
+	return "%d %s %s" % [level_seed, with_robots, with_debris]
+
+
+## Seed `level_seed` as `run` flies it with the same switches: the flight a
+## sweep already made in this process, or a fresh one. The same seed and data
+## always give the same flight (ARC-2), so the two cannot differ; the
+## determinism tests call `run` and `fly`, which always fly.
+static func flown_once(level_seed: int, with_robots: bool, with_debris: bool) -> SeedResult:
+	var key: String = _key(level_seed, with_robots, with_debris)
+	if not _flown.has(key):
+		var levels: Levels = Levels.new(with_robots, with_debris)
+		_flown[key] = fly(level_seed, levels.level_of(levels.generate(level_seed)), levels.tuning)
+	return _flown[key]
+
 
 ## The generator for `level_seed`, with `bridges` closing loops as the
 ## validator sweep's levels do; null bridges give a tree.
@@ -151,8 +178,9 @@ static func fly(level_seed: int, level: LevelDef, tuning: ShipTuning) -> SeedRes
 ## not), "robots" and
 ## "debris" (whether robots and debris were placed),
 ## "robots_destroyed", "rate", "ms", "failures": a `SeedResult` line for
-## every seed that did not escape, in seed order, and "lost": one
-## `{"seed", "tick", "awake"}` per seed lost before the reactor, in seed order.
+## every seed that did not escape, in seed order, "lost": one
+## `{"seed", "tick", "awake"}` per seed lost before the reactor, in seed order,
+## and "flights": every seed's `SeedResult.describe()`, in seed order (#1483).
 static func run(first_seed: int, count: int, with_robots: bool = false,
 		with_debris: bool = false) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
@@ -160,7 +188,8 @@ static func run(first_seed: int, count: int, with_robots: bool = false,
 	var result: Dictionary = {"seeds": count, "cleared": 0, "escaped": 0, "looped": 0,
 			"no_reactor": 0, "lost_before_reactor": 0, "timed_out": 0, "robots": with_robots, "debris": with_debris, "robots_destroyed": 0,
 			"rate": 0.0,
-			"failures": [] as Array[String], "lost": [] as Array[Dictionary]}
+			"failures": [] as Array[String], "lost": [] as Array[Dictionary],
+			"flights": [] as Array[String]}
 	var broken: String = levels.broken()
 	if broken != "":
 		result["failures"].append(broken)
@@ -171,6 +200,8 @@ static func run(first_seed: int, count: int, with_robots: bool = false,
 		if generator.loops > 0:
 			result["looped"] += 1
 		var flown: SeedResult = fly(level_seed, levels.level_of(generator), levels.tuning)
+		_flown[_key(level_seed, with_robots, with_debris)] = flown
+		result["flights"].append(flown.describe())
 		result["robots_destroyed"] += flown.robots_destroyed
 		if flown.outcome == "NO_REACTOR":
 			result["no_reactor"] += 1

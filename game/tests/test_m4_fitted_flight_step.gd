@@ -21,6 +21,7 @@ const STEP_ID: String = "fitted_flight"
 const PLAIN_ID: String = "run_advances"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M4"
 const RecordSwitch := preload("res://tests/record_switch.gd")
+const M4Plain := preload("res://tests/m4_plain_flight.gd")
 ## The replay takes about 7,200 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 20000
 
@@ -37,12 +38,7 @@ static func step(step_id: String = STEP_ID) -> AcceptanceStep:
 ## The fitted step with its scratch stores dropped: the plain ship on the same
 ## replay, judged against `run_advances`' pinned final hash and outcome.
 static func plain_step() -> AcceptanceStep:
-	var plain: AcceptanceStep = step()
-	plain.profile_path = ""
-	plain.fitting_path = ""
-	plain.expected_hash = step(PLAIN_ID).expected_hash
-	plain.expected_outcome = step(PLAIN_ID).expected_outcome
-	return plain
+	return M4Plain.step()
 
 
 ## Off unless the switch is `1` or lists the step; see the top of this file.
@@ -91,21 +87,20 @@ func test_the_step_flies_fitted_start_s_ship_on_run_advances_inputs() -> String:
 ## Both ships on the same replay, each as the headset flies it: each passes its
 ## pinned hash and outcome, the hashes differ, and the fitted ship ends with at
 ## least the plain ship's shield (lattice shield and two shield technicians).
+## The plain flight is shared with the other m4 tests (`m4_plain_flight.gd`, #1483).
 func test_the_fitted_flight_differs_from_the_plain_one() -> String:
-	var flown: Array[Dictionary] = []
-	for flying: AcceptanceStep in [step(), plain_step()]:
-		var runner: AcceptanceRunner = _run(flying)
-		if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-			var problem: String = "%s (%s): exit %d: %s" % [flying.id,
-				"fitted" if flying.profile_path != "" else "plain", runner.exit_code, "\n".join(runner.messages)]
-			_done(runner)
-			return problem
-		var session: LocalSession = runner.main.get("session")
-		flown.append({"hash": session.sim.state_hash(), "shield": session.sim.ships[0].shield,
-			"outcome": session.sim.outcome()})
+	var runner: AcceptanceRunner = _run(step())
+	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
+		var failed: String = "%s (fitted): exit %d: %s" % [STEP_ID, runner.exit_code, "\n".join(runner.messages)]
 		_done(runner)
-	var fitted: Dictionary = flown[0]
-	var plain: Dictionary = flown[1]
+		return failed
+	var session: LocalSession = runner.main.get("session")
+	var fitted: Dictionary = {"hash": session.sim.state_hash(), "shield": session.sim.ships[0].shield,
+		"outcome": session.sim.outcome()}
+	_done(runner)
+	if M4Plain.problem() != "":
+		return M4Plain.problem()
+	var plain: Dictionary = M4Plain.measured()
 	print("  fitted: hash %d shield %.2f outcome %d; plain: hash %d shield %.2f outcome %d" % [
 		fitted["hash"], fitted["shield"], fitted["outcome"], plain["hash"], plain["shield"], plain["outcome"]])
 	if fitted["hash"] == plain["hash"]:
