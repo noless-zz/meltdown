@@ -7,15 +7,17 @@ extends RefCounted
 ##
 ## An action is data, never code (ARC-4): `ACTION_COMFORT` with a preset
 ## number, `ACTION_SEED` with a seed, `ACTION_LEVEL` with a level file path, or
-## `ACTION_TUNNEL`. The wiring turns it into the dev menu's own choice, so it
-## goes through the same code path as the menu (ARC-3).
+## `ACTION_TUNNEL`, or `ACTION_STATION` with a home base station id (#1408).
+## The wiring turns the first four into the dev menu's own choice and the
+## station into the stick's own presses, so each takes the player's path (ARC-3).
 
 const ACTION_NONE: String = ""
 const ACTION_COMFORT: String = "comfort"
 const ACTION_SEED: String = "seed"
 const ACTION_LEVEL: String = "level"
 const ACTION_TUNNEL: String = "tunnel"
-const ACTIONS: Array[String] = [ACTION_COMFORT, ACTION_SEED, ACTION_LEVEL, ACTION_TUNNEL]
+const ACTION_STATION: String = "station"
+const ACTIONS: Array[String] = [ACTION_COMFORT, ACTION_SEED, ACTION_LEVEL, ACTION_TUNNEL, ACTION_STATION]
 
 ## Unique within its checklist; the results file names steps by it.
 var id: String = ""
@@ -26,8 +28,10 @@ var look_for: String = ""
 ## The remarks offered for this step: its own, else the checklist's.
 var remarks: Array[String] = []
 var action: String = ACTION_NONE
-## The preset number, seed or level path the action uses; "" for none or the tunnel.
+## The preset number, seed, level path or station id the action uses; "" for none or the tunnel.
 var action_value: String = ""
+## A station action's shown station name, from the room file.
+var action_label: String = ""
 
 
 ## The action in words for the page and the docs copy, or "" for none.
@@ -37,4 +41,5 @@ func action_text() -> String:
 		ACTION_SEED: return "fly seed #%s" % action_value
 		ACTION_LEVEL: return "fly %s" % action_value.get_file().get_basename()
 		ACTION_TUNNEL: return "fly the test tunnel"
+		ACTION_STATION: return "open the %s station" % action_label
 	return ""

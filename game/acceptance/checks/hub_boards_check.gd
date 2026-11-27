@@ -8,7 +8,8 @@ extends RefCounted
 ##      "checks": ["no_script_errors", "hub_boards"]}
 ##
 ## After the replay the hub opens on the run (`HubWiring.open_for`) with the
-## profile (three crew roles, some runs logged) and fitting in scratch files.
+## profile (three crew roles, some runs logged) and fitting in scratch files,
+## and its arrival fade is waited out (`hub_room_check.gd`, #1425).
 ## Scripted stick and A presses take the Crew Quarters into use: it must draw
 ## a card per crew role with the selected one framed; the stick down onto the
 ## ship numbers must draw them as bars with a stock mark. The Logbook must
@@ -17,6 +18,7 @@ extends RefCounted
 ## last runs went stays a headset check.
 
 const CHECK: String = "hub_boards"
+const ROOM_CHECK: GDScript = preload("res://acceptance/checks/hub_room_check.gd")
 const PROFILE_FILE: String = "user://meltdown_acceptance_hub_boards_profile.json"
 const FITTING_FILE: String = "user://meltdown_acceptance_hub_boards_fitting.json"
 const CREW: String = "crew"
@@ -41,7 +43,9 @@ static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = [AcceptanceReport.RESULT_FAIL, "the hub did not open"]
 	if hub.open_for(level_start.run):
-		verdict = _boards(runner, step.id, hub, measurements)
+		var arrival: String = ROOM_CHECK.wait_for_arrival(main, hub)
+		verdict = _boards(runner, step.id, hub, measurements) if arrival == "" \
+			else [AcceptanceReport.RESULT_FAIL, arrival]
 	if hub.is_open():
 		hub.close()
 	_remove_scratch()

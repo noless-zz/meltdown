@@ -3,8 +3,9 @@ extends RefCounted
 ## The m6 `hub_room` step (#1369, CRW-2, GFX-2, decision record 0005): after
 ## the replay a lost run opens the hub in the home base room, the ship stands on
 ## the cradle, and the open room is saved as two screenshots, wide from the
-## seat and towards the ship (#1397). Headless, the screenshots are noted as
-## skipped and never fail the step.
+## seat and towards the ship (#1397), only once the room's arrival fade is
+## clear (#1425). Headless, the screenshots are noted as skipped and never fail
+## the step.
 
 const SUITE_PATH: String = "res://acceptance/suites/m6.json"
 const STEP_ID: String = "hub_room"
@@ -25,6 +26,8 @@ func test_the_step_passes_with_the_ship_and_notes_the_screenshot() -> String:
 		var ship_shot: String = str(measured.get("screenshot_ship", ""))
 		if measured.get("ship") != true:
 			problem = "no ship measured on the cradle: %s" % measured
+		elif not measured.has("room_fade") or float(measured["room_fade"]) != 0.0:
+			problem = "the pictures were taken through the arrival fade: %s" % measured.get("room_fade")
 		elif DisplayServer.get_name() == "headless" and not (shot.begins_with("skipped") and ship_shot.begins_with("skipped")):
 			problem = "a headless run claims a screenshot: %s, %s" % [shot, ship_shot]
 		elif DisplayServer.get_name() != "headless" and not (shot.begins_with("skipped") or shot.ends_with("%s_room.png" % STEP_ID)):

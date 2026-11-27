@@ -99,7 +99,7 @@ func _ready() -> void:
 	update.attach(self, status_panel, build_info)
 	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
 	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed, null, hub.is_open, get.bind("session"))
-	checklist.attach($XRRig, dev_menu, comfort, level_start, get.bind("session"), build_info.commit)  # After the menu it joins.
+	checklist.attach($XRRig, dev_menu, comfort, level_start, get.bind("session"), build_info.commit, "", hub)  # After the menu it joins.
 	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
 
 

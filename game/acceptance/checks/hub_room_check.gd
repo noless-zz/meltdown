@@ -17,6 +17,9 @@ extends RefCounted
 ## lit hangar and ship (decision record 0005): `<step id>_room.png`, a wide
 ## view from the seat, and `<step id>_room_ship.png`, the view turned towards
 ## the ship on its cradle (#1397). The camera is put back as it was after each.
+## Arriving fades the room in (#1396), so before any picture the check flies
+## idle frames until that fade is clear (`wait_for_arrival`, #1425); the other
+## base checks that photograph the room wait the same way.
 ## A screenshot that cannot be taken is noted and never fails the step. It moves the run on,
 ## so it is the step's last check. How the room looks and feels stays
 ## human-checked in the headset.
@@ -30,6 +33,9 @@ const FRAME: float = 1.0 / 72.0
 const LOSE_SECONDS: float = 5.0
 ## The wide view's field of view: the stations, walls and shaft mouth in one frame.
 const WIDE_FOV_DEG: float = 100.0
+## Frames past the look's `fade_in_seconds` the arrival may take before the
+## check gives up: frame rounding, and the frame the hub opens on.
+const ARRIVAL_SLACK_FRAMES: int = 4
 
 
 static func judges() -> Dictionary[String, Callable]:
@@ -49,7 +55,12 @@ static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = judge_open_room(main, hub, measurements)
 	if verdict[0] == AcceptanceReport.RESULT_PASS:
+		var arrival: String = wait_for_arrival(main, hub)
+		if arrival != "":
+			verdict = [AcceptanceReport.RESULT_FAIL, arrival]
+	if verdict[0] == AcceptanceReport.RESULT_PASS:
 		measurements["ship"] = hub.room.ship() != null
+		measurements["room_fade"] = room_fade(hub.launching)  # What covers the room as the picture is taken.
 		measurements["screenshot"] = _view(runner, hub.room, "%s_room" % step.id, false)
 		measurements["screenshot_ship"] = _view(runner, hub.room, "%s_room_ship" % step.id, true)
 		if hub.room.ship() == null:
@@ -90,6 +101,34 @@ static func judge_open_room(main: Node, hub: HubWiring, measurements: Dictionary
 			HubRoomSpec.MAX_LIGHTS]]
 	return [AcceptanceReport.RESULT_PASS, "a lost run opens the hub in the room; %d stations in reach, %d lights" %
 		[points.size(), room.light_count()]]
+
+
+## With the hub just opened: flies idle frames through the scene until the
+## room's arrival fade is clear, so a picture shows the lit room and not a
+## near-black frame. "" once clear, or why not.
+static func wait_for_arrival(main: Node, hub: HubWiring) -> String:
+	return wait_until_clear(hub.launching, func() -> void: _frame(main, {}))
+
+
+## Calls `fly` (one frame each) until `launch`'s fade over the room is clear,
+## at most the look's `fade_in_seconds` plus `ARRIVAL_SLACK_FRAMES` frames.
+## "" once clear; otherwise a line naming the fade. The fade is only read,
+## through the room quad's colour, or the fade's own alpha without a quad.
+static func wait_until_clear(launch: HubLaunch, fly: Callable) -> String:
+	var cap: int = ceili(launch.fade.fade_in_seconds / FRAME) + ARRIVAL_SLACK_FRAMES
+	for i: int in cap:
+		if room_fade(launch) <= 0.0:
+			return ""
+		fly.call()
+	if room_fade(launch) <= 0.0:
+		return ""
+	return "the room's arrival fade was still at %.2f after %d frames (fade_in_seconds %.2f)" % [
+		room_fade(launch), cap, launch.fade.fade_in_seconds]
+
+
+## How much of the fade's colour covers the room this frame, 0..1.
+static func room_fade(launch: HubLaunch) -> float:
+	return launch.room_overlay.get_alpha() if launch.room_overlay != null else launch.alpha()
 
 
 static func _frame(main: Node, buttons: Dictionary) -> void:

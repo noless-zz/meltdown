@@ -18,6 +18,14 @@
 #   installs: `ok` prints $STUB_ADB_RESOLVE_ACTIVITY (the launcher by default),
 #   `empty` prints no activity line (as right after an install, #1392).
 # - `am start` refuses $STUB_ADB_NOT_EXPORTED (an activity class) as not exported.
+# - $STUB_ADB_DROP_AT=N: the Nth `godot:V` poll finds the headset gone (#1436).
+#   While gone, every `-s` call fails as `not found` and `adb devices` lists
+#   nothing, for $STUB_ADB_DROP_FOR calls of `devices` (or for ever: `never`).
+# - `getprop ro.serialno` prints the serial's entry in $STUB_ADB_HARDWARE
+#   ("serial=id ..."), else the serial itself.
+# - `run-as <package> ls` lists $STUB_GAME_FILES (the game's storage) oldest
+#   first, and `exec-out run-as <package> cat files/acceptance/<name>` prints
+#   one of them; with no such folder `ls` fails as on a fresh install.
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
 state="$(dirname "$STUB_ADB_LOG")"
@@ -38,9 +46,22 @@ count() {
 	echo "$value"
 }
 
+gone="$state/stub-gone"
+if [ -n "$serial" ] && [ -f "$gone" ]; then
+	echo "adb: device '$serial' not found" >&2
+	exit 1
+fi
+
 case "${1:-}" in
 	devices)
 		echo "List of devices attached"
+		if [ -f "$gone" ]; then
+			if [ "${STUB_ADB_DROP_FOR:-never}" = "never" ] \
+				|| [ "$(count gone-devices)" -le "$STUB_ADB_DROP_FOR" ]; then
+				exit 0
+			fi
+			rm -f "$gone"
+		fi
 		printf '%b' "${STUB_ADB_DEVICES:-}"
 		echo
 		;;
@@ -72,6 +93,12 @@ case "${1:-}" in
 		echo "Success"
 		;;
 	logcat)
+		if [[ " $* " == *" godot:V "* ]] && [ -n "${STUB_ADB_DROP_AT:-}" ] \
+			&& [ "$(count godot-poll)" -eq "$STUB_ADB_DROP_AT" ]; then
+			touch "$gone"
+			echo "adb: device '$serial' not found" >&2
+			exit 1
+		fi
 		if [[ " $* " == *" -d "* ]]; then
 			if [[ " $* " == *" godot:V "* ]] && [ -n "${STUB_GODOT_EARLY_LOG:-}" ] \
 				&& [ "$(count poll)" -le "${STUB_GODOT_EARLY_POLLS:-0}" ]; then
@@ -86,6 +113,12 @@ case "${1:-}" in
 			fi
 		fi
 		;;
+	exec-out)
+		if [ "${2:-}" = "run-as" ] && [ "${4:-}" = "cat" ]; then
+			cat "${STUB_GAME_FILES:-/nonexistent}/$(basename "$5")"
+			exit $?
+		fi
+		;;
 	pull)
 		echo "not a real PNG" > "$3"
 		echo "1 file pulled"
@@ -95,6 +128,24 @@ case "${1:-}" in
 			settings)
 				if [ "${3:-}" = "get" ]; then
 					echo "2"
+				fi
+				;;
+			getprop)
+				for entry in ${STUB_ADB_HARDWARE:-}; do
+					if [ "${entry%%=*}" = "$serial" ]; then
+						echo "${entry#*=}"
+						exit 0
+					fi
+				done
+				echo "$serial"
+				;;
+			run-as)
+				if [ "${4:-}" = "ls" ]; then
+					if [ ! -d "${STUB_GAME_FILES:-/nonexistent}" ]; then
+						echo "ls: files/acceptance: No such file or directory" >&2
+						exit 1
+					fi
+					ls -tr "$STUB_GAME_FILES"
 				fi
 				;;
 			pidof)
