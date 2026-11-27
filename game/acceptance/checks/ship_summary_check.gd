@@ -8,7 +8,8 @@ extends RefCounted
 ##      "checks": ["no_script_errors", "ship_summary"]}
 ##
 ## After the replay the hub opens on the run (`HubWiring.open_for`) with the
-## profile and fitting in scratch files. Scripted stick and A presses build the
+## profile and fitting in scratch files, and its arrival fade is waited out
+## (`hub_room_check.gd`, #1425). Scripted stick and A presses build the
 ## engine upgrade the profile's bank pays for, then take the Fitting Bay into
 ## use: its screen must show the summary at stock; with the engine slot chosen
 ## on the ship (#1366) and the stick on the mount row (not yet pressed) the screen must show each attribute the part changes
@@ -23,6 +24,7 @@ extends RefCounted
 ## of each is taken when the display draws.
 
 const CHECK: String = "ship_summary"
+const ROOM_CHECK: GDScript = preload("res://acceptance/checks/hub_room_check.gd")
 const PROFILE_FILE: String = "user://meltdown_acceptance_ship_summary_profile.json"
 const FITTING_FILE: String = "user://meltdown_acceptance_ship_summary_fitting.json"
 const SLOT: String = "engine"
@@ -46,7 +48,9 @@ static func _judge(_step: AcceptanceStep, runner: AcceptanceRunner, measurements
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = [AcceptanceReport.RESULT_FAIL, "the hub did not open"]
 	if hub.open_for(level_start.run):
-		verdict = _summary_fit_strip(runner, hub, measurements)
+		var arrival: String = ROOM_CHECK.wait_for_arrival(main, hub)
+		verdict = _summary_fit_strip(runner, hub, measurements) if arrival == "" \
+			else [AcceptanceReport.RESULT_FAIL, arrival]
 	if hub.is_open():
 		hub.close()
 	_remove_scratch()
