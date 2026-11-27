@@ -15,6 +15,7 @@ const STEP_ID: String = "components_bank"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M4"
 const RecordSwitch := preload("res://tests/record_switch.gd")
 const RulesTest := preload("res://tests/test_run_level_rules.gd")
+const M4Plain := preload("res://tests/m4_plain_flight.gd")
 ## The escape takes about 7,200 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 20000
 
@@ -70,18 +71,18 @@ func test_the_runner_passes_the_step() -> String:
 	return problem
 
 
-## The run_advances step flies the same replay with the rules off: its pinned
-## hash stands, and the run's profile banks nothing.
+## The other run steps fly the same replay with the rules off: `run_advances`'
+## pinned hash stands, and the run's profile banks nothing. The flight is the
+## plain ship's on that replay, judged against that hash, and shared with the
+## other m4 tests (`m4_plain_flight.gd`, #1483); `test_m4_run_step.gd` flies
+## `run_advances` itself.
 func test_other_run_steps_keep_the_rules_off() -> String:
-	var runner: AcceptanceRunner = _run(["run_advances"])
-	var problem: String = ""
-	var level_start: LevelStart = runner.main.get("level_start") as LevelStart
-	if runner.exit_code != AcceptanceRunner.EXIT_PASS:
-		problem = "exit %d: %s" % [runner.exit_code, "\n".join(runner.messages)]
-	elif level_start.run.level_rules or not level_start.run.profile.banked.is_empty():
-		problem = "run_advances flew with rules: banked %s" % level_start.run.profile.banked
-	_done(runner)
-	return problem
+	if M4Plain.problem() != "":
+		return M4Plain.problem()
+	var measured: Dictionary = M4Plain.measured()
+	if measured["level_rules"] or not (measured["banked"] as Dictionary).is_empty():
+		return "run_advances' replay flew with rules: banked %s" % measured["banked"]
+	return ""
 
 
 func test_components_bank_fields_are_read_and_checked() -> String:

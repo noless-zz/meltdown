@@ -10,7 +10,6 @@ extends RefCounted
 ## through.
 
 const Sweep := preload("res://tests/bot_escape_sweep.gd")
-const SeedSweepRef := preload("res://tests/seed_sweep.gd")
 const STALLED_SEED: int = 4
 ## Seed 4 escapes at about tick 8,400 with the stall check; well inside
 ## `Sweep.TICK_LIMIT` (36,000) with room for harmless changes elsewhere.
@@ -68,12 +67,11 @@ func test_stalls_outlast_the_bots_own_waits() -> String:
 	return ""
 
 
+## Seed 4 with robots and debris, as the sweep flies it. `test_bot_fights.gd`
+## flies seeds 1..10 so, and runs first, so its flight is read, not flown again
+## (#1483); alone, this file flies it itself.
 func test_the_bot_gets_past_the_corner_on_seed_4() -> String:
-	var level: LevelDef = Sweep.generate(STALLED_SEED, SeedSweepRef.load_modules(),
-			SeedSweepRef.load_loop_bridges()).to_level_def(SeedSweepRef.load_reactor_plan(),
-			SeedSweepRef.ship_radius(), SeedSweepRef.load_robot_plan(), Sweep.load_debris_plan())
-	var flown: Sweep.SeedResult = Sweep.fly(STALLED_SEED, level,
-			LocalSession.load_tuning(Sweep.SHIP_TUNING_PATH))
+	var flown: Sweep.SeedResult = Sweep.flown_once(STALLED_SEED, true, true)
 	if not flown.escaped:
 		return flown.line()
 	if flown.tick > ESCAPE_BY_TICK:

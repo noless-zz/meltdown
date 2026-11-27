@@ -26,6 +26,7 @@ const FITTING: String = "res://acceptance/fittings/aim_assist_fitting.json"
 const PROFILE: String = "res://acceptance/fittings/aim_assist_profile.json"
 const RECORD_SWITCH: String = "MELTDOWN_RECORD_M4"
 const RecordSwitch := preload("res://tests/record_switch.gd")
+const M4Plain := preload("res://tests/m4_plain_flight.gd")
 ## The replay takes about 7,200 ticks; the runner flies one per frame.
 const FRAME_LIMIT: int = 20000
 
@@ -41,13 +42,9 @@ static func step(step_id: String = STEP_ID) -> AcceptanceStep:
 
 ## The step with its scratch stores dropped: the plain ship on the same replay,
 ## judged against `run_advances`' pinned final hash and outcome.
+## The same flight as `fitted_flight`'s plain step, flown once for both (#1483).
 static func plain_step() -> AcceptanceStep:
-	var plain: AcceptanceStep = step()
-	plain.profile_path = ""
-	plain.fitting_path = ""
-	plain.expected_hash = step(PLAIN_ID).expected_hash
-	plain.expected_outcome = step(PLAIN_ID).expected_outcome
-	return plain
+	return M4Plain.step()
 
 
 ## Off unless the switch is `1` or lists the step; see the top of this file.
@@ -118,20 +115,19 @@ func test_the_step_flies_the_module_on_run_advances_inputs() -> String:
 ## pinned hash and outcome, the hashes differ, and the module's shots hit robots
 ## at least as often as the plain ship's (#1192).
 func test_the_module_changes_the_flight() -> String:
-	var flights: Array[Dictionary] = []
-	for flying: AcceptanceStep in [step(), plain_step()]:
-		var flown: Dictionary = _fly(flying)
-		var runner: AcceptanceRunner = flown["runner"]
-		if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
-			var problem: String = "%s (%s): exit %d: %s" % [flying.id,
-				"module" if flying.fitting_path != "" else "plain", runner.exit_code, "\n".join(runner.messages)]
-			_done(runner)
-			return problem
-		var session: LocalSession = runner.main.get("session")
-		flights.append({"hash": session.sim.state_hash(), "hits": flown["hits"]})
+	var flown: Dictionary = _fly(step())
+	var runner: AcceptanceRunner = flown["runner"]
+	if runner.exit_code != AcceptanceRunner.EXIT_PASS or not runner.reports[0].passed():
+		var failed: String = "%s (module): exit %d: %s" % [STEP_ID, runner.exit_code, "\n".join(runner.messages)]
 		_done(runner)
-	var assisted: Dictionary = flights[0]
-	var plain: Dictionary = flights[1]
+		return failed
+	var session: LocalSession = runner.main.get("session")
+	var assisted: Dictionary = {"hash": session.sim.state_hash(), "hits": flown["hits"]}
+	_done(runner)
+	# The plain ship's flight, shared with `fitted_flight`'s test (`m4_plain_flight.gd`, #1483).
+	if M4Plain.problem() != "":
+		return M4Plain.problem()
+	var plain: Dictionary = M4Plain.measured()
 	print("  aim assist: hash %d robot hits %d; plain: hash %d robot hits %d" % [
 		assisted["hash"], assisted["hits"], plain["hash"], plain["hits"]])
 	if assisted["hash"] == plain["hash"]:

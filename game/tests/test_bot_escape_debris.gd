@@ -39,6 +39,9 @@ const LONG_WAY_X: float = 22.0
 const TICK_LIMIT: int = 12000
 const SEEDS: int = 20
 const FIRST_SEED: int = 1
+## Seeds flown a second time for the determinism check; each must end exactly
+## where the first sweep left it. Not all twenty: that doubled the test (#1483).
+const REPEATED_SEEDS: int = 3
 ## As in `test_bot_escape_sweep.gd`: about ten seconds on a desktop.
 const TIME_LIMIT_MS: int = 60000
 
@@ -187,11 +190,13 @@ func test_the_debris_sweep_escapes_at_the_g3_rate_the_same_twice() -> String:
 	if first["rate"] < Sweep.REQUIRED_RATE:
 		return "rate %.4f under %.2f: %s" % [first["rate"], Sweep.REQUIRED_RATE,
 				", ".join(first["failures"])]
-	var second: Dictionary = Sweep.run(FIRST_SEED, SEEDS, false, true)
-	if Sweep.summary(second) != line:
-		return "\"%s\" then \"%s\"" % [line, Sweep.summary(second)]
-	if first["failures"] != second["failures"]:
-		return "failures differ: %s then %s" % [first["failures"], second["failures"]]
+	var second: Dictionary = Sweep.run(FIRST_SEED, REPEATED_SEEDS, false, true)
+	var flown_first: Array = first["flights"].slice(0, REPEATED_SEEDS)
+	if flown_first.size() != REPEATED_SEEDS or flown_first != second["flights"]:
+		return "flights %s then %s" % [flown_first, second["flights"]]
+	for failure: String in second["failures"]:
+		if not first["failures"].has(failure):
+			return "failures differ: %s then %s" % [first["failures"], second["failures"]]
 	return ""
 
 

@@ -10,9 +10,10 @@ extends RefCounted
 ## bot finishing it, this goes red; re-pin only with a reason in the devlog.
 ##
 ## The whole run takes about 18 s, so it is flown once. The second flight for
-## ARC-2 repeats only the first two levels, with the same level seeds, and
-## compares them with the first flight's (the CI unit test job is near its
-## time limit, so the whole run is not flown twice).
+## ARC-2 repeats only the first level, with the same level seed, and compares
+## it with the first flight's (the CI unit test job is near its time limit, so
+## the whole run is not flown twice; #1483 cut the repeat from two levels to
+## one, since the run sweep's own repeat flies a different run's first level).
 
 const RunSweep := preload("res://tests/bot_run_sweep.gd")
 const EscapeSweep := preload("res://tests/bot_escape_sweep.gd")
@@ -22,7 +23,7 @@ const PINNED_FILE: String = "res://tests/fixtures/bot_full_run.json"
 const MIN_LEVELS: int = 3
 const MAX_LEVELS: int = 5
 ## Levels flown a second time for the determinism check.
-const REPEATED_LEVELS: int = 2
+const REPEATED_LEVELS: int = 1
 
 ## Filled by the first test that needs it, so the run is flown once per file.
 var _flown: RunSweep.RunResult = null

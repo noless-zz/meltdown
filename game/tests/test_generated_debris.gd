@@ -2,7 +2,8 @@ extends RefCounted
 
 ## Generated levels place meltdown debris from a data file (#398, RUN-4, GEN-1,
 ## GEN-3, ARC-4, ARC-2): the file is checked key by key, naming every missing
-## key; over seeds 0..999 the same seed gives the same debris, every entry keeps
+## key; over seeds 0..999 (every tenth for the regeneration, #1483) the same
+## seed gives the same debris, every entry keeps
 ## the file's distances (robots' too, #436) and sits on the escape route, every level still passes
 ## `LevelValidator`, and with every entry let fall or held back by
 ## `DebrisRouteGuard` the start stays reachable from the reactor. Without a
@@ -13,6 +14,11 @@ const SeedSweep := preload("res://tests/seed_sweep.gd")
 const SeedLevelCache := preload("res://tests/seed_level_cache.gd")
 const DEBRIS_FILE: String = "res://data/gen/debris.json"
 const SEEDS: int = 1000
+## Seeds generated a second time from scratch for the same-debris check: every
+## tenth. Regenerating all 1,000 took about a quarter of this file's time, and
+## every seed takes the same generation path; the 1,000-seed validator and route
+## checks below still cover every seed (#1483, QA: validators on 1,000 seeds).
+const REGENERATED_EVERY: int = 10
 const TIME_LIMIT_MS: int = 60000
 const VALID: Dictionary = {"count": [1, 3], "radius": [1, 2], "after_seconds": [5, 30],
 		"min_start_distance": 10, "min_reactor_distance": 5, "min_robot_distance": 2,
@@ -129,9 +135,11 @@ func test_seeds_get_debris_that_never_closes_the_escape() -> String:
 		# seed generated and built afresh: the same seed gives the same debris.
 		var generator: MineGenerator = SeedLevelCache.generator(level_seed)
 		var level: LevelDef = SeedLevelCache.level(level_seed)
-		var again: LevelDef = MineGenerator.generate(level_seed, modules, SeedSweep.MODULE_COUNT,
-				bridges).to_level_def(reactor_plan, radius, robot_plan, plan)
-		var problem: String = _same(level.debris, again.debris)
+		var problem: String = ""
+		if level_seed % REGENERATED_EVERY == 0:
+			var again: LevelDef = MineGenerator.generate(level_seed, modules, SeedSweep.MODULE_COUNT,
+					bridges).to_level_def(reactor_plan, radius, robot_plan, plan)
+			problem = _same(level.debris, again.debris)
 		if problem == "":
 			problem = _check(generator, level, plan, radius)
 		if problem == "":

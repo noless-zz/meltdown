@@ -3,10 +3,13 @@ extends RefCounted
 ## The run sweep (#1009, RUN-1, RUN-7, GEN-2, gate G4): runs flown with a
 ## stubbed level result give the right summary; the same run seed twice gives
 ## the same `MELTDOWN_BOT_RUN` line, with the bot flying; the first offered
-## shaft is taken, pinned for run seed 12345.
+## shaft is taken, pinned for run seed 12345. Since #1483 the second flight
+## repeats only the run's first level, as `test_bot_full_run.gd` does: the
+## pinned line already catches a run that changes from one commit to the next.
 
 const RunSweep := preload("res://tests/bot_run_sweep.gd")
 const EscapeSweep := preload("res://tests/bot_escape_sweep.gd")
+const Levels := preload("res://tests/bot_sweep_levels.gd")
 ## Run seed 12345's shafts under the first-offered rule, pinned.
 const PINNED_SEED: int = 12345
 const PINNED_SHAFTS: Array[String] = ["deep", "hot", "deep", "steady"]
@@ -119,12 +122,25 @@ func test_first_offered_shaft_is_taken_pinned_for_12345() -> String:
 
 
 func test_same_run_seed_twice_gives_the_same_line() -> String:
-	var first: Dictionary = RunSweep.run(PINNED_SEED, 1)
-	var second: Dictionary = RunSweep.run(PINNED_SEED, 1)
+	# The bot as `RunSweep.run` flies it with no `fly_level`, recorded per level.
+	var levels: Levels = Levels.new(true, true)
+	if levels.broken() != "":
+		return levels.broken()
+	var fly_level: Callable = RunSweep.bot_flies(levels)
+	var flown: Array = []
+	var recording: Callable = func(run_seed: int, index: int, level_seed: int,
+			robot_scale: float) -> EscapeSweep.SeedResult:
+		var result: EscapeSweep.SeedResult = fly_level.call(run_seed, index, level_seed, robot_scale)
+		flown.append([index, level_seed, robot_scale, result])
+		return result
+	var first: Dictionary = RunSweep.run(PINNED_SEED, 1, recording)
 	if not first["errors"].is_empty():
 		return "errors: %s" % [first["errors"]]
-	if first["lines"].size() != 1 or first["lines"] != second["lines"]:
-		return "lines %s then %s" % [first["lines"], second["lines"]]
+	if first["lines"].size() != 1 or flown.is_empty():
+		return "lines %s from %d levels" % [first["lines"], flown.size()]
+	var again: EscapeSweep.SeedResult = fly_level.call(PINNED_SEED, flown[0][0], flown[0][1], flown[0][2])
+	if again.describe() != flown[0][3].describe():
+		return "level 1 (seed %d): %s, then %s" % [flown[0][1], flown[0][3].describe(), again.describe()]
 	if first["lines"][0] != PINNED_PLAIN_LINE or RunSweep.summary(first) != PINNED_PLAIN_SUMMARY:
 		return "plain report %s %s, pinned %s %s" % [first["lines"][0], RunSweep.summary(first),
 				PINNED_PLAIN_LINE, PINNED_PLAIN_SUMMARY]
