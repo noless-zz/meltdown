@@ -19,7 +19,14 @@ extends RefCounted
 ## itself small so the pilot sees what changed and flies on. Pinned, it shows
 ## the next step and takes no input; the menu entry opens it again. Nothing
 ## here writes simulation state (MP-2). It sits beside `main.gd` because it
-## joins the `meta/` checklist to the `xr/` page and the dev menu.
+## joins the `meta/` checklist to the `xr/` page, the dev menu and the hub.
+##
+## At the home base the dev menu ignores the tap (decision record 0009), so a
+## tap there opens the pinned page instead, and pins an open one (#1408); with
+## no page pinned it still does nothing. The open page pauses the session the
+## hub waits on, which keeps the stations from the stick and the aim. A
+## `station` action takes the station into use with the stick's own presses
+## (`HubStationSelect`); away from the base it does nothing and says so.
 
 const LOG_PREFIX: String = "Meltdown: checklist"
 ## The solo session's pause reason while the page is open (`LocalSession.set_paused`).
@@ -40,6 +47,8 @@ var apply_choice: Callable = Callable()
 var save_error: String = ""
 ## What the page used when it closed, kept from the ship until released (#1206).
 var release: DevMenuRelease = DevMenuRelease.new()
+## The hub, whose stations a `station` action uses; null in tests without one.
+var hub: HubWiring = null
 
 var _dev_menu: DevMenuWiring = null
 var _comfort: ComfortWiring = null
@@ -58,7 +67,8 @@ static func default_path() -> String:
 ## Nothing happens in a release build or for a rejected file. `session_of`
 ## returns the session flying now, which the open page pauses.
 func attach(rig: Node3D, dev_menu: DevMenuWiring, comfort: ComfortWiring, level_start: LevelStart,
-		session_of: Callable = Callable(), p_commit: String = BuildInfo.UNKNOWN, path: String = "") -> void:
+		session_of: Callable = Callable(), p_commit: String = BuildInfo.UNKNOWN, path: String = "",
+		p_hub: HubWiring = null) -> void:
 	if page != null or not available:
 		return
 	var file: String = path if path != "" else default_path()
@@ -79,6 +89,7 @@ func attach(rig: Node3D, dev_menu: DevMenuWiring, comfort: ComfortWiring, level_
 	_level_start = level_start
 	_session_of = session_of
 	commit = p_commit
+	hub = p_hub
 	if dev_menu != null:
 		if not apply_choice.is_valid():
 			apply_choice = dev_menu.apply
@@ -93,6 +104,11 @@ func is_open() -> bool:
 
 func is_pinned() -> bool:
 	return page != null and page.visible and page.pinned
+
+
+## True while the hub is open: the pilot sits in the home base.
+func at_base() -> bool:
+	return hub != null and hub.is_open()
 
 
 ## Shows the whole page on the step to do next, in front of the head.
@@ -119,6 +135,11 @@ func close() -> void:
 func read(values: Dictionary) -> Dictionary:
 	if page == null:
 		return values
+	if _dev_menu != null and _dev_menu.ignored_tap and at_base():
+		if is_pinned():
+			open()
+		elif is_open():
+			pin()
 	if is_open() and _dev_menu != null and _dev_menu.is_open():
 		pin()  # A tap opened the menu over the page; the page makes way.
 	var was_open: bool = is_open()
@@ -159,8 +180,12 @@ func mark(p_mark: String) -> String:
 	return problem
 
 
-## Takes `step`'s action through the dev menu's own choice, then pins the page.
+## Takes `step`'s action through the dev menu's own choice, or a station
+## through the stick's presses, then pins the page.
 func do_action(step: ChecklistStep) -> void:
+	if step.action == ChecklistStep.ACTION_STATION:
+		do_station(step)
+		return
 	var choice: String = menu_choice(step)
 	if choice == "":
 		return
@@ -168,6 +193,18 @@ func do_action(step: ChecklistStep) -> void:
 	pin()
 	if apply_choice.is_valid():
 		apply_choice.call(choice)
+
+
+## Pins the page and takes `step`'s station into use; away from the base,
+## or with no stations, leaves the page open saying so.
+func do_station(step: ChecklistStep) -> void:
+	if not at_base() or hub.stations == null:
+		model.notice = "Only at the home base: %s" % step.action_text()
+		print("%s %s: not at the base" % [LOG_PREFIX, step.id])
+		return
+	print("%s %s does station:%s" % [LOG_PREFIX, step.id, step.action_value])
+	pin()
+	HubStationSelect.select(hub.stations, step.action_value)
 
 
 ## The dev menu result that takes `step`'s action, or "" for none.
