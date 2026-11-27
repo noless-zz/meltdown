@@ -65,6 +65,14 @@ const PLACEHOLDERS: Dictionary[String, Array] = {
 	"stats_deepest_level": ["count"],
 	"stats_miners_rescued": ["count"],
 	"stats_components_banked": ["count"],
+	"face_locker_row": [],
+	"face_tree_row": [],
+	"locker_from": ["names"],
+	"locker_from_more": ["names", "count"],
+	"locker_from_none": [],
+	"locker_use_ready": ["name"],
+	"locker_use": ["name"],
+	"locker_use_more": ["count"],
 }
 ## Logbook rows (#1095) are `STATS_ROW_PREFIX` + a `ProfileStats` counter key.
 const STATS_ROW_PREFIX: String = "stats_"

@@ -1,5 +1,6 @@
 {
 	"id": "hauler",
+	"name": "Hauler",
 	"hull": 40.0,
 	"radius": 1.6,
 	"max_speed": 6.0,

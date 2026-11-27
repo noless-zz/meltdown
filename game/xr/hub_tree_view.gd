@@ -18,6 +18,9 @@ extends Node3D
 ## A drawing that shows a node built that the last drawing showed buildable
 ## plays the crafting moment over it (`HubCraftMoment`, #1402): the cost rows'
 ## component icons fly in, the node fills, and the nodes it unlocked glow up.
+##
+## The Workbench's Parts Locker face (#1413) is drawn here too, as a drawing
+## with no nodes and a `board` of component tiles for its `HubBoardView`.
 
 const NODE_NAME: String = "TreeView"
 ## The node states the drawing names (the hub text's; `xr/` names no meta class).
@@ -49,6 +52,8 @@ var lit_edges: int = 0
 var row_icons: Array[HubIcon] = []
 ## The crafting moment over the tree (#1402).
 var moment: HubCraftMoment
+## Draws the Parts Locker's component tiles.
+var board: HubBoardView
 ## False draws every change at rest at once, with no moment (for tests).
 var moments_enabled: bool = true
 
@@ -70,6 +75,9 @@ func _init(icons: HubIcons, screen: Dictionary, layers: int = 1) -> void:
 	add_child(_drawn)
 	moment = HubCraftMoment.new(screen, LOCKED_SCALE)
 	add_child(moment)
+	board = HubBoardView.new(icons, screen, layers)
+	board.visible = false
+	add_child(board)
 
 
 func _process(delta: float) -> void:
@@ -91,11 +99,15 @@ func show_drawing(drawing: Dictionary, shown: Array[Dictionary], first: int, fac
 	var spent: Array[Dictionary] = _component_icons()
 	visible = true
 	_clear()
-	var size: float = drawing["node_size_m"]
-	for edge: Dictionary in drawing["edges"]:
+	var size: float = drawing.get("node_size_m", 0.0)
+	for edge: Dictionary in drawing.get("edges", []):
 		_edge(edge["from"], edge["to"], drawing["edge_width_m"], edge["lit"])
-	for node: Dictionary in drawing["nodes"]:
+	for node: Dictionary in drawing.get("nodes", []):
 		_node(node, size)
+	var tiles: Dictionary = drawing.get("board", {})
+	board.visible = not tiles.is_empty()
+	if board.visible:
+		board.show_drawing(tiles, shown, first, face)
 	var icons: Array = drawing["row_icons"]
 	var row_size: float = minf(_icons.numbers["size_m"], float(_screen["row_step_m"]) * 0.8)
 	for line: Dictionary in shown:

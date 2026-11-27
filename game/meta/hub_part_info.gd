@@ -23,6 +23,9 @@ var weapons: Dictionary[String, Dictionary] = {}
 var parts: Dictionary[String, Dictionary] = {}
 ## Module id to its parsed file.
 var modules: Dictionary[String, Dictionary] = {}
+## Which robots drop each component, for the Parts Locker (#1413); empty until
+## `load_shipped` reads the robot files.
+var drops: RobotDrops = RobotDrops.new()
 
 
 ## Reads the shipped files. A file that does not parse is left out, so its
@@ -31,7 +34,9 @@ static func load_shipped() -> HubPartInfo:
 	var module_texts: Dictionary = {}
 	for dir: String in MODULE_DIRS:
 		module_texts.merge(_texts(dir))
-	return parse(_texts(WEAPONS_DIR), _texts(PARTS_DIR), module_texts)
+	var info: HubPartInfo = parse(_texts(WEAPONS_DIR), _texts(PARTS_DIR), module_texts)
+	info.drops = RobotDrops.load_shipped()
+	return info
 
 
 ## Each argument maps a file name (`<id>.json`) or an id to the file's text.

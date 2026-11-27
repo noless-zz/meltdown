@@ -12,10 +12,9 @@ extends RefCounted
 ## fitting and nothing else (MP-2); saving them stays the caller's job.
 ##
 ## In the home base room (#1299) each station shows a part of the pages: while
-## `station` names one, the rows are its pages' rows (`HubStationPages`), kept to
-## the station's row group, and the same `move`, `selected` and `press` act on them.
-## The rows and their actions are the pages' own, so a station and the flat
-## panel cannot disagree on what a row does.
+## `station` names one, the rows are its pages' rows (`HubStationPages`) of its
+## row group, so a station and the flat panel cannot disagree on what a row
+## does. The Workbench has two faces, its tree and the Parts Locker (`face`, #1413).
 ##
 ## Fewer words on a screen (#1300): a screen shows at most `rows_shown()` rows,
 ## from `first_shown()`, scrolled so the selected row stays in view, and a row's
@@ -29,6 +28,8 @@ const ACTION_LAUNCH: String = "launch"
 const ACTION_RESUME: String = "resume"
 ## Unmounts every fitted upgrade at once (#1357).
 const ACTION_STRIP: String = "strip"
+## Switches the Workbench between its tree and its Parts Locker (#1413).
+const ACTION_FACE: String = "face"
 ## Upgrade kind that fits each slot kind; a kind not listed offers no upgrade.
 ## A part slot (#1094) takes only upgrades of its own kind.
 const FITS: Dictionary[String, String] = {"primary": "weapon", "utility": "module",
@@ -49,6 +50,8 @@ var resumed: Dictionary = {}
 var top: int = 0
 ## The Fitting Bay's chosen slot (`HubFitBay`, #1366), or "" while picking one.
 var fit_slot: String = ""
+## The Workbench's face (`HubLocker.TREE` or `LOCKER`); view state, never saved.
+var face: String = HubLocker.TREE
 
 
 func _init(p_model: HubModel) -> void:
@@ -66,7 +69,10 @@ func page_id() -> String:
 func choose_station(id: String) -> void:
 	station = id if HubStationPages.STATIONS.has(id) else ""
 	fit_slot = ""
+	face = HubLocker.TREE
 	_first_row()
+	if HubLocker.shows(model, station):
+		move(1)  # On the first upgrade; the face switch is one row up.
 
 
 ## Back from a station to the pages, on the page shown before.
@@ -104,18 +110,9 @@ func turn_page(delta: int) -> void:
 	_first_row()
 
 
-## Rows a screen shows at once (`max_rows_visible` in the hub file).
-## Fewer while picking a slot on the bay's drawn ship, so the ship has the face.
+## Rows a screen shows at once (`HubStationPages.rows_shown`).
 func rows_shown() -> int:
-	if station == HubFitBay.STATION and fit_slot == "" and model.config.fit_layout.has_ship():
-		return model.config.fit_layout.slot_rows_visible
-	if station == HubFitBay.STATION and HubFitBoard.rows_shown(model, fit_slot) > 0:
-		return HubFitBoard.rows_shown(model, fit_slot)  # A mount's bars have the rest (#1385).
-	if HubCraftTree.shows(model, station):
-		return model.config.craft_tree.rows_visible  # The tree has the rest of the face (#1367).
-	if HubBoard.shows(model, station):
-		return model.config.boards.rows_visible  # So has the board (#1368).
-	return model.config.max_rows_visible
+	return HubStationPages.rows_shown(model, station, fit_slot, _tree(), _locker())
 
 
 ## Index into the rows (`lines()` without the title) of the first one shown;
@@ -161,6 +158,9 @@ func press() -> String:
 			reason = model.move(action["slot"], action["id"])
 		ACTION_STRIP:
 			reason = model.strip()
+		ACTION_FACE:
+			face = str(action["face"])
+			_first_row()  # On the switch, so A switches back.
 		ACTION_LAUNCH:
 			reason = model.launch_check()
 			if reason == "":
@@ -188,7 +188,7 @@ func back() -> bool:
 ## The slot at `at` (metres on the bay's drawn ship) while one is picked, or
 ## the Workbench tree's node there (#1367), or "".
 func slot_at(at: Vector2) -> String:
-	if HubCraftTree.shows(model, station):
+	if _tree():
 		return HubCraftTree.node_at(model, HubCraftTree.selected_node(_rows(), selected_line() - 1), at)
 	return HubFitBay.slot_at(model, at) if station == HubFitBay.STATION and fit_slot == "" else ""
 
@@ -196,7 +196,7 @@ func slot_at(at: Vector2) -> String:
 ## Pointing at `at` selects the slot or node there (`slot_at`), which it returns.
 func point_slot(at: Vector2) -> String:
 	var slot: String = slot_at(at)
-	if slot != "" and HubCraftTree.shows(model, station):
+	if slot != "" and _tree():
 		row = HubCraftTree.selectable_index(_rows(), slot)
 		_scroll()
 	elif slot != "":
@@ -205,9 +205,11 @@ func point_slot(at: Vector2) -> String:
 
 
 ## What the station in use draws besides its words (`HubFitBay.drawing`,
-## `HubCraftTree.drawing`, `HubBoard.drawing`), or {}.
+## `HubCraftTree.drawing`, `HubLocker.drawing`, `HubBoard.drawing`), or {}.
 func drawing() -> Dictionary:
-	if HubCraftTree.shows(model, station):
+	if _locker():
+		return HubLocker.drawing(model, _rows(), selected_line() - 1)
+	if _tree():
 		return HubCraftTree.drawing(model, _rows(), selected_line() - 1)
 	if HubBoard.shows(model, station):
 		return HubBoard.drawing(model, station, _rows(), selected_line() - 1)
@@ -246,7 +248,16 @@ func _rows() -> Array[Dictionary]:
 func _station_rows() -> Array[Dictionary]:
 	if station == HubFitBay.STATION:
 		return HubFitBay.rows(model, fit_slot)
-	return HubStationPages.rows(model, station)
+	return HubLocker.rows(model) if _locker() else HubStationPages.rows(model, station)
+
+
+## Whether the Workbench shows its tree (or its Parts Locker) now.
+func _tree() -> bool:
+	return face == HubLocker.TREE and HubCraftTree.shows(model, station)
+
+
+func _locker() -> bool:
+	return face == HubLocker.LOCKER and HubLocker.shows(model, station)
 
 
 func _page_rows(id: String) -> Array[Dictionary]:
@@ -274,12 +285,7 @@ func _first_row() -> void:
 ## row: the selected row, or the last of the detail rows under it as far as a
 ## window can show them with it (#1357); -1 when nothing is selected.
 func selection_end() -> int:
-	var rows: Array[Dictionary] = _rows()
-	var chosen: int = selected_line() - 1
-	var last: int = chosen
-	while chosen >= 0 and last + 1 < rows.size() and rows[last + 1].has("detail_of") and last - chosen + 1 < rows_shown():
-		last += 1
-	return last
+	return HubWindow.selection_end(_rows(), selected_line() - 1, rows_shown())
 
 
 ## Keeps the selected row in view and, as far as the window allows, the detail

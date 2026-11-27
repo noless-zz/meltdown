@@ -88,6 +88,7 @@ func test_the_stick_follows_the_edges() -> String:
 		if not kids.is_empty() and order[i + 1] != kids[0]:
 			return "down from %s goes to %s, not %s" % [order[i], order[i + 1], kids[0]]
 	hub.move(-1000)
+	hub.move(1)  # Past the face switch at the top (#1413).
 	var walked: Array[String] = []
 	for i: int in order.size():
 		walked.append(HubCraftTree.selected_node(hub._rows(), hub.selected_line() - 1))

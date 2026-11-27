@@ -1,5 +1,6 @@
 {
 	"id": "glider",
+	"name": "Glider",
 	"hull": 40.0,
 	"radius": 1.2,
 	"max_speed": 18.0,

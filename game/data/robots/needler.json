@@ -1,5 +1,6 @@
 {
 	"id": "needler",
+	"name": "Needler",
 	"hull": 20.0,
 	"radius": 0.5,
 	"max_speed": 22.0,

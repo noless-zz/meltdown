@@ -23,3 +23,13 @@ static func scrolled(top: int, selected: int, selectable: Array[bool], shown: in
 	elif selected >= first + shown:
 		first = selected - shown + 1
 	return clampi(first, 0, count - shown)
+
+
+## Index into `rows` of the selection's last row: the `chosen` row, or the last
+## of the detail rows (`detail_of`) under it as far as a window of `shown` rows
+## can show them with it (#1357); -1 when nothing is chosen.
+static func selection_end(rows: Array[Dictionary], chosen: int, shown: int) -> int:
+	var last: int = chosen
+	while chosen >= 0 and last + 1 < rows.size() and rows[last + 1].has("detail_of") and last - chosen + 1 < shown:
+		last += 1
+	return last

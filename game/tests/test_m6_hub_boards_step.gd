@@ -2,7 +2,8 @@ extends RefCounted
 
 ## The m6 `hub_boards` step (#1368, CRW-1, CRW-2, DEV-6, decision record 0005):
 ## m4's craft-and-fit flight from a scratch profile with crew and logged runs,
-## then the Crew Quarters' cards and bars and the Logbook's figures, with
+## then the Crew Quarters' cards and bars, the Logbook's figures and the
+## Workbench's Parts Locker face (#1413), with
 ## scripted stick and A presses. The pilot's own files are never touched.
 
 const TreeStep: GDScript = preload("res://tests/test_m6_workbench_tree_step.gd")
@@ -57,7 +58,8 @@ func test_the_runner_passes_the_step_and_leaves_no_scratch_files() -> String:
 	else:
 		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
 		if int(measured.get("cards_drawn", 0)) != 3 or int(measured.get("bars_drawn", 0)) < 1 \
-				or int(measured.get("figures_drawn", 0)) != ProfileStats.KEYS.size():
+				or int(measured.get("figures_drawn", 0)) != ProfileStats.KEYS.size() \
+				or int(measured.get("locker_tiles", 0)) != 2 or not str(measured.get("locker_from", "")).begins_with("From "):
 			problem = "the step measured %s" % measured
 	var check: GDScript = load(CHECK_SCRIPT)
 	for path: String in [check.PROFILE_FILE, check.FITTING_FILE]:

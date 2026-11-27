@@ -21,6 +21,8 @@ const BAR: String = "bar"
 const TILE: String = "tile"
 ## A mount's before and after on the Fitting Bay (#1385).
 const PAIR: String = "pair"
+## A Parts Locker component: its icon and count (#1413).
+const PART: String = "part"
 ## In front of the face like the words: backs, then bars and frames, then icons and words.
 const BACK_Z_M: float = 0.0008
 const BAR_Z_M: float = 0.0014
@@ -80,10 +82,13 @@ func show_drawing(drawing: Dictionary, _shown: Array[Dictionary], _first: int, f
 				_bar(spot, item, drawing, width)
 			PAIR:
 				_pair(spot, item, drawing, width)
-			TILE:
+			TILE, PART:
 				var tile: float = width / float(item["columns"])
 				at.x = -width * 0.5 + tile * (float(item["column"]) + 0.5)
-				_tile(spot, item, drawing, tile)
+				if str(item["type"]) == PART:
+					_part(spot, item, drawing, tile)
+				else:
+					_tile(spot, item, drawing, tile)
 		spot.position = Vector3(at.x, at.y, 0.0)
 		add_child(spot)
 		items[str(item["id"])] = spot
@@ -175,6 +180,14 @@ func _tile(spot: Node3D, item: Dictionary, drawing: Dictionary, tile: float) -> 
 		_draw_bar(spot, tile * (0.5 - TILE_BAR) + GAP_M, line, length - GAP_M * 2.0,
 			float(drawing["bar_height_m"]), float(item["fill"]), -1.0)
 		fills[str(item["id"])] = float(item["fill"])
+
+
+## A component's icon with its count beside it, framed when selected.
+func _part(spot: Node3D, item: Dictionary, drawing: Dictionary, tile: float) -> void:
+	var icon: float = drawing["icon_size_m"]
+	_back(spot, Vector2(tile - GAP_M, float(drawing["tile_height_m"]) * BACK_FILL), item["selected"])
+	_put_icon(spot, item["icon"], icon, Vector2(-icon * 0.5 - GAP_M * 0.5, 0.0))
+	_text(spot, item["figure"], Vector2(GAP_M * 0.5, 0.0), HORIZONTAL_ALIGNMENT_LEFT, item["selected"])
 
 
 ## A track from `start` of `length`, filled to `fill` in `color` (the text's

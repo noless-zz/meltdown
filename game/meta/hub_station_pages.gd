@@ -7,7 +7,8 @@ extends RefCounted
 ## two lists equal). The Fitting Bay page holds the ways into the mine as well
 ## as the slots; its resume and launch rows carry a group and have stations of
 ## their own. The Parts Locker sits on the Workbench, under what can be built
-## from it.
+## from it, or, when the hub file draws it (#1413), on the Workbench's second
+## face (`HubLocker`), switched to by a row at the top of the first.
 
 ## Row groups of the Fitting Bay page.
 const GROUP_LAUNCH: String = "launch"
@@ -32,6 +33,9 @@ static func rows(model: HubModel, station: String) -> Array[Dictionary]:
 	var spec: Dictionary = STATIONS[station]
 	var out: Array[Dictionary] = []
 	var pages: Array = spec["pages"]
+	if HubLocker.shows(model, station):
+		out.append(HubLocker.switch_row(model, HubLocker.TREE))
+		pages = pages.filter(func(page: Variant) -> bool: return str(page) != HubConfig.STORE)
 	for i: int in pages.size():
 		var kept: Array[Dictionary] = []
 		var page: String = str(pages[i])
@@ -60,3 +64,21 @@ static func page_rows(model: HubModel, id: String) -> Array[Dictionary]:
 		HubConfig.CRAFT:
 			return HubCraftRows.rows(model)  # Costs, numbers and unlocks (#1317).
 	return HubFitRows.rows(model)
+
+
+## Rows a screen shows at once (`max_rows_visible` in the hub file): fewer
+## while picking a slot on the bay's drawn ship (`fit_slot` ""), so the ship has
+## the face, and where a drawing takes the rest of it: a mount's bars (#1385),
+## the Workbench's `tree` (#1367) or `locker` (#1413), a board (#1368).
+static func rows_shown(model: HubModel, station: String, fit_slot: String, tree: bool, locker: bool) -> int:
+	if station == HubFitBay.STATION and fit_slot == "" and model.config.fit_layout.has_ship():
+		return model.config.fit_layout.slot_rows_visible
+	if station == HubFitBay.STATION and HubFitBoard.rows_shown(model, fit_slot) > 0:
+		return HubFitBoard.rows_shown(model, fit_slot)
+	if locker:
+		return model.config.locker.rows_visible
+	if tree:
+		return model.config.craft_tree.rows_visible
+	if HubBoard.shows(model, station):
+		return model.config.boards.rows_visible
+	return model.config.max_rows_visible
