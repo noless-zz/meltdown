@@ -28,7 +28,7 @@ func test_choices_save_the_corner_and_restart_on_a_seed_or_the_same_source() -> 
 	if saved.corner() != "top_left" or PanelCorner.current != "top_left" or not wiring.is_open():
 		Wiring.done(wiring)
 		return "corner saved as %s, current %s, menu open %s" % [saved.corner(), PanelCorner.current, wiring.is_open()]
-	PanelCorner.current = PanelCorner.CENTRE
+	PanelCorner.current = PanelCorner.DEFAULT_CORNER
 	# Level: step to the seed choice, then the right trigger up to 40 and B up to 42.
 	now = Wiring.select(wiring, DevMenuSpec.KIND_LEVEL, now + 0.5)
 	while wiring.menu.model.levels.choice() != DevMenuLevels.CHOICE_SEED:
