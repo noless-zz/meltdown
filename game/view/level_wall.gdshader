@@ -29,6 +29,11 @@
 // (`AmbientBake`, in CUSTOM0), so each room has its own mood at no cost per
 // frame. Godot adds ambient the same way (albedo, none on metal), so with the
 // global value the walls draw as before.
+// After the reactor dies the walls take an emergency look (#1454, GFX-6,
+// `MeltdownWalls`): a dim warning glow that pulses slowly, the ambient turned
+// towards a warning hue and the guide strips in an alert colour, dimming with
+// the pulse. One uniform, `meltdown`, carries it all, set once a frame from
+// the time since the death; its default draws the walls exactly as before.
 shader_type spatial;
 render_mode ambient_light_disabled;
 
@@ -71,6 +76,13 @@ uniform float strip_energy = 0.0;
 // Linear and energy applied, as the renderer works out the environment's.
 uniform vec3 ambient_light = vec3(0.0);
 uniform bool baked_ambient = false;
+// (ramp 0..1, wall emission, strip brightness), from `MeltdownWalls.amount`.
+uniform vec3 meltdown = vec3(0.0, 0.0, 1.0);
+uniform vec3 meltdown_glow : source_color = vec3(0.0);
+// A hue at full brightness: each box keeps its own ambient's brightness.
+uniform vec3 meltdown_ambient : source_color = vec3(1.0);
+uniform float meltdown_ambient_shift = 0.0;
+uniform vec3 meltdown_strip : source_color = vec3(1.0);
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -80,8 +92,13 @@ varying vec3 strip_glow;
 void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
-	ambient = baked_ambient ? CUSTOM0.rgb : ambient_light;
+	vec3 calm = baked_ambient ? CUSTOM0.rgb : ambient_light;
+	float peak = max(calm.r, max(calm.g, calm.b));
+	ambient = mix(calm, meltdown_ambient * peak, meltdown.x * meltdown_ambient_shift);
 	strip_glow = COLOR.rgb * strip_energy;
+	// Only strip vertices are coloured; the rest of a bevel is black and stays so.
+	float strip = step(1e-4, max(COLOR.r, max(COLOR.g, COLOR.b)));
+	strip_glow = mix(strip_glow, meltdown_strip * strip * strip_energy, meltdown.x) * meltdown.z;
 }
 
 // A steady value in 0..1 for each plate, so neighbouring plates differ a little.
@@ -218,6 +235,6 @@ void fragment() {
 	vec3 bent = normalize(unit_normal - (slope - dot(slope, unit_normal) * unit_normal));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);
 	// VERTEX is the view-space position here, so its length is the distance.
-	EMISSION = glow + strip_glow + albedo * (1.0 - metallic) * ambient;
+	EMISSION = glow + strip_glow + albedo * (1.0 - metallic) * ambient + meltdown_glow * meltdown.y;
 	FOG = vec4(fog_color, 1.0 - exp(-fog_density * length(VERTEX)));
 }

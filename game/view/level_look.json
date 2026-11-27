@@ -51,5 +51,16 @@
 			"junction": [0.35, 0.8, 0.45],
 			"reactor": [0.95, 0.35, 0.15]
 		}
+	},
+	"meltdown": {
+		"period_s": 2.5,
+		"ramp_s": 4.0,
+		"low_emission": 0.03,
+		"high_emission": 0.1,
+		"wall_color": [0.9, 0.18, 0.06],
+		"ambient_color": [1.0, 0.35, 0.2],
+		"ambient_shift": 0.6,
+		"strip_color": [1.0, 0.28, 0.08],
+		"strip_swing": 0.35
 	}
 }
