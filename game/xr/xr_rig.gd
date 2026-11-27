@@ -25,6 +25,10 @@ extends XROrigin3D
 ## the headset's render scale with the frame times, and the `AimRay` (#1451),
 ## shown from the right controller where pointing selects. The controller
 ## shapes are on the hands layer too, so the home base room draws them.
+##
+## Where pointing selects (the home base's stations and the shaft choice) the
+## labels name what acts there instead (`BaseLabels`, #1469), drawn on the hands
+## layer and above the shaft choice's fade; in flight the flight labels return.
 
 const LEFT_COLOR: Color = Color(0.2, 0.6, 1.0)
 const RIGHT_COLOR: Color = Color(1.0, 0.5, 0.2)
@@ -62,6 +66,10 @@ var pickup_hint: bool = false:
 var _shown_signature: int = 0
 ## Hand -> its `LabelFade`; each hand fades on its own.
 var _fades: Dictionary = {}
+## What the labels say at the home base and the shaft choice (#1469). A
+## refused file leaves no labels there, never the flight ones.
+var base_labels: BaseLabels = _load_base_labels()
+var _base_shown: bool = false
 
 
 func _ready() -> void:
@@ -69,7 +77,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _signature() != _shown_signature:
+	if _signature() != _shown_signature or pointing_selects() != _base_shown:
 		refresh_labels()
 	place_headlight()
 	point_ray()
@@ -154,16 +162,31 @@ func render_model_report() -> RenderModelReport:
 	return get_node_or_null(REPORT_NAME) as RenderModelReport
 
 
-## Rebuilds both hands' labels from the mapping as it is now.
+## Rebuilds both hands' labels from the mapping as it is now: the flight
+## labels, or `base_labels` while pointing selects (#1469).
 func refresh_labels() -> void:
 	_shown_signature = _signature()
-	var labels: Dictionary = ControlLabels.for_mapping(mapping, pickup_hint) if mapping != null else {}
-	var left: ControllerModel = model_for("left")
-	var right: ControllerModel = model_for("right")
-	if left != null:
-		left.set_labels(ControlLabels.for_hand(labels, "left"))
-	if right != null:
-		right.set_labels(ControlLabels.for_hand(labels, "right"))
+	_base_shown = pointing_selects()
+	var labels: Dictionary = {}
+	if _base_shown:
+		labels = base_labels.for_hand_mode(mapping != null and mapping.left_handed)
+	elif mapping != null:
+		labels = ControlLabels.for_mapping(mapping, pickup_hint)
+	for model: ControllerModel in _models():
+		model.set_labels(ControlLabels.for_hand(labels, model.hand))
+		model.set_labels_at_base(_base_shown)
+
+
+## True where pointing selects: the home base's stations or the shaft choice
+## are shown, as the aim ray finds them (`AimTargets`).
+func pointing_selects() -> bool:
+	var ray: AimRay = aim_ray()
+	return ray != null and bool(ray.targets.find(self, Transform3D.IDENTITY)["shown"])
+
+
+## True while the labels shown are the base's, not flight's.
+func base_labels_shown() -> bool:
+	return _base_shown
 
 
 ## The controller shape on `hand` (`"left"` or `"right"`), or null before `build`.
@@ -210,3 +233,10 @@ func _signature() -> int:
 	if mapping == null:
 		return 0
 	return hash([mapping.layout, mapping.left_handed, mapping.invert_pitch])
+
+
+static func _load_base_labels() -> BaseLabels:
+	var loaded: BaseLabels = BaseLabels.load_file()
+	if loaded.error != "":
+		push_warning("no control labels at the base: %s" % loaded.error)
+	return loaded

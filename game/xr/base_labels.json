@@ -1,0 +1,8 @@
+{
+	"labels": {
+		"right_stick": "step",
+		"right_button_lower": "select / launch",
+		"left_menu": "tap: menu"
+	},
+	"mirror_left_handed": false
+}
