@@ -11,7 +11,8 @@ extends Node3D
 ## pilot sits at one spot; nothing in the room moves (CMF-1, CMF-3, CMF-8).
 ##
 ## Every part is drawn on `LAYER_BIT` only. While the room shows, the head
-## camera draws that layer alone and the room's own environment, so the mine
+## camera draws that layer, the pilot's hands (`HANDS_LAYER_BIT`: the controller
+## models and the aim ray, #1451) and the room's own environment, so the mine
 ## (and the fade quad that darkens it) is not drawn; hiding the room gives the
 ## camera back its mask and environment. The room reads no simulation state
 ## and writes none (ARC-3, MP-2); the hub's pages stay what they were.
@@ -19,6 +20,13 @@ extends Node3D
 const NODE_NAME: String = "HubRoom"
 ## Render layer 20, unused by anything else in the game.
 const LAYER_BIT: int = 1 << 19
+## Render layer 19: the controller models and the aim ray carry it beside the
+## default layer, so the room's camera draws the hands and nothing else of the
+## mine (#1451). Defined here because the room owns the camera's mask; `xr/`
+## reads it.
+const HANDS_LAYER_BIT: int = 1 << 18
+## What the head camera draws while the room shows.
+const SHOWN_MASK: int = LAYER_BIT | HANDS_LAYER_BIT
 ## The room's share of PRF-4's 150 draw calls: the rest is for the station
 ## screens' words and icons, the hands and the controllers (#1369). Lowered
 ## from 80 to 60 with the hangar details (#1397).
@@ -71,7 +79,7 @@ func is_built() -> bool:
 	return spec != null and spec.error == ""
 
 
-## Shows the room and makes `camera` (may be null) draw only it. False, with
+## Shows the room and makes `camera` (may be null) draw only it and the hands. False, with
 ## nothing changed, when the room was not built.
 func show_for(camera: Camera3D) -> bool:
 	if not is_built():
@@ -81,7 +89,7 @@ func show_for(camera: Camera3D) -> bool:
 		_camera = camera
 		_saved_mask = camera.cull_mask
 		_saved_environment = camera.environment
-		camera.cull_mask = LAYER_BIT
+		camera.cull_mask = SHOWN_MASK
 		camera.environment = _environment
 	return true
 
@@ -98,7 +106,12 @@ func hide_room() -> void:
 
 ## True while the room shows and holds a camera to it.
 func hides_mine() -> bool:
-	return visible and _camera != null and _camera.cull_mask == LAYER_BIT
+	return visible and _camera != null and _camera.cull_mask == SHOWN_MASK
+
+
+## True while the room's camera draws the pilot's hands (#1451).
+func shows_hands() -> bool:
+	return hides_mine() and (_camera.cull_mask & HANDS_LAYER_BIT) != 0
 
 
 ## Each station's screen centre in the room's space (from the eye point), by id.
