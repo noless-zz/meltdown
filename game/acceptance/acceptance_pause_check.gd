@@ -8,9 +8,16 @@ extends RefCounted
 ## tests the path a player's headset takes, not a stand-in.
 ##
 ## `held_while_paused` then judges what the player would see: no simulation
-## tick ran while paused, the simulation's state hash and the camera's world
+## tick ran while paused, the simulation's state hash and the rig's world
 ## pose did not change on any held frame (CMF-8), and the first frame after
 ## the pause flew exactly the next recorded tick, so no input was skipped.
+## The rig, not the camera: on the headset the camera follows the player's
+## head, which moves while the game holds still (#1439).
+##
+## The pause is simulated: the headset never really loses focus, so no OpenXR
+## event will end it. It ends after its frames whatever the session or a held
+## frame showed; a held-frame fault is kept for the verdict, never a reason to
+## stop counting, or the step waits forever (#1439, `m1/focus_pause` on device).
 ## The step's final_hash shows the pause did not change the flight (ARC-2).
 ## During a meltdown the cockpit's countdown is the cue the player watches, so
 ## its text must not change on a held frame either (#886): a countdown that
@@ -71,7 +78,7 @@ func hold_frames() -> int:
 func before_frame(main: Node, tick: int) -> void:
 	if not _started and tick >= _step.pause_at_tick:
 		var session: LocalSession = main.get("session")
-		hold_from(session.sim.tick, session.sim.state_hash(), world_pose(main), countdown_text(main))
+		hold_from(session.sim.tick, session.sim.state_hash(), rig_pose(main), countdown_text(main))
 		if _step.pause_by == BY_MENU:
 			DevMenuPause.hold(session, true)
 		else:
@@ -87,12 +94,12 @@ func before_frame(main: Node, tick: int) -> void:
 ## After the frame: a held frame must show nothing moved; the first frame after
 ## the pause must fly exactly the next tick.
 func after_frame(main: Node) -> void:
-	if not _started or _problem != "":
+	if not _started:
 		return
 	var session: LocalSession = main.get("session")
 	if not _resumed:
-		held_frame(session.sim.tick, session.sim.state_hash(), world_pose(main), countdown_text(main))
-	elif not _judged_resume:
+		held_frame(session.sim.tick, session.sim.state_hash(), rig_pose(main), countdown_text(main))
+	elif not _judged_resume and _problem == "":
 		_judged_resume = true
 		_resume_tick = session.sim.tick
 		if session.sim.tick != _paused_tick + 1 or session.ticks_last_advance != 1:
@@ -114,11 +121,17 @@ func hold_from(tick: int, state_hash: int, pose: Transform3D, countdown: String)
 
 
 ## Judges one held frame from what it showed; the first problem found stays.
+## Every held frame counts towards the hold, faulted or not, so the pause
+## always ends after its frames.
 func held_frame(tick: int, state_hash: int, pose: Transform3D, countdown: String) -> void:
-	if _problem != "":
-		return
 	_held += 1
-	_problem = _held_problem(tick, state_hash, pose, countdown)
+	if _problem == "":
+		_problem = _held_problem(tick, state_hash, pose, countdown)
+
+
+## Whether the hold is over and the headset was put back on.
+func resumed() -> bool:
+	return _resumed
 
 
 func _held_problem(tick: int, state_hash: int, pose: Transform3D, countdown: String) -> String:
@@ -129,7 +142,7 @@ func _held_problem(tick: int, state_hash: int, pose: Transform3D, countdown: Str
 		return "%s: the state hash changed" % where
 	if pose.origin.distance_to(_paused_pose.origin) > POSE_EPSILON \
 			or not _bases_match(pose.basis, _paused_pose.basis):
-		return "%s: the camera moved from %s to %s" % [where, _paused_pose, pose]
+		return "%s: the rig moved from %s to %s" % [where, _paused_pose, pose]
 	if countdown != _paused_countdown:
 		return "%s: the meltdown countdown changed from '%s' to '%s'" % [where, _paused_countdown, countdown]
 	return ""
@@ -178,7 +191,16 @@ func judge(measurements: Dictionary) -> Array:
 ## The camera's world pose, composed up its parents by hand so it also works
 ## outside a scene tree, where the tests fly the main scene.
 static func world_pose(main: Node) -> Transform3D:
-	var node: Node3D = main.get_node_or_null("XRRig/Camera") as Node3D
+	return _composed(main.get_node_or_null("XRRig/Camera") as Node3D)
+
+
+## The rig's world pose: where the game puts the cockpit, without the tracked
+## head inside it. What a held frame must keep still (CMF-8).
+static func rig_pose(main: Node) -> Transform3D:
+	return _composed(main.get_node_or_null("XRRig") as Node3D)
+
+
+static func _composed(node: Node3D) -> Transform3D:
 	if node == null:
 		return Transform3D.IDENTITY
 	var pose: Transform3D = node.transform

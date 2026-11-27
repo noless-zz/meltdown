@@ -57,6 +57,17 @@ func lit_sides() -> Array[String]:
 	return lit
 
 
+## The highest opacity any shown strip has now, 0 when none shows; the
+## `no_stale_overlay` acceptance check reads it (#1439).
+func opacity() -> float:
+	var highest: float = 0.0
+	for strip_side: String in _strips:
+		var strip: MeshInstance3D = _strips[strip_side]
+		if strip.visible:
+			highest = maxf(highest, (strip.material_override as StandardMaterial3D).albedo_color.a)
+	return highest
+
+
 static func _strip(strip_name: String, flash: HitFlash, at: Vector3, turn: float) -> MeshInstance3D:
 	var quad: QuadMesh = QuadMesh.new()
 	quad.size = Vector2(flash.edge_width_m, LENGTH)
