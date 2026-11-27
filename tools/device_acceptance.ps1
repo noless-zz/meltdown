@@ -80,6 +80,7 @@ $ProgressPreference = 'SilentlyContinue'
 . (Join-Path $PSScriptRoot 'acceptance_headset.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_recover.ps1')
 . (Join-Path $PSScriptRoot 'apk_cache.ps1')
+. (Join-Path $PSScriptRoot 'acceptance_progress.ps1')
 $script:deviceWaitSeconds = $DeviceWaitSeconds
 $script:warnings = New-Object System.Collections.Generic.List[string]
 
@@ -240,6 +241,8 @@ try {
 	# room after the game had exited, #599).
 	New-Item -ItemType Directory -Force -Path $shotDir | Out-Null
 	$clock = [Diagnostics.Stopwatch]::StartNew()
+	# A line as each step starts and ends, for whoever watches the headset picture (#1438).
+	$progress = New-ProgressState -Suite $Suite
 	$nextShot = $ScreenshotEverySeconds
 	$stepLines = 0
 	$seenForeground = $false
@@ -248,9 +251,10 @@ try {
 		$poll = Invoke-Device @('logcat', '-d', '-v', 'raw', 'godot:V', '*:S')
 		if ($poll.Ok) {
 			$godotLines = $poll.Text -split "`n"
+			Write-ProgressLines (Get-ProgressLines -State $progress -Lines $godotLines -Elapsed $clock.Elapsed.TotalSeconds)
 		} elseif (-not (Test-DeviceReachable)) {
 			# An adb that cannot reach the headset is not a crash (#1436): wait for it.
-			if ($dropped = Resume-AfterDrop $ReconnectSeconds $ReconnectPollSeconds) { break }
+			if ($dropped = Resume-AfterDrop $ReconnectSeconds $ReconnectPollSeconds $clock) { break }
 			continue
 		}
 		$exitCode = Get-AcceptanceExitCode $godotLines
@@ -280,7 +284,7 @@ try {
 				$crashed = $true
 				break
 			}
-			if ($dropped = Resume-AfterDrop $ReconnectSeconds $ReconnectPollSeconds) { break }
+			if ($dropped = Resume-AfterDrop $ReconnectSeconds $ReconnectPollSeconds $clock) { break }
 			continue
 		}
 		if ($elapsed -ge $ForegroundGraceSeconds -and -not $seenForeground -and $steps -eq 0) {
