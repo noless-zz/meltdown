@@ -14,7 +14,7 @@ extends RefCounted
 ##
 ## In a run the screen lists what earlier escapes kept and what this level
 ## lost, from copies (#1376, RUN-7, MP-2). When the press ends the run and
-## opens the base (`HubWiring.ends_run`), both end screens' prompts say so.
+## opens the base (`HubOpening.ends_run`), both end screens' prompts say so.
 ##
 ## The low-hull tone (#1456) runs here on the same copy of the hull as the
 ## pulses, silenced whenever an end screen or the shaft choice is up; `main.gd`
@@ -104,7 +104,7 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 
 ## True when the restart press after `session` ends the run and opens the base.
 func ends_run(session: LocalSession) -> bool:
-	return level_start != null and HubWiring.ends_run(level_start, session)
+	return level_start != null and HubOpening.ends_run(level_start, session)
 
 
 ## What earlier escapes kept and this level lost, from copies of the run's

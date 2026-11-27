@@ -75,7 +75,7 @@ func test_a_save_killed_before_its_rename_leaves_the_earlier_one() -> String:
 	killed.stop_before_rename = true
 	var later: RunSave = RunResume.to_save(_advanced_twice(), "default_ship", LOADOUT)
 	killed.save(later)
-	var waiting: RunSave = HubWiring.waiting_save(killed)
+	var waiting: RunSave = HubOpening.waiting_save(killed)
 	_clean()
 	if later.error != "":
 		return "the later save was refused: %s" % later.error
@@ -90,7 +90,7 @@ func test_a_first_save_killed_before_its_rename_offers_none() -> String:
 	var killed: RunSaveStore = RunSaveStore.new(SAVE_PATH)
 	killed.stop_before_rename = true
 	killed.save(RunResume.to_save(_advanced_twice(), "default_ship", LOADOUT))
-	var waiting: RunSave = HubWiring.waiting_save(killed)
+	var waiting: RunSave = HubOpening.waiting_save(killed)
 	var has: bool = killed.has_save()
 	_clean()
 	return "" if waiting == null and not has else "a killed first save is offered"
@@ -100,7 +100,7 @@ func test_a_resumed_run_cannot_be_resumed_again() -> String:
 	var run: RunWiring = _suspended()
 	var first: RunSave = run.saves.take()
 	var second: RunSave = run.saves.take()
-	var waiting: RunSave = HubWiring.waiting_save(run.saves)
+	var waiting: RunSave = HubOpening.waiting_save(run.saves)
 	_clean()
 	if first == null:
 		return "the save was not taken: %s" % run.saves.message

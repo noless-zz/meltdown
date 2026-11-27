@@ -15,6 +15,11 @@ extends Node3D
 ## however the hand is held; each leader runs from its row's inner edge to its
 ## part, which still moves with the hand.
 ##
+## Where pointing selects (the home base and the shaft choice, #1469) the set
+## is put `at_base`: its labels and leaders also go on the hands layer, which
+## the base room's camera draws, and to the top render priority, one above the
+## shaft choice's dark fade. In flight both are back at Godot's defaults.
+##
 ## Nothing here reads or writes input or ship state (ARC-3).
 
 const COLUMN: String = "column"
@@ -49,6 +54,11 @@ const LEADER_PREFIX: String = ControlLabelLeader.PREFIX
 ## Where the eye is assumed before `face` is first called: straight behind the
 ## hand, upright, as in a neutral pose.
 const DEFAULT_EYE_LOCAL: Transform3D = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, 0.5))
+## Layers in flight: the default one only, so the base room never draws them.
+const FLIGHT_LAYERS: int = 1
+## The text one above the fade (`FadeOverlay.RENDER_PRIORITY`), its outline
+## just under the text, as Label3D's defaults keep the outline under it.
+const BASE_RENDER_PRIORITY: int = Material.RENDER_PRIORITY_MAX
 
 ## `"left"` or `"right"`; picks which way the column mirrors.
 var hand: String = "right"
@@ -63,6 +73,7 @@ var _sizes: Dictionary = {}
 var _eye_local: Transform3D = DEFAULT_EYE_LOCAL
 var _alpha: float = 1.0
 var _leader_material: StandardMaterial3D = null
+var _at_base: bool = false
 
 
 func _init(p_hand: String = "right") -> void:
@@ -113,6 +124,28 @@ func set_labels(labels: Dictionary, control_points: Dictionary) -> void:
 			add_child(ControlLabelLeader.new(str(control), _leader_material))
 	_arrange()
 	set_alpha(_alpha)
+	set_at_base(_at_base)
+
+
+## Puts the labels and leaders on the hands layer above the fade when `on`
+## (the base and the shaft choice), or back to the defaults in flight.
+func set_at_base(on: bool) -> void:
+	_at_base = on
+	var layers: int = FLIGHT_LAYERS | (HubRoom.HANDS_LAYER_BIT if on else 0)
+	for child: Node in get_children():
+		var label: Label3D = child as Label3D
+		if label != null:
+			label.layers = layers
+			label.render_priority = BASE_RENDER_PRIORITY if on else 0
+			label.outline_render_priority = BASE_RENDER_PRIORITY - 1 if on else -1
+		elif child is ControlLabelLeader:
+			(child as ControlLabelLeader).layers = layers
+	if _leader_material != null:
+		_leader_material.render_priority = BASE_RENDER_PRIORITY if on else 0
+
+
+func at_base() -> bool:
+	return _at_base
 
 
 ## Squares the column to an eye at `eye_local` (this node's frame, looking

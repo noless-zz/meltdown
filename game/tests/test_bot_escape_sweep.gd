@@ -23,9 +23,16 @@ const FIRST_SEED: int = 1
 const TIME_LIMIT_MS: int = 60000
 ## Seeds flown twice for the determinism check.
 const REPEATED_SEEDS: int = 3
+## Robot seeds flown twice: one, since each robot flight takes seconds and the
+## first three are flown once already for the summary checks (#1483).
+const REPEATED_ROBOT_SEEDS: int = 1
 ## A seed from 0..999 whose level the shipped bridges loop (one of 185, 379, 976
 ## at the time of #420).
 const LOOPED_SEED: int = 185
+
+## The twenty-seed run, flown once per file: the rate test and the
+## determinism test both read it (#1483).
+var _twenty: Dictionary = {}
 
 
 static func _build(level_seed: int, plan: ReactorPlan) -> LevelDef:
@@ -36,8 +43,23 @@ static func _tuning() -> ShipTuning:
 	return LocalSession.load_tuning(Sweep.SHIP_TUNING_PATH)
 
 
+func _twenty_seeds() -> Dictionary:
+	if _twenty.is_empty():
+		_twenty = Sweep.run(FIRST_SEED, SEEDS)
+	return _twenty
+
+
+## The failure lines of `result` for seeds below `first + count`.
+static func _failures_before(result: Dictionary, first: int, count: int) -> Array[String]:
+	var kept: Array[String] = []
+	for line: String in result["failures"]:
+		if line.get_slice(":", 0).trim_prefix("seed ").to_int() < first + count:
+			kept.append(line)
+	return kept
+
+
 func test_twenty_seeds_escape_at_the_g3_rate() -> String:
-	var result: Dictionary = Sweep.run(FIRST_SEED, SEEDS)
+	var result: Dictionary = _twenty_seeds()
 	print("  %s" % Sweep.summary(result))
 	print("  %s" % Sweep.details(result))
 	if result["ms"] > TIME_LIMIT_MS:
@@ -155,13 +177,17 @@ static func _parses_with(line: String, keys: Array[String]) -> String:
 	return ""
 
 
+## The first seeds flown again end exactly where the twenty-seed run's did
+## (#1483: that run is the first flight, so the seeds are not flown twice more).
 func test_the_same_seeds_give_the_same_summary_and_flights() -> String:
-	var first: Dictionary = Sweep.run(FIRST_SEED, REPEATED_SEEDS)
+	var first: Dictionary = _twenty_seeds()
 	var second: Dictionary = Sweep.run(FIRST_SEED, REPEATED_SEEDS)
-	if Sweep.summary(first) != Sweep.summary(second):
-		return "\"%s\" then \"%s\"" % [Sweep.summary(first), Sweep.summary(second)]
-	if first["failures"] != second["failures"]:
-		return "failures differ: %s then %s" % [first["failures"], second["failures"]]
+	var flown_first: Array = first["flights"].slice(0, REPEATED_SEEDS)
+	if flown_first.size() != REPEATED_SEEDS or flown_first != second["flights"]:
+		return "flights %s then %s" % [flown_first, second["flights"]]
+	if _failures_before(first, FIRST_SEED, REPEATED_SEEDS) != second["failures"]:
+		return "failures differ: %s then %s" % [_failures_before(first, FIRST_SEED, REPEATED_SEEDS),
+				second["failures"]]
 	# The summary could match by luck; each flight must end on the same state.
 	var plan: ReactorPlan = SeedSweepRef.load_reactor_plan()
 	for level_seed: int in range(FIRST_SEED, FIRST_SEED + REPEATED_SEEDS):
@@ -250,9 +276,11 @@ func test_robots_on_request_give_a_deterministic_summary() -> String:
 				first["no_reactor"], first["seeds"]]
 	if JSON.parse_string(line.trim_prefix(Sweep.SUMMARY_TAG + " "))["robots"] != true:
 		return "\"robots\" is not true: %s" % line
-	var second: Dictionary = Sweep.run(FIRST_SEED, REPEATED_SEEDS, true)
-	if Sweep.summary(second) != line:
-		return "\"%s\" then \"%s\"" % [line, Sweep.summary(second)]
-	if first["failures"] != second["failures"]:
+	# Flown again, the first seed must end exactly where it did (#1483).
+	var second: Dictionary = Sweep.run(FIRST_SEED, REPEATED_ROBOT_SEEDS, true)
+	var flown_first: Array = first["flights"].slice(0, REPEATED_ROBOT_SEEDS)
+	if flown_first != second["flights"]:
+		return "flights %s then %s" % [flown_first, second["flights"]]
+	if _failures_before(first, FIRST_SEED, REPEATED_ROBOT_SEEDS) != second["failures"]:
 		return "failures differ: %s then %s" % [first["failures"], second["failures"]]
 	return ""
