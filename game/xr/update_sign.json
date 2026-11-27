@@ -1,0 +1,8 @@
+{
+	"position_m": [0.4, -0.4, -0.35],
+	"title_text": "Update available: {version}",
+	"hint_text": "Update: open the menu",
+	"line_pitch_m": 0.045,
+	"pixel_size_m": 0.0007,
+	"font_size": 48
+}

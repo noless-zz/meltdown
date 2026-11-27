@@ -100,7 +100,7 @@ func _ready() -> void:
 	break_prompt.attach($XRRig, comfort, update)  # Takes the menu tap while it shows.
 	dev_menu.attach($XRRig, update, level_start, restart_level, flight_test, destroyed, null, hub.is_open, get.bind("session"))
 	checklist.attach($XRRig, dev_menu, comfort, level_start, get.bind("session"), build_info.commit, "", hub)  # After the menu it joins.
-	AcceptanceRunner.start_if_requested(self)  # Only with --acceptance=<suite> (#165).
+	AcceptanceStepLabelWiring.attach(self, AcceptanceRunner.start_if_requested(self))  # Only with --acceptance=<suite> (#165); step label #1438.
 
 
 func _process(delta: float) -> void:

@@ -3,7 +3,8 @@ extends RefCounted
 ## The dev menu wired to the left menu button's tap (#763, PLT-5, DEV-6,
 ## ARC-3, CMF-8, MP-2): the tap opens and closes it and a hold still resets;
 ## open, the ship gets neutral input; the tap is ignored during the flight
-## test and the end screens; `main.gd` stays at its length. The menu's choices
+## test and an end screen's fade, and opens on the dark end screen (#1450);
+## `main.gd` stays at its length. The menu's choices
 ## are in `test_dev_menu_wiring_choices.gd`, which uses this file's public
 ## static fixtures (#1283).
 
@@ -138,7 +139,7 @@ func test_with_the_menu_open_the_ship_flies_neutral_input() -> String:
 	return result
 
 
-func test_the_tap_does_nothing_during_the_flight_test_or_an_end_screen() -> String:
+func test_the_tap_does_nothing_during_the_flight_test_and_opens_on_a_dark_end_screen() -> String:
 	var restarts: Array[String] = []
 	var flight_test: FlightTestWiring = FlightTestWiring.new()
 	flight_test.choice_path = scratch("choice.json")
@@ -159,15 +160,23 @@ func test_the_tap_does_nothing_during_the_flight_test_or_an_end_screen() -> Stri
 		tap(wiring, 1.0)
 		var opened_before: bool = wiring.is_open()
 		var sequence: DestroyedSequence = destroyed.escape.sequence if escape else destroyed.sequence
+		sequence.update(0.0, 0.0, false)  # The screen comes up and starts to fade (#1450).
 		sequence.update(0.0, 0.5, false)
 		wait(wiring, 2.0, 0.1)
 		var closed_by_screen: bool = not wiring.is_open()
 		tap(wiring, 3.0)
+		var opened_while_fading: bool = wiring.is_open()
+		sequence.update(0.0, 30.0, false)  # Dark, the line and prompt up.
+		tap(wiring, 4.0)
 		var opened_on_screen: bool = wiring.is_open()
+		var place: String = wiring.menu.model.place
+		var texts: Array[String] = wiring.menu.texts()
 		done(wiring)
-		if not opened_before or not closed_by_screen or opened_on_screen:
-			return "escape %s: opened before %s, closed by the screen %s, opened on it %s" \
-				% [escape, opened_before, closed_by_screen, opened_on_screen]
+		if not opened_before or not closed_by_screen or opened_while_fading:
+			return "escape %s: opened before %s, closed by the screen %s, opened while fading %s" \
+				% [escape, opened_before, closed_by_screen, opened_while_fading]
+		if not opened_on_screen or place != DevMenuPlaces.END or " | ".join(texts).contains("Mine"):
+			return "escape %s: on the dark screen opened %s at %s showing %s" % [escape, opened_on_screen, place, texts]
 	return ""
 
 

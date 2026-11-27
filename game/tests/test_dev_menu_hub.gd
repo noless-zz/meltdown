@@ -1,9 +1,10 @@
 extends RefCounted
 
-## The hub closes the dev menu (#1170, CRW-2, DEV-6, PLT-5, decision record
-## 0009): a menu open when the hub opens closes and a restart it was fading to
-## is dropped; a tap with the hub open is ignored; once the hub closes the tap
-## opens the menu again. No scene: the hub is a flag the test sets.
+## The dev menu and the hub (#1170, #1450, CRW-2, DEV-6, PLT-5, decision record
+## 0009): a menu open in the mine closes when the hub opens and a restart it was
+## fading to is dropped; a tap with the hub open opens the menu with the base's
+## entries (#1450 replaces #1170's "the tap is ignored"); once the hub closes the
+## tap opens the mine's menu again. No scene: the hub is a flag the test sets.
 
 const SCRATCH_DIR: String = "user://test_dev_menu_hub"
 const FRAME: float = 1.0 / 72.0
@@ -94,21 +95,27 @@ func test_a_restart_waiting_when_the_hub_opens_is_dropped() -> String:
 	return ""
 
 
-func test_a_tap_with_the_hub_open_does_not_open_the_menu() -> String:
+func test_a_tap_with_the_hub_open_opens_the_menu_with_the_base_entries() -> String:
 	var hub: HubFlag = HubFlag.new()
 	hub.open = true
 	var restarts: Array[String] = []
 	var wiring: DevMenuWiring = _wired(hub, restarts)
 	_tap(wiring, 1.0)
-	_tap(wiring, 2.0)
 	var open: bool = wiring.is_open()
 	var blocked: bool = wiring.blocked()
+	var place: String = wiring.menu.model.place
+	var texts: Array[String] = wiring.menu.texts()
+	_tap(wiring, 2.0)
+	var closed: bool = not wiring.is_open()
 	wiring.menu.free()
-	if open:
-		return "a tap opened the menu over the hub"
-	if not blocked:
-		return "blocked() is false with the hub open"
-	return ""
+	if not open or blocked:
+		return "a tap at the base: open %s, blocked %s" % [open, blocked]
+	if place != DevMenuPlaces.BASE:
+		return "the menu opened at %s, not the base" % place
+	var joined: String = " | ".join(texts)
+	if joined.contains("Mine") or not joined.contains("Comfort") or not joined.contains("Display"):
+		return "the base's top list is %s" % [texts]
+	return "" if closed else "a second tap did not close the menu at the base"
 
 
 func test_once_the_hub_closes_the_tap_opens_the_menu_again() -> String:
@@ -118,11 +125,16 @@ func test_once_the_hub_closes_the_tap_opens_the_menu_again() -> String:
 	var wiring: DevMenuWiring = _wired(hub, restarts)
 	_tap(wiring, 1.0)
 	hub.open = false  # Launch or resume closes the hub.
+	_idle(wiring, 1.5, 0.1)
+	var closed_on_leaving: bool = not wiring.is_open()
 	_tap(wiring, 2.0)
 	var open: bool = wiring.is_open()
+	var place: String = wiring.menu.model.place
 	wiring.menu.free()
-	if not open:
-		return "after the hub closed, the tap did not open the menu"
+	if not closed_on_leaving:
+		return "the base's menu stayed open once the hub closed"
+	if not open or place != DevMenuPlaces.MINE:
+		return "after the hub closed, the tap opened %s at %s" % [open, place]
 	return ""
 
 

@@ -25,8 +25,8 @@ extends RefCounted
 ## corners of the view the owner can choose, in the same space, as
 ## `{"top_left": [x, y, z], "top_right": ..., "bottom_left": ...,
 ## "bottom_right": ...}`. A panel in a corner is turned to face the eye with
-## its rows level. `position_m` and `tilt_deg` stay the panel's place when no
-## corner is chosen (`PanelCorner.CENTRE`).
+## its rows level. `position_m` and `tilt_deg` stay the panel's place when the
+## centre is chosen (`PanelCorner.CENTRE`); the default is a corner (#1452).
 ##
 ## `rows` may be left out (#1207): the names of the rows the panel draws, from
 ## `StatusPanelRowList.NODES`; without it, `StatusPanelRowList.FIGHT`.
@@ -100,13 +100,18 @@ const FALLBACK: Dictionary = {
 	"tally_miner_text": "Miner aboard",
 	"tally_flash_color": Color(0.35, 1.0, 0.45),
 	"tally_flash_seconds": 1.0,
-	# About 17 degrees to the side and 13 up or down at 0.55 m, like the
-	# default's distance: every row stays within 40 degrees of straight ahead.
+	# 0.6 m out, the left corners 31 degrees to the side and the right ones 37,
+	# because the labels start left of the panel's centre; the top corners 8
+	# degrees up, bottom left 15 down and bottom right 11, clear of the right
+	# stick's label (#1452). Every drawn row, the tally lines,
+	# stays outside a 25 degree cone around straight ahead, where the tunnel
+	# is, and within 50 degrees of it. At 17 and 13 degrees the tally rows of
+	# #1356 reached the eye line.
 	"corners": {
-		"top_left": Vector3(-0.157, 0.124, -0.512),
-		"top_right": Vector3(0.157, 0.124, -0.512),
-		"bottom_left": Vector3(-0.157, -0.124, -0.512),
-		"bottom_right": Vector3(0.157, -0.124, -0.512),
+		"top_left": Vector3(-0.306, 0.084, -0.509),
+		"top_right": Vector3(0.360, 0.084, -0.475),
+		"bottom_left": Vector3(-0.298, -0.155, -0.497),
+		"bottom_right": Vector3(0.355, -0.115, -0.470),
 	},
 	"rows": StatusPanelRowList.FIGHT,
 }

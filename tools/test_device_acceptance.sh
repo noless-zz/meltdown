@@ -395,6 +395,9 @@ fi
 # Adb drops, reports from the game's storage, the serial and unattended runs (#1436).
 # shellcheck source=tools/device_acceptance_drop_checks.sh
 source "$tools/device_acceptance_drop_checks.sh"
+# Live progress lines while a suite runs (#1438).
+# shellcheck source=tools/device_acceptance_progress_checks.sh
+source "$tools/device_acceptance_progress_checks.sh"
 
 # The simulator job skips cleanly away from Windows.
 sim_out="$work/simulator"
