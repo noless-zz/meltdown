@@ -160,11 +160,12 @@ func test_a_suite_with_no_steps_and_no_parts_is_still_rejected() -> String:
 	return _expect_rejected({"s.json": "{\"name\": \"s\", \"steps\": []}"}, "steps")
 
 
+## Two parts per lane, and lane-c's `menu` (#1457) beside `look` and `base`.
 func test_the_shipped_m6_suite_includes_two_parts_per_lane() -> String:
 	var found: Array[AcceptanceSuite] = AcceptanceSuite.load_named("m6")
 	if found.size() != 1 or found[0].error != "":
 		return "m6 did not load: %s" % (found[0].error if found.size() == 1 else str(found.size()))
-	var wanted: Array[String] = ["m6/ship", "m6/perf", "m6/sound", "m6/effects", "m6/look", "m6/base"]
+	var wanted: Array[String] = ["m6/ship", "m6/perf", "m6/sound", "m6/effects", "m6/look", "m6/base", "m6/menu"]
 	if found[0].name != "m6" or found[0].includes != wanted:
 		return "m6 includes %s" % [found[0].includes]
 	return ""
