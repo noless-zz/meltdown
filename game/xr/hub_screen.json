@@ -24,5 +24,15 @@
 	"max_screen_emission": 0.35,
 	"eye_width_px": 2064,
 	"eye_height_px": 2208,
-	"vertical_fov_deg": 96
+	"vertical_fov_deg": 96,
+	"craft_fly_seconds": 0.45,
+	"craft_fill_seconds": 0.5,
+	"craft_fill_alpha": 0.5,
+	"craft_item_seconds": 0.5,
+	"craft_item_peak": 1.25,
+	"unlock_glow_color": [1.0, 0.85, 0.4],
+	"unlock_glow_seconds": 0.6,
+	"unlock_glow_hold_seconds": 0.8,
+	"unlock_glow_alpha": 0.35,
+	"unlock_glow_scale": 1.9
 }
