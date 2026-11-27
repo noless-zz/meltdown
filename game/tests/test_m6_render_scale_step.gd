@@ -1,9 +1,9 @@
 extends RefCounted
 
 ## The m6 `render_scale` step (#1417, GFX-7, PRF-2, decision record 0005):
-## run through the acceptance runner in the main scene, the scripted slow and
-## fast frames take the shipped controller down and back to 1.0, and the
-## flat scene's own render scale stays 1.0.
+## run through the acceptance runner in the main scene, the shipped table has
+## scaling off (#1503), the scripted slow and fast frames leave the scale at
+## 1.0, and the flat scene's own render scale stays 1.0.
 
 const SUITE_PATH: String = "res://acceptance/suites/m6.json"
 const STEP_ID: String = "render_scale"
@@ -13,7 +13,7 @@ const FRAME_LIMIT: int = 2000
 var _quit_codes: Array[int] = []
 
 
-func test_the_step_takes_the_scale_down_and_back() -> String:
+func test_the_step_holds_the_scale_at_full_while_off() -> String:
 	var runner: AcceptanceRunner = _run()
 	var problem: String = ""
 	if runner.reports.is_empty() or not runner.reports[0].passed():
@@ -22,7 +22,8 @@ func test_the_step_takes_the_scale_down_and_back() -> String:
 		problem = "the suite has %d render_scale steps" % runner.reports[0].steps.size()
 	else:
 		var measured: Dictionary = runner.reports[0].steps[0]["measurements"]
-		if float(measured.get("render_scale_lowest", 1.0)) >= 1.0 or int(measured.get("frames_back_to_full", -1)) <= 0:
+		if measured.get("render_scale_enabled", true) != false or float(measured.get("render_scale_lowest", 0.0)) != 1.0 \
+				or int(measured.get("render_scale_changes", -1)) != 0:
 			problem = "measured %s" % measured
 		elif RenderScaler.in_use != 1.0:
 			problem = "the flat scene's scale is %s" % RenderScaler.in_use

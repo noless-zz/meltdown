@@ -1,7 +1,8 @@
 extends RefCounted
 
 ## The render scale table (#1417, GFX-7, ARC-4): the shipped file is read
-## and scaling is on; a missing or out-of-range value, a wrong type, an
+## and scaling is off (#1503: on the Quest a lowered scale magnified the
+## picture, so it stays off until a device step proves it); a missing or out-of-range value, a wrong type, an
 ## unknown key, a floor above the ceiling or a low water at or above the high
 ## water are refused with the field named; a refused or missing file falls
 ## back to scaling off.
@@ -14,9 +15,9 @@ func _data() -> Dictionary:
 	return JSON.parse_string(FileAccess.get_file_as_string(SHIPPED))
 
 
-func test_the_shipped_file_is_read_with_scaling_on() -> String:
+func test_the_shipped_file_is_read_with_scaling_off() -> String:
 	var table: RenderScaleTable = RenderScaleTable.load_file(SHIPPED)
-	if table.error != "" or not table.enabled:
+	if table.error != "" or table.enabled:
 		return "the shipped table: error \"%s\", enabled %s" % [table.error, table.enabled]
 	if table.ceiling != 1.0 or table.floor_scale >= 1.0 or table.floor_scale < 0.5:
 		return "the shipped bounds are %s..%s" % [table.floor_scale, table.ceiling]

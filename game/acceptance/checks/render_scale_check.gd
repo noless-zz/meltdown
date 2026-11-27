@@ -13,6 +13,11 @@ extends RefCounted
 ## exactly 1.0 within `MAX_FAST_FRAMES`. The controller is pure, so this runs
 ## the same on every machine; whether a lowered scale is visible stays a
 ## headset check.
+##
+## The shipped file has scaling off (#1503: on the Quest a lowered scale
+## magnified the picture). While it is off the same script must leave the
+## scale at exactly 1.0 on every frame, so the step guards that nothing lowers
+## the picture until a device step proves scaling safe.
 
 const CHECK: String = "render_scale"
 const HZ: float = 90.0
@@ -36,8 +41,6 @@ static func judge_table(path: String, measurements: Dictionary) -> Array:
 	var table: RenderScaleTable = RenderScaleTable.load_file(path)
 	if table.error != "":
 		return [AcceptanceReport.RESULT_FAIL, "%s rejected: %s" % [path, table.error]]
-	if not table.enabled:
-		return [AcceptanceReport.RESULT_FAIL, "scaling is off in %s" % path]
 	var controller: RenderScaleController = RenderScaleController.new(table)
 	var budget_ms: float = 1000.0 / HZ
 	var seen: Dictionary = {"lowest": controller.scale, "changes": 0, "closest": SLOW_FRAMES + MAX_FAST_FRAMES,
@@ -53,6 +56,13 @@ static func judge_table(path: String, measurements: Dictionary) -> Array:
 	measurements["render_scale_lowest"] = snappedf(seen["lowest"], 0.001)
 	measurements["render_scale_changes"] = seen["changes"]
 	measurements["frames_back_to_full"] = back_after
+	measurements["render_scale_enabled"] = table.enabled
+	if not table.enabled:
+		if seen["lowest"] != 1.0 or seen["changes"] != 0:
+			return [AcceptanceReport.RESULT_FAIL, "scaling is off in %s, yet the scale went to %.3f (%d changes)" % [
+				path, seen["lowest"], seen["changes"]]]
+		return [AcceptanceReport.RESULT_PASS, "scaling off in %s: the scale stayed 1.0 through %d slow frames" % [
+			path, SLOW_FRAMES]]
 	if seen["lowest"] >= 1.0:
 		return [AcceptanceReport.RESULT_FAIL, "the scale never went below 1.0 in %d slow frames" % SLOW_FRAMES]
 	if seen["lowest"] < table.floor_scale:
