@@ -17,6 +17,12 @@
 			"expected_level_hash": 3096639754,
 			"expected_outcome": "ESCAPED",
 			"screenshot_at_ticks": [5100, 5230, 5540]
+		},
+		{
+			"id": "glass_clear",
+			"replay": "res://acceptance/replays/frame_budget_flight.replay",
+			"checks": ["final_hash", "glass_clear", "no_script_errors"],
+			"expected_hash": 1960961122
 		}
 	]
 }

@@ -88,8 +88,9 @@ func test_no_finish_keeps_todays_look() -> String:
 			var value: Variant = _parameter(spec, PART_OF_SURFACE[surface], key)
 			if value == null or not is_equal_approx(float(value), today[key]):
 				return "%s %s is %s without a finish, was %s before #1306" % [surface, key, value, today[key]]
-	if not _glass_material(spec) is StandardMaterial3D:
-		return "the glass is no longer the flat tint without a finish"
+	var glass: Material = _glass_material(spec)
+	if not glass is ShaderMaterial or glass.next_pass != null:
+		return "without a finish the glass is not the filter alone: %s" % glass
 	return ""
 
 
@@ -137,7 +138,8 @@ func test_each_shared_key_changes_the_result() -> String:
 	for key: String in cases:
 		var finish: Dictionary = {"glass_fresnel": 0.1}
 		finish[key] = cases[key][0]
-		var material: Material = _glass_material(_spec_with_finish(finish))
+		var glass: Material = _glass_material(_spec_with_finish(finish))
+		var material: Material = glass.next_pass if glass != null else null
 		if not material is ShaderMaterial:
 			return "%s: the glass has no reflection" % key
 		var built: Variant = (material as ShaderMaterial).get_shader_parameter(cases[key][1])
@@ -146,14 +148,18 @@ func test_each_shared_key_changes_the_result() -> String:
 	return ""
 
 
-func test_the_reflection_keeps_the_tint_straight_ahead() -> String:
+func test_the_reflection_adds_to_the_filter_growing_to_the_edge() -> String:
 	var material: Material = _glass_material(_spec_with_finish({"glass_fresnel": 0.2}))
-	var tint: Color = (material as ShaderMaterial).get_shader_parameter("tint")
-	if not is_equal_approx(tint.a, float(FrameTests.valid_data()["glass_tint_alpha"])):
-		return "glass_tint_alpha became %s" % tint.a
-	var shader: String = FileAccess.get_file_as_string(CockpitMaterials.GLASS_SHADER)
-	if not shader.contains("tint.a + reflection") or not shader.contains("pow(edge, fresnel_power)"):
-		return "the glass shader no longer adds the reflection over the tint, growing to the edge"
+	var filter: Vector3 = (material as ShaderMaterial).get_shader_parameter("filter_color")
+	var through: float = float(FrameTests.valid_data()["glass_transmission"])
+	if not is_equal_approx(maxf(filter.x, maxf(filter.y, filter.z)), through):
+		return "glass_transmission %s became filter %s" % [through, filter]
+	var glass: String = FileAccess.get_file_as_string(CockpitMaterials.GLASS_SHADER)
+	if not glass.contains("blend_mul") or glass.contains("blend_mix"):
+		return "the glass no longer multiplies the view: a mixed-in colour is a veil on a dark mine (#1459)"
+	var shader: String = FileAccess.get_file_as_string(CockpitMaterials.GLASS_REFLECTION_SHADER)
+	if not shader.contains("blend_add") or not shader.contains("pow(edge, fresnel_power)"):
+		return "the reflection no longer adds light growing to the edge"
 	if CockpitFinish.RANGES["glass_fresnel"][1] > 0.3:
 		return "the reflection may hide the view"
 	return ""

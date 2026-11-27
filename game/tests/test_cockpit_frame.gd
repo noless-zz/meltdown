@@ -20,7 +20,7 @@ const MAX_DISTANCE_M: float = 1.0
 static func valid_data() -> Dictionary:
 	return {
 		"window_half_angle_h_deg": 40.0, "window_half_angle_v_deg": 30.0,
-		"frame_distance_m": 0.5, "glass_tint_alpha": 0.1,
+		"frame_distance_m": 0.5, "glass_transmission": 0.9, "glass_tint": [0.85, 0.9, 0.93],
 		"ledge_top_deg": 30.0, "ledge_height_deg": 12.0, "ledge_half_width_deg": 60.0,
 		"ledge_distance_m": 0.36, "pillar_width_deg": 8.0, "pillar_distance_m": 0.42,
 		"rim_height_deg": 8.0, "rim_distance_m": 0.42, "part_depth_m": 0.03,
@@ -93,8 +93,12 @@ func test_keys_match_the_fields() -> String:
 			return "key %s has no range" % key
 	if fields.size() != CockpitSpec.KEYS.size():
 		return "fields %s, keys %s" % [fields, CockpitSpec.KEYS]
-	if colors != CockpitSpec.COLOR_KEYS:
-		return "colour fields %s, colour keys %s" % [colors, CockpitSpec.COLOR_KEYS]
+	var color_keys: Array[String] = CockpitSpec.COLOR_KEYS.duplicate()
+	color_keys.append(CockpitSpec.GLASS_TINT_KEY)
+	colors.sort()
+	color_keys.sort()
+	if colors != color_keys:
+		return "colour fields %s, colour keys %s" % [colors, color_keys]
 	return ""
 
 
