@@ -18,6 +18,10 @@ extends RefCounted
 ## `main.gd` need not change; `attach` takes the map's route search for the
 ## arrow (#695).
 ##
+## It also hands the level's walls the seconds since the reactor died, for
+## their emergency look (`MeltdownWalls`, #1454, GFX-6). The seconds count
+## simulation ticks, so a paused session holds the pulse still (CMF-8).
+##
 ## It sits beside `main.gd`, like `CombatWiring` and `MapWiring`, because it
 ## reads the `net/` session, which `view/` and `xr/` may not depend on. The
 ## reactor reaches the view as a `SessionSnapshots.reactor` copy and the outcome
@@ -36,6 +40,8 @@ var _world: Node3D = null
 ## The view whose pipes were last fitted to the walls, and where (#1310).
 var _fitted_view: ReactorView = null
 var _fitted_at: Vector3 = Vector3.ZERO
+## The tick the reactor was first seen dead, for the walls; -1 before.
+var _walls_death_tick: int = -1
 
 
 ## Remembers `world`, the node whose space is the simulation's, and shows
@@ -61,6 +67,7 @@ func update(session: LocalSession, panel: StatusPanel) -> void:
 	if reactor_view != null:
 		reactor_view.frozen = session.paused
 	_follow_debris(SessionSnapshots.debris(session.sim.debris), session.sim.tick)
+	_show_walls(reactor, session.sim.tick)
 	if panel != null:
 		panel.show_outcome(session.sim.outcome())
 	escape.update(session, panel)
@@ -117,6 +124,20 @@ func _follow(reactor: ReactorState, walls: BoxUnion) -> void:
 		reactor_view.fit_pipes(walls)
 		_fitted_view = reactor_view
 		_fitted_at = reactor.position()
+
+
+## Hands the level view's walls the seconds since `reactor`, a copy or null,
+## died, read at simulation tick `tick`; a live reactor or none turns the look
+## off. The death tick starts over when the tick runs back (a new session).
+func _show_walls(reactor: ReactorState, tick: int) -> void:
+	var view: LevelView = _world.get_node_or_null(LevelView.NODE_NAME) as LevelView if _world != null else null
+	if reactor == null or not reactor.destroyed:
+		_walls_death_tick = -1
+	elif _walls_death_tick < 0 or _walls_death_tick > tick:
+		_walls_death_tick = tick
+	if view != null:
+		view.meltdown_walls.show(-1.0 if _walls_death_tick < 0
+				else float(tick - _walls_death_tick) / float(ReactorState.TICKS_PER_SECOND))
 
 
 ## Creates, feeds or removes the debris view so it matches `snapshot`, a
