@@ -91,7 +91,7 @@ Four presets; every setting individually adjustable; the game is completable at 
 | Hits | No cockpit shake | Light shake | Full shake | Full shake and spin |
 | Refresh rate | 90 Hz | 90 Hz | 90 Hz | 90 Hz, 120 Hz option |
 | Look-aim (CMB-6) | On, no module | Pilot's option, no module | Crafted module | Crafted module |
-| Aim assist (CMB-7) | Crafted module (open: a mode the pilot toggles to without a module) | Crafted module | Crafted module | Crafted module |
+| Aim assist (CMB-7) | Crafted module | Crafted module | Crafted module | Crafted module |
 
 | ID | Requirement | P |
 | --- | --- | --- |

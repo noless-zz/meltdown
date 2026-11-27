@@ -14,7 +14,7 @@ const FRAME: float = 1.0 / 72.0
 static func _restore() -> void:
 	MapChoice.current_place = MapChoice.PLACE_HAND
 	MapChoice.current_turn = MapChoice.TURN_FIXED
-	PanelCorner.current = PanelCorner.CENTRE
+	PanelCorner.current = PanelCorner.DEFAULT_CORNER
 
 
 static func _spec(number: int) -> CockpitSpec:
@@ -129,6 +129,7 @@ func test_map_and_panel_never_overlap_in_any_combination() -> String:
 
 
 func test_the_live_check_passes_every_combination_and_puts_things_back() -> String:
+	_restore()
 	var scene: Array = _scene(1)
 	var rig: Node3D = scene[0]
 	var map: MapWiring = scene[1]
@@ -143,7 +144,7 @@ func test_the_live_check_passes_every_combination_and_puts_things_back() -> Stri
 	# 4 presets x 5 corners x 2 places x 2 turns.
 	if int(measurements.get("map_place_cases", 0)) != 80:
 		return "the check ran %s cases" % measurements.get("map_place_cases")
-	if after != [MapChoice.PLACE_HAND, MapChoice.TURN_FIXED, PanelCorner.CENTRE, "LeftHand"]:
+	if after != [MapChoice.PLACE_HAND, MapChoice.TURN_FIXED, PanelCorner.DEFAULT_CORNER, "LeftHand"]:
 		return "the check left %s" % [after]
 	return ""
 

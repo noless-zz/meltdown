@@ -5,8 +5,11 @@ extends RefCounted
 ## saved and read back, the `--panel=` switch, and no effect on the simulation.
 
 const PATH: String = "user://test_panel_corner.json"
-## The limit #752 sets: every corner of every row within this of straight ahead.
-const VIEW_LIMIT_DEG: float = 40.0
+## Every corner of every row within this of straight ahead. #752 set 40; the
+## corners moved out of the middle of the view (#1452). The drawn rows stay
+## within 50 (`test_status_panel_place.gd`); this check also counts the rows no
+## longer drawn in flight (speed, preset) and a bar end past the bars' own.
+const VIEW_LIMIT_DEG: float = 52.0
 ## The panel's face may point this far off the line to the eye.
 const FACING_LIMIT_DEG: float = 15.0
 ## Left end of the labels and right end of the bars and the boost word.
@@ -21,13 +24,13 @@ const FRAME: float = 1.0 / 72.0
 func _clean() -> void:
 	if FileAccess.file_exists(PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
-	PanelCorner.current = PanelCorner.CENTRE
+	PanelCorner.current = PanelCorner.DEFAULT_CORNER
 
 
 func _at(corner: String) -> Transform3D:
 	PanelCorner.current = corner
 	var at: Transform3D = StatusPanel.rig_transform(Transform3D.IDENTITY)
-	PanelCorner.current = PanelCorner.CENTRE
+	PanelCorner.current = PanelCorner.DEFAULT_CORNER
 	return at
 
 
@@ -37,8 +40,8 @@ func test_each_corner_has_its_own_place_and_the_default_is_unchanged() -> String
 		look["position_m"] as Vector3)
 	if not _at(PanelCorner.CENTRE).is_equal_approx(before):
 		return "the default place moved: %s, was %s" % [_at(PanelCorner.CENTRE), before]
-	if PanelCorner.new(PATH).corner() != PanelCorner.CENTRE:
-		return "a new store does not start in the default place"
+	if PanelCorner.new(PATH).corner() != PanelCorner.DEFAULT_CORNER:
+		return "a new store does not start in the default corner"
 	var seen: Array[Transform3D] = [before]
 	for corner: String in StatusPanelLook.CORNER_NAMES:
 		var at: Transform3D = _at(corner)
@@ -97,7 +100,7 @@ func test_a_missing_or_broken_file_gives_the_default() -> String:
 	_clean()
 	var missing: PanelCorner = PanelCorner.new(PATH)
 	missing.load_saved()
-	if missing.corner() != PanelCorner.CENTRE or not missing.warnings.is_empty():
+	if missing.corner() != PanelCorner.DEFAULT_CORNER or not missing.warnings.is_empty():
 		return "a missing file gave %s with %s" % [missing.corner(), missing.warnings]
 	for text: String in ["not json", "[\"top_left\"]", "{\"corner\": \"middle\"}",
 			"{\"corner\": 3}", "{\"corner\": \"top_left\", \"preset\": 2}", "{}"]:
@@ -109,7 +112,7 @@ func test_a_missing_or_broken_file_gives_the_default() -> String:
 		store.load_saved()
 		var current: String = PanelCorner.current
 		_clean()
-		if store.corner() != PanelCorner.CENTRE or current != PanelCorner.CENTRE:
+		if store.corner() != PanelCorner.DEFAULT_CORNER or current != PanelCorner.DEFAULT_CORNER:
 			return "%s gave %s" % [text, store.corner()]
 		if store.warnings.size() != 1:
 			return "%s gave %d warnings, expected 1" % [text, store.warnings.size()]

@@ -35,6 +35,10 @@
 			"screenshot_at_ticks": [1275, 2340]
 		},
 		{
+			"id": "status_panel_place",
+			"checks": ["no_script_errors", "status_panel_place"]
+		},
+		{
 			"id": "glass_clear",
 			"replay": "res://acceptance/replays/frame_budget_flight.replay",
 			"checks": ["final_hash", "glass_clear", "no_script_errors"],
