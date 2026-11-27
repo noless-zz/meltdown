@@ -120,6 +120,10 @@
 			"expected_hash": 3298909347
 		},
 		{
+			"id": "no_stale_overlay",
+			"checks": ["no_stale_overlay", "no_script_errors"]
+		},
+		{
 			"id": "focus_pause",
 			"replay": "res://acceptance/replays/basic_flight.replay",
 			"checks": ["held_while_paused", "final_hash", "no_script_errors"],

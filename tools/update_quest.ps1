@@ -3,9 +3,11 @@
 Updates every connected Quest headset to the newest `main` build in one step.
 
 .DESCRIPTION
-The Windows twin of tools/update_quest.sh (DEV-8, playtest #104). Downloads
-meltdown-quest-debug.apk and its .sha256 from the rolling main-latest release,
-refuses to install on a checksum mismatch, and runs `adb install -r` on each
+The Windows twin of tools/update_quest.sh (DEV-8, playtest #104). Reads the
+.sha256 of meltdown-quest-debug.apk from the rolling main-latest release and
+skips any headset that already holds that build; otherwise downloads the APK
+once (kept per checksum under the temp folder, see apk_cache.ps1), refuses to
+install on a checksum mismatch, and runs `adb install -r` on each
 headset adb lists as `device` (USB or ADB over Wi-Fi). Builds are signed with a
 stable debug key, so the update keeps saved data.
 
@@ -19,11 +21,18 @@ Start the game on each headset after installing, without asking.
 .PARAMETER UninstallFirst
 If a headset holds a copy signed with another key, uninstall it and install
 again. Its saved data is lost.
+
+.PARAMETER Force
+Install even on a headset that already holds the release's build. Without it,
+a headset whose installed APK has the release's checksum is skipped, and the
+APK is downloaded only if some headset needs it (#1437). Also
+MELTDOWN_FORCE_INSTALL=1.
 #>
 [CmdletBinding()]
 param(
 	[switch]$Launch,
-	[switch]$UninstallFirst
+	[switch]$UninstallFirst,
+	[switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,6 +54,8 @@ $installRetries = 2
 
 $apkName = 'meltdown-quest-debug.apk'
 $package = 'io.github.nolesszz.meltdown'
+
+. (Join-Path $PSScriptRoot 'apk_cache.ps1')
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
 	Write-Host 'Missing required tool: adb (install Android platform-tools and add it to PATH)' -ForegroundColor Red
@@ -155,48 +166,61 @@ if ($serials.Count -eq 0) {
 	exit 1
 }
 
-$work = Join-Path ([IO.Path]::GetTempPath()) ('meltdown-update-' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $work | Out-Null
 $exitCode = 0
-# Kept after a failed install so the printed manual command has a file to use.
-$keepDownload = $false
-try {
-	$apkPath = Join-Path $work $apkName
-	$shaPath = "$apkPath.sha256"
-	Write-Host "Downloading $apkName from the main-latest release..."
-	Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$apkName" -OutFile $apkPath
-	Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$apkName.sha256" -OutFile $shaPath
+$forceInstall = Test-ForceInstall ([bool]$Force)
+# MELTDOWN_APK_DIR: the APK and its .sha256 from a folder instead of the release, for tests.
+$localDir = $env:MELTDOWN_APK_DIR
 
-	$expected = ((Get-Content -Path $shaPath -TotalCount 1) -split '\s+')[0].ToLowerInvariant()
-	$actual = (Get-FileHash -Path $apkPath -Algorithm SHA256).Hash.ToLowerInvariant()
-	if ($expected -ne $actual) {
-		Write-Host "Checksum mismatch: the release says $expected but the download is $actual." -ForegroundColor Red
-		Write-Host 'Nothing was installed. Try again in a few minutes; the release may be mid-upload.' -ForegroundColor Red
-		# exit still runs the finally block below, which removes the download.
+# Only the checksum first (#1437): a few bytes, not the APK. Unreadable means
+# every headset is installed, as before.
+$expected = Get-ReleaseChecksum -ReleaseUrl $releaseUrl -LocalDir $localDir -Name $apkName
+
+# The release body (tools/release_notes.sh) names the commit and build time.
+# Only for these lines, so a failure here does not stop the update.
+$commit = 'unknown'
+$built = 'Built: unknown'
+try {
+	$release = Invoke-RestMethod -UseBasicParsing -Uri $releaseApi
+	$match = [regex]::Match([string]$release.body, 'commit ([0-9a-f]{40})')
+	if ($match.Success) { $commit = $match.Groups[1].Value }
+	$match = [regex]::Match([string]$release.body, 'Built: [^\r\n]*')
+	if ($match.Success) { $built = $match.Value }
+} catch {
+	Write-Host 'Could not read the release text; the update goes ahead.' -ForegroundColor Yellow
+}
+
+# Decided per headset; the APK is fetched once, and only if one needs it.
+$ready = @()
+$needed = @()
+foreach ($serial in $serials) {
+	# Wakes the connection first: the first adb call after plugging in or
+	# waking the headset used to land in its drop-off gap (#589).
+	Wait-Device -Serial $serial | Out-Null
+	if (-not $forceInstall -and (Test-HeadsetHasBuild -Serial $serial -Expected $expected)) {
+		Write-Host (Format-SkipLine -Serial $serial -Checksum $expected -Commit $commit)
+		$ready += $serial
+	} else {
+		$needed += $serial
+	}
+}
+
+if ($needed.Count -gt 0) {
+	if ($forceInstall) {
+		Write-Host 'Installing whatever the headsets hold (-Force or MELTDOWN_FORCE_INSTALL=1).'
+	}
+	# Checked against its checksum and kept per checksum, so a second headset
+	# or a rerun after a failed install does not download it again.
+	$apk = Get-CachedApk -Expected $expected -ReleaseUrl $releaseUrl -LocalDir $localDir -Name $apkName
+	if ($apk.Problem) {
+		Write-Host $apk.Problem -ForegroundColor Red
+		Write-Host 'Try again in a few minutes.' -ForegroundColor Red
 		exit 1
 	}
-	Write-Host "Checksum verified: $actual"
-
-	# The release body (tools/release_notes.sh) names the commit and build time.
-	# Only for these two lines, so a failure here does not stop the update.
-	$commit = 'unknown'
-	$built = 'Built: unknown'
-	try {
-		$release = Invoke-RestMethod -UseBasicParsing -Uri $releaseApi
-		$match = [regex]::Match([string]$release.body, 'commit ([0-9a-f]{40})')
-		if ($match.Success) { $commit = $match.Groups[1].Value }
-		$match = [regex]::Match([string]$release.body, 'Built: [^\r\n]*')
-		if ($match.Success) { $built = $match.Value }
-	} catch {
-		Write-Host 'Could not read the release text; the update goes ahead.' -ForegroundColor Yellow
-	}
-
-	$installed = @()
-	foreach ($serial in $serials) {
+	$apkPath = $apk.Path
+	$failedOne = $false
+	foreach ($serial in $needed) {
 		Write-Host "Installing on $serial..."
-		# Wakes the connection first: the first install after plugging in or
-		# waking the headset used to land in its drop-off gap (#589). A headset
-		# that does not answer still gets the install attempt and its retries.
+		# Woken again: the download may have taken long enough for it to doze.
 		Wait-Device -Serial $serial | Out-Null
 		$result = Install-Apk -Serial $serial -Path $apkPath
 		if (-not $result.Ok -and $result.Text -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
@@ -211,38 +235,34 @@ try {
 			$result = Install-Apk -Serial $serial -Path $apkPath
 		}
 		if ($result.Ok) {
-			$installed += $serial
+			$ready += $serial
 			Write-Host '  Installed.'
 		} else {
 			Write-InstallFailure -Serial $serial -Path $apkPath -Text $result.Text
-			$keepDownload = $true
+			$failedOne = $true
 			$exitCode = 1
 		}
 	}
-	if ($keepDownload) {
-		Write-Host "The download is kept in $work for that; delete the folder when done." -ForegroundColor Yellow
+	if ($failedOne) {
+		Write-Host "The download is kept at $apkPath for that; the next run uses it without downloading again." -ForegroundColor Yellow
 	}
+}
 
-	Write-Host ''
-	Write-Host "Build: commit $commit"
-	Write-Host $built
+Write-Host ''
+Write-Host "Build: commit $commit"
+Write-Host $built
 
-	if ($installed.Count -gt 0) {
-		$start = [bool]$Launch
-		if (-not $Launch -and -not $UninstallFirst) {
-			$answer = Read-Host 'Start the game on the headset now? [y/N]'
-			$start = ($answer -match '^(y|yes)$')
-		}
-		if ($start) {
-			foreach ($serial in $installed) {
-				Write-Host "Starting the game on $serial..."
-				Invoke-Adb @('-s', $serial, 'shell', 'monkey', '-p', $package, '-c', 'android.intent.category.LAUNCHER', '1') | Out-Null
-			}
-		}
+if ($ready.Count -gt 0) {
+	$start = [bool]$Launch
+	if (-not $Launch -and -not $UninstallFirst) {
+		$answer = Read-Host 'Start the game on the headset now? [y/N]'
+		$start = ($answer -match '^(y|yes)$')
 	}
-} finally {
-	if (-not $keepDownload) {
-		Remove-Item -Recurse -Force -Path $work -ErrorAction SilentlyContinue
+	if ($start) {
+		foreach ($serial in $ready) {
+			Write-Host "Starting the game on $serial..."
+			Invoke-Adb @('-s', $serial, 'shell', 'monkey', '-p', $package, '-c', 'android.intent.category.LAUNCHER', '1') | Out-Null
+		}
 	}
 }
 exit $exitCode

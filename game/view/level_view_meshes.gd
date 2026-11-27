@@ -44,9 +44,11 @@ static func drawn_quads(list: Array, bake: AmbientBake) -> Array[Dictionary]:
 
 
 ## Puts box `box`'s walls and frames (`quads`) and its `bevels` under `box`,
-## baked by `bake` when not null. Returns how many wall pieces were drawn.
+## baked by `bake` when not null. Its guide light `strips` (#1463) go in the
+## bevels' surface, glowing `strip_color`. Returns how many wall pieces were drawn.
 static func add_box(box: Node3D, quads: Array, edge_bevels: Array, wall_material: Material,
-		bevel_material: Material, bake: AmbientBake) -> int:
+		bevel_material: Material, bake: AmbientBake, strips: Array[Dictionary] = [],
+		strip_color: Color = Color.BLACK) -> int:
 	var pieces: int = 0
 	if not quads.is_empty():
 		# Floor, wall and ceiling, and the opening frames, in one surface: the
@@ -60,10 +62,10 @@ static func add_box(box: Node3D, quads: Array, edge_bevels: Array, wall_material
 		box.add_child(node)
 		pieces = (node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 6 \
 				if node.mesh != null else 0
-	if not edge_bevels.is_empty():
+	if not edge_bevels.is_empty() or not strips.is_empty():
 		var typed: Array[Dictionary] = []
 		typed.assign(edge_bevels)
-		box.add_child(bevels(typed, bevel_material, bake))
+		box.add_child(bevels(typed, bevel_material, bake, strips, strip_color))
 	return pieces
 
 
@@ -94,25 +96,35 @@ static func walls(node_name: String, lists: Array[Array], materials: Array[Mater
 	return instance
 
 
-## One mesh of `bevels` in `material`. The bevels cast no shadow: they sit in
-## the corners, where the walls' own shadow already falls.
-static func bevels(bevels: Array[Dictionary], material: Material, bake: AmbientBake = null) -> MeshInstance3D:
+## One mesh of `bevels` in `material`, followed by the guide light `strips`
+## in the same surface. The vertex colour is each strip's glow (`strip_color`)
+## and black on the bevels; the shader scales it by `strip_energy`. The bevels
+## cast no shadow: they sit in the corners, where the walls' own shadow falls.
+static func bevels(bevels: Array[Dictionary], material: Material, bake: AmbientBake = null,
+		strips: Array[Dictionary] = [], strip_color: Color = Color.BLACK) -> MeshInstance3D:
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = LevelView.BEVELS_NAME
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if bevels.is_empty():
+	if bevels.is_empty() and strips.is_empty():
 		return instance
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var ambient: PackedFloat32Array = PackedFloat32Array()
-	for bevel: Dictionary in bevels:
-		for corner: Vector3 in LevelBevels.triangles(bevel):
+	var colors: PackedColorArray = PackedColorArray()
+	var parts: Array[Dictionary] = bevels.duplicate()
+	parts.append_array(strips)
+	for index: int in parts.size():
+		var part: Dictionary = parts[index]
+		var is_strip: bool = index >= bevels.size()
+		var corners: Array[Vector3] = GuideLightPlacement.triangles(part) if is_strip else LevelBevels.triangles(part)
+		for corner: Vector3 in corners:
 			vertices.append(corner)
-			normals.append(bevel["normal"])
+			normals.append(part["normal"])
+			colors.append(strip_color if is_strip else Color.BLACK)
 			if bake != null:
-				_append_ambient(ambient, bake.at(corner, int(bevel["box"])))
+				_append_ambient(ambient, bake.at(corner, int(part["box"])))
 	var mesh: ArrayMesh = ArrayMesh.new()
-	_add_surface(mesh, vertices, normals, ambient)
+	_add_surface(mesh, vertices, normals, ambient, colors)
 	mesh.surface_set_material(0, material)
 	instance.mesh = mesh
 	return instance
@@ -124,13 +136,16 @@ static func _append_ambient(into: PackedFloat32Array, light: Color) -> void:
 	into.append(light.b)
 
 
-## One triangle surface; `ambient` (three floats a vertex) goes in CUSTOM0 when not empty.
+## One triangle surface; `ambient` (three floats a vertex) goes in CUSTOM0 and
+## `colors` in the vertex colour when not empty.
 static func _add_surface(mesh: ArrayMesh, vertices: PackedVector3Array, normals: PackedVector3Array,
-		ambient: PackedFloat32Array) -> void:
+		ambient: PackedFloat32Array, colors: PackedColorArray = PackedColorArray()) -> void:
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	if not colors.is_empty():
+		arrays[Mesh.ARRAY_COLOR] = colors
 	if ambient.is_empty():
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		return

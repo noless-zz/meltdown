@@ -25,10 +25,19 @@ extends RefCounted
 ##   `eye_width_px`, `eye_height_px`, `vertical_fov_deg`: the thresholds the
 ##   tests and the `hub_screens` acceptance check hold the screens to, and the
 ##   Quest 3's per-eye resolution and field of view they are measured at.
+## - The crafting moment at the Workbench (#1402, `HubCraftMoment`): the spent
+##   components fly from the cost rows into the node over `craft_fly_seconds`;
+##   the node fills over `craft_fill_seconds` with a plate of `craft_fill_alpha`;
+##   then the item's icon grows to `craft_item_peak` times its size and settles
+##   over `craft_item_seconds`. Nodes the craft unlocks glow in
+##   `unlock_glow_color` up to `unlock_glow_alpha`, `unlock_glow_scale` node
+##   sizes across: the glow fades in over `unlock_glow_seconds` (under a
+##   second, so nothing flashes: CMF-3), holds `unlock_glow_hold_seconds` and
+##   fades out as slowly. All of it is drawn on the face; nothing else moves.
 
 const DEFAULT_FILE: String = "res://xr/hub_screen.json"
 const COLOR_KEYS: Array[String] = ["screen_color", "title_color", "text_color", "selected_color", "reason_color",
-	"frame_color"]
+	"frame_color", "unlock_glow_color"]
 const RANGES: Dictionary[String, Array] = {
 	"frame_width_m": [0.002, 0.05],
 	"face_inset_m": [0.0, 0.05],
@@ -52,6 +61,16 @@ const RANGES: Dictionary[String, Array] = {
 	"eye_width_px": [320.0, 8192.0],
 	"eye_height_px": [320.0, 8192.0],
 	"vertical_fov_deg": [30.0, 140.0],
+	"craft_fly_seconds": [0.1, 2.0],
+	"craft_fill_seconds": [0.1, 2.0],
+	"craft_fill_alpha": [0.0, 1.0],
+	"craft_item_seconds": [0.1, 2.0],
+	"craft_item_peak": [1.0, 2.0],
+	## A glow that comes up faster than a tenth of a second reads as a flash.
+	"unlock_glow_seconds": [0.1, 0.95],
+	"unlock_glow_hold_seconds": [0.0, 5.0],
+	"unlock_glow_alpha": [0.0, 1.0],
+	"unlock_glow_scale": [1.0, 3.0],
 }
 const WHOLE_KEYS: Array[String] = ["title_font_size", "open_title_font_size", "row_font_size"]
 
@@ -83,6 +102,16 @@ const FALLBACK: Dictionary = {
 	"eye_width_px": 2064.0,
 	"eye_height_px": 2208.0,
 	"vertical_fov_deg": 96.0,
+	"craft_fly_seconds": 0.45,
+	"craft_fill_seconds": 0.5,
+	"craft_fill_alpha": 0.5,
+	"craft_item_seconds": 0.5,
+	"craft_item_peak": 1.25,
+	"unlock_glow_color": Color(1.0, 0.85, 0.4),
+	"unlock_glow_seconds": 0.6,
+	"unlock_glow_hold_seconds": 0.8,
+	"unlock_glow_alpha": 0.35,
+	"unlock_glow_scale": 1.9,
 }
 
 
