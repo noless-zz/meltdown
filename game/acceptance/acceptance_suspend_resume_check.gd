@@ -68,21 +68,21 @@ static func _run(step: AcceptanceStep, main: Node, flown: bool, measurements: Di
 	if choice.is_open() or not hub.is_open() or not run.saves.has_save():
 		return [AcceptanceReport.RESULT_FAIL, "suspend: panel open %s, hub open %s, saved %s, error '%s'" % [
 			choice.is_open(), hub.is_open(), run.saves.has_save(), run.error]]
-	var saved: RunSave = HubWiring.waiting_save(run.saves)
+	var saved: RunSave = HubOpening.waiting_save(run.saves)
 	measurements["saved"] = saved.to_json().strip_edges() if saved != null else ""
 	var killed: RunSaveStore = RunSaveStore.new(SCRATCH_PATH)
 	killed.stop_before_rename = true
 	var later: RunSave = RunSave.parse_json(saved.to_json() if saved != null else "")
 	later.next_level += 1
 	killed.save(later)
-	var survived: RunSave = HubWiring.waiting_save(RunSaveStore.new(SCRATCH_PATH))
+	var survived: RunSave = HubOpening.waiting_save(RunSaveStore.new(SCRATCH_PATH))
 	if survived == null or survived.to_json() != saved.to_json():
 		return [AcceptanceReport.RESULT_FAIL, "a save killed before its rename did not leave the first whole"]
 	run.saves = RunSaveStore.new(SCRATCH_PATH)  # A fresh store, as after the app is killed.
 	if not hub.resume_run():
 		return [AcceptanceReport.RESULT_FAIL, "the hub did not resume the run: '%s'" % run.error]
 	main.call("restart_level", true)
-	if run.saves.has_save() or HubWiring.waiting_save(run.saves) != null:
+	if run.saves.has_save() or HubOpening.waiting_save(run.saves) != null:
 		return [AcceptanceReport.RESULT_FAIL, "the save is still there after the resume"]
 	var plan: RunPlan = AcceptanceRunStep.plan_for(step.run_seed)
 	var want: String = LevelSwitch.seed_source(plan.level_seed_through(1, run.shafts, first),
