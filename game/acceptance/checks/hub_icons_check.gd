@@ -7,7 +7,8 @@ extends RefCounted
 ##      "checks": ["no_script_errors", "hub_icons"]}
 ##
 ## After the replay the ship is lost and restart pressed, as a lost run opens
-## the hub in the home base room (`hub_room_check.gd`). The shipped icon set
+## the hub in the home base room (`hub_room_check.gd`), and the room's arrival
+## fade is waited out so the picture is lit (#1425). The shipped icon set
 ## must be read without error, and the whole set is drawn as a sheet on the
 ## first station's screen in place of its words: every icon of every group,
 ## none falling back to the plain marker. The frame is then drawn and saved
@@ -43,6 +44,10 @@ static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 	level_start.run.store = ProfileStore.new(PROFILE_FILE)
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = ROOM_CHECK.judge_open_room(main, hub, measurements)
+	if verdict[0] == AcceptanceReport.RESULT_PASS:
+		var arrival: String = ROOM_CHECK.wait_for_arrival(main, hub)
+		if arrival != "":
+			verdict = [AcceptanceReport.RESULT_FAIL, arrival]
 	if verdict[0] == AcceptanceReport.RESULT_PASS:
 		verdict = _judge_sheet(runner, hub, step.id, measurements)
 	if hub.is_open():

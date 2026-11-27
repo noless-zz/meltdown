@@ -8,7 +8,8 @@ extends RefCounted
 ##      "checks": ["no_script_errors", "fitting_ship"]}
 ##
 ## After the replay the hub opens on the run (`HubWiring.open_for`) with the
-## profile and fitting in scratch files. Scripted stick and A presses build
+## profile and fitting in scratch files, and its arrival fade is waited out
+## (`hub_room_check.gd`, #1425). Scripted stick and A presses build
 ## the first weapon the Workbench offers and take the Fitting Bay into use: it
 ## must draw the ship with every slot on it, and a screenshot is taken of the
 ## bay settled forward. A on Primary 1 must swap the ship for the item list,
@@ -19,6 +20,7 @@ extends RefCounted
 ## works without reading a list stays a headset check.
 
 const CHECK: String = "fitting_ship"
+const ROOM_CHECK: GDScript = preload("res://acceptance/checks/hub_room_check.gd")
 const PROFILE_FILE: String = "user://meltdown_acceptance_fitting_ship_profile.json"
 const FITTING_FILE: String = "user://meltdown_acceptance_fitting_ship_fitting.json"
 const SLOT: String = "primary[0]"
@@ -42,7 +44,9 @@ static func _judge(step: AcceptanceStep, runner: AcceptanceRunner, measurements:
 	level_start.run.ship.fittings = FittingStore.new(FITTING_FILE)
 	var verdict: Array = [AcceptanceReport.RESULT_FAIL, "the hub did not open"]
 	if hub.open_for(level_start.run):
-		verdict = _ship_list_fit(runner, step.id, hub, measurements)
+		var arrival: String = ROOM_CHECK.wait_for_arrival(main, hub)
+		verdict = _ship_list_fit(runner, step.id, hub, measurements) if arrival == "" \
+			else [AcceptanceReport.RESULT_FAIL, arrival]
 	if hub.is_open():
 		hub.close()
 	_remove_scratch()
