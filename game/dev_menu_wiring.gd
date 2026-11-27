@@ -19,12 +19,10 @@ extends RefCounted
 ## the open menu also pauses the session (`DevMenuPause`, #1245).
 ##
 ## The tap does nothing during the first-launch flight test, while the
-## destroyed or escape screen is up or while the hub is open, and closes a
-## menu left open then; the hub also drops a level the menu was fading to, so
-## nothing flies hidden behind it (#1170, decision record 0009). The
-## break prompt (#716) still takes a tap first, through `UpdateWiring.tap_taker`.
-## A newer build that waits is an entry in the menu, and choosing it does
-## what the tap did before (`UpdateWiring.choose_waiting`).
+## destroyed or escape screen is up or while the hub is open (a pinned test
+## checklist takes it there, `ignored_tap`, #1408), and closes a menu left open
+## then; the hub also drops a level the menu was fading to (#1170, decision record 0009).
+## The break prompt (#716) takes a tap first; a waiting build is a menu entry (`UpdateWiring`).
 ##
 ## Each entry's choice goes to its helper (`DevMenuEntry`, #892): the Panel
 ## corner to `DevMenuCorner`, Controls, Hands and Pitch to `DevMenuControls`,
@@ -52,6 +50,7 @@ const LOG_PREFIX: String = DevMenuRestart.LOG_PREFIX
 ## Under the rig once `attach` has run.
 var menu: DevMenu = null
 var tap: MenuTap = MenuTap.new()
+var ignored_tap: bool = false  # A tap ignored as `blocked()`, this frame; the checklist takes it at the base.
 ## What the menu was using when it closed, kept from the ship until released (#1206).
 var release: DevMenuRelease = DevMenuRelease.new()
 ## One helper per entry kind, in the order `dev_menu.json` lists them.
@@ -194,6 +193,7 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 	var tapped: bool = tap.feed(ResetHold.is_held(values), now)
 	if tapped and _update != null and _update.tap_taker.is_valid() and bool(_update.tap_taker.call()):
 		tapped = false
+	ignored_tap = tapped and blocked()
 	if menu == null:
 		return values
 	menu.set_update(_update.waiting_version() if _update != null else "",

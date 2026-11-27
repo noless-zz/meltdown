@@ -60,6 +60,12 @@
 			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
 			"profile": "res://acceptance/fittings/hub_boards_profile.json",
 			"checks": ["no_script_errors", "hub_boards"]
+		},
+		{
+			"id": "checklist_at_base",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "checklist_at_base"]
 		}
 	]
 }

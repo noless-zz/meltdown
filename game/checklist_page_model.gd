@@ -31,6 +31,8 @@ var step: int = 0
 var choice: int = 0
 ## The remark the next mark carries; "" for none.
 var remark: String = ""
+## Why the step's action did nothing, shown under its mark until the next press; "" for none.
+var notice: String = ""
 
 var _held: Dictionary = {}
 
@@ -52,6 +54,7 @@ func show_step(index: int) -> void:
 	step = clampi(index, 0, session.checklist.steps.size() - 1)
 	choice = 0
 	remark = session.remark_of(step)
+	notice = ""
 
 
 func current_step() -> ChecklistStep:
@@ -114,6 +117,8 @@ func page_lines() -> Array[String]:
 		lines.append("Not marked yet")
 	else:
 		lines.append("Marked %s%s" % [choice_text(marked).to_lower(), " (%s)" % noted if noted != "" else ""])
+	if notice != "":
+		lines.append(notice)
 	var row: Array[String] = []
 	var listed: Array[String] = choices()
 	for index: int in listed.size():
@@ -132,6 +137,7 @@ func pinned_line() -> String:
 
 
 func _act(action: String) -> String:
+	notice = ""
 	match action:
 		DevMenuModel.UP, DevMenuModel.DOWN:
 			var count: int = session.checklist.steps.size()

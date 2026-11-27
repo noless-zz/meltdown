@@ -18,9 +18,12 @@ extends RefCounted
 ## (the gate issue the results go to) and a step's `remarks` and `action` are
 ## optional. An action has exactly one key: `comfort` (a preset, 1 to 4),
 ## `seed` (a whole number of at least 0), `level` (a `res://` level file that
-## exists) or `tunnel` (true). A rejected file names the field in `error`.
+## exists), `tunnel` (true) or `station` (a station id in the home base's
+## `ROOM_FILE`, #1408). A rejected file names the field in `error`.
 
 const DIR: String = "res://data/checklists"
+## The home base room; a `station` action names one of its stations. Read as data only.
+const ROOM_FILE: String = "res://data/hub/room.json"
 const NAME_CHARACTERS: String = "abcdefghijklmnopqrstuvwxyz0123456789_"
 const KEYS: Array[String] = ["id", "title", "issue", "remarks", "parts"]
 const PART_KEYS: Array[String] = ["title", "steps"]
@@ -181,10 +184,29 @@ static func _read_action(value: Variant, made: ChecklistStep) -> String:
 		ChecklistStep.ACTION_TUNNEL:
 			if typeof(given) != TYPE_BOOL or not bool(given):
 				return "\"tunnel\" must be true"
+		ChecklistStep.ACTION_STATION:
+			var stations: Dictionary = station_labels()
+			if typeof(given) != TYPE_STRING or not stations.has(given):
+				return "\"station\" must be one of %s" % [stations.keys()]
+			made.action_value = given
+			made.action_label = stations[given]
 		_:
 			return "unknown action \"%s\"" % kind
 	made.action = kind
 	return ""
+
+
+## The home base's station ids and their shown names, in the room file's order;
+## empty when `room_file` cannot be read.
+static func station_labels(room_file: String = ROOM_FILE) -> Dictionary:
+	var labels: Dictionary = {}
+	var room: Variant = JSON.parse_string(FileAccess.get_file_as_string(room_file)) \
+		if FileAccess.file_exists(room_file) else null
+	var listed: Variant = room.get("stations") if typeof(room) == TYPE_DICTIONARY else null
+	for station: Variant in (listed if typeof(listed) == TYPE_ARRAY else []):
+		if typeof(station) == TYPE_DICTIONARY and _is_name(station.get("id")):
+			labels[station["id"]] = str(station.get("label", station["id"]))
+	return labels
 
 
 static func _read_remarks(value: Variant, into: Array[String], field: String) -> String:
