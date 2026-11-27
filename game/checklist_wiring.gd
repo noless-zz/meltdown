@@ -21,10 +21,10 @@ extends RefCounted
 ## here writes simulation state (MP-2). It sits beside `main.gd` because it
 ## joins the `meta/` checklist to the `xr/` page, the dev menu and the hub.
 ##
-## At the home base the dev menu ignores the tap (decision record 0009), so a
-## tap there opens the pinned page instead, and pins an open one (#1408); with
-## no page pinned it still does nothing. The open page pauses the session the
-## hub waits on, which keeps the stations from the stick and the aim. A
+## At the home base the tap opens the dev menu as it does in the mine (#1450,
+## which replaces #1408's tap that opened only the pinned page), and the menu's
+## Test checklist entry opens the page over the hub. The open page pauses the
+## session the hub waits on, which keeps the stations from the stick and the aim. A
 ## `station` action takes the station into use with the stick's own presses
 ## (`HubStationSelect`); away from the base it does nothing and says so.
 
@@ -135,11 +135,6 @@ func close() -> void:
 func read(values: Dictionary) -> Dictionary:
 	if page == null:
 		return values
-	if _dev_menu != null and _dev_menu.ignored_tap and at_base():
-		if is_pinned():
-			open()
-		elif is_open():
-			pin()
 	if is_open() and _dev_menu != null and _dev_menu.is_open():
 		pin()  # A tap opened the menu over the page; the page makes way.
 	var was_open: bool = is_open()
