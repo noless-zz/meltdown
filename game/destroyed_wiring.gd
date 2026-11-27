@@ -15,6 +15,10 @@ extends RefCounted
 ## In a run the screen lists what earlier escapes kept and what this level
 ## lost, from copies (#1376, RUN-7, MP-2). When the press ends the run and
 ## opens the base (`HubWiring.ends_run`), both end screens' prompts say so.
+##
+## The low-hull tone (#1456) runs here on the same copy of the hull as the
+## pulses, silenced whenever an end screen or the shaft choice is up; `main.gd`
+## does not call `update` while the base is open, so it never sounds there.
 
 ## The A button, on the right Touch controller in either hand mode.
 const RESTART_BUTTON: String = "right_button_lower"
@@ -25,6 +29,7 @@ const KEYBOARD_BUTTON: String = "restart_key"
 
 var sequence: DestroyedSequence = DestroyedSequence.load_file()
 var haptics: DefenceHaptics = DefenceHaptics.load_shipped()
+var hull_warning: HullWarning = HullWarning.new()
 ## Under the rig origin once `attach` has run, null before.
 var screen: DestroyedScreen = null
 var escape: EscapeEndWiring = EscapeEndWiring.new()
@@ -52,6 +57,7 @@ func attach(rig: Node3D, left: XRController3D, right: XRController3D, p_level_st
 		level_start = p_level_start
 	haptics.left_controller = left
 	haptics.right_controller = right
+	hull_warning.attach(rig)
 	escape.attach(rig)
 	if rig != null:
 		cover.attach(rig)
@@ -81,6 +87,9 @@ func update(session: LocalSession, delta_seconds: float, recentre: HeadRecentre,
 	var due: bool = sequence.update(ship.hull, 0.0 if session.paused else delta_seconds, _restart_held)
 	if due:
 		haptics.reset()
+	hull_warning.update(hull, 0.0 if session.paused else delta_seconds,
+		end_screen_up() or hull <= 0.0 or session.sim.outcome() != ExitRule.Outcome.RUNNING,
+		RigViews.head_point(recentre))
 	escape.to_base = ends_run(session)
 	lists_shown = lost_lists(session) if sequence.line_shown() else ""
 	if screen != null:
@@ -138,6 +147,7 @@ func fade_alpha() -> float:
 func reset() -> void:
 	sequence = DestroyedSequence.new({"fade_seconds": sequence.fade_seconds, "hold_seconds": sequence.hold_seconds})
 	haptics.reset()  # As on the restart frame, so the next low hull warns again.
+	hull_warning.reset()
 	if screen != null:
 		screen.visible = false
 	escape.reset()
