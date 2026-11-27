@@ -17,6 +17,10 @@
 			"expected_level_hash": 3096639754,
 			"expected_outcome": "ESCAPED",
 			"screenshot_at_ticks": [5100, 5230, 5540]
+		},
+		{
+			"id": "status_panel_place",
+			"checks": ["no_script_errors", "status_panel_place"]
 		}
 	]
 }

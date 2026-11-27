@@ -113,7 +113,11 @@ func test_the_filled_bar_draws_over_its_track() -> String:
 ## The panel sits where the look file says (#605 moved it there from code).
 func test_the_panel_sits_where_the_look_file_says() -> String:
 	var look: Dictionary = StatusPanelLook.load_file()
+	# The look's own place is the centre choice; the default is a corner (#1452).
+	var saved: String = PanelCorner.current
+	PanelCorner.current = PanelCorner.CENTRE
 	var at: Transform3D = StatusPanel.rig_transform(Transform3D.IDENTITY)
+	PanelCorner.current = saved
 	if not at.origin.is_equal_approx(look["position_m"]):
 		return "the panel sits at %s, not the look's %s" % [at.origin, look["position_m"]]
 	var tilt: float = rad_to_deg(Vector3.UP.angle_to(at.basis.y))

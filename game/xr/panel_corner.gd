@@ -4,7 +4,9 @@ extends RefCounted
 ## Which corner of the view the status panel sits in (#752, part 1 of #748),
 ## kept between starts in its own small file, the way `ComfortChoice` keeps
 ## the preset. `CENTRE` is the place the panel had before corners, below and
-## ahead of the eye, and stays the default.
+## ahead of the eye. `DEFAULT_CORNER`, bottom left, is the place without a saved
+## choice: the owner's corner, which #1321 kept as the default and #1452 found
+## a fresh install or a lost save did not give.
 ##
 ## `--panel=<corner>` on the command line, or the intent extra `meltdown_panel`
 ## on the headset, read the way `LevelSwitch` reads `--level` (an argument wins
@@ -19,19 +21,20 @@ extends RefCounted
 const DEFAULT_PATH: String = "user://meltdown_panel.json"
 const FIELD_CORNER: String = "corner"
 const CENTRE: String = "centre"
+const DEFAULT_CORNER: String = "bottom_left"
 const ARG_PREFIX: String = "--panel="
 const INTENT_EXTRA: String = "meltdown_panel"
 const LOG_PREFIX: String = "Meltdown: status panel"
 
 ## The corner the panel is placed in now, for `StatusPanel.rig_transform`.
 ## Set by `load_saved` and `choose`.
-static var current: String = CENTRE
+static var current: String = DEFAULT_CORNER
 
 ## Every warning pushed, so tests can read them.
 var warnings: PackedStringArray = PackedStringArray()
 
 var _path: String
-var _corner: String = CENTRE
+var _corner: String = DEFAULT_CORNER
 
 
 func _init(path: String = DEFAULT_PATH) -> void:
@@ -85,10 +88,10 @@ func apply_switch(user_args: PackedStringArray, intent_value: String) -> void:
 		print("%s in %s, from the launch switch" % [LOG_PREFIX, asked])
 
 
-## Reads the saved corner. A missing file gives `CENTRE`; an unreadable or
-## wrong one gives `CENTRE` with a warning, so it never stops the game.
+## Reads the saved corner. A missing file gives `DEFAULT_CORNER`; an
+## unreadable or wrong one gives it with a warning, so it never stops the game.
 func load_saved() -> void:
-	_corner = CENTRE
+	_corner = DEFAULT_CORNER
 	if FileAccess.file_exists(_path):
 		var json: JSON = JSON.new()
 		var parsed: bool = json.parse(FileAccess.get_file_as_string(_path)) == OK

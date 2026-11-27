@@ -23,9 +23,9 @@
 	"tally_flash_seconds": 1,
 	"rows": ["meltdown", "hull", "shield", "energy", "weapon", "hold", "tally", "outcome"],
 	"corners": {
-		"top_left": [-0.157, 0.124, -0.512],
-		"top_right": [0.157, 0.124, -0.512],
-		"bottom_left": [-0.157, -0.124, -0.512],
-		"bottom_right": [0.157, -0.124, -0.512]
+		"top_left": [-0.306, 0.084, -0.509],
+		"top_right": [0.360, 0.084, -0.475],
+		"bottom_left": [-0.298, -0.155, -0.497],
+		"bottom_right": [0.355, -0.115, -0.470]
 	}
 }
