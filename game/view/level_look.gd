@@ -18,7 +18,8 @@ extends RefCounted
 ##      "plate_seam_m": 0.005..0.2, "plate_contrast": 0..0.25,
 ##      "fog_color": [r, g, b], "fog_density": 0..0.2,
 ##      "ambient_color": [r, g, b], "ambient_energy": 0..0.3,
-##      "ambient_rules": {...} (optional, `AmbientRules`)}
+##      "ambient_rules": {...} (optional, `AmbientRules`),
+##      "guide_lights": {...} (optional, `GuideLightRules`, #1463)}
 ##
 ## Why each part is there (#609: the owner could not read the space):
 ## - Floor, ceiling and walls take different tints by which way they face, so
@@ -156,7 +157,7 @@ static func parse(text: String) -> Dictionary:
 	var data: Dictionary = json.data
 	var all: Array[String] = keys()
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (all.has(key) or key == RULES_KEY):
+		if typeof(key) != TYPE_STRING or not (all.has(key) or key == RULES_KEY or key == GuideLightRules.KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
 	for key: String in all:
 		if not data.has(key):
@@ -191,8 +192,9 @@ static func parse(text: String) -> Dictionary:
 	if float(look["frame_width_m"]) > float(look["frame_depth_m"]):
 		return _rejected("\"frame_width_m\" is %s, must be at most \"frame_depth_m\" (%s)"
 				% [look["frame_width_m"], look["frame_depth_m"]])
-	if data.has(RULES_KEY):
-		look[RULES_KEY] = data[RULES_KEY]
+	for section: String in [RULES_KEY, GuideLightRules.KEY]:
+		if data.has(section):
+			look[section] = data[section]
 	return look
 
 

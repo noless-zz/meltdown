@@ -17,6 +17,14 @@
 			"expected_level_hash": 3096639754,
 			"expected_outcome": "ESCAPED",
 			"screenshot_at_ticks": [5100, 5230, 5540]
+		},
+		{
+			"id": "guide_lights",
+			"level": "stress",
+			"replay": "res://acceptance/replays/stress_scene.replay",
+			"checks": ["final_hash", "guide_lights_drawn", "guide_lights_brighter", "no_script_errors"],
+			"expected_hash": 1956914250,
+			"screenshot_at_ticks": [90, 1800, 5400]
 		}
 	]
 }

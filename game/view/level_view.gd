@@ -20,7 +20,8 @@ extends Node3D
 ## (#1382).
 ##
 ## Each box's walls carry its own baked ambient (`AmbientBake`, #1400, GFX-5),
-## chosen by `ambient_rules` in the look from its size and the reactor.
+## chosen by `ambient_rules` in the look from its size and the reactor; its
+## bevels' surface also draws its guide light strips (`GuideLights`, #1463).
 ##
 ## It only reads the union it is given and never writes to it (MP-2).
 ##
@@ -50,6 +51,8 @@ var _quads: Array[Dictionary] = []
 var _frames: Array[Dictionary] = []
 var _bevels: Array[Dictionary] = []
 var _bake: AmbientBake = null
+## The guide light strips of the last `build`.
+var guide_lights: GuideLights = GuideLights.new()
 var _wall_pieces: int = 0
 var _boxes: Array[Node3D] = []
 var _visibility: LevelVisibility = null
@@ -160,12 +163,16 @@ func build(union: BoxUnion, reactor: Variant = null) -> void:
 	if _bake != null:
 		LevelViewMeshes.use_bake(wall_material)
 		LevelViewMeshes.use_bake(bevel_material)
+	guide_lights = GuideLights.for_look(union, _look, reactor)
+	if guide_lights.error != "":
+		push_warning("LevelView draws no guide lights; %s" % guide_lights.error)
+	guide_lights.use_in(bevel_material)
 	_wall_pieces = 0
 	for index: int in union.boxes.size():
 		var box: Node3D = Node3D.new()
 		box.name = "%s%d" % [BOX_PREFIX, index]
 		_wall_pieces += LevelViewMeshes.add_box(box, per_box[index], bevels_per_box[index], wall_material,
-				bevel_material, _bake)
+				bevel_material, _bake, guide_lights.strips_of(index), guide_lights.color_of(index))
 		add_child(box)
 		_boxes.append(box)
 	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
