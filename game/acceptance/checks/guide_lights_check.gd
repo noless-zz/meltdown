@@ -2,21 +2,23 @@ extends RefCounted
 
 ## The guide light checks (#1463, GFX-2, GFX-4, GFX-5, PRF-2, PRF-4, DEV-6,
 ## decision record 0005), lane-a's file under `acceptance/checks/`. In
-## `suites/m6/look.json` the `guide_lights` step flies the stress replay, then:
+## `suites/m6/look.json` the `guide_lights` step flies the stress replay and
+## `guide_lights_g2` flies G2 (it has the tunnels, junction, room and reactor
+## room the stress scene's single room lacks), then:
 ##
 ## - `guide_lights_drawn`: the look's `guide_lights` section was read, every box
 ##   the camera shows draws its strips in its bevels' surface, no box costs more
 ##   than its two draw calls, at least two box kinds are lit so places are told
-##   apart, and the strips added no light. It reports the strips' cost: their
-##   triangles, and the draw calls they add (none). It then saves a picture
-##   from the middle of a tunnel, a junction and the reactor room, looking along
-##   each, as `<step id>_<kind>.png` under `m6/`; one that cannot be taken is
-##   noted and never fails the step.
+##   apart (on a level of more than one box), and the strips added no light.
+##   It reports the strips' cost: their triangles, and the draw calls they add
+##   (none). It then saves a picture in a tunnel, a junction and the reactor
+##   room, looking along each, as `<step id>_<kind>.png` under `m6/`; one that
+##   cannot be taken is noted and never fails the step.
 ## - `guide_lights_brighter`: draws the same frame with the strips off and on
 ##   and requires the mean luminance to rise, reporting both. Skipped where
 ##   nothing is drawn (headless).
 ##
-## Both read the view only, and put the camera back as it was; the step's
+## Both read the view only and put the renderer's camera back; the step's
 ## pinned hash holds the simulation (ARC-1). Whether the mine is "not gloomy,
 ## tunnel readable" stays human-checked in the headset.
 
@@ -25,6 +27,8 @@ const CHECK_BRIGHTER: String = "guide_lights_brighter"
 const SHOT_FOLDER: String = "m6"
 const SHOT_KINDS: Array[String] = [GuideLightRules.KIND_TUNNEL, GuideLightRules.KIND_JUNCTION,
 	GuideLightRules.KIND_REACTOR]
+## How far back from a box's middle, as a share of its length, its picture is taken.
+const SHOT_BACK_SHARE: float = 0.33
 ## The square the frames are shrunk to before their luminance is averaged.
 const SAMPLE_SIZE: int = 64
 
@@ -69,7 +73,8 @@ static func judge_view(view: LevelView, measurements: Dictionary) -> Array:
 		if glowing != lights.strips_of(box).size() * 6:
 			return [AcceptanceReport.RESULT_FAIL, "shown box %d (%s) draws %d strip vertices for %d strips" % [
 				box, lights.kinds[box], glowing, lights.strips_of(box).size()]]
-	if kinds.size() < 2:
+	# A one-box level (the stress scene's reactor room) has one kind by definition.
+	if kinds.size() < 2 and view.box_count() > 1:
 		return [AcceptanceReport.RESULT_FAIL, "every box is a %s, so no place stands apart" % [kinds.keys()]]
 	var added_lights: int = 0
 	for box: int in view.box_count():
@@ -138,9 +143,9 @@ static func mean_luminance(image: Image) -> float:
 	return total / float(SAMPLE_SIZE * SAMPLE_SIZE)
 
 
-## A picture from the middle of the first box of each kind in `SHOT_KINDS`,
-## looking along it. The camera (or the rig it rides on) is moved for the
-## picture and put back. Returns the paths saved, or why each was not.
+## A picture of the first box of each kind in `SHOT_KINDS`, looking along it
+## towards its middle. Only the renderer's camera is posed for the picture, then
+## put back. Returns the paths saved, or why each was not.
 static func _place_shots(runner: AcceptanceRunner, view: LevelView, step_id: String) -> Array[String]:
 	var notes: Array[String] = []
 	var camera: Camera3D = view.get_viewport().get_camera_3d() if view.is_inside_tree() else null
@@ -163,19 +168,22 @@ static func _shot_in(runner: AcceptanceRunner, view: LevelView, camera: Camera3D
 	var look: Vector3 = Vector3.ZERO
 	var size: Vector3 = bounds.max_corner - bounds.min_corner
 	look[size.max_axis_index()] = -1.0
-	var centre: Vector3 = view.global_transform * ((bounds.min_corner + bounds.max_corner) * 0.5)
+	var middle: Vector3 = (bounds.min_corner + bounds.max_corner) * 0.5
+	# A third of the way back, looking at the middle: from the middle itself the
+	# reactor room's picture is the inside of the reactor's glow.
+	var eye: Vector3 = view.global_transform * (middle - look * size[size.max_axis_index()] * SHOT_BACK_SHARE)
 	var up: Vector3 = Vector3.FORWARD if absf(look.y) > 0.5 else Vector3.UP
-	var target: Vector3 = view.global_transform * ((bounds.min_corner + bounds.max_corner) * 0.5 + look)
-	var wanted: Transform3D = Transform3D(Basis.IDENTITY, centre).looking_at(target, up)
-	# A headset camera is posed by tracking, so move the rig it rides on.
-	var moved: Node3D = camera.get_parent() as Node3D if camera.get_parent() is XROrigin3D else camera
-	var kept: Transform3D = moved.global_transform
-	moved.global_transform = wanted * camera.global_transform.affine_inverse() * kept if moved != camera else wanted
-	_cull_from(view, camera)
+	var wanted: Transform3D = Transform3D(Basis.IDENTITY, eye).looking_at(view.global_transform * middle, up)
+	# The renderer's camera is posed directly: a moved node only reaches the
+	# renderer once the frame's transform notifications are flushed, after
+	# `force_draw`. No node moves, so the rig and the cockpit stay where they are.
+	var kept: Transform3D = camera.global_transform
+	_cull_from(view, wanted)
+	RenderingServer.camera_set_transform(camera.get_camera_rid(), wanted)
 	RenderingServer.force_draw(true, 0.0)
 	var got: Variant = runner.screenshots.grab.call() if runner.screenshots.grab.is_valid() else "nothing to take it with"
-	moved.global_transform = kept
-	_cull_from(view, camera)
+	RenderingServer.camera_set_transform(camera.get_camera_rid(), kept)
+	_cull_from(view, kept)
 	if not got is Image:
 		return "skipped %s: %s" % [file, str(got)]
 	var folder: String = runner.screenshots.dir.path_join(SHOT_FOLDER)
@@ -185,7 +193,7 @@ static func _shot_in(runner: AcceptanceRunner, view: LevelView, camera: Camera3D
 	return path if error == OK else "skipped %s: cannot write %s: %s" % [file, path, error_string(error)]
 
 
-## Shows the boxes seen from where `camera` is now; `cull_camera` culls once a frame.
-static func _cull_from(view: LevelView, camera: Camera3D) -> void:
-	var to_level: Transform3D = view.global_transform.affine_inverse() * camera.global_transform
+## Shows the boxes seen from an eye at `eye` (global); `cull_camera` culls once a frame.
+static func _cull_from(view: LevelView, eye: Transform3D) -> void:
+	var to_level: Transform3D = view.global_transform.affine_inverse() * eye
 	view.cull(to_level.origin, to_level.basis)

@@ -25,6 +25,14 @@
 			"checks": ["final_hash", "guide_lights_drawn", "guide_lights_brighter", "no_script_errors"],
 			"expected_hash": 1956914250,
 			"screenshot_at_ticks": [90, 1800, 5400]
+		},
+		{
+			"id": "guide_lights_g2",
+			"level": "g2",
+			"replay": "res://acceptance/replays/bot_g2_level.replay",
+			"checks": ["final_hash", "guide_lights_drawn", "no_script_errors"],
+			"expected_hash": 802400918,
+			"screenshot_at_ticks": [1275, 2340]
 		}
 	]
 }

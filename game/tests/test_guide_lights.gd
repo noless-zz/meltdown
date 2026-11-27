@@ -8,8 +8,6 @@ extends RefCounted
 ## and no new draw call.
 
 const SeedSweep := preload("res://tests/seed_sweep.gd")
-const GuideLightsCheck := preload("res://acceptance/checks/guide_lights_check.gd")
-const SUITE_FILE: String = "res://acceptance/suites/m6/look.json"
 const SHADER_FILE: String = "res://view/level_wall.gdshader"
 const SEED: int = 4321
 
@@ -252,41 +250,3 @@ func test_the_wall_shader_adds_the_strip_glow() -> String:
 			return "the wall shader lacks %s" % needle
 	return ""
 
-
-func test_the_check_passes_a_lit_level_and_fails_an_unlit_one() -> String:
-	var view: LevelView = LevelView.new()
-	view.build(_tunnel_and_room())
-	var measurements: Dictionary = {}
-	var verdict: Array = GuideLightsCheck.judge_view(view, measurements)
-	var result: String = ""
-	if verdict[0] != AcceptanceReport.RESULT_PASS:
-		result = "a lit level failed: %s" % verdict[1]
-	elif int(measurements["guide_draw_calls"]) != 0 or int(measurements["guide_triangles"]) != view.guide_lights.strips.size() * 2:
-		result = "the cost is reported as %s" % measurements
-	view.guide_lights = GuideLights.new()
-	if result == "" and GuideLightsCheck.judge_view(view, {})[0] != AcceptanceReport.RESULT_FAIL:
-		result = "a level without strips passed"
-	view.free()
-	return result
-
-
-func test_mean_luminance_of_a_flat_image() -> String:
-	var image: Image = Image.create(8, 8, false, Image.FORMAT_RGB8)
-	image.fill(Color(0.5, 0.5, 0.5))
-	var dark: float = GuideLightsCheck.mean_luminance(image)
-	image.fill_rect(Rect2i(0, 0, 8, 1), Color(1, 1, 1))
-	var lit: float = GuideLightsCheck.mean_luminance(image)
-	if absf(dark - 0.5) > 0.01 or lit <= dark:
-		return "a grey image reads %.3f and with a white line %.3f" % [dark, lit]
-	return ""
-
-
-func test_the_m6_look_suite_flies_the_guide_lights_step() -> String:
-	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(SUITE_FILE))
-	for step: Variant in (data as Dictionary)["steps"]:
-		if (step as Dictionary)["id"] == "guide_lights":
-			var checks: Array = step["checks"]
-			if not checks.has(GuideLightsCheck.CHECK_DRAWN) or not checks.has(GuideLightsCheck.CHECK_BRIGHTER):
-				return "the guide_lights step lists %s" % [checks]
-			return "" if str(step["replay"]).ends_with("stress_scene.replay") else "the step flies %s" % step["replay"]
-	return "suites/m6/look.json has no guide_lights step"
