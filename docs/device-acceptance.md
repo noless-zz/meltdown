@@ -81,6 +81,22 @@ artifact and adds any suite the log did not hold to the table; `acceptance_exit.
 the suite that was running come from the `Meltdown: acceptance: step` lines, and the reason
 says the table is partial.
 
+## How long the run waits
+
+Without `-TimeoutSeconds` (or with 0), the script works out how long to wait for the exit line
+from the suites asked for (#1504): the sum of every step's time limit by the #1444 rule
+(`game/acceptance/acceptance_time_limit.gd`: the step's own `time_limit_seconds`, else the
+suite default plus the step's waits and its replays' flight at 72 Hz), plus a margin of 300 s
+set once in `tools/acceptance_wait.ps1`. The suite files are read from the checkout the
+script runs in. It prints `Waiting up to N s for the exit line: ...` with the sum. The game
+fails a stuck step at its limit, so the run normally ends long before the wait; the wait only
+matters when the game stops answering. A fixed 900 s cut the 27 November `nightly` run off in
+m3. `-TimeoutSeconds` with any other value is used as given.
+
+The progress lines (#1438) match what each poll reads against what earlier polls read, so a
+headset log buffer that dropped its oldest lines between two polls no longer hides the steps
+that ended in between (#1504).
+
 ## Unattended runs and the controllers
 
 A scheduled workflow run, `-Suite nightly` or `-Unattended` starts the game with the intent
