@@ -1,16 +1,19 @@
 extends RefCounted
 
-## The `level_load` check (#1445, PRF-7, PRF-8, ARC-1, DEV-6), lane-b's file
-## under `acceptance/checks/`, for the m6 perf step of the same name. It loads
-## the levels `LevelLoadPlan` lists (each run seed's deepest level through the
-## busiest shaft, and the stress level), times each with `LevelLoadTiming`, and
-## judges the worst `total_s` against the plan's `budget_seconds`. A failure
-## names the level and its slowest phase, so the next run knows where to look.
+## The `level_load` check (#1445, #1480, PRF-7, PRF-8, ARC-1, DEV-6), lane-b's file
+## under `acceptance/checks/`, for the m6 perf step of the same name. Its frame
+## work (`LevelLoadFrames`) loads the levels `LevelLoadPlan` lists (each run
+## seed's deepest level through the busiest shaft, and the stress level) into
+## the scene one at a time, each timed with `LevelLoadTiming` up to the frame
+## drawn after it. The judge takes the worst `total_s` against the plan's
+## `budget_seconds`. A failure names the level and its slowest phase, so the
+## next run knows where to look.
 ##
 ## Every load is also built once without the clock and its state hash compared,
 ## so the measurement provably leaves the simulation as it was (ARC-1, ARC-2).
-## Headless CI is slower than the headset in some phases and faster in others:
-## the step reports its times, and the headset number is a gate check.
+## Headless CI is slower than the headset in some phases and faster in others,
+## and draws no frame: there the check reports its times as "skipped", and the
+## headset number is a gate check.
 
 const CHECK: String = "level_load"
 ## Measurements are rounded to this many decimals, enough for milliseconds.
@@ -21,24 +24,24 @@ static func judges() -> Dictionary[String, Callable]:
 	return {CHECK: _judge}
 
 
-static func _judge(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
-	var plan: LevelLoadPlan = LevelLoadPlan.load_file()
-	var loads: Array[Dictionary] = plan.loads(SeedLevel.read_text(RunWiring.RUN_FILE),
-		ShaftOffer.build(SeedLevel.read_text(RunWiring.SHAFTS_FILE)))
-	if plan.error != "":
-		return [AcceptanceReport.RESULT_FAIL, "%s: %s" % [LevelLoadPlan.FILE.get_file(), plan.error]]
-	var timings: Array[Dictionary] = []
-	for load: Dictionary in loads:
-		var timing: Dictionary = LevelLoadTiming.measure(load["source"], load["shaft"])
-		if timing.has("error"):
-			return [AcceptanceReport.RESULT_FAIL, "%s: %s" % [load["label"], timing["error"]]]
-		var unmeasured: int = LevelLoadTiming.unmeasured_hash(load["source"], load["shaft"])
-		if unmeasured != int(timing["hash"]):
-			return [AcceptanceReport.RESULT_FAIL, "%s: state hash %d when measured, %d without" \
-				% [load["label"], timing["hash"], unmeasured]]
-		timing["label"] = load["label"]
-		timings.append(timing)
-	return judge_timings(timings, plan.budget_seconds, measurements)
+static func frame_work() -> Dictionary[String, Callable]:
+	return {CHECK: _start}
+
+
+static func _start(_step: AcceptanceStep, runner: AcceptanceRunner, frames: AcceptanceFrameHook) -> void:
+	frames.results[CHECK] = LevelLoadFrames.start(runner.main, frames)
+
+
+static func _judge(_step: AcceptanceStep, runner: AcceptanceRunner, measurements: Dictionary) -> Array:
+	var frames: AcceptanceFrameHook = runner.frame_hook() if runner != null else null
+	var work: LevelLoadFrames = frames.results.get(CHECK) as LevelLoadFrames if frames != null else null
+	if work == null:
+		return [AcceptanceReport.RESULT_FAIL, "no level was loaded: the check's frame work did not run"]
+	if work.error != "":
+		return [AcceptanceReport.RESULT_FAIL, work.error]
+	if not work.done:
+		return [AcceptanceReport.RESULT_FAIL, "the loads did not finish"]
+	return judge_timings(work.timings, work.budget_seconds, measurements)
 
 
 ## [result, message] for `timings` (each with a `label`, the phases and
@@ -63,10 +66,23 @@ static func judge_timings(timings: Array[Dictionary], budget_seconds: float, mea
 	measurements["worst_total_s"] = snappedf(total, DECIMALS)
 	var detail: String = "%s: %.3f s, slowest phase %s %.3f s" \
 		% [worst["label"], total, phase, float(worst.get(phase, 0.0))]
+	var drawn: bool = all_drawn(timings)
+	measurements["first_frame_drawn"] = drawn
 	if total > budget_seconds:
 		return [AcceptanceReport.RESULT_FAIL, "over the %.1f s budget: %s" % [budget_seconds, detail]]
-	return [AcceptanceReport.RESULT_PASS, "%d levels within the %.1f s budget; worst %s" \
-		% [timings.size(), budget_seconds, detail]]
+	var within: String = "%d levels within the %.1f s budget; worst %s" % [timings.size(), budget_seconds, detail]
+	if not drawn:  # Decision record 0005: a number without its GPU part proves nothing yet.
+		return [AcceptanceReport.RESULT_SKIPPED, "%s; no frame was really drawn here, so %s is not the GPU's" \
+			% [within, LevelLoadTiming.FIRST_FRAME]]
+	return [AcceptanceReport.RESULT_PASS, within]
+
+
+## True when every load's first frame was really drawn; a timing without `drawn` counts as drawn.
+static func all_drawn(timings: Array[Dictionary]) -> bool:
+	for timing: Dictionary in timings:
+		if not bool(timing.get(LevelLoadTiming.DRAWN, true)):
+			return false
+	return true
 
 
 ## The phase of `timing` that took longest; the first on a tie.

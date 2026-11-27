@@ -192,12 +192,7 @@ func _step_ready(step: AcceptanceStep) -> bool:
 		if AcceptanceShaftStep.flies_on(self, step, _checks):  # Level 2 of a shaft step (#1065).
 			return false
 		main.set_process(true)
-	if _checks.sampling():
-		return false
-	if _checks.waits_for_xr(step, self) and xr_waited < XR_WAIT_FRAMES:
-		xr_waited += 1
-		return false
-	return true
+	return not _checks.still_waits(step, self)  # Samplers, the headset, then drawn frames (#1480).
 
 
 func _record_step(step: AcceptanceStep) -> void:
@@ -207,6 +202,11 @@ func _record_step(step: AcceptanceStep) -> void:
 
 func _step_fields() -> String:
 	return AcceptanceRunOutput.step_fields(suites[_suite_index].name, _step_index, suites[_suite_index].steps.size())
+
+
+## The step's drawn frames, where a check's frame work left what its judge reads (#1480), or null.
+func frame_hook() -> AcceptanceFrameHook:
+	return _checks.drawn if _checks != null else null
 
 
 func xr_available() -> bool:
