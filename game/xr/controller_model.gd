@@ -113,6 +113,7 @@ func build() -> void:
 	_anchor_source = ControllerAnchors.SOURCE_GENERIC
 	_add_runtime_models()
 	_add_vendor_model()
+	tag_hands()  # Drawn at the home base too (#1451).
 
 
 ## True while the runtime supplies this hand's model and the generic shape is hidden.
@@ -204,6 +205,7 @@ func on_runtime_model_added(_render_model: Node3D) -> void:
 	_runtime_model_count += 1
 	_show_generic(false)
 	_move_leaders()
+	tag_hands.call_deferred()  # Its meshes may be added after the signal.
 
 
 ## Connected to the manager's `render_model_removed`.
@@ -223,6 +225,12 @@ func on_vendor_model_loaded() -> void:
 	if manager != null:
 		manager.visible = false
 	_move_leaders()
+	tag_hands.call_deferred()
+
+
+## Puts this hand (not its labels) on the hands layer the home base draws (#1451).
+func tag_hands() -> void:
+	HandLayer.tag(self)
 
 
 func _move_leaders() -> void:

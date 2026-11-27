@@ -22,7 +22,9 @@ extends XROrigin3D
 ## runs, so the rig only copies that placement.
 ##
 ## The rig also carries the `RenderScaler` (#1417), which lowers and raises
-## the headset's render scale with the frame times.
+## the headset's render scale with the frame times, and the `AimRay` (#1451),
+## shown from the right controller where pointing selects. The controller
+## shapes are on the hands layer too, so the home base room draws them.
 
 const LEFT_COLOR: Color = Color(0.2, 0.6, 1.0)
 const RIGHT_COLOR: Color = Color(1.0, 0.5, 0.2)
@@ -70,6 +72,7 @@ func _process(delta: float) -> void:
 	if _signature() != _shown_signature:
 		refresh_labels()
 	place_headlight()
+	point_ray()
 	var camera: Node3D = get_node_or_null(CAMERA_NAME) as Node3D
 	if camera == null or not is_inside_tree():
 		return
@@ -102,6 +105,8 @@ func build() -> void:
 		add_child(report)
 	if headlight() == null:
 		add_child(Headlight.new())
+	if aim_ray() == null:
+		add_child(AimRay.new())  # Shown only where pointing selects (#1451).
 	if get_node_or_null(RenderScaler.NODE_NAME) == null:
 		add_child(RenderScaler.new())  # Dynamic resolution, headset only (#1417).
 	place_headlight()
@@ -128,6 +133,20 @@ func place_headlight() -> void:
 	var lamp: Headlight = headlight()
 	if lamp != null:
 		lamp.place(ship_frame())
+
+
+## The aim ray, or null before `build`.
+func aim_ray() -> AimRay:
+	return get_node_or_null(AimRay.NODE_NAME) as AimRay
+
+
+## Draws the aim ray from the right controller, the one the hub and the shaft
+## choice select with, while it is tracked and pointing selects (#1451).
+func point_ray() -> void:
+	var ray: AimRay = aim_ray()
+	var aim: XRController3D = get_node_or_null("RightHand") as XRController3D
+	if ray != null:
+		ray.follow(self, aim.transform if aim != null else Transform3D.IDENTITY, aim != null and aim.get_is_active())
 
 
 ## The node that logs the runtime's render models, or null before `build`.
