@@ -1,0 +1,6 @@
+{
+	"budget_seconds": 8.0,
+	"run_seeds": [4, 8, 12],
+	"shaft": "deep",
+	"levels": ["stress"]
+}

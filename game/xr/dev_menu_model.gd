@@ -98,6 +98,8 @@ var run_shown: bool = false
 var return_armed: bool = false
 ## Whether the Test checklist row shows: a checklist is attached (#1325).
 var checklist_shown: bool = false
+## Where the pilot sits (`DevMenuPlaces`): only entries naming it show (#1450).
+var place: String = DevMenuPlaces.MINE
 ## Each value entry kind's value helper (#908, split out by #1282).
 var values: DevMenuValues
 ## The valid custom comfort file's base preset (1..4), or 0 when there is none (#837).
@@ -199,9 +201,11 @@ func value_text(entry_kind: String) -> String:
 	return values.value_text(entry_kind)
 
 
-## Whether entry `index` is on the menu now: every entry but a hidden update
-## or Return to base row.
+## Whether entry `index` is on the menu now: an entry of this `place`, but
+## not a hidden update, Return to base or checklist row.
 func is_shown(index: int) -> bool:
+	if not DevMenuPlaces.shows(spec.entries[index], place):
+		return false
 	match str(spec.entries[index]["kind"]):
 		DevMenuSpec.KIND_UPDATE: return update_version != ""
 		DevMenuSpec.KIND_RETURN: return run_shown

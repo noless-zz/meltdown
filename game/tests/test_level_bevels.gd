@@ -124,8 +124,11 @@ func test_the_level_view_draws_bevels_in_the_wall_material_with_a_dim_glow() -> 
 	var result: String = ""
 	var material: ShaderMaterial = node.mesh.surface_get_material(0) as ShaderMaterial
 	var vertices: int = (node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	if node.mesh.get_surface_count() != 1 or vertices != view.bevels().size() * 6:
-		result = "the bevels are %d surfaces and %d vertices for %d bevels" % [node.mesh.get_surface_count(), vertices, view.bevels().size()]
+	# The box's guide light strips share the bevels' surface (#1463).
+	var strips: int = view.guide_lights.strips_of(0).size()
+	if node.mesh.get_surface_count() != 1 or vertices != (view.bevels().size() + strips) * 6:
+		result = "the bevels are %d surfaces and %d vertices for %d bevels and %d strips" % [
+			node.mesh.get_surface_count(), vertices, view.bevels().size(), strips]
 	elif material.shader.resource_path != LevelLook.WALL_SHADER or material.get_shader_parameter("tint") != look["wall_color"]:
 		result = "the bevels are not drawn in the wall material"
 	elif not (material.get_shader_parameter("glow") as Color).is_equal_approx((look["edge_color"] as Color) * float(look["edge_energy"])):

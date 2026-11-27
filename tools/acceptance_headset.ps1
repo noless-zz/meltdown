@@ -266,17 +266,28 @@ function Wait-Reconnect {
 }
 
 # Says the drop and waits. Returns $null when the headset is back, else the
-# time (HH:mm:ss) the connection dropped (#1436: a drop is not a crash).
+# time (HH:mm:ss) the connection dropped (#1436: a drop is not a crash). With
+# the run's $Clock, each line starts with the time since the start, like the
+# progress lines (#1438), so a silent wait is not mistaken for a hang.
 function Resume-AfterDrop {
-	param([int]$Seconds, [int]$PollSeconds)
+	param([int]$Seconds, [int]$PollSeconds, [Diagnostics.Stopwatch]$Clock = $null)
 	$at = Get-Date -Format 'HH:mm:ss'
 	$script:drops += 1
-	Write-Host "Waiting up to $Seconds s: the connection to the headset dropped at $at."
+	Write-Host "$(Get-DropStamp $Clock)Waiting up to $Seconds s: the connection to the headset dropped at $at." -ForegroundColor Yellow
 	if (Wait-Reconnect -Seconds $Seconds -PollSeconds $PollSeconds) {
-		Write-Host "Going on: the headset is back at $(Get-Date -Format 'HH:mm:ss')."
+		Write-Host "$(Get-DropStamp $Clock)Going on: the headset is back at $(Get-Date -Format 'HH:mm:ss')." -ForegroundColor Yellow
 		return $null
 	}
+	Write-Host "$(Get-DropStamp $Clock)The headset was not back within $Seconds s." -ForegroundColor Red
 	return $at
+}
+
+function Get-DropStamp {
+	param([Diagnostics.Stopwatch]$Clock)
+	if ($null -eq $Clock) {
+		return ''
+	}
+	return "$(Format-ProgressTime $Clock.Elapsed.TotalSeconds) "
 }
 
 # One screenshot into $Path. Returns whether it was saved.

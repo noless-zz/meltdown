@@ -46,6 +46,7 @@ func _init() -> void:
 	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	label.no_depth_test = true
 	label.render_priority = DevMenu.RENDER_PRIORITY
+	label.layers = DevMenu.LAYERS  # Drawn at the home base too (#1450).
 	add_child(label)
 	visible = false
 

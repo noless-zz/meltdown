@@ -26,6 +26,9 @@ extends RefCounted
 ## A run with a save store gets one more row after the shafts, "Suspend run"
 ## (#1107, RUN-8, `RunSuspend`): confirming it saves the run and answers the
 ## restart too, and `HubWiring.open_after` then opens the hub instead of a level.
+##
+## Pointing, choosing, a refused press and leaving play sounds from the panel
+## (`ShaftChoiceSounds`, #1455), presentation only like the panel itself.
 
 var look: Dictionary = ShaftPanelLook.load_file()
 ## How the shafts are drawn; a refused file leaves today's text rows.
@@ -36,6 +39,8 @@ var suspend_words: Dictionary = RunSuspend.words()
 var panel: ShaftPanel = null
 ## The open panel's model; null while closed.
 var model: ShaftPanelModel = null
+## Under the panel once `attach` has run, null before.
+var sounds: ShaftChoiceSounds = null
 
 var _actions: Dictionary = {}
 var _aim: XRController3D = null
@@ -47,6 +52,8 @@ func attach(rig: Node3D) -> void:
 		return
 	panel = ShaftPanel.new(look, shapes)
 	rig.add_child(panel)
+	sounds = ShaftChoiceSounds.new()
+	panel.add_child(sounds)
 	_aim = rig.get_node_or_null("RightHand") as XRController3D
 
 
@@ -65,6 +72,8 @@ func open(run: RunWiring, collected: Dictionary, rescued: int = 0) -> bool:
 	if run.saves != null:
 		model.add_row(RunSuspend.ROW_KIND, suspend_words["row_text"], suspend_words["detail_text"])
 	_actions = {}
+	if sounds != null:
+		sounds.opened()
 	return true
 
 
@@ -77,23 +86,30 @@ func read(values: Dictionary) -> Dictionary:
 	return DevMenuWiring.neutral(values)
 
 
-## Once per frame after the ticks, while open. Returns true on the frame a
-## confirmed shaft is taken and its level should fly, or the run is suspended.
-func update(run: RunWiring, paused: bool, head_point: Transform3D, xr_running: bool) -> bool:
+## Once per frame after the ticks, while open, `delta_seconds` after the last.
+## Returns true on the frame a confirmed shaft is taken and its level should
+## fly, or the run is suspended.
+func update(run: RunWiring, paused: bool, head_point: Transform3D, xr_running: bool,
+		delta_seconds: float = 0.0) -> bool:
 	if not is_open():
 		return false
+	var before: int = model.highlight
+	var kind: String = ""
+	var taken: bool = false
 	if not paused and not _actions.is_empty():  # No frame read since opening: nothing pressed yet.
-		var kind: String = model.update(_actions)
-		var taken: bool = false
+		kind = model.update(_actions)
 		if kind != "" and run != null:
 			taken = run.suspend() if kind == RunSuspend.ROW_KIND else run.choose(kind)
-		if taken:
-			close()
-			return true
-	if panel != null:
+	if not taken and panel != null:
 		panel.transform = head_point
 		if not paused:
 			_point()
+	if sounds != null:
+		sounds.hear(before, model.highlight, kind, taken, delta_seconds)
+	if taken:
+		close()
+		return true
+	if panel != null:
 		panel.show_model(model, xr_running)
 	return false
 

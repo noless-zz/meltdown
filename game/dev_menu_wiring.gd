@@ -18,10 +18,12 @@ extends RefCounted
 ## session from the start, behind a fade (MP-2, ARC-3, CMF-8). In solo play
 ## the open menu also pauses the session (`DevMenuPause`, #1245).
 ##
-## The tap does nothing during the first-launch flight test, while the
-## destroyed or escape screen is up or while the hub is open (a pinned test
-## checklist takes it there, `ignored_tap`, #1408), and closes a menu left open
-## then; the hub also drops a level the menu was fading to (#1170, decision record 0009).
+## The tap opens it wherever the pilot sits: in the mine, at the home base, at
+## the shaft choice and on the end screens, each showing only its own entries
+## (`DevMenuWhere`, #1450, which withdraws #1170's "the hub closes the menu").
+## It does nothing during the first-launch flight test or a fade between places
+## and closes a menu left open when the place changes; the hub still drops a
+## level the menu was fading to (decision record 0009).
 ## The break prompt (#716) takes a tap first; a waiting build is a menu entry (`UpdateWiring`).
 ##
 ## Each entry's choice goes to its helper (`DevMenuEntry`, #892): the Panel
@@ -50,7 +52,9 @@ const LOG_PREFIX: String = DevMenuRestart.LOG_PREFIX
 ## Under the rig once `attach` has run.
 var menu: DevMenu = null
 var tap: MenuTap = MenuTap.new()
-var ignored_tap: bool = false  # A tap ignored as `blocked()`, this frame; the checklist takes it at the base.
+var ignored_tap: bool = false  # A tap ignored as `blocked()`, this frame.
+## Where the pilot sits, what the tap ignores, and the base's update sign (#1450).
+var where: DevMenuWhere = DevMenuWhere.new()
 ## What the menu was using when it closed, kept from the ship until released (#1206).
 var release: DevMenuRelease = DevMenuRelease.new()
 ## One helper per entry kind, in the order `dev_menu.json` lists them.
@@ -93,10 +97,6 @@ var _restarts: DevMenuRestart = DevMenuRestart.new()
 var _return: DevMenuReturn = DevMenuReturn.new()
 var _update: UpdateWiring = null
 var _level_start: LevelStart = null
-var _flight_test: FlightTestWiring = null
-var _destroyed: DestroyedWiring = null
-## True while the hub is open (`HubWiring.is_open`); unset, there is no hub.
-var _hub_open: Callable = Callable()
 ## The session the open menu pauses (`DevMenuPause`); unset, nothing pauses.
 var _session_of: Callable = Callable()
 
@@ -120,8 +120,8 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
-## `level_start.source` again from its start; the flight test and the end
-## screens say when the tap is ignored, and so does `hub_open` (#1170).
+## `level_start.source` again from its start; the flight test, the end
+## screens and `hub_open` say where the pilot sits (`DevMenuWhere`).
 ## `session_of` returns the session flying now, which the open menu pauses.
 ## Calling it again adds nothing.
 func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart: Callable,
@@ -129,12 +129,10 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 		hub_open: Callable = Callable(), session_of: Callable = Callable()) -> void:
 	if menu != null:
 		return
-	_hub_open = hub_open
+	where.attach(rig, flight_test, destroyed, hub_open)
 	_session_of = session_of
 	_update = update
 	_level_start = level_start
-	_flight_test = flight_test
-	_destroyed = destroyed
 	_update_entry.update = update
 	_restarts.level_start = level_start
 	_restarts.restart = restart
@@ -153,23 +151,14 @@ func is_open() -> bool:
 	return menu != null and menu.visible
 
 
-## Whether the tap is ignored now: the flight test runs, the hub is open or
-## an end screen is up.
+## Whether the tap is ignored now (`DevMenuWhere.blocked`).
 func blocked() -> bool:
-	if _flight_test != null and _flight_test.running():
-		return true
-	if hub_is_open():
-		return true
-	if _destroyed == null:
-		return false
-	return _destroyed.fade_alpha() > 0.0 or _destroyed.sequence.line_shown() \
-		or _destroyed.escape.sequence.line_shown()
+	return where.blocked()
 
 
-## True while the hub is open. The hub has its own controls and its launch
-## leaves it, so a tap over it is ignored rather than closing it (#1170).
+## True while the hub is open: the menu then shows the base's entries.
 func hub_is_open() -> bool:
-	return _hub_open.is_valid() and bool(_hub_open.call())
+	return where.hub_is_open()
 
 
 ## The helper serving `kind` in `dev_menu.json`, or null.
@@ -198,8 +187,9 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		return values
 	menu.set_update(_update.waiting_version() if _update != null else "",
 		_update != null and _update.download_busy())
+	where.show_sign(menu.model.update_version)
 	var was_open: bool = is_open()
-	if blocked():
+	if blocked() or (is_open() and menu.model.place != where.place()):
 		menu.close()
 	elif tapped:
 		_toggle()
@@ -263,6 +253,7 @@ func _toggle() -> void:
 	if is_open():
 		menu.close()
 		return
+	menu.model.place = where.place()  # Before the rows are chosen (#1450).
 	for entry: DevMenuEntry in entries:
 		entry.show_on(menu.model)
 	menu.place(head())  # In front of the eyes as they are now, then world-locked (#1206).

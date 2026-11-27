@@ -139,7 +139,15 @@ func _rows(with_hidden: bool) -> Array[int]:
 	return shown
 
 
+## A section row shows while one of its entries does, so a section with
+## nothing for this place is left out (#1450); Back always shows.
 func _shown(row: int) -> bool:
+	var opens: int = section_of(row)
+	if opens != -1:
+		for kind: String in spec.sections[opens]["kinds"]:
+			if _shown(_entry_index(kind)):
+				return true
+		return false
 	return row < 0 or bool(_is_shown.call(row))
 
 

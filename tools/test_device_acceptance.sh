@@ -92,6 +92,13 @@ run_headset() {
 		printf '%s\n' "$EARLY_LOG" > "$dir/early.log"
 	fi
 	: > "$dir/adb.log"
+	# Its own temp folder, so the APK cache (#1437) starts empty unless the
+	# test hands one over in $CACHE_FROM.
+	mkdir -p "$dir/tmp"
+	if [ -n "${CACHE_FROM:-}" ]; then
+		cp -R "$CACHE_FROM/." "$dir/tmp/"
+	fi
+	tmp="$dir/tmp"
 	local extra=()
 	read -r -a extra <<< "${EXTRA_ARGS:-}"
 	out="$dir/out"
@@ -118,6 +125,10 @@ run_headset() {
 		ANDROID_SERIAL="${SERIAL_ENV:-}" \
 		GITHUB_EVENT_NAME="${EVENT:-}" \
 		GITHUB_STEP_SUMMARY="$dir/summary.md" \
+		STUB_ADB_INSTALLED_SHA="${HEADSET_SHA:-}" \
+		STUB_ADB_PM="${PM:-}" \
+		MELTDOWN_FORCE_INSTALL="${FORCE_ENV:-}" \
+		TMPDIR="$dir/tmp" \
 		pwsh -NoProfile -NonInteractive -File "$tools/device_acceptance.ps1" \
 		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds "${TIMEOUT:-3}" \
 		-WakeSeconds 0 -ForegroundGraceSeconds 0 -ResolveRetrySeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" \
@@ -144,6 +155,75 @@ if [ "$status" -eq 1 ] && grep -q "Checksum mismatch" <<< "$output" && ! grep -q
 	pass "checksum mismatch: fails and installs nothing"
 else
 	fail "checksum mismatch: fails and installs nothing"
+fi
+
+# #1437: the checksum of the fixture APK run_headset writes, and a different one.
+fixture_sha="$(printf '%s\n' "Not a real APK: a fixture for tools/test_device_acceptance.sh." | sha256sum | cut -d' ' -f1)"
+other_sha="1111111111111111111111111111111111111111111111111111111111111111"
+passing_log="$(write_log pass 'Meltdown: acceptance: exit 0')"
+
+# #1437: the headset already holds the release's build: no copy, no install,
+# one line saying so, and the suite still runs.
+HEADSET_SHA="$fixture_sha" run_headset "SERIAL1\tdevice\n" "$passing_log"
+if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
+	&& grep -qxF "Headset SERIAL1 already has this build (checksum ${fixture_sha:0:12} matches); skipping download and install." <<< "$output" \
+	&& grep -q -- "-s SERIAL1 shell pm path io.github.nolesszz.meltdown" <<< "$log" \
+	&& ! grep -q " install " <<< "$log" && ! grep -q "Checksum verified" <<< "$output" \
+	&& [ ! -e "$tmp/meltdown-apk-cache" ] && grep -q "am start" <<< "$log"; then
+	pass "same checksum on the headset: no download, no install, the suite runs"
+else
+	fail "same checksum on the headset: no download, no install, the suite runs"
+fi
+
+# #1437: never skip on doubt. A different build, no package, a failing
+# `pm path` or no sha256sum on the headset all install.
+for case in "other:$other_sha:" "missing::" "pmfail:$fixture_sha:fail" "nosum:$fixture_sha:nosum"; do
+	IFS=: read -r name sha pm <<< "$case"
+	HEADSET_SHA="$sha" PM="$pm" run_headset "SERIAL1\tdevice\n" "$passing_log"
+	if [ "$status" -eq 0 ] && [ "$(grep -c -- "-s SERIAL1 install -r " <<< "$log")" -eq 1 ] \
+		&& grep -q "Checksum verified" <<< "$output" && ! grep -q "skipping download" <<< "$output"; then
+		pass "headset build check '$name': installs"
+	else
+		fail "headset build check '$name': installs"
+	fi
+done
+
+# #1437: -Force and MELTDOWN_FORCE_INSTALL=1 install over the same build
+# without asking the headset.
+for how in switch env; do
+	if [ "$how" = "switch" ]; then
+		HEADSET_SHA="$fixture_sha" EXTRA_ARGS="-Force" run_headset "SERIAL1\tdevice\n" "$passing_log"
+	else
+		HEADSET_SHA="$fixture_sha" FORCE_ENV=1 run_headset "SERIAL1\tdevice\n" "$passing_log"
+	fi
+	if [ "$status" -eq 0 ] && [ "$(grep -c -- "install -r " <<< "$log")" -eq 1 ] \
+		&& ! grep -q "pm path" <<< "$log" && grep -q "Installing whatever the headset holds" <<< "$output"; then
+		pass "force by $how: installs the same build"
+	else
+		fail "force by $how: installs the same build"
+	fi
+done
+
+# #1437: a rerun after a failed install takes the APK from the cache, and the
+# cache keeps only the current build.
+INSTALLS="full" run_headset "SERIAL1\tdevice\n" "$passing_log"
+first_tmp="$tmp"
+if [ "$status" -eq 1 ] && grep -q "INSTALL_FAILED_INSUFFICIENT_STORAGE" <<< "$output" \
+	&& grep -qF "By hand: adb -s SERIAL1 install -r \"$first_tmp/meltdown-apk-cache/$fixture_sha/meltdown-quest-debug.apk\"" <<< "$output"; then
+	pass "failed install: the manual command names the kept APK"
+else
+	fail "failed install: the manual command names the kept APK"
+fi
+mkdir -p "$first_tmp/meltdown-apk-cache/$other_sha"
+CACHE_FROM="$first_tmp" run_headset "SERIAL1\tdevice\n" "$passing_log"
+if [ "$status" -eq 0 ] && [ -f "$first_tmp/meltdown-apk-cache/$fixture_sha/meltdown-quest-debug.apk" ] \
+	&& grep -qxF "Using the copy already downloaded (${fixture_sha:0:12})." <<< "$output" \
+	&& ! grep -q "Checksum verified" <<< "$output" \
+	&& [ "$(grep -c -- "install -r " <<< "$log")" -eq 1 ] \
+	&& [ "$(ls "$tmp/meltdown-apk-cache")" = "$fixture_sha" ]; then
+	pass "rerun after a failed install: cached APK used, older builds deleted"
+else
+	fail "rerun after a failed install: cached APK used, older builds deleted"
 fi
 
 # Line number of the first adb call matching $1, or 999999 when there is none.
@@ -234,11 +314,12 @@ else
 fi
 
 # An install that fails without a reason, then with the headset gone (#589,
-# #590), waits for the headset each time and goes on to the suite.
+# #590), waits for the headset each time and goes on to the suite. The first
+# wait is before the build check (#1437), the next three around the installs.
 INSTALLS="blank notfound ok" run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
 if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
 	&& [ "$(grep -c -- "install -r --no-streaming" <<< "$log")" -eq 2 ] \
-	&& [ "$(grep -c -- "wait-for-device" <<< "$log")" -eq 3 ] \
+	&& [ "$(grep -c -- "wait-for-device" <<< "$log")" -eq 4 ] \
 	&& grep -q "dropped off USB for a moment; waiting" <<< "$output" \
 	&& grep -q "am start" <<< "$log"; then
 	pass "blank, then not found, then installed: waits, retries and runs the suite"
@@ -314,6 +395,9 @@ fi
 # Adb drops, reports from the game's storage, the serial and unattended runs (#1436).
 # shellcheck source=tools/device_acceptance_drop_checks.sh
 source "$tools/device_acceptance_drop_checks.sh"
+# Live progress lines while a suite runs (#1438).
+# shellcheck source=tools/device_acceptance_progress_checks.sh
+source "$tools/device_acceptance_progress_checks.sh"
 
 # The simulator job skips cleanly away from Windows.
 sim_out="$work/simulator"

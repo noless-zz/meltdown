@@ -114,5 +114,6 @@ func _label(label_name: String, color: Color) -> Label3D:
 	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	label.no_depth_test = true
 	label.render_priority = DevMenu.RENDER_PRIORITY
+	label.layers = DevMenu.LAYERS
 	add_child(label)
 	return label

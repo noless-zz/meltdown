@@ -34,6 +34,10 @@ const STATS_AFTER_ESCAPE: Dictionary = {"runs_started": 1, "levels_escaped": 1, 
 	"runs_won": 0, "runs_lost": 0}
 ## The check file's check that opens the shaft choice to look at it (#1320).
 const CHECK_SHAFT_CHOICE_LOOK: String = "shaft_choice_look"
+## The check file's check that hears the shaft choice's sounds (#1455).
+const CHECK_SHAFT_SOUNDS: String = "shaft_sounds"
+## The check file's check that opens the dev menu at the shaft choice (#1450).
+const CHECK_MENU_AT_SHAFT: String = "menu_at_shaft"
 ## The checks that press on to the run's next level; a step lists at most one.
 const MOVING_CHECKS: Array[String] = [AcceptanceStep.CHECK_RUN_ADVANCES, AcceptanceStep.CHECK_SHAFT_CHOICE,
 	AcceptanceStep.CHECK_COMPONENTS_BANK, AcceptanceStep.CHECK_CREW_JOINS,
@@ -110,8 +114,9 @@ static func plan_for(run_seed: int) -> RunPlan:
 
 ## Before a step flies: a run step's run becomes the scene's, kept in memory
 ## only (no profile is read or saved); any other step flies without a run.
-## The run has the shipped shafts only for a shaft_choice, suspend_resume or
-## shaft_choice_look step (#990, #1107, #1320); the
+## The run has the shipped shafts only for a shaft_choice, suspend_resume,
+## shaft_choice_look, shaft_sounds or menu_at_shaft step (#990, #1107, #1320,
+## #1455, #1450); the
 ## run_advances step pins the run's own level order, as a run without a shaft
 ## file flies it. A step with `next_replay` (#1065) has the shafts and flies
 ## with drops on, as does a step with the collected check.
@@ -123,7 +128,8 @@ static func begin(main: Node, step: AcceptanceStep) -> void:
 	var flies_on: bool = step.next_replay_path != ""  # Into a chosen shaft's level (#1065).
 	level_start.run = RunWiring.new(step.run_seed, null, Callable(), "",
 		step.has_check(AcceptanceStep.CHECK_SHAFT_CHOICE) or step.has_check(AcceptanceStep.CHECK_SUSPEND_RESUME)
-		or step.has_check(CHECK_SHAFT_CHOICE_LOOK) or flies_on) \
+		or step.has_check(CHECK_SHAFT_CHOICE_LOOK) or step.has_check(CHECK_SHAFT_SOUNDS)
+		or step.has_check(CHECK_MENU_AT_SHAFT) or flies_on) \
 		if step.run_seed != AcceptanceStep.NO_SEED else null
 	if level_start.run != null:
 		level_start.run.level_rules = RULES_CHECKS.has(moving_check(step)) \

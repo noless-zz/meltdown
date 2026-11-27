@@ -43,6 +43,7 @@ extends RefCounted
 ## The `return` entry (#1246) shows only while a run's level flies; once pressed
 ## it reads `confirm_return_text` until a second press abandons the run.
 ## The `checklist` entry (#1325) shows only in a build with a checklist attached.
+## Each entry's optional `places` list says where it shows (#1450, `DevMenuPlaces`).
 ## `sections` (#1301, optional) groups entries under a row each:
 ## `[{"label": "Comfort", "entries": ["comfort", "break", ...]}, ...]`. Each
 ## named kind must be an entry, in at most one section; entries in no section
@@ -163,7 +164,7 @@ var error: String = ""
 static func fallback() -> DevMenuSpec:
 	var spec: DevMenuSpec = DevMenuSpec.new()
 	for kind: String in KINDS:
-		spec.entries.append({"kind": kind, "label": BUILT_IN_LABELS[kind]})
+		spec.entries.append({"kind": kind, "label": BUILT_IN_LABELS[kind], DevMenuPlaces.KEY: DevMenuPlaces.ALL.duplicate()})
 	spec.corners = ["bottom_left", "bottom_right", "top_left", "top_right", "centre"]
 	return spec
 
@@ -197,9 +198,9 @@ static func parse(text: String) -> DevMenuSpec:
 			return spec
 	spec.error = spec._read_entries(data.get("entries"))
 	if spec.error == "":
-		spec.error = spec._read_corners(data.get("corners"))
+		spec.error = DevMenuLists.read_corners(data.get("corners"), spec.corners)
 	if spec.error == "" and data.has("schemes"):
-		spec.error = spec._read_schemes(data["schemes"])
+		spec.error = DevMenuLists.read_schemes(data["schemes"], spec.schemes)
 	if spec.error == "":
 		spec.error = spec._read_place(data)
 	if spec.error == "" and data.has("sections"):
@@ -227,8 +228,9 @@ func _read_entries(value: Variant) -> String:
 		if typeof(item) != TYPE_DICTIONARY:
 			return "every entry must be an object"
 		var entry: Dictionary = item
-		if entry.keys().size() != 2 or not entry.has("kind") or not entry.has("label"):
-			return "an entry must have exactly \"kind\" and \"label\""
+		if entry.keys().size() != (3 if entry.has(DevMenuPlaces.KEY) else 2) or not entry.has("kind") \
+				or not entry.has("label"):
+			return "an entry must have exactly \"kind\", \"label\" and optional \"places\""
 		var kind: String = str(entry["kind"])
 		if not KINDS.has(kind):
 			return "unknown entry kind \"%s\"" % kind
@@ -237,7 +239,11 @@ func _read_entries(value: Variant) -> String:
 				return "entry kind \"%s\" given twice" % kind
 		if typeof(entry["label"]) != TYPE_STRING or (entry["label"] as String).strip_edges() == "":
 			return "entry \"%s\" needs a non-empty label" % kind
-		entries.append({"kind": kind, "label": entry["label"]})
+		var places: Array[String] = []
+		var refused: String = DevMenuPlaces.read(entry, places)
+		if refused != "":
+			return refused
+		entries.append({"kind": kind, "label": entry["label"], DevMenuPlaces.KEY: places})
 	return ""
 
 
@@ -254,34 +260,6 @@ func _read_sections(value: Variant) -> String:
 	for entry: Dictionary in entries:
 		listed.append(str(entry["kind"]))
 	return DevMenuSections.read(value, listed, sections)
-
-
-func _read_corners(value: Variant) -> String:
-	if typeof(value) != TYPE_ARRAY or (value as Array).is_empty():
-		return "\"corners\" must be a non-empty list"
-	for item: Variant in value:
-		var corner: String = str(item)
-		if typeof(item) != TYPE_STRING or corner == "" or corners.has(corner):
-			return "corner %s is empty, not text or given twice" % str(item)
-		for character: String in corner:
-			if not NAME_CHARACTERS.contains(character):
-				return "corner \"%s\" is not a name" % corner
-		corners.append(corner)
-	return ""
-
-
-func _read_schemes(value: Variant) -> String:
-	if typeof(value) != TYPE_ARRAY or (value as Array).is_empty():
-		return "\"schemes\" must be a non-empty list"
-	schemes = []
-	for item: Variant in value:
-		var scheme: String = str(item)
-		if typeof(item) != TYPE_STRING or not ControlSchemeSwitch.SCHEMES.has(scheme) \
-				or schemes.has(scheme):
-			return "scheme %s is not one of %s or given twice" % [
-				str(item), ", ".join(ControlSchemeSwitch.SCHEMES)]
-		schemes.append(scheme)
-	return ""
 
 
 func _read_place(data: Dictionary) -> String:

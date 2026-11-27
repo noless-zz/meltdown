@@ -54,6 +54,17 @@
 				"room_tones_change"
 			],
 			"expected_hash": 2803663058
+		},
+		{
+			"id": "shaft_sounds",
+			"run": 12345,
+			"replay": "res://acceptance/replays/run_advances.replay",
+			"checks": [
+				"outcome",
+				"no_script_errors",
+				"shaft_sounds"
+			],
+			"expected_outcome": "ESCAPED"
 		}
 	]
 }
