@@ -63,6 +63,15 @@
 			"expected_hash": 1302297426,
 			"screenshot_at_ticks": [12],
 			"screenshot_at_end": true
+		},
+		{
+			"id": "meltdown_walls",
+			"level": "stress",
+			"replay": "res://acceptance/replays/stress_scene.replay",
+			"checks": ["final_hash", "meltdown_walls_shown", "no_script_errors"],
+			"expected_hash": 1956914250,
+			"screenshot_at_ticks": [30, 300, 1800],
+			"screenshot_at_end": true
 		}
 	]
 }

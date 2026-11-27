@@ -14,7 +14,8 @@
 	"window_half_angle_h_deg": 75,
 	"window_half_angle_v_deg": 55,
 	"frame_distance_m": 0.6,
-	"glass_tint_alpha": 0.08,
+	"glass_transmission": 0.95,
+	"glass_tint": [0.96, 0.98, 1.0],
 	"ledge_top_deg": 55,
 	"ledge_height_deg": 10,
 	"ledge_half_width_deg": 60,
@@ -35,8 +36,8 @@
 		"pillars": {"roughness": 0.5, "metallic": 0.5, "seam_depth_m": 0.002, "bolt_height_m": 0.0015, "wear": 0.3},
 		"rim": {"roughness": 0.5, "metallic": 0.5, "seam_depth_m": 0.002, "bolt_height_m": 0.0015, "wear": 0.3},
 		"wear_scale_m": 0.06,
-		"glass_fresnel": 0.08,
-		"glass_fresnel_power": 3,
+		"glass_fresnel": 0.06,
+		"glass_fresnel_power": 6,
 		"glass_fresnel_color": [0.75, 0.85, 1.0]
 	},
 	"dash": [

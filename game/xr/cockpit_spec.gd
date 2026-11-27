@@ -24,8 +24,15 @@ var window_half_angle_v_deg: float = 90.0
 ## that validates keeps its geometry beyond 0.25 m, well clear of the camera's
 ## 0.05 m near plane (#102), and inside the ship's 1 m collision radius.
 var frame_distance_m: float = 0.6
-## Opacity of the canopy glass inside the window, 0..1; 0 leaves no glass.
-var glass_tint_alpha: float = 0.05
+## Fraction of the mine's light the canopy glass lets through, 0.8..1; 1
+## leaves no glass (#1459). The glass says "glass" with its edge reflection and
+## the frame, not by darkening the whole view, so the parser refuses anything
+## below `MIN_GLASS_TRANSMISSION`.
+var glass_transmission: float = 0.95
+## The glass's colour: its channels relative to the brightest one scale the
+## light through it (`CockpitMaterials.glass_filter`). Kept near neutral
+## (`tint_spread`) so the mine keeps its own colours.
+var glass_tint: Color = Color(0.96, 0.98, 1.0)
 ## Where the ledge's top edge sits, degrees below straight ahead, 10..90. It
 ## never rises above the window's lower edge. The look value that moves the
 ## ledge with the status panel (#605).
@@ -65,13 +72,19 @@ var guard_distance_m: float = 0.45
 ## Every number key of the data file, with the same name as the field it sets.
 const KEYS: Array[String] = [
 	"window_half_angle_h_deg", "window_half_angle_v_deg", "frame_distance_m",
-	"glass_tint_alpha", "ledge_top_deg", "ledge_height_deg", "ledge_half_width_deg",
+	"glass_transmission", "ledge_top_deg", "ledge_height_deg", "ledge_half_width_deg",
 	"ledge_distance_m", "pillar_width_deg", "pillar_distance_m", "rim_height_deg",
 	"rim_distance_m", "part_depth_m", "guard_margin_deg", "guard_after_s", "guard_distance_m",
 ]
 
 ## Every colour key: an array of three numbers, red, green and blue, 0..1.
 const COLOR_KEYS: Array[String] = ["interior_color", "structure_color"]
+## The glass's colour key; a colour too, but not a surface, so the surfaces'
+## brightness floor does not apply to it.
+const GLASS_TINT_KEY: String = "glass_tint"
+## The owner found the mine too dark through the glass (#1459): no file may
+## let through less than this.
+const MIN_GLASS_TRANSMISSION: float = 0.8
 
 ## Allowed range of each number key, inclusive: [minimum, maximum]. Keep these
 ## in step with the ranges written on the fields above.
@@ -79,7 +92,7 @@ const RANGES: Dictionary[String, Array] = {
 	"window_half_angle_h_deg": [10.0, 90.0],
 	"window_half_angle_v_deg": [10.0, 90.0],
 	"frame_distance_m": [0.32, 0.95],
-	"glass_tint_alpha": [0.0, 1.0],
+	"glass_transmission": [MIN_GLASS_TRANSMISSION, 1.0],
 	"ledge_top_deg": [10.0, 90.0],
 	"ledge_height_deg": [0.0, 30.0],
 	"ledge_half_width_deg": [10.0, 90.0],
@@ -122,8 +135,8 @@ var error: String = ""
 
 
 ## Parses the text of a cockpit data file: one JSON object holding every key
-## in `KEYS` as a number in its range, every key in `COLOR_KEYS` as a colour
-## and a `"look"` object for `CockpitLook`, optionally an `"instruments"`
+## in `KEYS` as a number in its range, every key in `COLOR_KEYS` and
+## `GLASS_TINT_KEY` as a colour and a `"look"` object for `CockpitLook`, optionally an `"instruments"`
 ## list (`CockpitInstrument`), an optional `"finish"` object
 ## (`CockpitFinish`) and `"dash"` list (`CockpitDashPiece`), and nothing
 ## else. A missing or unknown required key is an error, so a typo cannot
@@ -137,7 +150,8 @@ static func parse_json(text: String) -> CockpitSpec:
 		return _rejected("top level must be a JSON object")
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == LOOK_KEY
+		if typeof(key) != TYPE_STRING or not (KEYS.has(key) or COLOR_KEYS.has(key) or key == GLASS_TINT_KEY
+				or key == LOOK_KEY
 				or key == CockpitInstrument.LIST_KEY or key == FINISH_KEY or key == CockpitDashPiece.LIST_KEY
 				or key == CockpitMapMount.KEY):
 			return _rejected("unknown key \"%s\"" % str(key))
@@ -162,6 +176,13 @@ static func parse_json(text: String) -> CockpitSpec:
 			return _rejected("key \"%s\" %s" % [key, color_error])
 		var parts: Array = data[key]
 		spec.set(key, Color(float(parts[0]), float(parts[1]), float(parts[2])))
+	if not data.has(GLASS_TINT_KEY):
+		return _rejected("missing key \"%s\"" % GLASS_TINT_KEY)
+	var tint_error: String = _color_error(data[GLASS_TINT_KEY])
+	if tint_error != "":
+		return _rejected("key \"%s\" %s" % [GLASS_TINT_KEY, tint_error])
+	var tint_parts: Array = data[GLASS_TINT_KEY]
+	spec.glass_tint = Color(float(tint_parts[0]), float(tint_parts[1]), float(tint_parts[2]))
 	if not data.has(LOOK_KEY):
 		return _rejected("missing key \"%s\"" % LOOK_KEY)
 	spec.look = CockpitLook.parse(data[LOOK_KEY])
@@ -228,6 +249,17 @@ static func for_preset(preset: ComfortPreset) -> CockpitSpec:
 ## open two cockpits are with a single number.
 func window_solid_angle() -> float:
 	return 2.0 * deg_to_rad(window_half_angle_h_deg) * 2.0 * sin(deg_to_rad(window_half_angle_v_deg))
+
+
+## How much of the view the glass covers straight ahead, 0..0.2.
+func glass_opacity() -> float:
+	return 1.0 - glass_transmission
+
+
+## How far the glass's colour is from grey: its largest channel less its
+## smallest. 0 is neutral.
+func tint_spread() -> float:
+	return maxf(glass_tint.r, maxf(glass_tint.g, glass_tint.b)) - minf(glass_tint.r, minf(glass_tint.g, glass_tint.b))
 
 
 static func _is_number(value: Variant) -> bool:

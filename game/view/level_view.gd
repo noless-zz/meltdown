@@ -22,6 +22,7 @@ extends Node3D
 ## Each box's walls carry its own baked ambient (`AmbientBake`, #1400, GFX-5),
 ## chosen by `ambient_rules` in the look from its size and the reactor; its
 ## bevels' surface also draws its guide light strips (`GuideLights`, #1463).
+## Both surfaces take the emergency look after the reactor dies (`MeltdownWalls`, #1454).
 ##
 ## It only reads the union it is given and never writes to it (MP-2).
 ##
@@ -53,6 +54,8 @@ var _bevels: Array[Dictionary] = []
 var _bake: AmbientBake = null
 ## The guide light strips of the last `build`.
 var guide_lights: GuideLights = GuideLights.new()
+## The emergency look of the last `build`; `MeltdownWiring` feeds it the time.
+var meltdown_walls: MeltdownWalls = MeltdownWalls.new()
 var _wall_pieces: int = 0
 var _boxes: Array[Node3D] = []
 var _visibility: LevelVisibility = null
@@ -167,6 +170,7 @@ func build(union: BoxUnion, reactor: Variant = null) -> void:
 	if guide_lights.error != "":
 		push_warning("LevelView draws no guide lights; %s" % guide_lights.error)
 	guide_lights.use_in(bevel_material)
+	meltdown_walls = MeltdownWalls.for_look(_look, [wall_material, bevel_material])
 	_wall_pieces = 0
 	for index: int in union.boxes.size():
 		var box: Node3D = Node3D.new()
