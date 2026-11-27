@@ -18,7 +18,7 @@ write_steps_log() {
 
 # The headset resets its USB mid-suite and is back two device listings later:
 # no crash verdict, the wait is said, and the full table comes from the log.
-EARLY_LOG="$(write_running_log)" EARLY_POLLS=3 DROP_AT=2 DROP_FOR=2 \
+EARLY_LOG="$(write_running_log)" EARLY_POLLS=3 DROP_AT=2 DROP_FOR=2 TIMEOUT=60 \
 	run_headset "SERIAL1\tdevice\n" "$(write_log pass 'Meltdown: acceptance: exit 0')"
 if [ "$status" -eq 0 ] && [ "$(status_of "$out")" = "passed" ] \
 	&& grep -Eq "the connection to the headset dropped at [0-9]{2}:[0-9]{2}:[0-9]{2}" <<< "$output" \

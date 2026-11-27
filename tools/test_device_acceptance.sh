@@ -119,7 +119,7 @@ run_headset() {
 		GITHUB_EVENT_NAME="${EVENT:-}" \
 		GITHUB_STEP_SUMMARY="$dir/summary.md" \
 		pwsh -NoProfile -NonInteractive -File "$tools/device_acceptance.ps1" \
-		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds 3 \
+		-Suite m1 -OutDir "$out" -PollSeconds 0 -StartGraceSeconds 0 -TimeoutSeconds "${TIMEOUT:-3}" \
 		-WakeSeconds 0 -ForegroundGraceSeconds 0 -ResolveRetrySeconds 0 -DeviceWaitSeconds "${DEVICE_WAIT:-5}" \
 		-ReconnectSeconds "${RECONNECT:-5}" -ReconnectPollSeconds 0 ${extra[@]+"${extra[@]}"} 2>&1)" || status=$?
 	log="$(cat "$dir/adb.log")"
