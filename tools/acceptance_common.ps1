@@ -251,31 +251,3 @@ function Write-JobSummary {
 		Add-Utf8File -Path $env:GITHUB_STEP_SUMMARY -Text $text
 	}
 }
-
-# Downloads the APK at $Path (or copies it from $LocalDir, for tests) with its
-# .sha256 and checks one against the other. Returns $null when it matches, else
-# the reason, and then nothing must be installed.
-function Get-CheckedApk {
-	param([string]$Path, [string]$ReleaseUrl, [string]$LocalDir)
-	$name = Split-Path -Leaf $Path
-	New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
-	try {
-		if ($LocalDir) {
-			Copy-Item -LiteralPath (Join-Path $LocalDir $name) -Destination $Path
-			Copy-Item -LiteralPath (Join-Path $LocalDir "$name.sha256") -Destination "$Path.sha256"
-		} else {
-			Write-Host "Downloading $name from the main-latest release..."
-			Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseUrl/$name" -OutFile $Path
-			Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseUrl/$name.sha256" -OutFile "$Path.sha256"
-		}
-	} catch {
-		return "Could not download the build: $($_.Exception.Message)"
-	}
-	$expected = ((Get-Content -LiteralPath "$Path.sha256" -TotalCount 1) -split '\s+')[0].ToLowerInvariant()
-	$actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-	if ($expected -ne $actual) {
-		return "Checksum mismatch: the release says $expected but the download is $actual. Nothing was installed; the release may have been mid-upload."
-	}
-	Write-Host "Checksum verified: $actual"
-	return $null
-}

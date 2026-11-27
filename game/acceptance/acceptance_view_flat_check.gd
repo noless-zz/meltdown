@@ -160,7 +160,10 @@ static func run(xr_available: bool, on_headset: bool, step: AcceptanceStep,
 	if not AcceptanceFrameBudgetCheck.measures_here(xr_available, on_headset) or measured == null:
 		return [AcceptanceReport.RESULT_FAIL if step.required else AcceptanceReport.RESULT_SKIPPED,
 			AcceptanceFrameBudgetCheck.not_measured_reason(xr_available)]
-	return measured.judge(measurements)
+	var verdict: Array = measured.judge(measurements)
+	# Also into the device log: a later hang lost the report and this message with it (#1439).
+	print("%s: %s %s: %s" % [AcceptanceRunner.LOG_PREFIX, AcceptanceStep.CHECK_VIEW_NOT_FLAT, verdict[0], verdict[1]])
+	return verdict
 
 
 ## [result, message] for the samples taken.
@@ -187,18 +190,38 @@ func judge(measurements: Dictionary) -> Array:
 	if samples.is_empty():
 		return [AcceptanceReport.RESULT_FAIL, "no eye image could be read: %s" % (
 			unread_reason if unread_reason != "" else "no sample was due")]
+	var spread: Dictionary = spread_of(samples)
+	for key: String in spread:
+		measurements[key] = spread[key]
 	var limits: String = "flat is luminance stddev under %s with fewer than %d colours" % [
 		flat_stddev_below, flat_colours_below]
+	var measured: String = "luminance stddev %s to %s (median %s), %d to %d colours" % [
+		spread["lowest_luminance_stddev"], spread["highest_luminance_stddev"], spread["median_luminance_stddev"],
+		int(spread["fewest_colours"]), int(spread["most_colours"])]
+	var unread_note: String = "; %d unread: %s" % [unread, unread_reason] if unread > 0 else ""
 	if not first_flat.is_empty():
 		var first: String = "flat at %.2f s: luminance stddev %s, %d colours" % [float(first_flat["time"]),
 			first_flat["stddev"], int(first_flat["colours"])]
-		return [AcceptanceReport.RESULT_FAIL, "%s (%s); %d of %d samples flat" % [first, limits,
-			flat_times.size(), samples.size()]]
-	var summary: String = "%d samples, none flat; lowest luminance stddev %s at %.2f s (%s)" % [
-		samples.size(), lowest["stddev"], float(lowest["time"]), limits]
-	if unread > 0:
-		summary += "; %d unread: %s" % [unread, unread_reason]
+		return [AcceptanceReport.RESULT_FAIL, "%s; %d of %d samples flat; %s (%s)%s" % [first,
+			flat_times.size(), samples.size(), measured, limits, unread_note]]
+	var summary: String = "%d samples, none flat; lowest luminance stddev %s at %.2f s; %s (%s)%s" % [
+		samples.size(), lowest["stddev"], float(lowest["time"]), measured, limits, unread_note]
 	return [AcceptanceReport.RESULT_PASS, summary]
+
+
+## The range of the samples' luminance stddev and colour counts, so a step
+## message shows how far the view was from the limits, pass or fail (#1439).
+static func spread_of(taken: Array[Dictionary]) -> Dictionary:
+	var stddevs: Array[float] = []
+	var colours: Array[int] = []
+	for entry: Dictionary in taken:
+		stddevs.append(float(entry["stddev"]))
+		colours.append(int(entry["colours"]))
+	stddevs.sort()
+	colours.sort()
+	return {"lowest_luminance_stddev": stddevs[0], "highest_luminance_stddev": stddevs[-1],
+		"median_luminance_stddev": stddevs[stddevs.size() / 2], "fewest_colours": colours[0],
+		"most_colours": colours[-1]}
 
 
 ## Reads and checks the data file. Returns the problem, or "".

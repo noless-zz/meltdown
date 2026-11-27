@@ -39,6 +39,15 @@ In the `device-acceptance-headset` artifact:
 
 ## The install
 
+The script first reads only the release's `.sha256` and compares it with the checksum of the
+`base.apk` the headset holds (`pm path`, then `sha256sum` on the headset). When they match it
+prints `Headset <serial> already has this build (checksum ... matches); skipping download and
+install.` and goes straight to the suite (#1437). A missing package, a failed adb call or an
+unreadable answer installs as before: it never skips on doubt. `-Force` (or
+`MELTDOWN_FORCE_INSTALL=1`) installs anyway. Downloads are kept, one per checksum, in
+`meltdown-apk-cache` under the temp folder, so a rerun after a failed install does not download
+again; older builds there are deleted.
+
 Before installing, the script waits up to `-DeviceWaitSeconds` (20 s) for the headset to
 answer on adb. An install that fails with no reason, or with the headset `not found` or
 `offline`, waits for it again and retries without streaming, at most twice (#589). A

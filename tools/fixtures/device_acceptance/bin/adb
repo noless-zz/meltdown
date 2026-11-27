@@ -9,7 +9,8 @@
 #   $STUB_GODOT_LOG, the stream after a "stub stream" line.
 # - `install` follows $STUB_ADB_INSTALL_SEQUENCE, a space-separated list, one
 #   entry per attempt (the last repeats): `ok`, `blank` (fails with no reason,
-#   as in #210) or `notfound` (the headset dropped off, as in #589).
+#   as in #210), `notfound` (the headset dropped off, as in #589) or `full`
+#   (fails with a reason: no space left).
 # - `wait-for-device` returns at once, or never when $STUB_ADB_WAIT is `hang`.
 # - $STUB_ADB_LOCKED: `asleep` or `keyguard` makes dumpsys say so.
 # - $STUB_ADB_BACKGROUND=1: the game's activity is never the resumed one.
@@ -26,6 +27,9 @@
 # - `run-as <package> ls` lists $STUB_GAME_FILES (the game's storage) oldest
 #   first, and `exec-out run-as <package> cat files/acceptance/<name>` prints
 #   one of them; with no such folder `ls` fails as on a fresh install.
+# - `shell pm path` and `shell sha256sum` report the installed build from
+#   $STUB_ADB_INSTALLED_SHA (see installed_sha); $STUB_ADB_PM is `fail` or
+#   `nosum` to make the check fail (#1437).
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
 state="$(dirname "$STUB_ADB_LOG")"
@@ -44,6 +48,23 @@ count() {
 	value=$((value + 1))
 	echo "$value" > "$file"
 	echo "$value"
+}
+
+# The checksum of the build the stub headset holds (#1437): $STUB_ADB_INSTALLED_SHA
+# is one checksum for every headset, or "serial=checksum ..." entries. Empty:
+# the package is not installed.
+installed_sha() {
+	local entry
+	if [[ "${STUB_ADB_INSTALLED_SHA:-}" != *=* ]]; then
+		echo "${STUB_ADB_INSTALLED_SHA:-}"
+		return
+	fi
+	for entry in $STUB_ADB_INSTALLED_SHA; do
+		if [ "${entry%%=*}" = "$serial" ]; then
+			echo "${entry#*=}"
+			return
+		fi
+	done
 }
 
 gone="$state/stub-gone"
@@ -88,6 +109,11 @@ case "${1:-}" in
 				echo "Performing Push Install"
 				exit 1
 				;;
+			full)
+				echo "Performing Streamed Install"
+				echo "adb: failed to install meltdown-quest-debug.apk: Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]"
+				exit 1
+				;;
 		esac
 		echo "Performing Streamed Install"
 		echo "Success"
@@ -125,6 +151,25 @@ case "${1:-}" in
 		;;
 	shell)
 		case "${2:-}" in
+			pm)
+				# `pm path` as on a headset; $STUB_ADB_PM=fail makes it fail outright.
+				if [ "${STUB_ADB_PM:-}" = "fail" ]; then
+					echo "cmd: Can't find service: package" >&2
+					exit 20
+				fi
+				if [ -z "$(installed_sha)" ]; then
+					exit 1
+				fi
+				echo "package:/data/app/~~stub==/io.github.nolesszz.meltdown-stub==/base.apk"
+				;;
+			sha256sum)
+				# $STUB_ADB_PM=nosum: an OS without sha256sum.
+				if [ "${STUB_ADB_PM:-}" = "nosum" ]; then
+					echo "/system/bin/sh: sha256sum: not found" >&2
+					exit 127
+				fi
+				echo "$(installed_sha)  ${3:-}"
+				;;
 			settings)
 				if [ "${3:-}" = "get" ]; then
 					echo "2"

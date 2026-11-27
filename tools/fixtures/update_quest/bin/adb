@@ -10,6 +10,9 @@
 # attempt (#589): `blank`, `notfound`, `offline` or `ok`; attempts past the
 # end of the list repeat its last entry. `wait-for-device` returns at once,
 # or never when $STUB_ADB_WAIT is `hang`.
+# `shell pm path` and `shell sha256sum` report the installed build from
+# $STUB_ADB_INSTALLED_SHA (see installed_sha); $STUB_ADB_PM is `fail` or
+# `nosum` to make that check fail (#1437).
 set -euo pipefail
 echo "$*" >> "$STUB_ADB_LOG"
 serial=""
@@ -17,6 +20,24 @@ if [ "${1:-}" = "-s" ]; then
 	serial="$2"
 	shift 2
 fi
+
+# The checksum of the build the stub headset holds (#1437): $STUB_ADB_INSTALLED_SHA
+# is one checksum for every headset, or "serial=checksum ..." entries. Empty:
+# the package is not installed.
+installed_sha() {
+	local entry
+	if [[ "${STUB_ADB_INSTALLED_SHA:-}" != *=* ]]; then
+		echo "${STUB_ADB_INSTALLED_SHA:-}"
+		return
+	fi
+	for entry in $STUB_ADB_INSTALLED_SHA; do
+		if [ "${entry%%=*}" = "$serial" ]; then
+			echo "${entry#*=}"
+			return
+		fi
+	done
+}
+
 case "${1:-}" in
 	devices)
 		echo "List of devices attached"
@@ -86,6 +107,27 @@ case "${1:-}" in
 		echo "Success"
 		;;
 	shell)
+		case "${2:-}" in
+			pm)
+				# `pm path` as on a headset; $STUB_ADB_PM=fail makes it fail outright.
+				if [ "${STUB_ADB_PM:-}" = "fail" ]; then
+					echo "cmd: Can't find service: package" >&2
+					exit 20
+				fi
+				if [ -z "$(installed_sha)" ]; then
+					exit 1
+				fi
+				echo "package:/data/app/~~stub==/io.github.nolesszz.meltdown-stub==/base.apk"
+				;;
+			sha256sum)
+				# $STUB_ADB_PM=nosum: an OS without sha256sum.
+				if [ "${STUB_ADB_PM:-}" = "nosum" ]; then
+					echo "/system/bin/sh: sha256sum: not found" >&2
+					exit 127
+				fi
+				echo "$(installed_sha)  ${3:-}"
+				;;
+		esac
 		;;
 	*)
 		echo "stub adb: unexpected command '$*'" >&2
