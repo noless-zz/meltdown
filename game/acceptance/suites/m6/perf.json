@@ -15,6 +15,10 @@
 		{
 			"id": "render_scale",
 			"checks": ["no_script_errors", "render_scale"]
+		},
+		{
+			"id": "level_load",
+			"checks": ["no_script_errors", "level_load"]
 		}
 	]
 }
