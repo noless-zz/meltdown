@@ -30,6 +30,8 @@ var screen: DestroyedScreen = null
 var escape: EscapeEndWiring = EscapeEndWiring.new()
 ## Hides the status panel and the map while an end screen is up (#1228).
 var cover: EndScreenCover = EndScreenCover.new()
+## Draws the controllers over the dark fade while an end screen is up (#1468).
+var hands: HandsOverFade = HandsOverFade.new()
 ## Whether the fade went down on some frame while an end screen was up, since
 ## the last `reset`; the acceptance check reads it (#1228, CMF-8).
 var fade_dropped: bool = false
@@ -53,6 +55,7 @@ func attach(rig: Node3D, left: XRController3D, right: XRController3D, p_level_st
 	escape.attach(rig)
 	if rig != null:
 		cover.attach(rig)
+		hands.attach(rig)
 	if screen != null or rig == null:
 		return
 	screen = DestroyedScreen.new(escape.lists)
@@ -111,10 +114,12 @@ func end_screen_up() -> bool:
 	return sequence.line_shown() or escape.sequence.line_shown() or escape.choice.is_open()
 
 
-## Hides the panel and map while an end screen is up and notes a fade that went down.
+## Hides the panel and map and raises the hands while an end screen is up, and
+## notes a fade that went down.
 func _watch_fade() -> void:
 	var up: bool = end_screen_up()
 	cover.update(up)
+	hands.update(up)
 	var alpha: float = fade_alpha()
 	if up and alpha < _last_alpha:
 		fade_dropped = true
@@ -138,5 +143,6 @@ func reset() -> void:
 	escape.reset()
 	lists_shown = ""
 	cover.restore()
+	hands.update(false)
 	fade_dropped = false
 	_last_alpha = 0.0
