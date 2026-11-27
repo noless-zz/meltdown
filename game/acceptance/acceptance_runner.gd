@@ -6,6 +6,7 @@ extends Node
 ## Each step sets its comfort preset, switches to its level (#334) or builds its seed's level (#460), flies
 ## its replay through the scene's `advance_frame` (one tick per frame, replay inputs in place of the controllers),
 ## takes screenshots (#718), runs its checks and records them in an `AcceptanceReport` and the log. Exit 0 if all pass.
+## A step past its time limit fails and the next starts (#1444); the exit code also goes to a file.
 
 ## Desktop: `godot --path game -- --acceptance=m1`.
 const ARG_PREFIX: String = "--acceptance="
@@ -31,6 +32,10 @@ var screenshots: AcceptanceScreenshots = AcceptanceScreenshots.live()
 ## One report per suite, in run order, and where each was written.
 var reports: Array[AcceptanceReport] = []
 var report_paths: Array[String] = []
+## Where the exit file was written, or "" (#1444).
+var exit_path: String = ""
+## Milliseconds of wall time, for the step time limit; tests pass a fake clock.
+var clock_msec: Callable = Callable(Time, "get_ticks_msec")
 ## Every line this runner printed, so tests can read them.
 var messages: PackedStringArray = PackedStringArray()
 ## Data file text by `res://` path, used in place of the file for a seed step; tests change one.
@@ -50,6 +55,7 @@ var _logging: bool = false
 var _suite_index: int = 0
 var _step_index: int = 0
 var _step_started: bool = false
+var _step_deadline_msec: int = 0  # On `clock_msec`: the step fails when it is reached (#1444).
 var _checks: AcceptanceChecks = null  # The step's samplers and check dispatch (#817).
 
 
@@ -123,21 +129,27 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 	if not _step_started:
 		_start_step(step)
 	_checks.add_frame(frame_seconds, was_running)
-	if not _step_ready(step):
+	if int(clock_msec.call()) >= _step_deadline_msec:  # Stuck: fail it, go on (#1444).
+		var limit: float = AcceptanceTimeLimit.seconds_for(step, suite.default_time_limit_seconds)
+		var message: String = AcceptanceStepRecord.time_out(self, step, _checks, reports[_suite_index], limit)
+		_say("%s: step %s %s %s (%s)" % [LOG_PREFIX, step.id, AcceptanceReport.RESULT_FAIL, _step_fields(), message])
+	elif _step_ready(step):
+		_record_step(step)
+	else:
 		return
-	_record_step(step)
 	_step_index += 1
 	_step_started = false
 
 
 func _start_step(step: AcceptanceStep) -> void:
 	_step_started = true
+	_step_deadline_msec = AcceptanceTimeLimit.deadline_msec(step, suites[_suite_index], clock_msec)
 	xr_waited = 0
 	replay_source = null
 	level_problem = ""
 	_checks = AcceptanceChecks.begin(step, xr_available(), on_headset, screenshots.grab)
 	_checks.errors_at_start = errors.count()
-	_say("%s: step %s" % [LOG_PREFIX, step.id])
+	_say("%s: step %s %s" % [LOG_PREFIX, step.id, _step_fields()])
 	screenshots.begin(suites[_suite_index].name, step)
 	AcceptanceStepLevel.clear_end_screens(main)  # Before any screenshot or frame of the step (#917).
 	if step.preset != AcceptanceStep.NO_PRESET:
@@ -189,22 +201,12 @@ func _step_ready(step: AcceptanceStep) -> bool:
 
 
 func _record_step(step: AcceptanceStep) -> void:
-	var outcomes: Array[String] = []
-	var notes: PackedStringArray = PackedStringArray()
-	var measurements: Dictionary = {}
-	var problem: String = level_problem if level_problem != "" \
-		else AcceptanceStepLevel.replay_problem(step, replay_source)
-	if problem != "":
-		outcomes.append(AcceptanceReport.RESULT_FAIL)
-		notes.append(problem)
-	for check: String in step.checks:
-		var outcome: Array = _checks.run(check, step, self, measurements)
-		outcomes.append(outcome[0])
-		notes.append("%s: %s" % [check, outcome[1]])
-	_checks.end_step(main)  # Puts back what the step changed in the scene (#851).
-	var result: String = AcceptanceReport.combine(outcomes)
-	reports[_suite_index].add_step(step.id, result, "; ".join(notes), measurements, screenshots.finish_step())
-	_say("%s: step %s %s" % [LOG_PREFIX, step.id, result])
+	var result: String = AcceptanceStepRecord.record(self, step, _checks, reports[_suite_index])
+	_say("%s: step %s %s %s" % [LOG_PREFIX, step.id, result, _step_fields()])
+
+
+func _step_fields() -> String:
+	return AcceptanceRunOutput.step_fields(suites[_suite_index].name, _step_index, suites[_suite_index].steps.size())
 
 
 func xr_available() -> bool:
@@ -220,20 +222,18 @@ func _on_xr_session_begun() -> void:
 	xr_begun = true
 
 
-## Writes the report to REPORT_DIR and the log; a failed write is said, the log still has it.
+## Writes the report to REPORT_DIR as soon as its suite ends, and to the log.
 func _write_report(report: AcceptanceReport) -> void:
-	var path: String = report.write_file(REPORT_DIR, _build().short_commit())
-	if path == "":
-		_say("%s: %s" % [LOG_PREFIX, report.write_error])
-	else:
+	var path: String = AcceptanceRunOutput.write_report(report, REPORT_DIR, _build().short_commit(), _say)
+	if path != "":
 		report_paths.append(path)
-	for line: String in report.to_log_lines():
-		_say(line)
 
 
 func _finish(code: int) -> void:
 	finished = true
 	exit_code = code
+	exit_path = AcceptanceRunOutput.write_exit(REPORT_DIR,
+		AcceptanceRunOutput.exit_data(_build().commit, reports, code, AcceptanceRunOutput.now_utc()), _say)
 	_say("%s: exit %d" % [LOG_PREFIX, code])
 	_stop_logging()
 	if quit_callback.is_valid():

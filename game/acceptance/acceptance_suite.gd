@@ -32,6 +32,9 @@ extends RefCounted
 ## named, like `ShipTuning`: a mistyped key would otherwise switch a check off
 ## and the suite would still pass.
 ##
+## `default_time_limit_seconds` (optional, #1444) is how long each step may run before it
+## fails as timed out, unless the step sets `time_limit_seconds` (`AcceptanceTimeLimit`).
+##
 ## `include` (optional, #1297) lists parts such as "m6/perf" whose steps run
 ## after the suite's own (`AcceptanceSuiteParts`); a suite with parts may list
 ## no steps of its own. Checks may come from `AcceptanceCheckFiles` too.
@@ -45,7 +48,8 @@ const ALL: String = "all"
 ## to the workflow. It is not a file either.
 const NIGHTLY: String = "nightly"
 
-const SUITE_KEYS: Array[String] = ["name", "steps", "manual_only", AcceptanceSuiteParts.INCLUDE_KEY]
+const SUITE_KEYS: Array[String] = ["name", "steps", "manual_only", AcceptanceSuiteParts.INCLUDE_KEY,
+	AcceptanceTimeLimit.SUITE_KEY]
 
 var name: String = ""
 ## Left out of NIGHTLY; run only when asked for by name or by ALL.
@@ -54,6 +58,8 @@ var manual_only: bool = false
 var steps: Array[AcceptanceStep] = []
 ## The parts listed by `include`, such as "m6/perf".
 var includes: Array[String] = []
+## Seconds a step without its own `time_limit_seconds` may run (#1444).
+var default_time_limit_seconds: float = AcceptanceTimeLimit.DEFAULT_SECONDS
 ## Set when the text or file was rejected; the field is named in the message.
 var error: String = ""
 
@@ -139,8 +145,13 @@ static func parse_json(text: String) -> AcceptanceSuite:
 		return _failed("steps: must be a list of at least one step, or of none with an include")
 	if typeof(data.get("manual_only", false)) != TYPE_BOOL:
 		return _failed("manual_only: must be true or false")
+	var limit_problem: Array[String] = []
+	var limit: float = AcceptanceTimeLimit.parse_suite(data, limit_problem)
+	if not limit_problem.is_empty():
+		return _failed(limit_problem[0])
 	var suite: AcceptanceSuite = AcceptanceSuite.new()
 	suite.name = data["name"]
+	suite.default_time_limit_seconds = limit
 	suite.manual_only = data.get("manual_only", false)
 	for part: Variant in includes:
 		suite.includes.append(str(part))

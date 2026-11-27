@@ -273,6 +273,9 @@ var custom_file: String = ""
 ## The pilot's 120 Hz option is on for this step only (#851, PRF-1;
 ## `AcceptanceRefresh120`); the refresh_rate check then wants 120 Hz.
 var refresh_120: bool = false
+## Seconds the step may run before it fails as timed out, or `AcceptanceTimeLimit.UNSET` for the
+## suite's default (#1444).
+var time_limit_seconds: float = AcceptanceTimeLimit.UNSET
 
 
 func has_check(check: String) -> bool:
