@@ -55,7 +55,7 @@ var _logging: bool = false
 var _suite_index: int = 0
 var _step_index: int = 0
 var _step_started: bool = false
-var _step_started_msec: int = 0
+var _step_deadline_msec: int = 0  # On `clock_msec`: the step fails when it is reached (#1444).
 var _checks: AcceptanceChecks = null  # The step's samplers and check dispatch (#817).
 
 
@@ -129,8 +129,8 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 	if not _step_started:
 		_start_step(step)
 	_checks.add_frame(frame_seconds, was_running)
-	var limit: float = AcceptanceTimeLimit.seconds_for(step, suite.default_time_limit_seconds)
-	if int(clock_msec.call()) - _step_started_msec >= int(limit * 1000.0):  # Stuck: fail it, go on (#1444).
+	if int(clock_msec.call()) >= _step_deadline_msec:  # Stuck: fail it, go on (#1444).
+		var limit: float = AcceptanceTimeLimit.seconds_for(step, suite.default_time_limit_seconds)
 		var message: String = AcceptanceStepRecord.time_out(self, step, _checks, reports[_suite_index], limit)
 		_say("%s: step %s %s %s (%s)" % [LOG_PREFIX, step.id, AcceptanceReport.RESULT_FAIL, _step_fields(), message])
 	elif _step_ready(step):
@@ -143,7 +143,7 @@ func process_frame(frame_seconds: float = 0.0) -> void:
 
 func _start_step(step: AcceptanceStep) -> void:
 	_step_started = true
-	_step_started_msec = int(clock_msec.call())
+	_step_deadline_msec = AcceptanceTimeLimit.deadline_msec(step, suites[_suite_index], clock_msec)
 	xr_waited = 0
 	replay_source = null
 	level_problem = ""

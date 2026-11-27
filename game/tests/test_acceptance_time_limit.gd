@@ -103,9 +103,10 @@ func test_a_timed_out_replay_names_its_tick() -> String:
 	_finish(runner)
 	var problem: String = ""
 	var message: String = str(runner.reports[0].steps[0]["message"]) if not runner.reports.is_empty() else ""
+	var limit: String = AcceptanceTimeLimit.format_seconds(AcceptanceTimeLimit.seconds_for(suite.steps[0], 3.0))
 	if runner.reports.is_empty() or runner.reports[0].steps.size() != 1:
 		problem = "no step was reported: %s" % "\n".join(runner.messages)
-	elif not message.begins_with("timed out after 3 s at tick ") or message.ends_with(" tick 0"):
+	elif not message.begins_with("timed out after %s s at tick " % limit) or message.ends_with(" tick 0"):
 		problem = "the message does not name the tick reached: '%s'" % message
 	elif not runner.main.is_processing():
 		problem = "the scene was left with its processing switched off"
@@ -218,3 +219,29 @@ func test_the_default_leaves_room_for_the_steps_own_waiting() -> String:
 	if AcceptanceTimeLimit.message(120.0, 7) != "timed out after 120 s at tick 7":
 		return "message: '%s'" % AcceptanceTimeLimit.message(120.0, 7)
 	return ""
+
+
+## On the headset a replay flies one tick per frame, at 72 Hz at worst (PRF-1): the m4 steps that fly
+## the longest replays get that time on top of the default, or they would time out mid-flight.
+func test_the_default_leaves_room_for_the_replays_flight_at_72_hz() -> String:
+	var m4: Array[AcceptanceSuite] = AcceptanceSuite.load_named("m4")
+	if m4.is_empty() or m4[0].error != "":
+		return "m4 did not load: %s" % ("" if m4.is_empty() else m4[0].error)
+	# Each step's replay ticks, pinned low so a cut replay still passes but an uncounted one fails.
+	var least_ticks: Dictionary[String, int] = {"shaft_rewards": 16000, "crew_joins": 10000}
+	var found: int = 0
+	for step: AcceptanceStep in m4[0].steps:
+		if not least_ticks.has(step.id):
+			continue
+		found += 1
+		var ticks: int = 0
+		for path: String in [step.replay_path, step.next_replay_path]:
+			if path != "":
+				ticks += Replay.load_file(path).frames.size()
+		if ticks < least_ticks[step.id]:
+			return "%s flies %d ticks, fewer than the %d this test expects" % [step.id, ticks, least_ticks[step.id]]
+		var limit: float = AcceptanceTimeLimit.seconds_for(step, m4[0].default_time_limit_seconds)
+		var least: float = AcceptanceTimeLimit.DEFAULT_SECONDS + float(ticks) / 72.0
+		if limit < least:
+			return "%s may run %s s; flying %d ticks at 72 Hz needs %s s" % [step.id, limit, ticks, least]
+	return "" if found == least_ticks.size() else "m4 has %d of the steps %s" % [found, least_ticks.keys()]
