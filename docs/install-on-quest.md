@@ -18,10 +18,14 @@ it to get `meltdown-quest-debug.apk`.
 
 ## One-step update
 
-`tools/update_quest.sh` (Linux and macOS) and `tools/update_quest.ps1` (Windows) download
-the APK and its checksum from the `main-latest` release, stop before installing if the
-checksum does not match, install with `adb install -r` on every connected headset, and
-print the commit and build time of the build they installed. They need only `adb` (and
+`tools/update_quest.sh` (Linux and macOS) and `tools/update_quest.ps1` (Windows) read the
+checksum from the `main-latest` release and skip every headset that already has that build,
+saying so. For the others they download the APK once, stop before installing if the checksum
+does not match, install with `adb install -r`, and print the commit and build time of the
+build. Any doubt about what a headset holds means it is installed. `--force` (`-Force` in
+PowerShell, or `MELTDOWN_FORCE_INSTALL=1`) installs on every headset anyway. The download is
+kept in `meltdown-apk-cache` under the temp folder, one per checksum, so a second headset or
+a rerun after a failed install does not download it again (#1437). They need only `adb` (and
 `curl` for the bash script).
 
 ```sh

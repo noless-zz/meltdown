@@ -31,6 +31,11 @@ The headset to use when more than one is listed; ANDROID_SERIAL when not given.
 Nobody wears the headset: m0's controllers_bound step skips, not fails, when the
 controllers are asleep. Also on for scheduled workflow runs and `-Suite nightly`.
 
+.PARAMETER Force
+Install even when the headset already holds the release's build. Without it,
+the download and install are skipped when the checksum of the APK on the
+headset equals the release's (#1437). Also MELTDOWN_FORCE_INSTALL=1.
+
 .PARAMETER Suite
 The suite name the game's --acceptance switch takes; `all` runs every suite,
 `nightly` every suite but the manual-only soak (#812). With `soak` or `all`, pass
@@ -62,7 +67,9 @@ param(
 	[switch]$Unattended,
 	# How long to wait for the headset after an adb drop before giving up (#1436).
 	[int]$ReconnectSeconds = 300,
-	[int]$ReconnectPollSeconds = 2
+	[int]$ReconnectPollSeconds = 2,
+	# Install even when the headset already has this build (#1437); also MELTDOWN_FORCE_INSTALL=1.
+	[switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,6 +79,7 @@ $ProgressPreference = 'SilentlyContinue'
 . (Join-Path $PSScriptRoot 'acceptance_common.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_headset.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_recover.ps1')
+. (Join-Path $PSScriptRoot 'apk_cache.ps1')
 $script:deviceWaitSeconds = $DeviceWaitSeconds
 $script:warnings = New-Object System.Collections.Generic.List[string]
 
@@ -140,24 +148,36 @@ if ($unattendedRun) {
 	Write-Host 'Unattended run: controllers asleep in m0/controllers_bound are reported skipped.'
 }
 
-# 2. The newest main build, checked against its checksum.
-$work = Join-Path ([IO.Path]::GetTempPath()) ('meltdown-acceptance-' + [Guid]::NewGuid().ToString('N'))
-$apkPath = Join-Path $work $apkName
-$problem = Get-CheckedApk -Path $apkPath -ReleaseUrl $releaseUrl -LocalDir $env:MELTDOWN_APK_DIR
-if ($problem) {
-	Stop-Run 'failed' $problem
+# 2. The newest main build, unless the headset already holds it (#1437): only
+# the release's checksum is read first. Any doubt installs.
+$forceInstall = Test-ForceInstall ([bool]$Force)
+$expected = Get-ReleaseChecksum -ReleaseUrl $releaseUrl -LocalDir $env:MELTDOWN_APK_DIR -Name $apkName
+$current = $false
+if (-not $forceInstall -and $expected -and (Wait-Device)) {
+	$current = Test-HeadsetHasBuild -Serial $script:serial -Expected $expected
 }
+if ($current) {
+	Write-Host (Format-SkipLine -Serial $script:serial -Checksum $expected)
+} else {
+	if ($forceInstall) {
+		Write-Host 'Installing whatever the headset holds (-Force or MELTDOWN_FORCE_INSTALL=1).'
+	}
+	# Checked against its checksum, and kept for a rerun (see Get-CachedApk).
+	$apk = Get-CachedApk -Expected $expected -ReleaseUrl $releaseUrl -LocalDir $env:MELTDOWN_APK_DIR -Name $apkName
+	if ($apk.Problem) {
+		Stop-Run 'failed' $apk.Problem
+	}
 
-# 3. Install over the existing copy, after the headset answers on adb. A
-# failure with no reason or with the headset gone is waited out and retried
-# (#210, #589); see Install-Apk.
-$install = Install-Apk -Path $apkPath
-if (-not $install.Ok) {
-	Write-Host $install.Text
-	Stop-Run 'failed' "Install failed on ${script:serial}: $(Get-InstallFailureReason $install.Text). By hand: adb -s $script:serial install -r $apkName"
+	# 3. Install over the existing copy, after the headset answers on adb. A
+	# failure with no reason or with the headset gone is waited out and retried
+	# (#210, #589); see Install-Apk.
+	$install = Install-Apk -Path $apk.Path
+	if (-not $install.Ok) {
+		Write-Host $install.Text
+		Stop-Run 'failed' "Install failed on ${script:serial}: $(Get-InstallFailureReason $install.Text). By hand: adb -s $script:serial install -r `"$($apk.Path)`""
+	}
+	Write-Host 'Installed.'
 }
-Write-Host 'Installed.'
-Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
 
 # Said whenever the headset cannot show the game, with what an unattended run needs.
 $lockAdvice = 'Put the headset on and unlock it, then run again. An unattended nightly run needs the headset left unlocked on its charger; with a lock pattern set it skips (docs/device-acceptance.md).'
