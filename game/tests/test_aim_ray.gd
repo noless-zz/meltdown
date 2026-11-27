@@ -15,15 +15,19 @@ func _aim(hand: Vector3, target: Vector3) -> Transform3D:
 	return Transform3D.IDENTITY.looking_at(target - hand, Vector3.UP).translated(hand)
 
 
-## A stand-in rig: the room and its stations at a head point, as the hub hangs them.
+## A stand-in rig: the room and its stations at a head point, as the hub hangs
+## them, with the room holding the rig's camera as `HubWiring` makes it.
 func _rig_with_room() -> Node3D:
 	var rig: Node3D = Node3D.new()
+	var camera: Camera3D = Camera3D.new()
+	camera.name = "Camera"
+	rig.add_child(camera)
 	var room: HubRoom = HubRoom.new()
 	room.transform = Transform3D(Basis(Vector3.UP, 0.3), Vector3(0.0, 1.2, 0.1))
 	rig.add_child(room)
 	var stations: HubStations = HubStations.new(room)
 	rig.add_child(stations)
-	room.visible = true
+	room.show_for(camera)
 	stations.visible = true
 	return rig
 
@@ -134,7 +138,7 @@ func test_the_ray_shows_only_where_pointing_selects() -> String:
 	ray.follow(rig, aim, false)
 	if ray.visible:
 		problem = "an untracked controller shows a ray"
-	room.visible = false
+	room.hide_room()
 	stations.visible = false
 	ray.follow(rig, aim, true)
 	if problem == "" and ray.visible:

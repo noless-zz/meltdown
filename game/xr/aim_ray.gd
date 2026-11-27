@@ -3,9 +3,9 @@ extends Node3D
 
 ## A thin ray from the pointing controller's aim pose to what it points at,
 ## with a dot where it lands (#1451, CRW-2, RUN-1, PLT-5). It shows only where
-## pointing selects (the home base's stations and the shaft choice, found by
-## `AimTargets`) and never in flight. With nothing hit it reaches `length_m`
-## and fades out to its tip.
+## pointing selects (the home base's stations and the shaft choice) and while
+## the dev menu is open, as `AimTargets` finds them, and never otherwise in
+## flight (#1508). With nothing hit it reaches `length_m` and fades out to its tip.
 ##
 ## It starts at the same pose the selection reads (the right controller's,
 ## as `HubWiring` and `ShaftChoiceWiring` aim), so hand, ray and highlight

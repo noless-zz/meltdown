@@ -149,7 +149,8 @@ func aim_ray() -> AimRay:
 
 
 ## Draws the aim ray from the right controller, the one the hub and the shaft
-## choice select with, while it is tracked and pointing selects (#1451).
+## choice select with, while it is tracked and pointing selects or the dev menu
+## is open (#1451, #1508); in flight it hides.
 func point_ray() -> void:
 	var ray: AimRay = aim_ray()
 	var aim: XRController3D = get_node_or_null("RightHand") as XRController3D
@@ -178,10 +179,11 @@ func refresh_labels() -> void:
 
 
 ## True where pointing selects: the home base's stations or the shaft choice
-## are shown, as the aim ray finds them (`AimTargets`).
+## are shown, as the aim ray finds them (`AimTargets`). The open dev menu
+## shows the ray too (#1508) but leaves the labels as they are.
 func pointing_selects() -> bool:
 	var ray: AimRay = aim_ray()
-	return ray != null and bool(ray.targets.find(self, Transform3D.IDENTITY)["shown"])
+	return ray != null and ray.targets.selects(self)
 
 
 ## True while the labels shown are the base's, not flight's.

@@ -81,6 +81,12 @@
 			"checks": ["no_script_errors", "menu_at_base"]
 		},
 		{
+			"id": "aim_ray_hidden_in_flight",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "aim_ray_hidden_in_flight"]
+		},
+		{
 			"id": "menu_at_shaft",
 			"run": 12345,
 			"replay": "res://acceptance/replays/run_advances.replay",
