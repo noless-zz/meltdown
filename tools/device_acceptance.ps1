@@ -11,6 +11,11 @@ extra, waits for the runner's exit line in the log, and writes the reports,
 screenshots and device log to -OutDir with a result.json (see
 acceptance_common.ps1).
 
+After an adb drop (the headset resets its USB, #1436) it waits for the
+headset to come back on cable or Wi-Fi before deciding anything, and at the
+end reads the reports the game left in its own storage, so a lost log stream
+does not lose results.
+
 Exit codes: 0 when the suite passed, or nothing could run (no headset
 connected, or the headset locked or asleep: a clean skip, said in the output),
 1 when anything failed or the report is missing. What an unattended nightly
@@ -18,6 +23,13 @@ run needs from the headset is in docs/device-acceptance.md.
 
 Runs in Windows PowerShell 5.1 with nothing beyond adb. By hand:
   powershell -ExecutionPolicy Bypass -File tools\device_acceptance.ps1 -Suite m1
+
+.PARAMETER Serial
+The headset to use when more than one is listed; ANDROID_SERIAL when not given.
+
+.PARAMETER Unattended
+Nobody wears the headset: m0's controllers_bound step skips, not fails, when the
+controllers are asleep. Also on for scheduled workflow runs and `-Suite nightly`.
 
 .PARAMETER Suite
 The suite name the game's --acceptance switch takes; `all` runs every suite,
@@ -45,7 +57,12 @@ param(
 	# Between activity lookups; one can come back empty right after an install (#1392).
 	[int]$ResolveRetrySeconds = 1,
 	# The headset's log buffer, raised so start-up lines survive a busy log (#599).
-	[string]$LogBufferSize = '16M'
+	[string]$LogBufferSize = '16M',
+	[string]$Serial = '',
+	[switch]$Unattended,
+	# How long to wait for the headset after an adb drop before giving up (#1436).
+	[int]$ReconnectSeconds = 300,
+	[int]$ReconnectPollSeconds = 2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +71,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 . (Join-Path $PSScriptRoot 'acceptance_common.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_headset.ps1')
+. (Join-Path $PSScriptRoot 'acceptance_recover.ps1')
 $script:deviceWaitSeconds = $DeviceWaitSeconds
 $script:warnings = New-Object System.Collections.Generic.List[string]
 
@@ -100,44 +118,35 @@ if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
 }
 
 # 1. A headset, or a clean skip.
-$serials = @()
-foreach ($line in ((Invoke-Adb @('devices')).Text -split "`n" | Select-Object -Skip 1)) {
-	$fields = $line.Trim() -split '\s+'
-	if ($fields.Count -ge 2 -and $fields[1] -eq 'device') {
-		$serials += $fields[0]
-	}
-}
+$serials = Get-AdbSerials
 if ($serials.Count -eq 0) {
 	Stop-Run 'skipped' 'No headset is connected (adb devices lists none in the device state), so nothing ran. Connect the Quest by USB or ADB over Wi-Fi and dispatch the workflow again.'
 }
-$script:serial = $serials[0]
+$namedBy = if ($Serial) { '-Serial' } else { 'ANDROID_SERIAL' }
+$choice = Select-Headset -Serials $serials -Named $(if ($Serial) { $Serial } else { $env:ANDROID_SERIAL }) -NamedBy $namedBy
+if (-not $choice.Serial) {
+	Stop-Run 'skipped' "Nothing ran: $($choice.Note)"
+}
+$script:serial = $choice.Serial
 Write-Host "Headset: $script:serial"
-if ($serials.Count -gt 1) {
-	Write-Host "More than one headset is connected; using $script:serial only."
+if ($choice.Note) {
+	Write-Host $choice.Note
+}
+# Said in the PR for #1436: a scheduled workflow run or the nightly suite has nobody wearing the headset.
+$unattendedRun = $Unattended -or $env:GITHUB_EVENT_NAME -eq 'schedule' -or $Suite -eq 'nightly'
+$startExtras = @('--es', $intentExtra, $Suite)
+if ($unattendedRun) {
+	$startExtras += @('--es', 'meltdown_unattended', '1')
+	Write-Host 'Unattended run: controllers asleep in m0/controllers_bound are reported skipped.'
 }
 
 # 2. The newest main build, checked against its checksum.
 $work = Join-Path ([IO.Path]::GetTempPath()) ('meltdown-acceptance-' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $work | Out-Null
 $apkPath = Join-Path $work $apkName
-try {
-	if ($env:MELTDOWN_APK_DIR) {
-		Copy-Item -LiteralPath (Join-Path $env:MELTDOWN_APK_DIR $apkName) -Destination $apkPath
-		Copy-Item -LiteralPath (Join-Path $env:MELTDOWN_APK_DIR "$apkName.sha256") -Destination "$apkPath.sha256"
-	} else {
-		Write-Host "Downloading $apkName from the main-latest release..."
-		Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$apkName" -OutFile $apkPath
-		Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$apkName.sha256" -OutFile "$apkPath.sha256"
-	}
-} catch {
-	Stop-Run 'failed' "Could not download the build: $($_.Exception.Message)"
+$problem = Get-CheckedApk -Path $apkPath -ReleaseUrl $releaseUrl -LocalDir $env:MELTDOWN_APK_DIR
+if ($problem) {
+	Stop-Run 'failed' $problem
 }
-$expected = ((Get-Content -LiteralPath "$apkPath.sha256" -TotalCount 1) -split '\s+')[0].ToLowerInvariant()
-$actual = (Get-FileHash -LiteralPath $apkPath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($expected -ne $actual) {
-	Stop-Run 'failed' "Checksum mismatch: the release says $expected but the download is $actual. Nothing was installed; the release may have been mid-upload."
-}
-Write-Host "Checksum verified: $actual"
 
 # 3. Install over the existing copy, after the headset answers on adb. A
 # failure with no reason or with the headset gone is waited out and retried
@@ -165,6 +174,7 @@ $exitCode = $null
 $shots = 0
 $foregroundShots = 0
 $blocked = $null
+$dropped = $null
 try {
 	Invoke-Device @('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '7') | Out-Null
 	Invoke-Device @('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP') | Out-Null
@@ -190,13 +200,14 @@ try {
 		Write-Host "The headset refused a $LogBufferSize log buffer; keeping its own size."
 	}
 	Invoke-Device @('logcat', '-c') | Out-Null
+	Clear-HeadsetReports -Package $package | Out-Null
 	$stream = Start-LogStream -Path $deviceLogPath
 	Write-Host "Starting $activity with $intentExtra=$Suite"
-	$started = Invoke-Device @('shell', 'am', 'start', '-n', $activity, '--es', $intentExtra, $Suite)
+	$started = Invoke-Device (@('shell', 'am', 'start', '-n', $activity) + $startExtras)
 	if ((Test-NotExported $started.Text) -and $activity -ne $fallbackActivity) {
 		Write-Host "Android refused $activity as not exported; trying $fallbackActivity once."
 		$activity = $fallbackActivity
-		$started = Invoke-Device @('shell', 'am', 'start', '-n', $activity, '--es', $intentExtra, $Suite)
+		$started = Invoke-Device (@('shell', 'am', 'start', '-n', $activity) + $startExtras)
 	}
 	if (-not $started.Ok -or $started.Text -match 'Error|Exception') {
 		Write-Host $started.Text
@@ -214,7 +225,14 @@ try {
 	$seenForeground = $false
 	$crashed = $false
 	while ($true) {
-		$godotLines = (Invoke-Device @('logcat', '-d', '-v', 'raw', 'godot:V', '*:S')).Text -split "`n"
+		$poll = Invoke-Device @('logcat', '-d', '-v', 'raw', 'godot:V', '*:S')
+		if ($poll.Ok) {
+			$godotLines = $poll.Text -split "`n"
+		} elseif (-not (Test-DeviceReachable)) {
+			# An adb that cannot reach the headset is not a crash (#1436): wait for it.
+			if ($dropped = Resume-AfterDrop $ReconnectSeconds $ReconnectPollSeconds) { break }
+			continue
+		}
 		$exitCode = Get-AcceptanceExitCode $godotLines
 		if ($null -ne $exitCode) {
 			break
@@ -226,16 +244,11 @@ try {
 			$seenForeground = $true
 		}
 		if ($shots -lt $MaxScreenshots -and ($steps -gt $stepLines -or $elapsed -ge $nextShot)) {
-			$remote = '/sdcard/meltdown-acceptance.png'
 			$suffix = if ($foreground) { '' } else { '-background' }
-			$shot = Join-Path $shotDir ('{0:D2}-{1:D4}s{2}.png' -f ($shots + 1), [int]$elapsed, $suffix)
-			if ((Invoke-Device @('shell', 'screencap', '-p', $remote)).Ok -and (Invoke-Device @('pull', $remote, $shot)).Ok) {
+			if (Save-Screenshot (Join-Path $shotDir ('{0:D2}-{1:D4}s{2}.png' -f ($shots + 1), [int]$elapsed, $suffix))) {
 				$shots += 1
-				if ($foreground) {
-					$foregroundShots += 1
-				}
+				$foregroundShots += [int]$foreground
 			}
-			Invoke-Device @('shell', 'rm', '-f', $remote) | Out-Null
 			$nextShot = $elapsed + $ScreenshotEverySeconds
 		}
 		$stepLines = $steps
@@ -243,8 +256,12 @@ try {
 			break
 		}
 		if ($elapsed -ge $StartGraceSeconds -and -not (Invoke-Device @('shell', 'pidof', $package)).Ok) {
-			$crashed = $true
-			break
+			if (Test-DeviceReachable) {
+				$crashed = $true
+				break
+			}
+			if ($dropped = Resume-AfterDrop $ReconnectSeconds $ReconnectPollSeconds) { break }
+			continue
 		}
 		if ($elapsed -ge $ForegroundGraceSeconds -and -not $seenForeground -and $steps -eq 0) {
 			$blocked = Get-HeadsetLockReason
@@ -264,6 +281,10 @@ try {
 		# what the headset's buffer still holds.
 		$deviceLog = Invoke-Device @('logcat', '-d', '-v', 'threadtime')
 		Write-Utf8File -Path $deviceLogPath -Text $deviceLog.Text
+	} elseif ($script:drops -gt 0 -and -not $dropped) {
+		# The stream ended at the drop; the headset's buffer still holds the rest.
+		$rest = Invoke-Device @('logcat', '-d', '-v', 'threadtime')
+		Add-Utf8File -Path $deviceLogPath -Text ("`n--- the stream ended at an adb drop; the headset's log buffer at the end ---`n" + $rest.Text)
 	}
 	Invoke-Device @('shell', 'am', 'force-stop', $package) | Out-Null
 	Invoke-Device @('shell', 'am', 'broadcast', '-a', 'com.oculus.vrpowermanager.automation_disable') | Out-Null
@@ -279,18 +300,10 @@ Write-Host "Screenshots: $shots, $foregroundShots with the game in the foregroun
 if ($foregroundShots -eq 0) {
 	$script:warnings.Add("no screenshot was taken while the game was in the foreground ($shots taken); the suite may have ended before the first one, or the headset showed something else.")
 }
-$problems = New-Object System.Collections.Generic.List[string]
-$reports = ConvertFrom-ReportBlocks -Blocks (Get-ReportBlocks $godotLines) -Problems $problems
-if ($null -eq $exitCode -and $reports.Count -eq 0) {
-	if ($crashed) {
-		$problems.Add('the game stopped before it printed a report (see device.log)')
-	} else {
-		$problems.Add("no exit line within $TimeoutSeconds s and no report (see device.log)")
-	}
-}
-$verdict = Get-RunVerdict -Reports $reports -ExitCode $exitCode -Problems $problems.ToArray()
+$outcome = Get-HeadsetOutcome -Lines $godotLines -ExitCode $exitCode -Dropped $dropped -Crashed $crashed `
+	-Package $package -OutDir $OutDir -Suite $Suite -TimeoutSeconds $TimeoutSeconds -ReconnectSeconds $ReconnectSeconds
 $table = $null
-if ($reports.Count -gt 0) {
-	$table = Format-ResultTable @([pscustomobject]@{ target = 'headset'; status = $verdict.Status; reason = $verdict.Reason; suites = $reports })
+if ($outcome.Reports.Count -gt 0) {
+	$table = Format-ResultTable @([pscustomobject]@{ target = 'headset'; status = $outcome.Status; reason = $outcome.Reason; suites = $outcome.Reports })
 }
-Stop-Run $verdict.Status $verdict.Reason $reports $table
+Stop-Run $outcome.Status $outcome.Reason $outcome.Reports $table

@@ -5,6 +5,7 @@ $script:deviceWaitSeconds. Runs in Windows PowerShell 5.1 and PowerShell 7.
 #>
 
 $script:installRetries = 2
+$script:drops = 0
 
 # adb with its output as text and whether it succeeded. Errors are collected as
 # text because 5.1 would turn adb's stderr into a terminating error under 'Stop'.
@@ -179,4 +180,110 @@ function Stop-LogStream {
 		} catch { }
 	}
 	Remove-Item -LiteralPath "$Path.err" -ErrorAction SilentlyContinue
+}
+
+# The serials `adb devices` lists in the device state.
+function Get-AdbSerials {
+	$serials = @()
+	foreach ($line in ((Invoke-Adb @('devices')).Text -split "`n" | Select-Object -Skip 1)) {
+		$fields = $line.Trim() -split '\s+'
+		if ($fields.Count -ge 2 -and $fields[1] -eq 'device') {
+			$serials += $fields[0]
+		}
+	}
+	return , $serials
+}
+
+# ADB over Wi-Fi: an address with a port, or a paired mDNS name.
+function Test-WifiSerial {
+	param([string]$Serial)
+	return ($Serial -match ':\d+$' -or $Serial -match '_adb-tls-connect')
+}
+
+# Which listed serial to use (#1436). A named one (-Serial, else ANDROID_SERIAL)
+# is used as it is. Otherwise the first headset, on Wi-Fi when the same headset
+# (same ro.serialno) is also on the cable, since a USB reset then does not cut
+# adb. Sets $script:sameHeadset to every serial of that headset, for
+# Wait-Reconnect. Returns Serial ($null when the named one is not listed) and Note.
+function Select-Headset {
+	param([string[]]$Serials, [string]$Named, [string]$NamedBy)
+	if ($Named) {
+		$script:sameHeadset = @($Named)
+		if ($Serials -notcontains $Named) {
+			return [pscustomobject]@{ Serial = $null; Note = "$Named, named by $NamedBy, is not among the connected headsets ($($Serials -join ', '))." }
+		}
+		return [pscustomobject]@{ Serial = $Named; Note = "Using $Named, named by $NamedBy." }
+	}
+	$script:sameHeadset = @($Serials[0])
+	if ($Serials.Count -eq 1) {
+		return [pscustomobject]@{ Serial = $Serials[0]; Note = $null }
+	}
+	$ids = @{}
+	foreach ($serial in $Serials) {
+		$ids[$serial] = (Invoke-Adb @('-s', $serial, 'shell', 'getprop', 'ro.serialno')).Text.Trim()
+	}
+	$first = $Serials[0]
+	$script:sameHeadset = @($Serials | Where-Object { $_ -eq $first -or ($ids[$first] -and $ids[$_] -eq $ids[$first]) })
+	$wifi = @($script:sameHeadset | Where-Object { Test-WifiSerial $_ })
+	$chosen = if ($wifi.Count -gt 0) { $wifi[0] } else { $first }
+	$note = "More than one headset is connected; using $chosen only. Name one with -Serial or ANDROID_SERIAL."
+	if ($script:sameHeadset.Count -gt 1 -and $wifi.Count -gt 0) {
+		$cable = @($script:sameHeadset | Where-Object { -not (Test-WifiSerial $_) })
+		$note = "The same headset is on the cable ($($cable -join ', ')) and on Wi-Fi; using Wi-Fi $chosen, so a USB reset does not cut the run."
+	}
+	return [pscustomobject]@{ Serial = $chosen; Note = $note }
+}
+
+# Whether the headset answers on adb right now.
+function Test-DeviceReachable {
+	return (Invoke-Device @('shell', 'true')).Ok
+}
+
+# Waits up to $Seconds for this headset to answer again, on its serial or on
+# another serial of the same headset (cable or Wi-Fi), which then becomes the
+# serial. Returns whether it came back.
+function Wait-Reconnect {
+	param([int]$Seconds, [int]$PollSeconds = 2)
+	$clock = [Diagnostics.Stopwatch]::StartNew()
+	do {
+		$listed = Get-AdbSerials
+		foreach ($candidate in @(@($script:serial) + @($script:sameHeadset))) {
+			if ($listed -contains $candidate) {
+				$previous = $script:serial
+				$script:serial = $candidate
+				if (Test-DeviceReachable) {
+					if ($candidate -ne $previous) {
+						Write-Host "Going on over $candidate (was $previous)."
+					}
+					return $true
+				}
+				$script:serial = $previous
+			}
+		}
+		Start-Sleep -Seconds $PollSeconds
+	} while ($clock.Elapsed.TotalSeconds -lt $Seconds)
+	return $false
+}
+
+# Says the drop and waits. Returns $null when the headset is back, else the
+# time (HH:mm:ss) the connection dropped (#1436: a drop is not a crash).
+function Resume-AfterDrop {
+	param([int]$Seconds, [int]$PollSeconds)
+	$at = Get-Date -Format 'HH:mm:ss'
+	$script:drops += 1
+	Write-Host "Waiting up to $Seconds s: the connection to the headset dropped at $at."
+	if (Wait-Reconnect -Seconds $Seconds -PollSeconds $PollSeconds) {
+		Write-Host "Going on: the headset is back at $(Get-Date -Format 'HH:mm:ss')."
+		return $null
+	}
+	return $at
+}
+
+# One screenshot into $Path. Returns whether it was saved.
+function Save-Screenshot {
+	param([string]$Path)
+	$remote = '/sdcard/meltdown-acceptance.png'
+	$saved = (Invoke-Device @('shell', 'screencap', '-p', $remote)).Ok -and (Invoke-Device @('pull', $remote, $Path)).Ok
+	Invoke-Device @('shell', 'rm', '-f', $remote) | Out-Null
+	return $saved
 }

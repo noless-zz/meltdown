@@ -14,9 +14,16 @@ extends RefCounted
 ## - `profile.call(hand: String) -> String`, the interaction profile path
 ## `bindings` holds the action map as plain data: profile path -> Array of
 ## "action /user/hand/<hand>/..." pairs.
+##
+## In an unattended run (#1436) nobody wears the headset and the controllers
+## sleep, so untracked hands are reported skipped, as a locked headset is; an
+## attended run still fails. The device script says which it is with the
+## intent extra `meltdown_unattended=1` (or `--acceptance-unattended`).
 
 const HANDS: Array[String] = ["left", "right"]
 const DEFAULT_ACTION_MAP: String = "res://openxr_action_map.tres"
+const UNATTENDED_EXTRA: String = "meltdown_unattended"
+const UNATTENDED_ARG: String = "--acceptance-unattended"
 ## A layout control's name after its hand -> the OpenXR action
 ## `ControllerSampler` reads it from.
 const CONTROL_ACTIONS: Dictionary[String, String] = {
@@ -29,6 +36,8 @@ var profile: Callable
 var bindings: Dictionary = {}
 ## The flight layout (`ThumbstickMapping.layout`): action -> {control: weight}.
 var layout: Dictionary = {}
+## Untracked hands are skipped, not failed: nobody is wearing the headset.
+var unattended: bool = false
 
 
 func _init(p_tracked: Callable, p_profile: Callable, p_bindings: Dictionary,
@@ -50,7 +59,19 @@ static func live() -> AcceptanceControllersCheck:
 		var tracker: XRPositionalTracker = _tracker(hand)
 		return tracker.profile if tracker != null else ""
 	var path: String = str(ProjectSettings.get_setting("xr/openxr/default_action_map", DEFAULT_ACTION_MAP))
-	return AcceptanceControllersCheck.new(is_tracked, hand_profile, map_bindings(load(path) as OpenXRActionMap))
+	var check: AcceptanceControllersCheck = AcceptanceControllersCheck.new(is_tracked, hand_profile,
+		map_bindings(load(path) as OpenXRActionMap))
+	var runtime: Object = InstallerProbe.android_runtime()
+	check.unattended = unattended_requested(OS.get_cmdline_user_args(),
+		InstallerProbe.intent_extra(runtime, UNATTENDED_EXTRA) if runtime != null else "")
+	return check
+
+
+## Whether the run was started unattended, by switch or by intent extra.
+static func unattended_requested(user_args: PackedStringArray, intent_value: String) -> bool:
+	if user_args.has(UNATTENDED_ARG):
+		return true
+	return intent_value.strip_edges() in ["1", "true", "yes"]
 
 
 ## Every profile of `map` as "action path" pairs; empty when there is no map.
@@ -121,6 +142,10 @@ func judge(measurements: Dictionary) -> Array:
 		problems.append("the %s controller is not tracked" % hand)
 	if not unbound.is_empty():
 		problems.append("unbound in %s: %s" % [_profile_names(profiles), ", ".join(unbound)])
+	if not untracked.is_empty() and unattended:
+		# Untracked hands give no profile, so the bindings cannot be judged either.
+		return [AcceptanceReport.RESULT_SKIPPED, "%s: unattended run, the headset is not worn and the controllers are asleep"
+			% "; ".join(problems.slice(0, untracked.size()))]
 	if not problems.is_empty():
 		return [AcceptanceReport.RESULT_FAIL, "; ".join(problems)]
 	return [AcceptanceReport.RESULT_PASS, "both hands tracked, every flight control bound in %s"
