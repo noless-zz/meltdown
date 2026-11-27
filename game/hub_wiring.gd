@@ -10,12 +10,9 @@ extends RefCounted
 ## save, so `RunShip` reads the fitting just chosen. A refused launch shows its
 ## reason and stays in the hub.
 ##
-## Single levels never open it, nor does an escape that leads to a shaft
-## choice or the next level: only the end of a run, or the shaft panel's
-## "Suspend run" row (#1107, RUN-8). While a suspended run waits in the run's
-## `RunSaveStore`, the hub offers to resume it: the save is taken (so it resumes
-## once only), the run rebuilt and its next level flown through the same fade.
-## A save that will not resume is discarded, logged, and the hub stays open. A launch
+## When it opens and what it opens on are `HubOpening`'s (#1448). A waiting
+## suspended run is resumed once only (the save is taken), through the same fade;
+## one that will not resume is discarded, logged, and the hub stays open. A launch
 ## discards a waiting save; a `--run` launch starts straight into a run, as replays fly.
 ##
 ## While open it takes the controls as the dev menu does (decision record
@@ -91,17 +88,6 @@ func is_open() -> bool:
 	return text != null
 
 
-## True when `session` has just ended `level_start`'s run: the ship is lost
-## or the run's last level is escaped, on the level the run flies now.
-static func ends_run(level_start: LevelStart, session: LocalSession) -> bool:
-	var flown: RunWiring = level_start.run
-	if flown == null or not flown.active() or level_start.source != flown.level_source():
-		return false
-	if session.sim.outcome() == ExitRule.Outcome.ESCAPED:
-		return flown.on_last_level() and not flown.escape_taken
-	return session.current_ship().hull <= 0.0
-
-
 ## Called on the end screen's restart press. When `session` ended the run,
 ## moves the run on, opens the hub and returns true; the caller then waits for
 ## `update` instead of restarting. False, changing nothing, otherwise, and also
@@ -111,7 +97,7 @@ func open_after(p_level_start: LevelStart, session: LocalSession) -> bool:
 		p_level_start.run.suspended = false
 		level_start = p_level_start
 		return open_for(p_level_start.run)
-	if not ends_run(p_level_start, session):
+	if not HubOpening.ends_run(p_level_start, session):
 		return false
 	level_start = p_level_start
 	var config: HubConfig = HubConfig.load_shipped()
@@ -120,15 +106,6 @@ func open_after(p_level_start: LevelStart, session: LocalSession) -> bool:
 		return false
 	level_start.source = level_start.run.after_session(session)
 	return open_for(level_start.run, config)
-
-
-## The run waiting in `saves`, or null when there is none or it does not read
-## back; a temporary file left by a killed save is never offered.
-static func waiting_save(saves: RunSaveStore) -> RunSave:
-	if saves == null or not saves.has_save():
-		return null
-	var saved: RunSave = RunSave.parse_json(FileAccess.get_file_as_string(saves.path))
-	return saved if saved.error == "" else null
 
 
 ## Opens the hub on `p_run`'s profile, crew roles and fitting, with the hub
@@ -141,16 +118,8 @@ func open_for(p_run: RunWiring, config: HubConfig = null) -> bool:
 		print("%s the hub cannot open: %s" % [LOG_PREFIX, config.error])
 		return false
 	run = p_run
-	var tree: UpgradeTree = UpgradeTree.parse(RunShip.upgrade_texts(run.ship.upgrades_dir))
-	var ship_data: Dictionary = _ship_data(run.ship.ship_path)
-	var stored: Fitting = run.ship.fittings.load_fitting() if run.ship.fittings != null else Fitting.new()
-	# A stale slot would make every fit fail the check; the run drops it anyway.
-	fitting = FittingStore.valid_for(stored, tree, run.profile.crafted, ship_data)
-	var roles: CrewRoles = run.roles if run.roles != null else CrewRoles.parse_json("")
-	var model: HubModel = HubModel.create(config, run.profile, roles,
-		ComponentList.parse(RunShip.upgrade_texts(components_dir)), tree, fitting, ship_data)
-	model.parts = HubPartInfo.load_shipped()
-	model.set_waiting(waiting_save(run.saves))
+	var model: HubModel = HubOpening.model_for(run, config, components_dir)
+	fitting = model.fitting
 	text = HubText.new(model)
 	if stations != null:
 		stations.open(text)
@@ -296,9 +265,3 @@ func save_fitting() -> void:
 	var store: FittingStore = run.ship.fittings if run != null else null
 	if store != null and fitting != null and not store.save(fitting):
 		print("%s the fitting was not saved: %s" % [LOG_PREFIX, store.message])
-
-
-static func _ship_data(path: String) -> Dictionary:
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) \
-		if FileAccess.file_exists(path) else null
-	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}

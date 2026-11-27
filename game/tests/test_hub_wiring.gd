@@ -182,11 +182,11 @@ func test_a_won_run_opens_the_hub() -> String:
 	main.call("restart_level")
 	var session: LocalSession = main.get("session")
 	var result: String = ""
-	if not HubWiring.ends_run(level_start, session):
+	if not HubOpening.ends_run(level_start, session):
 		session.sim.ships[0].escaped = true
 		if session.sim.outcome() != ExitRule.Outcome.ESCAPED:
 			result = "the test could not escape the last level"
-		elif not HubWiring.ends_run(level_start, session):
+		elif not HubOpening.ends_run(level_start, session):
 			result = "escaping the run's last level does not end the run"
 	else:
 		result = "flying the last level already ends the run"
@@ -207,7 +207,7 @@ func test_an_escape_before_the_last_level_does_not_open_it() -> String:
 	var session: LocalSession = main.get("session")
 	session.sim.ships[0].escaped = true
 	var result: String = ""
-	if HubWiring.ends_run(level_start, session):
+	if HubOpening.ends_run(level_start, session):
 		result = "escaping level 1 ends the run"
 	else:
 		_fly(main, 5.0)
