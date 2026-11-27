@@ -41,6 +41,7 @@ extends RefCounted
 ## check (`AcceptanceCollectedCheck`). `profile` and `fitting` (#1057) point a
 ## run step at scratch stores (`AcceptanceFittedStart`).
 ## `expected_crew` goes with the crew_joins check (`AcceptanceCrewJoinsCheck`, #1084).
+## `time_limit_seconds` (#1444) replaces the suite's default time limit (`AcceptanceTimeLimit`).
 ##
 ## A field a step does not know, a check not in `AcceptanceCheckFiles.known_checks()` or
 ## a bad value is answered with the field named, as `steps[<n>].<key>: ...`.
@@ -57,7 +58,7 @@ const STEP_KEYS: Array[String] = ["id", "replay", "preset", "checks", "expected_
 	AcceptanceRunStep.KEY_NEXT_HASH, AcceptanceComponentsBankCheck.KEY, AcceptanceShaftStep.KEY_SHAFT,
 	AcceptanceShaftStep.KEY_NEXT_REPLAY, AcceptanceCollectedCheck.KEY, AcceptanceFittedStart.KEY_PROFILE,
 	AcceptanceFittedStart.KEY_FITTING,
-	AcceptanceCrewJoinsCheck.KEY]
+	AcceptanceCrewJoinsCheck.KEY, AcceptanceTimeLimit.KEY]
 ## Largest whole number a JSON double holds exactly; a hash above it could not
 ## be compared reliably.
 const MAX_EXACT_INT: float = 9007199254740992.0
@@ -150,6 +151,8 @@ static func parse(raw: Variant, field: String, step: AcceptanceStep) -> String:
 		problem = AcceptanceCrewJoinsCheck.parse_step(data, field, step)  # #1084.
 	if problem == "":
 		problem = AcceptanceCraftAndFitCheck.parse_step(field, step)  # #1093.
+	if problem == "":
+		problem = AcceptanceTimeLimit.parse_step(data, field, step)  # #1444.
 	return problem if problem != "" else _parse_expected_outcome(data, field, step)
 
 
