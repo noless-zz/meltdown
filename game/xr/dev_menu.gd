@@ -32,6 +32,8 @@ const FONT: int = 56
 const TEXT_COLOR: Color = Color(0.7, 0.78, 0.85)
 const SELECTED_COLOR: Color = Color(1.0, 0.85, 0.3)
 const RENDER_PRIORITY: int = Material.RENDER_PRIORITY_MAX - 2
+## The default layer and the home base room's, which its camera draws alone (#1450).
+const LAYERS: int = 1 | HubRoom.LAYER_BIT
 
 var model: DevMenuModel
 var _lines: Array[Label3D] = []
@@ -55,6 +57,7 @@ func _init(spec: DevMenuSpec = DevMenuSpec.load_file(),
 		line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		line.no_depth_test = true
 		line.render_priority = RENDER_PRIORITY
+		line.layers = DevMenu.LAYERS  # Drawn at the home base too (#1450).
 		add_child(line)
 		_lines.append(line)
 	visible = false

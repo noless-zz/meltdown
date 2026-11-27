@@ -9,7 +9,9 @@ extends RefCounted
 ## After the replay the ship is lost and restart pressed, so the hub opens in
 ## the home base room (`hub_room_check.gd`'s `judge_open_room`). With the
 ## shipped checklist pinned, a tap of the menu button through the scene's own
-## `apply_controls` and `advance_frame` must open the page; a stick push while
+## `apply_controls` and `advance_frame` must open the dev menu at the base, and
+## its Test checklist entry the page (#1450 replaced #1408's tap that opened the
+## page directly); a stick push while
 ## it is open must not move the stations' highlight; A on the first step with
 ## a `station` action must pin the page and take that station into use. The
 ## checklist runs on a fresh session under a scratch name, so the owner's
@@ -72,8 +74,18 @@ static func judge_at_base(main: Node, checklist: ChecklistWiring, stations: HubS
 	checklist.pin()
 	_frame(main, {"buttons": {ControllerSampler.MENU_BUTTON: true}})
 	_frame(main, {})
+	var menu: DevMenuWiring = main.get("dev_menu") as DevMenuWiring
+	if menu == null or not menu.is_open():
+		return [AcceptanceReport.RESULT_FAIL, "a tap at the base did not open the dev menu"]
+	for press: int in 32:  # The entry is on the top list: down until it is highlighted.
+		if menu.menu.model.kind() == DevMenuSpec.KIND_CHECKLIST:
+			break
+		_frame(main, {"right_stick": Vector2(0.0, -1.0)})
+		_frame(main, {})
+	_frame(main, {"buttons": {"right_button_lower": true}})
+	_frame(main, {})
 	if not checklist.is_open():
-		return [AcceptanceReport.RESULT_FAIL, "a tap at the base did not open the pinned checklist"]
+		return [AcceptanceReport.RESULT_FAIL, "the menu's Test checklist entry at the base did not open the page"]
 	var highlighted: String = stations.highlighted_id()
 	_frame(main, {"right_stick": Vector2(1.0, 0.0)})
 	_frame(main, {})
@@ -97,7 +109,7 @@ static func judge_at_base(main: Node, checklist: ChecklistWiring, stations: HubS
 	if not checklist.is_pinned() or stations.in_use != step.action_value:
 		return [AcceptanceReport.RESULT_FAIL, "%s's action left the page %s and %s in use, want %s" %
 			[step.id, "pinned" if checklist.is_pinned() else "unpinned", stations.in_use, step.action_value]]
-	return [AcceptanceReport.RESULT_PASS, "a tap at the base opened the pinned page, the stick stayed off the stations, and %s opened the %s station" %
+	return [AcceptanceReport.RESULT_PASS, "the menu's entry at the base opened the pinned page, the stick stayed off the stations, and %s opened the %s station" %
 		[step.id, step.action_label]]
 
 

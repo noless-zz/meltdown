@@ -1,10 +1,10 @@
 extends RefCounted
 
-## The test checklist at the home base (#1408, DEV-6, DEV-7, ARC-3, CMF-8,
-## MP-2): with a checklist pinned, the menu tap the hub ignores opens the page
-## and a second tap pins it; without one it does nothing; in the mine the tap
-## still opens the dev menu. While the page is open the stations get no stick
-## input. A `station` step action takes the station into use with the stick's
+## The test checklist at the home base (#1408, #1450, DEV-6, DEV-7, ARC-3,
+## CMF-8, MP-2): the tap opens the dev menu at the base as in the mine (#1450
+## replaces #1408's tap that opened only the pinned page), the page stays
+## pinned under it, and the menu's entry opens it. While the page is open the
+## stations get no stick input. A `station` step action takes the station into use with the stick's
 ## own presses at the base, says so on the page elsewhere, and an unknown id
 ## is refused when the file is read.
 
@@ -27,7 +27,7 @@ static func wired(open_hub: bool) -> Array:
 	if open_hub:
 		hub.text = Stations._hub(Stations._rich_profile())
 		hub.stations = Stations._open(hub.text)
-	menu._hub_open = hub.is_open
+	menu.where.hub_open = hub.is_open
 	var checklist: ChecklistWiring = ChecklistWiring.new()
 	checklist.available = true
 	checklist.store.prefix = SCRATCH
@@ -72,29 +72,33 @@ static func stick_right(wired_up: Array, at: float) -> void:
 	frame(wired_up, Menu.pad_values(), at + 0.1)
 
 
-func test_at_the_base_a_tap_opens_the_pinned_page_and_a_second_tap_pins_it() -> String:
+func test_at_the_base_the_tap_opens_the_menu_and_its_entry_opens_the_page() -> String:
 	var wired_up: Array = wired(true)
 	var menu: DevMenuWiring = wired_up[0]
 	var checklist: ChecklistWiring = wired_up[1]
 	checklist.pin()
 	tap(wired_up, 1.0)
+	var menu_first: bool = menu.is_open() and checklist.is_pinned()
+	var at: float = Menu.select(menu, DevMenuSpec.KIND_CHECKLIST, 2.0)
+	frame(wired_up, Menu.pad_values({"right_button_lower": true}), at)
+	frame(wired_up, Menu.pad_values(), at + 0.1)
 	var opened: bool = checklist.is_open() and not menu.is_open()
 	var shows: String = checklist.page.text()
-	tap(wired_up, 2.0)
-	var pinned: bool = checklist.is_pinned() and not menu.is_open()
 	done(wired_up)
+	if not menu_first:
+		return "the tap did not open the menu over the pinned page: menu %s, pinned %s" % [menu.is_open(), checklist.is_pinned()]
 	if not opened or not shows.contains("Do: A"):
-		return "the tap did not open the page: open %s, menu %s, text %s" % [opened, menu.is_open(), shows]
-	return "" if pinned else "the second tap did not pin the page"
+		return "the entry did not open the page: open %s, menu %s, text %s" % [opened, menu.is_open(), shows]
+	return ""
 
 
-func test_at_the_base_without_a_pinned_page_the_tap_does_nothing() -> String:
+func test_at_the_base_without_a_pinned_page_the_tap_opens_the_menu_only() -> String:
 	var wired_up: Array = wired(true)
 	var menu: DevMenuWiring = wired_up[0]
 	var checklist: ChecklistWiring = wired_up[1]
 	tap(wired_up, 1.0)
 	var problem: String = ""
-	if checklist.page.visible or menu.is_open():
+	if checklist.page.visible or not menu.is_open():
 		problem = "page shown %s, menu open %s" % [checklist.page.visible, menu.is_open()]
 	done(wired_up)
 	return problem
@@ -117,8 +121,7 @@ func test_a_hold_at_the_base_still_passes_the_menu_button_through() -> String:
 	var wired_up: Array = wired(true)
 	var menu: DevMenuWiring = wired_up[0]
 	var checklist: ChecklistWiring = wired_up[1]
-	checklist.pin()
-	tap(wired_up, 1.0)
+	checklist.open()
 	var held: Dictionary = checklist.read(menu.read(Menu.pad_values({MENU_BUTTON: true}), 3.0))
 	var after: Dictionary = checklist.read(menu.read(Menu.pad_values({MENU_BUTTON: true}), 3.0 + ResetHold.RESET_HOLD_SECONDS))
 	var problem: String = ""
@@ -134,13 +137,13 @@ func test_while_the_page_is_open_the_stations_get_no_stick_and_pin_hands_it_back
 	var stations: HubStations = (wired_up[2] as HubWiring).stations
 	var session: LocalSession = LevelStart.tunnel_session(LatestInputSource.new())
 	checklist._session_of = func() -> LocalSession: return session
-	checklist.pin()
-	tap(wired_up, 1.0)
+	checklist.open()
+	frame(wired_up, Menu.pad_values(), 1.0)
 	var start: String = stations.highlighted_id()
 	stick_right(wired_up, 2.0)
 	var while_open: String = stations.highlighted_id()
 	var paused: bool = session.paused_by(ChecklistWiring.PAUSE_REASON)
-	tap(wired_up, 3.0)
+	checklist.pin()
 	stick_right(wired_up, 4.0)
 	var after_pin: String = stations.highlighted_id()
 	var unpaused: bool = not session.paused
