@@ -46,7 +46,7 @@ const NEUTRAL: Dictionary[String, float] = {
 	# Size of a worn patch, metres.
 	"wear_scale_m": 0.05,
 	# Opacity the glass's reflection adds at the window's edge, 0 for none. It
-	# fades to nothing at the centre, so `glass_tint_alpha` stays the opacity
+	# fades to nothing at the centre, so `1 - glass_transmission` stays the opacity
 	# straight ahead. At most 0.3, so the glass never hides the view.
 	"glass_fresnel": 0.0,
 	# How fast the reflection fades toward the centre: higher keeps it nearer the edge.

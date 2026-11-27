@@ -8,6 +8,7 @@ extends RefCounted
 
 const SURFACE_SHADER: String = "res://xr/cockpit_surface.gdshader"
 const GLASS_SHADER: String = "res://xr/cockpit_glass.gdshader"
+const GLASS_REFLECTION_SHADER: String = "res://xr/cockpit_glass_reflection.gdshader"
 const LIGHT_NAME: String = "CockpitLight"
 ## Which face edges of each part get the highlight: x the cell's yaw edges, y
 ## its pitch edges. The ledge and rim run across the view, so their long
@@ -21,6 +22,7 @@ const EDGE_AXES: Dictionary[String, Vector2] = {
 
 static var _shader: Shader = null
 static var _glass_shader: Shader = null
+static var _reflection_shader: Shader = null
 
 
 ## The shared surface shader, loaded on first use.
@@ -67,29 +69,40 @@ static func dash(part_name: String, base: Color, look: CockpitLook, finish: Cock
 	return material
 
 
-## The canopy glass in `tint` (its alpha the opacity straight ahead) over a
-## window of half-angles `window` degrees. With no reflection in `finish` it
-## is the flat unshaded tint it was before #1306; otherwise the glass shader
-## adds the edge reflection.
+## The canopy glass (#1459): `tint`'s colour, its alpha the share of light
+## the glass takes away straight ahead, becomes the filter the view is
+## multiplied by (`glass_filter`). With a reflection in `finish`, a next pass
+## adds it toward the edge of a window of half-angles `window` degrees (#1306).
 static func glass(tint: Color, window: Vector2, finish: CockpitFinish) -> Material:
-	if finish.glass_fresnel <= 0.0:
-		var flat: StandardMaterial3D = StandardMaterial3D.new()
-		flat.albedo_color = tint
-		flat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		flat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		if tint.a < 1.0:
-			flat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		return flat
 	if _glass_shader == null:
 		_glass_shader = load(GLASS_SHADER) as Shader
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = _glass_shader
-	material.set_shader_parameter("tint", tint)
-	material.set_shader_parameter("fresnel_color", finish.glass_fresnel_color)
-	material.set_shader_parameter("fresnel", finish.glass_fresnel)
-	material.set_shader_parameter("fresnel_power", finish.glass_fresnel_power)
-	material.set_shader_parameter("window_half_angle", Vector2(deg_to_rad(window.x), deg_to_rad(window.y)))
+	var filter: Color = glass_filter(tint)
+	material.set_shader_parameter("filter_color", Vector3(filter.r, filter.g, filter.b))
+	if finish.glass_fresnel > 0.0:
+		if _reflection_shader == null:
+			_reflection_shader = load(GLASS_REFLECTION_SHADER) as Shader
+		var reflection: ShaderMaterial = ShaderMaterial.new()
+		reflection.shader = _reflection_shader
+		reflection.set_shader_parameter("fresnel_color", finish.glass_fresnel_color)
+		reflection.set_shader_parameter("fresnel", finish.glass_fresnel)
+		reflection.set_shader_parameter("fresnel_power", finish.glass_fresnel_power)
+		reflection.set_shader_parameter("window_half_angle", Vector2(deg_to_rad(window.x), deg_to_rad(window.y)))
+		material.next_pass = reflection
 	return material
+
+
+## What the glass multiplies the view by: the transmission (`1 - tint.a`) on
+## the brightest channel of `tint`, the other channels in proportion, so a
+## near-neutral tint barely colours the mine and never darkens it past the
+## transmission.
+static func glass_filter(tint: Color) -> Color:
+	var brightest: float = maxf(tint.r, maxf(tint.g, tint.b))
+	var through: float = 1.0 - tint.a
+	if brightest <= 0.0:
+		return Color(through, through, through)
+	return Color(tint.r / brightest * through, tint.g / brightest * through, tint.b / brightest * through)
 
 
 ## The frame's own dim light above the eye, or null when its energy is 0. It

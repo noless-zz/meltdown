@@ -37,6 +37,12 @@
 		{
 			"id": "status_panel_place",
 			"checks": ["no_script_errors", "status_panel_place"]
+		},
+		{
+			"id": "glass_clear",
+			"replay": "res://acceptance/replays/frame_budget_flight.replay",
+			"checks": ["final_hash", "glass_clear", "no_script_errors"],
+			"expected_hash": 1960961122
 		}
 	]
 }

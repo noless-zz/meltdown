@@ -48,7 +48,7 @@ func test_nearest_valid_frame_stays_beyond_near_plane() -> String:
 		data[key] = CockpitSpec.RANGES[key][0]
 	for key: String in ["ledge_height_deg", "ledge_half_width_deg", "pillar_width_deg", "rim_height_deg"]:
 		data[key] = CockpitSpec.RANGES[key][1]
-	data["glass_tint_alpha"] = 1.0
+	data["glass_transmission"] = CockpitSpec.MIN_GLASS_TRANSMISSION
 	var spec: CockpitSpec = CockpitSpec.parse_json(JSON.stringify(data))
 	if spec.error != "":
 		return "nearest combination rejected: %s" % spec.error
@@ -101,9 +101,9 @@ func test_glass_canopy_builds_no_shapes() -> String:
 	return message
 
 
-func test_zero_tint_builds_no_glass() -> String:
+func test_full_transmission_builds_no_glass() -> String:
 	var data: Dictionary = FrameTests.valid_data()
-	data["glass_tint_alpha"] = 0.0
+	data["glass_transmission"] = 1.0
 	var frame: CockpitFrame = CockpitFrame.new(CockpitSpec.parse_json(JSON.stringify(data)))
 	var glass: MultiMeshInstance3D = frame.part("Glass")
 	frame.free()

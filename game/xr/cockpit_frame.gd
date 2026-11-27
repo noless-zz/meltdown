@@ -36,8 +36,6 @@ const BOX_PARTS: Array[String] = ["Ledge", "Pillars", "Rim", "Dash", "Knobs"]
 ## Sides of a dash knob: enough to read round at arm's length.
 const KNOB_SIDES: int = 12
 
-const GLASS_COLOR: Color = Color(0.55, 0.75, 0.85)
-
 var spec: CockpitSpec = null
 ## Instance transforms of each built part, by part name. Kept here because a
 ## headless renderer does not store multimesh transforms for reading back.
@@ -109,7 +107,7 @@ func _build() -> void:
 			var panel: Transform3D = CockpitGeometry.cell_piece(a, b, spec.frame_distance_m, 0.0, OVERLAP)
 			solid.append(_outside(panel, false, middle))
 	_add_part("Solid", _quad(), _surface("Solid", spec.interior_color), solid)
-	if spec.glass_tint_alpha > 0.0:
+	if spec.glass_opacity() > 0.0:
 		_add_glass(CockpitGeometry.breaks(-h, h, CELL_DEG), CockpitGeometry.breaks(-v, v, CELL_DEG))
 	_add_part("Ledge", _box(), _surface("Ledge", spec.structure_color), _ledge())
 	_add_part("Pillars", _box(), _surface("Pillars", spec.structure_color), _pillars())
@@ -240,8 +238,8 @@ static func _shell_breaks(half: float) -> PackedFloat32Array:
 
 func _add_glass(yaw_breaks: PackedFloat32Array, pitch_breaks: PackedFloat32Array) -> void:
 	_glass_points = CockpitGeometry.glass_points(yaw_breaks, pitch_breaks, spec.frame_distance_m)
-	var tint: Color = GLASS_COLOR
-	tint.a = spec.glass_tint_alpha
+	var tint: Color = spec.glass_tint
+	tint.a = spec.glass_opacity()
 	var single: Array[Transform3D] = [Transform3D.IDENTITY]
 	var window: Vector2 = Vector2(spec.window_half_angle_h_deg, spec.window_half_angle_v_deg)
 	_add_part("Glass", CockpitGeometry.glass_mesh(_glass_points, yaw_breaks.size()),
