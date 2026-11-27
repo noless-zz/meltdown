@@ -6,8 +6,9 @@ extends RefCounted
 ## only its own layer and this one, so the controller models show at the base
 ## while the mine and its fade stay hidden behind the room.
 ##
-## The control labels are left off: they name what the controls do in flight,
-## which is wrong at the base. Presentation only: no input, no simulation state,
+## The control labels are left off here: the label set puts itself on this
+## layer only while it shows the base's own labels (`ControlLabelSet.set_at_base`,
+## #1469), so the flight labels never show at the base. Presentation only: no input, no simulation state,
 ## no comfort setting is read (ARC-3, MP-2).
 
 

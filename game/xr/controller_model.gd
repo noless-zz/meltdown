@@ -150,6 +150,14 @@ func set_labels(labels: Dictionary) -> void:
 	_move_leaders()
 
 
+## Draws the labels where the base room's camera and the shaft choice show
+## them when `on` (`ControlLabelSet.set_at_base`, #1469).
+func set_labels_at_base(on: bool) -> void:
+	if _labels_root == null:
+		build()
+	_labels_root.set_at_base(on)
+
+
 ## Hand-local point of each control on the right hand, where its leader line
 ## ends: the generic shape's, or the runtime model's parts while it is shown.
 func control_points() -> Dictionary:
