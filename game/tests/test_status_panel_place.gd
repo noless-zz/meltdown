@@ -7,9 +7,11 @@ extends RefCounted
 ## the bottom-left corner #1321 kept as the default.
 ##
 ## The panel is projected from the eye point of each cockpit file with every
-## row it may draw filled in, and must stay outside a cone around straight
-## ahead on every cockpit, in every corner (`StatusPanelBounds`). Presentation
-## only (ARC-3).
+## row it may draw filled in: its centre must stay outside a cone around
+## straight ahead and its rows outside a narrower one, on every cockpit, in
+## every corner (`StatusPanelBounds`). Since #1507 the whole panel must also
+## lie inside both eyes' views (`EyeViews`), and stay put in the view however
+## the ship turns. Presentation only (ARC-3).
 
 const PATH: String = "user://test_status_panel_place.json"
 const COCKPIT_DIR: String = "res://xr/cockpits"
@@ -64,12 +66,74 @@ func test_no_corner_reaches_the_middle_of_the_view_on_any_cockpit() -> String:
 			break
 		for corner: String in StatusPanelLook.CORNER_NAMES:
 			var angles: Vector2 = _angles(points, corner, cockpit)
-			if angles.x < StatusPanelBounds.CENTRAL_CONE_DEG and message == "":
+			PanelCorner.current = corner
+			var centre: float = StatusPanelBounds.centre_angle(StatusPanel.rig_transform(cockpit), cockpit)
+			if centre < StatusPanelBounds.CENTRAL_CONE_DEG and message == "":
+				message = "%s, %s: the panel's centre is %.1f degrees from straight ahead" % [
+					file.get_file(), corner, centre]
+			if angles.x < StatusPanelBounds.ROW_CONE_DEG and message == "":
 				message = "%s, %s: the panel comes %.1f degrees from straight ahead" % [
 					file.get_file(), corner, angles.x]
 			if angles.y > VIEW_LIMIT_DEG and message == "":
 				message = "%s, %s: a row is %.1f degrees off ahead" % [file.get_file(), corner, angles.y]
 	PanelCorner.current = PanelCorner.DEFAULT_CORNER
+	return message
+
+
+func test_every_corner_lies_inside_both_eyes_on_every_cockpit() -> String:
+	var files: Array[String] = _cockpit_files()
+	var views: EyeViews = EyeViews.load_file()
+	if views.error != "":
+		return "the shipped eye views are rejected: %s" % views.error
+	var panel: StatusPanel = StatusPanel.new()
+	var points: Array[Vector3] = StatusPanelBounds.drawn_points(panel)
+	panel.free()
+	var cockpit: Transform3D = Transform3D(Basis(Vector3.UP, 0.7), Vector3(0.3, 1.2, -0.4))
+	var message: String = ""
+	for file: String in files:
+		var frame: CockpitFrame = CockpitFrame.new(CockpitSpec.load_file(file))
+		for corner: String in PanelCorner.names():
+			PanelCorner.current = corner
+			var placed: StatusPanel = StatusPanel.new()
+			RigViews.place_at(cockpit, frame, placed)
+			var problem: String = StatusPanelBounds.eyes_problem(points, placed.transform, frame.transform, views)
+			placed.free()
+			# The centre place is the old one below the eye, kept for the dev menu.
+			if problem != "" and corner != PanelCorner.CENTRE and message == "":
+				message = "%s, %s: %s" % [file.get_file(), corner, problem]
+		frame.free()
+	PanelCorner.current = PanelCorner.DEFAULT_CORNER
+	return message
+
+
+func test_turning_or_rolling_the_ship_keeps_the_panel_still_in_the_view() -> String:
+	var panel: StatusPanel = StatusPanel.new()
+	var points: Array[Vector3] = StatusPanelBounds.drawn_points(panel)
+	var views: EyeViews = EyeViews.load_file()
+	var message: String = ""
+	for corner: String in StatusPanelLook.CORNER_NAMES:
+		PanelCorner.current = corner
+		var seen: Array[Vector3] = []
+		# Level, yawed, rolled, pitched and all three, far from the origin.
+		var poses: Array[Transform3D] = [Transform3D.IDENTITY,
+			Transform3D(Basis(Vector3.UP, 1.9), Vector3(4.0, 0.0, -2.0)),
+			Transform3D(Basis(Vector3.FORWARD, 2.6), Vector3(0.0, 3.0, 1.0)),
+			Transform3D(Basis(Vector3.RIGHT, -1.2), Vector3(-1.0, 1.5, 0.0)),
+			Transform3D(Basis.from_euler(Vector3(0.8, -2.2, 1.4)), Vector3(9.0, -4.0, 7.0))]
+		for pose: Transform3D in poses:
+			RigViews.place_at(pose, null, panel)
+			var into: Transform3D = pose.affine_inverse() * panel.transform
+			if seen.is_empty():
+				for point: Vector3 in points:
+					seen.append(into * point)
+			for index: int in points.size():
+				if (into * points[index]).distance_to(seen[index]) > 0.0005 and message == "":
+					message = "%s: the panel moved in the view at ship pose %s" % [corner, pose]
+			var problem: String = StatusPanelBounds.eyes_problem(points, panel.transform, pose, views)
+			if problem != "" and message == "":
+				message = "%s at ship pose %s: %s" % [corner, pose, problem]
+	PanelCorner.current = PanelCorner.DEFAULT_CORNER
+	panel.free()
 	return message
 
 

@@ -11,9 +11,16 @@ extends RefCounted
 ## whose text changes in flight, so the panel needs no scene tree and a short
 ## text on the day cannot hide a long one. The outcome row is left out: it
 ## shows only after the flight has ended. Reads the panel only (ARC-3).
+##
+## #1507: the whole panel must also lie where both eyes see it (`EyeViews`),
+## which leaves too little room to keep every row outside the central cone
+## within a glance down. The panel's centre keeps the cone; its rows keep a
+## narrower one.
 
-## No drawn part of the panel may come nearer straight ahead than this.
+## The panel's centre may not come nearer straight ahead than this.
 const CENTRAL_CONE_DEG: float = 25.0
+## No drawn part of the panel may come nearer straight ahead than this.
+const ROW_CONE_DEG: float = 20.0
 ## Wide sample words for the rows whose text changes in flight.
 const SAMPLE_TEXT: Dictionary = {
 	"Meltdown": "MELTDOWN 9:59",
@@ -61,3 +68,22 @@ static func angles(points: Array[Vector3], panel_at: Transform3D, cockpit: Trans
 		near = minf(near, angle)
 		far = maxf(far, angle)
 	return Vector2(near, far)
+
+
+## The angle off the cockpit's straight ahead, in degrees, of the centre of
+## a panel at `panel_at`, seen from the eye point of a cockpit at `cockpit`.
+static func centre_angle(panel_at: Transform3D, cockpit: Transform3D) -> float:
+	return rad_to_deg((panel_at.origin - cockpit.origin).angle_to(cockpit.basis * Vector3.FORWARD))
+
+
+## Empty when every one of `points` on a panel at `panel_at` lies inside both
+## eyes' `views` of a cockpit at `cockpit` (all in the rig's space), else the
+## first problem, naming the eye and the edge.
+static func eyes_problem(points: Array[Vector3], panel_at: Transform3D, cockpit: Transform3D,
+		views: EyeViews) -> String:
+	var into: Transform3D = cockpit.affine_inverse() * panel_at
+	for point: Vector3 in points:
+		var problem: String = views.problem_at(into * point)
+		if problem != "":
+			return problem
+	return ""
