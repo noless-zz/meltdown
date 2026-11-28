@@ -28,7 +28,38 @@ static func judges() -> Dictionary[String, Callable]:
 
 
 static func _judge(_step: AcceptanceStep, _runner: AcceptanceRunner, measurements: Dictionary) -> Array:
-	return judge_table(RenderScaleTable.DEFAULT_FILE, measurements)
+	var scripted: Array = judge_table(RenderScaleTable.DEFAULT_FILE, measurements)
+	var live: Array = judge_samples(RenderScaler.recent, RenderScaleTable.load_file(), measurements)
+	var failed: bool = scripted[0] == AcceptanceReport.RESULT_FAIL or live[0] == AcceptanceReport.RESULT_FAIL
+	return [AcceptanceReport.RESULT_FAIL if failed else scripted[0], "%s; %s" % [scripted[1], live[1]]]
+
+
+## [result, message] for the headset frames the scaler was fed before the
+## step (#1509): in m6 the stress scene's last `RenderScaleSamples.CAPACITY`.
+## Reports their mean CPU and GPU time and the scale's min and mean. Fails
+## when every frame sat at the floor while both mean times were under
+## `high_water` of the budget, the controller's own mark for a frame that is
+## not long: the scale should then have climbed (the device's 27 Nov run).
+## Off the headset no frame is sampled and this part passes, saying so.
+static func judge_samples(samples: RenderScaleSamples, table: RenderScaleTable, measurements: Dictionary) -> Array:
+	measurements["headset_frames_sampled"] = samples.count()
+	if samples.count() == 0:
+		return [AcceptanceReport.RESULT_PASS, "no headset frames sampled"]
+	var budget_ms: float = samples.mean_budget_ms()
+	measurements["frame_budget_ms"] = snappedf(budget_ms, 0.01)
+	measurements["render_cpu_ms_mean"] = snappedf(samples.mean_cpu_ms(), 0.01)
+	measurements["render_gpu_ms_mean"] = snappedf(samples.mean_gpu_ms(), 0.01)
+	measurements["render_scale_min"] = snappedf(samples.min_scale(), 0.001)
+	measurements["render_scale_mean"] = snappedf(samples.mean_scale(), 0.001)
+	var summary: String = "%d headset frames: CPU %.2f ms, GPU %.2f ms (budget %.2f), scale min %.2f, mean %.2f" % [
+		samples.count(), samples.mean_cpu_ms(), samples.mean_gpu_ms(), budget_ms, samples.min_scale(),
+		samples.mean_scale()]
+	var limit_ms: float = budget_ms * table.high_water
+	if table.enabled and samples.all_at(table.floor_scale) and samples.mean_cpu_ms() < limit_ms \
+			and samples.mean_gpu_ms() < limit_ms:
+		return [AcceptanceReport.RESULT_FAIL, "the scale sat at its floor %.2f on every frame while CPU and GPU were under %.2f ms; %s" % [
+			table.floor_scale, limit_ms, summary]]
+	return [AcceptanceReport.RESULT_PASS, summary]
 
 
 ## [result, message] for the scripted run on the table at `path`.
