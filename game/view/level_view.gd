@@ -13,7 +13,7 @@ extends Node3D
 ## (LGT-1).
 ##
 ## Each box (room or tunnel) is its own node holding its walls, frames and
-## bevels, and each frame only the boxes that can be seen from the camera are
+## bevels (`LevelViewBoxes`), and each frame only the boxes that can be seen from the camera are
 ## shown (`LevelVisibility`, #1364, GFX-3): the camera's own box and the boxes
 ## seen through openings. `level_visibility.json` can switch that off. What
 ## lies in a hidden box is hidden with it: the item views ask `shown_boxes`
@@ -145,24 +145,16 @@ func build(union: BoxUnion, reactor: Variant = null) -> void:
 	_frames = LevelFrames.quads(union, float(_look["frame_depth_m"]), float(_look["frame_width_m"]))
 	_bevels = LevelBevels.quads(union, _quads, float(_look["edge_width_m"]))
 	_boxes.clear()
-	var per_box: Array[Array] = []
-	var bevels_per_box: Array[Array] = []
-	for index: int in union.boxes.size():
-		per_box.append([])
-		bevels_per_box.append([])
-	for quad: Dictionary in _quads:
-		per_box[int(quad["box"])].append(quad)
-	for quad: Dictionary in _frames:
-		per_box[frame_box(union, quad)].append(quad)
-	for bevel: Dictionary in _bevels:
-		bevels_per_box[int(bevel["box"])].append(bevel)
+	var split: Dictionary = LevelViewBoxes.split(union, _quads, _frames, _bevels)
+	var per_box: Array[Array] = split["walls"]
+	var bevels_per_box: Array[Array] = split["bevels"]
 	var baked: Dictionary = AmbientBake.for_look(union, _look, reactor)
 	_bake = baked["bake"]
 	ambient_error = baked["error"]
 	if ambient_error != "":
 		push_warning("LevelView uses the global ambient; %s" % ambient_error)
 	var wall_material: ShaderMaterial = LevelViewMeshes.kind_material(_look)
-	var bevel_material: ShaderMaterial = LevelLook.bevel_material(_look)
+	var bevel_material: ShaderMaterial = LevelLookMaterials.bevel_material(_look)
 	if _bake != null:
 		LevelViewMeshes.use_bake(wall_material)
 		LevelViewMeshes.use_bake(bevel_material)
@@ -179,7 +171,7 @@ func build(union: BoxUnion, reactor: Variant = null) -> void:
 				bevel_material, _bake, guide_lights.strips_of(index), guide_lights.color_of(index))
 		add_child(box)
 		_boxes.append(box)
-	add_child(LevelLook.world_environment(_look, ENVIRONMENT_NAME))
+	add_child(LevelLookMaterials.world_environment(_look, ENVIRONMENT_NAME))
 	_visibility = LevelVisibility.new(union)
 	_shown = VisibleBoxes.new(union)
 
@@ -222,26 +214,6 @@ func visibility() -> LevelVisibility:
 ## Which boxes the last cull showed, for the views of things in the mine.
 func shown_boxes() -> VisibleBoxes:
 	return _shown
-
-
-## The box whose node draws frame `quad`: a frame is sunk behind its face, into
-## the box that opens there, so it is drawn (and hidden) with that box. The
-## lowest such box holding the frame's centre; its own box if none does.
-static func frame_box(union: BoxUnion, quad: Dictionary) -> int:
-	var centre: Vector3 = ((quad["min"] as Vector3) + (quad["max"] as Vector3)) * 0.5
-	for index: int in union.boxes.size():
-		if index == int(quad["box"]):
-			continue
-		var box: BoxBounds = union.boxes[index]
-		var grow: Vector3 = Vector3.ONE * 1e-3
-		if _inside(centre, box.min_corner - grow, box.max_corner + grow):
-			return index
-	return int(quad["box"])
-
-
-static func _inside(point: Vector3, low: Vector3, high: Vector3) -> bool:
-	return point.x >= low.x and point.y >= low.y and point.z >= low.z \
-			and point.x <= high.x and point.y <= high.y and point.z <= high.z
 
 
 ## Shows only the boxes that can be seen from an eye at `eye` looking along -Z
@@ -304,9 +276,3 @@ func frames() -> Array[Dictionary]:
 ## The edge bevels of the last `build`, in `LevelBevels` layout.
 func bevels() -> Array[Dictionary]:
 	return _bevels
-
-
-## The six corners of the two triangles that draw `quad`, facing into its box
-## (`LevelViewMeshes.quad_triangles`).
-static func triangles(quad: Dictionary) -> Array[Vector3]:
-	return LevelViewMeshes.quad_triangles(quad)

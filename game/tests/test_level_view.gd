@@ -122,7 +122,7 @@ func test_every_quad_faces_into_its_box() -> String:
 		if inward.dot(quad["normal"]) <= 0.0:
 			result = "quad of box %d at %s faces out of its box" % [quad["box"], _centre(quad)]
 			break
-		var corners: Array[Vector3] = LevelView.triangles(quad)
+		var corners: Array[Vector3] = LevelViewMeshes.quad_triangles(quad)
 		for start: int in [0, 3]:
 			# The normal Godot gives a triangle from its winding (as SurfaceTool's
 			# generate_normals does): the side it is drawn from.

@@ -97,7 +97,7 @@ func test_tint_follows_the_way_a_face_points() -> String:
 
 func test_the_environment_is_dark_and_walls_fog_with_distance() -> String:
 	var look: Dictionary = LevelLook.FALLBACK
-	var env: Environment = LevelLook.environment(look)
+	var env: Environment = LevelLookMaterials.environment(look)
 	if float(look["fog_density"]) <= 0.0:
 		return "the shipped look has no fog, so far walls do not darken"
 	var code: String = (load(LevelLook.WALL_SHADER) as Shader).code
@@ -115,7 +115,7 @@ func test_the_environment_is_dark_and_walls_fog_with_distance() -> String:
 
 func test_wall_material_carries_the_grid_and_tint() -> String:
 	var look: Dictionary = LevelLook.FALLBACK
-	var material: ShaderMaterial = LevelLook.wall_material(look, look["floor_color"])
+	var material: ShaderMaterial = LevelLookMaterials.wall_material(look, look["floor_color"])
 	if material.shader == null:
 		return "the wall shader did not load"
 	var expected: Dictionary = {
@@ -233,7 +233,7 @@ func test_face_kind_boundaries_including_sloped_faces() -> String:
 
 func test_wall_material_carries_the_plating_of_every_kind() -> String:
 	var look: Dictionary = LevelLook.FALLBACK
-	var material: ShaderMaterial = LevelLook.wall_material(look, look["wall_color"])
+	var material: ShaderMaterial = LevelLookMaterials.wall_material(look, look["wall_color"])
 	var expected: Dictionary = {
 		"plate_size": Vector3(look["plate_floor_m"], look["plate_wall_m"], look["plate_ceiling_m"]),
 		"plate_aspect": Vector3(look["plate_floor_aspect"], look["plate_wall_aspect"], look["plate_ceiling_aspect"]),

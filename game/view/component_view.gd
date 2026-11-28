@@ -88,11 +88,11 @@ static func parse_look(text: String) -> Dictionary:
 	var look: Dictionary = {"shape": data["shape"]}
 	var ranges: Dictionary = {"size": SIZE_RANGE, "energy": ENERGY_RANGE}
 	for key: String in ranges:
-		var problem: String = MinerView.check_number(key, data[key], ranges[key])
+		var problem: String = MinerLook.check_number(key, data[key], ranges[key])
 		if problem != "":
 			return {"error": problem}
 		look[key] = float(data[key])
-	var fallback: Variant = MinerView.parse_color("fallback", data["fallback"])
+	var fallback: Variant = MinerLook.parse_color("fallback", data["fallback"])
 	if typeof(fallback) == TYPE_STRING:
 		return {"error": fallback}
 	look["fallback"] = fallback
@@ -100,7 +100,7 @@ static func parse_look(text: String) -> Dictionary:
 		return {"error": "key \"kinds\" must be an object of kind id to colour"}
 	var kinds: Dictionary = {}
 	for id: Variant in data["kinds"]:
-		var color: Variant = MinerView.parse_color("kinds.%s" % str(id), data["kinds"][id])
+		var color: Variant = MinerLook.parse_color("kinds.%s" % str(id), data["kinds"][id])
 		if typeof(color) == TYPE_STRING:
 			return {"error": color}
 		kinds[str(id)] = color

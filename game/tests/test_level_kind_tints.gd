@@ -44,7 +44,7 @@ func test_the_wall_material_carries_the_three_tints_of_the_look() -> String:
 		if material.get_shader_parameter(parameter) != expected[parameter]:
 			return "%s is %s, expected %s" % [parameter, material.get_shader_parameter(parameter), expected[parameter]]
 	# Single-tint materials (bevels, the test tunnel) keep one tint for every face.
-	var plain: ShaderMaterial = LevelLook.wall_material(look, look["floor_color"])
+	var plain: ShaderMaterial = LevelLookMaterials.wall_material(look, look["floor_color"])
 	if plain.get_shader_parameter("tint_by_kind") == true:
 		return "a plain wall material picks its tint by face"
 	return ""
