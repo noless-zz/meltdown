@@ -38,14 +38,20 @@ headset equals the release's (#1437). Also MELTDOWN_FORCE_INSTALL=1.
 
 .PARAMETER Suite
 The suite name the game's --acceptance switch takes; `all` runs every suite,
-`nightly` every suite but the manual-only soak (#812). With `soak` or `all`, pass
-a -TimeoutSeconds that fits the 25-minute soak; the workflow uses 3000.
+`nightly` every suite but the manual-only soak (#812). Each runs to its end in
+one command: the wait for the exit line comes from the suites asked for.
+
+.PARAMETER TimeoutSeconds
+How long to wait for the game's exit line. 0 (the default) works it out from the
+suites asked for: the sum of their steps' time limits plus a margin
+(acceptance_wait.ps1, #1504). Any other value is used as given.
 #>
 [CmdletBinding()]
 param(
 	[string]$Suite = 'all',
 	[string]$OutDir = 'build/device-acceptance/headset',
-	[int]$TimeoutSeconds = 900,
+	# 0: the sum of the suites' step time limits plus a margin (#1504).
+	[int]$TimeoutSeconds = 0,
 	[int]$PollSeconds = 5,
 	# One more on each step line; none before the first step or after the exit line.
 	[int]$ScreenshotEverySeconds = 5,
@@ -81,6 +87,7 @@ $ProgressPreference = 'SilentlyContinue'
 . (Join-Path $PSScriptRoot 'acceptance_recover.ps1')
 . (Join-Path $PSScriptRoot 'apk_cache.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_progress.ps1')
+. (Join-Path $PSScriptRoot 'acceptance_wait.ps1')
 $script:deviceWaitSeconds = $DeviceWaitSeconds
 $script:warnings = New-Object System.Collections.Generic.List[string]
 
@@ -92,6 +99,13 @@ $package = 'io.github.nolesszz.meltdown'
 # launcher activity is exported, so only it can be started from adb (#1392).
 $fallbackActivity = "$package/com.godot.game.GodotAppLauncher"
 $intentExtra = 'meltdown_acceptance'
+
+# A fixed 900 s cut the nightly suite off in m3 (#1504): the wait follows the suites asked for.
+if ($TimeoutSeconds -le 0) {
+	$wait = Get-AcceptanceWait -Suite $Suite -GameDir (Join-Path (Split-Path -Parent $PSScriptRoot) 'game')
+	$TimeoutSeconds = $wait.Seconds
+	Write-Host (Format-AcceptanceWaitLine $wait)
+}
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path -LiteralPath $OutDir).Path

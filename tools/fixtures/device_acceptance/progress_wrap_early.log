@@ -1,0 +1,10 @@
+Godot Engine v4.7.2.stable.official
+Meltdown: refresh rate 90 Hz
+Meltdown: acceptance: step basic_flight suite=m1 index=1 count=13
+Meltdown: level ready
+Meltdown: acceptance: step basic_flight pass suite=m1 index=1 count=13
+Meltdown: acceptance: step refresh_rate suite=m1 index=2 count=13
+Meltdown: level ready
+Meltdown: acceptance: step refresh_rate pass suite=m1 index=2 count=13
+Meltdown: acceptance: step frame_budget suite=m1 index=3 count=13
+Meltdown: level ready
