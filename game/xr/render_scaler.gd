@@ -11,8 +11,11 @@ extends Node
 ## changes.
 ##
 ## Only while the viewport renders to the headset (`use_xr`). In the flat
-## build it does nothing and the scale stays 1.0. View only: it never reads
-## or writes simulation state (ARC-3, MP-2).
+## build it does nothing and the scale stays 1.0. With the table off it holds
+## the headset viewport at exactly 1.0 and does not measure render times
+## (#1503: on the Quest a lowered scale magnified the picture, so an earlier
+## scale must never survive). View only: it never reads or writes simulation
+## state (ARC-3, MP-2).
 
 const NODE_NAME: String = "RenderScaler"
 ## Used when the runtime does not report its rate yet (PRF-1's default).
@@ -32,8 +35,15 @@ func _init(p_controller: RenderScaleController = null) -> void:
 
 
 func _process(_delta: float) -> void:
-	var viewport: Viewport = get_viewport()
+	tick(get_viewport())
+
+
+## One frame on `viewport`. Public for the tests.
+func tick(viewport: Viewport) -> void:
 	if viewport == null or not viewport.use_xr:
+		return
+	if not controller.table.enabled:
+		apply(viewport, 1.0)
 		return
 	var rid: RID = viewport.get_viewport_rid()
 	if _measuring != rid:

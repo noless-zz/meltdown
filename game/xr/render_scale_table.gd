@@ -4,7 +4,7 @@ extends RefCounted
 ## The values dynamic resolution scaling runs on (#1417, GFX-7, ARC-4), read
 ## from `DEFAULT_FILE`:
 ##
-##     {"enabled": true, "floor": 0.7, "ceiling": 1.0, "step": 0.1,
+##     {"enabled": false, "floor": 0.7, "ceiling": 1.0, "step": 0.1,
 ##      "high_water": 0.9, "low_water": 0.7, "frames_down": 5,
 ##      "frames_up": 45, "interval_frames": 30}
 ##
@@ -15,6 +15,10 @@ extends RefCounted
 ## `low_water` as having headroom. `frames_down` long frames in a row lower
 ## the scale and `frames_up` frames with headroom in a row raise it, at most
 ## once per `interval_frames`. `enabled` false keeps the scale at 1.0.
+## The shipped file has it false (#1503): on the Quest, lowering
+## `Viewport.scaling_3d_scale` magnified the picture instead of only
+## lowering its resolution, so it stays off until a device step shows the
+## picture keeps its size at the floor.
 ##
 ## Every key is needed. A missing, mistyped or out-of-range value rejects the
 ## file with the field named (`error`); `load_file` then falls back to the

@@ -1,9 +1,10 @@
 extends RefCounted
 
 ## The m6 `render_scale` check and the render scale beside the frame times
-## (#1417, GFX-7, PRF-2, PRF-3, DEV-6): on the shipped table a scripted run
-## of slow then fast frames takes the scale down and back to 1.0; an off or
-## refused table fails with the reason; the step is in the m6 perf part; and
+## (#1417, GFX-7, PRF-2, PRF-3, DEV-6): the shipped table has scaling off
+## and the scripted run leaves the scale at 1.0 (#1503); with scaling on, a
+## scripted run of slow then fast frames takes the scale down and back to
+## 1.0; a refused table fails with the reason; the step is in the m6 perf part; and
 ## the frame budget report carries the scale's minimum, mean and frames below
 ## 1.0 without changing its result.
 
@@ -20,9 +21,22 @@ func _write(changes: Dictionary) -> void:
 	file.close()
 
 
-func test_the_shipped_table_goes_down_and_comes_back() -> String:
+func test_the_shipped_table_is_off_and_holds_full_scale() -> String:
 	var measurements: Dictionary = {}
 	var verdict: Array = CHECK.judge_table(RenderScaleTable.DEFAULT_FILE, measurements)
+	if verdict[0] != AcceptanceReport.RESULT_PASS or not str(verdict[1]).contains("scaling off"):
+		return "the check said %s" % [verdict]
+	if measurements["render_scale_enabled"] != false or float(measurements["render_scale_lowest"]) != 1.0 \
+			or int(measurements["render_scale_changes"]) != 0:
+		return "measured %s" % measurements
+	return ""
+
+
+func test_an_on_table_goes_down_and_comes_back() -> String:
+	_write({"enabled": true})
+	var measurements: Dictionary = {}
+	var verdict: Array = CHECK.judge_table(SCRATCH, measurements)
+	DirAccess.remove_absolute(SCRATCH)
 	if verdict[0] != AcceptanceReport.RESULT_PASS:
 		return "the check said %s" % [verdict]
 	if float(measurements["render_scale_lowest"]) >= 1.0 or int(measurements["frames_back_to_full"]) <= 0:
@@ -30,16 +44,12 @@ func test_the_shipped_table_goes_down_and_comes_back() -> String:
 	return ""
 
 
-func test_an_off_or_refused_table_fails_with_the_reason() -> String:
-	_write({"enabled": false})
-	var off: Array = CHECK.judge_table(SCRATCH, {})
-	_write({"step": 9.0})
+func test_a_refused_or_stuck_table_fails_with_the_reason() -> String:
+	_write({"enabled": true, "step": 9.0})
 	var refused: Array = CHECK.judge_table(SCRATCH, {})
-	_write({"ceiling": 0.9})
+	_write({"enabled": true, "ceiling": 0.9})
 	var low_ceiling: Array = CHECK.judge_table(SCRATCH, {})
 	DirAccess.remove_absolute(SCRATCH)
-	if off[0] != AcceptanceReport.RESULT_FAIL or not str(off[1]).contains("off"):
-		return "an off table: %s" % [off]
 	if refused[0] != AcceptanceReport.RESULT_FAIL or not str(refused[1]).contains("\"step\""):
 		return "a refused table: %s" % [refused]
 	if low_ceiling[0] != AcceptanceReport.RESULT_FAIL or not str(low_ceiling[1]).contains("stayed"):
