@@ -19,8 +19,8 @@ extends RefCounted
 ## sits beside `main.gd` because it reads `RunWiring`.
 ##
 ## Each shaft is drawn as a thing with gauges from `ShaftPanelShapes` (#1320),
-## and pointing the right controller's aim at a shaft or row highlights it, as
-## at the hub's stations; the stick still steps and A still confirms. It is
+## and pointing the aiming hand's controller at a shaft or row highlights it, as
+## at the hub's stations (`AimHand`: the left one in left-handed mode, #1470); the stick still steps and A still confirms. It is
 ## presentation only: the shafts' rules and data are not read from here.
 ##
 ## A run with a save store gets one more row after the shafts, "Suspend run"
@@ -42,8 +42,10 @@ var model: ShaftPanelModel = null
 ## Under the panel once `attach` has run, null before.
 var sounds: ShaftChoiceSounds = null
 
+## The hand whose aim picks the shaft (#1470); its rig is set by `attach`.
+var aiming: AimHand = AimHand.new()
+
 var _actions: Dictionary = {}
-var _aim: XRController3D = null
 
 
 ## Hangs the panel under `rig`. Calling it again adds nothing.
@@ -54,7 +56,7 @@ func attach(rig: Node3D) -> void:
 	rig.add_child(panel)
 	sounds = ShaftChoiceSounds.new()
 	panel.add_child(sounds)
-	_aim = rig.get_node_or_null("RightHand") as XRController3D
+	aiming.rig = rig
 
 
 func is_open() -> bool:
@@ -114,13 +116,14 @@ func update(run: RunWiring, paused: bool, head_point: Transform3D, xr_running: b
 	return false
 
 
-## Hands the model the entry the right controller's aim points at, in the
-## panel's space; a controller that is not tracked points at nothing.
+## Hands the model the entry the aiming hand points at, in the panel's space;
+## a controller that is not tracked points at nothing.
 func _point() -> void:
-	if _aim == null or not _aim.get_is_active() or model == null:
+	var held: Dictionary = aiming.pose()
+	if not bool(held["tracked"]) or model == null:
 		return
 	var radius: float = shapes.lengths.get("point_radius_m", 0.0) if shapes.error == "" else 0.0
-	model.point(point_in(panel, _aim.transform, radius))
+	model.point(point_in(panel, held["aim"], radius))
 
 
 ## The kind of `panel`'s entry that an aim at `aim` (in the panel's parent's

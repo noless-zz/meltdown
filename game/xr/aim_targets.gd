@@ -33,14 +33,16 @@ func find(rig: Node, aim: Transform3D) -> Dictionary:
 
 
 ## The point on `aim`'s ray (in the room's parent's space) at the station the
-## stations' own pick chooses, in that space; null when it points at none, or
-## inside a station (the slot and node pointing there is not drawn yet).
+## stations' own pick chooses, in that space; null when it points at none.
+## Inside a station it is the slot or tree node the station's drawing picks
+## (`slot_hit`, #1470).
 static func station_hit(stations: HubStations, room: HubRoom, aim: Transform3D) -> Variant:
-	if stations.in_use != "":
-		return null
 	var to_room: Transform3D = room.transform.affine_inverse()
 	var origin: Vector3 = to_room * aim.origin
 	var direction: Vector3 = to_room.basis * -aim.basis.z
+	if stations.in_use != "":
+		var landed: Variant = slot_hit(stations, room, origin, direction)
+		return room.transform * (landed as Vector3) if landed is Vector3 else null
 	var all: Dictionary[String, Vector3] = room.station_points()
 	var points: Dictionary[String, Vector3] = {}
 	for id: String in stations.ids:
@@ -49,6 +51,27 @@ static func station_hit(stations: HubStations, room: HubRoom, aim: Transform3D) 
 	if id == "":
 		return null
 	return room.transform * on_ray(origin, direction, points[id])
+
+
+## Inside the station in use: the point on the ray from `origin` along
+## `direction` (in the room's space) nearest the slot or tree node that the
+## station's own pick chooses, as `HubStations.point` picks it (the drawing's
+## `point_on`, then the hub text's `slot_at`), in the room's space; null when
+## it picks none or the station draws nothing to point at.
+static func slot_hit(stations: HubStations, room: HubRoom, origin: Vector3, direction: Vector3) -> Variant:
+	var fitting: HubFittingView = stations.view(stations.in_use)
+	var tree: HubTreeView = stations.tree_view(stations.in_use)
+	var drawn: Node3D = fitting if fitting != null else tree
+	if drawn == null or not drawn.call("can_point") or stations.hub == null or not stations.hub.has_method("slot_at"):
+		return null
+	var at: Variant = drawn.call("point_on", origin, direction, room)
+	if not at is Vector2:
+		return null
+	var slot: String = stations.hub.call("slot_at", at)
+	var spots: Dictionary[String, Node3D] = fitting.slot_nodes if fitting != null else tree.nodes
+	if slot == "" or not spots.has(slot):
+		return null
+	return on_ray(origin, direction, HubScreenMeasure.in_space_of(spots[slot], room).origin)
 
 
 ## The point on `aim`'s ray at the entry `ShaftChoiceWiring.point_in` picks on
