@@ -204,6 +204,7 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		result = menu.update(actions(values))
 		apply(result)
 	sounds.hear(before, actions(values), result, now)
+	(entry_for(DevMenuSpec.KIND_FOVEATION) as DevMenuFoveation).read(values, is_open(), now, _restarts.rig)  # #1523.
 	_show_panel(not is_open())
 	if _session_of.is_valid():
 		DevMenuPause.hold(_session_of.call() as LocalSession, is_open())
