@@ -72,6 +72,19 @@
 			"expected_hash": 1956914250,
 			"screenshot_at_ticks": [30, 300, 1800],
 			"screenshot_at_end": true
+		},
+		{
+			"id": "no_screen_pass",
+			"level": "stress",
+			"replay": "res://acceptance/replays/stress_scene.replay",
+			"checks": ["final_hash", "stress_scene", "no_screen_pass", "no_script_errors"],
+			"expected_hash": 1956914250
+		},
+		{
+			"id": "no_screen_pass_base",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "no_screen_pass_at_base"]
 		}
 	]
 }
