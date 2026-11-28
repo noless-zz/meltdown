@@ -212,6 +212,20 @@
 			"id": "auto_level_option",
 			"preset": 4,
 			"checks": ["auto_level_option", "no_script_errors"]
+		},
+		{
+			"id": "eyes_same_frame",
+			"checks": ["eyes_same_frame"]
+		},
+		{
+			"id": "eyes_same_frame_base",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["eyes_same_frame"]
+		},
+		{
+			"id": "view_not_magnified",
+			"checks": ["view_not_magnified"]
 		}
 	]
 }

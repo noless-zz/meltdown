@@ -1,0 +1,17 @@
+{
+	"eyes_same_frame": {
+		"seconds": 10.0,
+		"fov_tolerance_deg": 0.5,
+		"mirror_tolerance_deg": 2.0,
+		"eye_rotation_tolerance_deg": 0.5,
+		"head_offset_tolerance_m": 0.01,
+		"ipd_min_m": 0.05,
+		"ipd_max_m": 0.08
+	},
+	"view_not_magnified": {
+		"distance_m": 2.0,
+		"half_size_m": 0.25,
+		"settle_frames": 3,
+		"tolerance": 0.06
+	}
+}
