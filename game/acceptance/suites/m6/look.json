@@ -36,7 +36,9 @@
 		},
 		{
 			"id": "status_panel_place",
-			"checks": ["no_script_errors", "status_panel_place"]
+			"replay": "res://acceptance/replays/status_panel_flight.replay",
+			"checks": ["final_hash", "no_script_errors", "status_panel_place"],
+			"expected_hash": 3456052259
 		},
 		{
 			"id": "glass_clear",
