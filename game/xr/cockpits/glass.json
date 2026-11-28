@@ -41,5 +41,12 @@
 		"glass_fresnel_color": [0.75, 0.85, 1.0]
 	},
 	"map_mount": {"yaw_deg": 27, "pitch_deg": -10, "distance_m": 0.4, "size_m": 0.075},
-	"instruments": []
+	"instruments": [
+		{"id": "hull_bar", "gauge": "hull", "yaw_deg": 0, "pitch_deg": -34, "distance_m": 0.4, "size_m": [0.0729, 0.0376], "label": "HULL",
+			"color": [0.55, 0.95, 1.0], "low_color": [1.0, 0.45, 0.25], "low_below": 0.25, "low_pulse_s": 1.6, "low_pulse_min": 0.7},
+		{"id": "shield_bar", "gauge": "shield", "yaw_deg": 11.5, "pitch_deg": -34, "distance_m": 0.4, "size_m": [0.0729, 0.0376], "label": "SHIELD",
+			"color": [0.55, 0.95, 1.0], "low_color": [1.0, 0.45, 0.25], "low_below": 0.25, "low_pulse_s": 1.6, "low_pulse_min": 0.7},
+		{"id": "energy_bar", "gauge": "energy", "yaw_deg": 23, "pitch_deg": -34, "distance_m": 0.4, "size_m": [0.0729, 0.0376], "label": "ENERGY",
+			"color": [0.55, 0.95, 1.0], "low_color": [1.0, 0.45, 0.25], "low_below": 0.25, "low_pulse_s": 1.6, "low_pulse_min": 0.7}
+	]
 }

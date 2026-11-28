@@ -74,6 +74,9 @@ func test_frame_is_primitive_meshes_without_collision() -> String:
 		elif child is OmniLight3D and child.name == CockpitMaterials.LIGHT_NAME:
 			# The frame's own dim light (#659); `test_cockpit_look.gd` checks it.
 			continue
+		elif child is ConsoleGauges or (child is Label3D and child.get_parent() is ConsoleGauges):
+			# The console's instruments and their labels (#1461); `test_console_gauges.gd`.
+			continue
 		elif not child is MultiMeshInstance3D:
 			message = "%s is a %s" % [child.name, child.get_class()]
 		else:
@@ -127,7 +130,7 @@ func test_switching_preset_swaps_the_frame_without_touching_a_sim() -> String:
 	frame.free()
 	if solid_after >= solid_before:
 		return "solid panels %d before, %d after: the frame was not swapped" % [solid_before, solid_after]
-	if parts != ["Solid", "Glass", CockpitMaterials.LIGHT_NAME]:
+	if parts != ["Solid", "Glass", ConsoleGauges.NODE_NAME, CockpitMaterials.LIGHT_NAME]:
 		return "parts %s after the swap; the old frame was not removed" % [parts]
 	if sim.state_hash() != hash_before:
 		return "switching the cockpit changed the simulation"
