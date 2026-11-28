@@ -1,0 +1,9 @@
+{
+	"allowed": [
+		{
+			"file": "xr/cockpit_glass.gdshader",
+			"issue": 1512,
+			"why": "the cockpit glass multiplies the whole view (blend_mul) until #1512 replaces it"
+		}
+	]
+}
