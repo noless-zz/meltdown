@@ -30,6 +30,14 @@ func _init(p_prefix: String, p_on_choice: String, p_off_choice: String, p_on_tex
 	on = p_on
 
 
+func drawing() -> String:
+	return DRAW_SWITCH
+
+
+func is_on() -> bool:
+	return on
+
+
 func plain_text() -> String:
 	return on_text if on else off_text
 

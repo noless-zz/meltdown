@@ -15,6 +15,14 @@ func _init(p_prefix: String, p_levels: DevMenuLevels, p_spec: DevMenuSpec) -> vo
 	spec = p_spec
 
 
+func mark_count() -> int:
+	return levels.choices.size()
+
+
+func mark_index() -> int:
+	return levels.index
+
+
 func plain_text() -> String:
 	return levels.text(spec)
 

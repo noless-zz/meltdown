@@ -19,7 +19,8 @@ const LINE_PREFIX: String = "Info"
 ## `DevMenu.LINE_PITCH`, and dim, so it reads as notes and not as choices.
 const FONT: int = 40
 const LINE_PITCH: float = 0.05
-const TEXT_COLOR: Color = Color(0.5, 0.56, 0.6)
+## Dim beside the entries, yet 7:1 on the menu's plate (#1458, #1359).
+const TEXT_COLOR: Color = Color(0.6, 0.66, 0.7)
 const TITLE_COLOR: Color = Color(0.7, 0.78, 0.85)
 ## The panel rows the section shows, top to bottom, by `StatusPanel` label name.
 const ROWS: Array[String] = [StatusPanel.SPEED_NAME, StatusPanel.PRESET_NAME,
@@ -51,7 +52,8 @@ func refresh() -> void:
 	if source != null:
 		panel = source.get_node_or_null(StatusPanel.NODE_NAME) as StatusPanel
 	var shown: Array[String] = lines_for(panel)
-	var top: Vector3 = _lowest_entry() + Vector3(0.0, -DevMenu.LINE_PITCH, 0.0)
+	# Centred under the rows; the entries' own lines start at the label column (#1458).
+	var top: Vector3 = Vector3(0.0, _lowest_entry().y - DevMenu.LINE_PITCH, DevMenuLook.TEXT_Z_M)
 	_title.position = top
 	for index: int in _lines.size():
 		var line: Label3D = _lines[index]

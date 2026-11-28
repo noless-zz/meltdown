@@ -55,7 +55,7 @@ func test_sections_and_their_entries_come_from_the_data_file() -> String:
 	var own_top: Array[String] = _row_texts(own, own.rows.rows())
 	DevMenuWalk.tap(own, DevMenuModel.CONFIRM)
 	var inside: Array[String] = _row_texts(own, own.rows.rows())
-	if own_top != ["Go", "Done"] or inside != ["Up", "Again", "Fly: Test tunnel"]:
+	if own_top != ["Go", "Done"] or inside != ["Up", "Again", "Fly"]:
 		return "a file's own sections show %s, then %s" % [own_top, inside]
 	return ""
 

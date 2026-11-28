@@ -28,6 +28,14 @@ func current() -> String:
 	return choices[index]
 
 
+func mark_count() -> int:
+	return choices.size()
+
+
+func mark_index() -> int:
+	return index
+
+
 func plain_text() -> String:
 	return texts[index]
 

@@ -93,6 +93,8 @@ func test_the_icons_of_a_group_differ_in_colour() -> String:
 	if least < 0.25:
 		return "the file asks only %s apart" % least
 	for group: String in HubIcons.GROUPS:
+		if HubIcons.SHAPE_ONLY_GROUPS.has(group):
+			continue  # The menu's icons stand beside their labels in the menu's colour (#1458).
 		var ids: Array[String] = icons.ids(group)
 		for i: int in ids.size():
 			for j: int in range(i + 1, ids.size()):

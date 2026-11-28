@@ -36,7 +36,7 @@ func test_entries_and_their_order_come_from_the_data_file() -> String:
 	menu.open("top_left", "")
 	var lines: Array[String] = menu.texts()
 	menu.free()
-	if lines != ["> Done", "Fly: Test tunnel"]:
+	if lines != ["> Done", "Fly"]:  # Values are drawn; words on the highlighted row only (#1458).
 		return "the menu shows %s" % [lines]
 	var missing: DevMenuSpec = DevMenuSpec.load_file("res://tests/no_such_menu.json")
 	var kinds: Array[String] = []
