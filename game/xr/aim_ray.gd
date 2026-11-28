@@ -7,8 +7,8 @@ extends Node3D
 ## the dev menu is open, as `AimTargets` finds them, and never otherwise in
 ## flight (#1508). With nothing hit it reaches `length_m` and fades out to its tip.
 ##
-## It starts at the same pose the selection reads (the right controller's,
-## as `HubWiring` and `ShaftChoiceWiring` aim), so hand, ray and highlight
+## It starts at the same pose the selection reads (`AimHand`'s: the right
+## controller, or the left in left-handed mode, #1470), so hand, ray and highlight
 ## agree. Its look is data (`AimRaySpec`, ARC-4). It is drawn on the hands
 ## layer so the home base's camera shows it, and above the fade so it shows at
 ## the shaft choice; it never moves the view, never flashes, and reads no comfort
