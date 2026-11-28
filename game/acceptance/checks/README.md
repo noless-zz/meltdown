@@ -21,7 +21,7 @@ A check name may be used once across these files and `AcceptanceStep.KNOWN_CHECK
 A script that cannot be read fails every suite with the file named.
 
 Suite steps for the M6 lanes go in the parts under `../suites/m6/`:
-`ship` and `perf` (lane-a), `sound` and `effects` (lane-b), `look` and `base` (lane-c).
+`ship` and `perf` (lane-a), `sound` and `effects` (lane-b), `look`, `base` and `menu` (lane-c).
 
 ## Step time limits (#1444)
 

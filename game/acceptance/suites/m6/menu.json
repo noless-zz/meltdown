@@ -1,0 +1,9 @@
+{
+	"steps": [
+		{
+			"id": "menu_sounds",
+			"replay": "res://acceptance/replays/basic_flight.replay",
+			"checks": ["no_script_errors", "menu_sounds"]
+		}
+	]
+}

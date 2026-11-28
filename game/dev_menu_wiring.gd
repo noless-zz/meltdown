@@ -69,6 +69,8 @@ var refresh: DevMenuRefresh = null
 var swivel: DevMenuSwivel = null
 ## The read-only Info section under the menu's entries, once `attach` has run.
 var info: DevMenuInfo = null
+## The menu's sounds at the panel (#1457), once `attach` has run.
+var sounds: MenuSounds = null
 
 ## The stores and settings below live in the helpers; these names stay for
 ## `main.gd` and the tests.
@@ -143,6 +145,7 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 	info = DevMenuInfo.new(menu.model.spec.info_title_text)  # The panel's development lines (#1207).
 	info.source = rig
 	menu.add_child(info)
+	sounds = MenuSounds.new(menu)
 	if rig != null:
 		rig.add_child(menu)
 
@@ -189,6 +192,8 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		_update != null and _update.download_busy())
 	where.show_sign(menu.model.update_version)
 	var was_open: bool = is_open()
+	var before: Dictionary = MenuSoundTable.state(menu)
+	var result: String = ""
 	if blocked() or (is_open() and menu.model.place != where.place()):
 		menu.close()
 	elif tapped:
@@ -196,7 +201,9 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 	if is_open():
 		for entry: DevMenuEntry in entries:
 			entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
-		apply(menu.update(actions(values)))
+		result = menu.update(actions(values))
+		apply(result)
+	sounds.hear(before, actions(values), result, now)
 	_show_panel(not is_open())
 	if _session_of.is_valid():
 		DevMenuPause.hold(_session_of.call() as LocalSession, is_open())

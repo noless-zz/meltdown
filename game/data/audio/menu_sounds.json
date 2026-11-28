@@ -1,0 +1,19 @@
+{
+	"voices": 3,
+	"sounds": {
+		"open": {"sound": "res://data/audio/hub_select.wav", "volume_db": -18.0, "min_gap_s": 0.2},
+		"point": {"sound": "res://data/audio/hub_point.wav", "volume_db": -20.0, "min_gap_s": 0.09},
+		"change": {"sound": "res://data/audio/hub_select.wav", "volume_db": -19.0, "min_gap_s": 0.07},
+		"confirm": {"sound": "res://data/audio/hub_select.wav", "volume_db": -16.0, "min_gap_s": 0.08},
+		"refused": {"sound": "res://data/audio/hub_refused.wav", "volume_db": -14.0, "min_gap_s": 0.25},
+		"back": {"sound": "res://data/audio/hub_back.wav", "volume_db": -17.0, "min_gap_s": 0.08},
+		"launch": {"sound": "res://data/audio/hub_launch.wav", "volume_db": -12.0, "min_gap_s": 0.5}
+	},
+	"confirmed": {
+		"close": "back",
+		"level": "launch",
+		"restart": "launch",
+		"flight_test": "launch",
+		"return_to_base": "launch"
+	}
+}
