@@ -27,6 +27,32 @@
 		{"label": "Mine", "entries": ["level", "restart", "return", "flight_test"]},
 		{"label": "Display", "entries": ["corner", "map_place", "map_turn", "render_scale"]}
 	],
+	"icons": {
+		"back": "menu/back",
+		"sections": {"Comfort": "menu/comfort_section", "Controls": "menu/controls_section", "Mine": "menu/mine_section", "Display": "menu/display_section"},
+		"entries": {
+			"update": "menu/update",
+			"corner": "menu/corner",
+			"comfort": "menu/comfort",
+			"break": "menu/break",
+			"refresh": "menu/refresh",
+			"swivel": "menu/swivel",
+			"auto_level": "menu/auto_level",
+			"controls": "menu/controls",
+			"hands": "menu/hands",
+			"pitch": "menu/pitch",
+			"foveation": "menu/foveation",
+			"level": "menu/level",
+			"restart": "menu/restart",
+			"return": "menu/return",
+			"flight_test": "menu/flight_test",
+			"map_place": "menu/map_place",
+			"map_turn": "menu/map_turn",
+			"render_scale": "menu/render_scale",
+			"checklist": "menu/checklist",
+			"close": "menu/close"
+		}
+	},
 	"back_text": "Back",
 	"max_rows_visible": 6,
 	"max_row_chars": 28,

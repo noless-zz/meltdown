@@ -19,10 +19,14 @@ extends RefCounted
 ## and nothing breaks. `backdrop_color` is the screens' face (#1359): every
 ## icon's colour must stand out from it by `min_contrast`, and the icons of a
 ## group must differ from one another by `min_color_distance` (RGB distance),
-## so they can be told apart without their labels.
+## so they can be told apart without their labels. The `menu` group (#1458)
+## is the development menu's: its icons always stand beside their row's label
+## and share the menu's own colour, so they are told apart by shape only and
+## are left out of the colour-distance rule (`SHAPE_ONLY_GROUPS`).
 
 const DEFAULT_FILE: String = "res://data/hub/icons.json"
-const GROUPS: Array[String] = ["component", "weapon", "part_family", "utility", "crew", "attribute"]
+const GROUPS: Array[String] = ["component", "weapon", "part_family", "utility", "crew", "attribute", "menu"]
+const SHAPE_ONLY_GROUPS: Array[String] = ["menu"]
 const RANGES: Dictionary[String, Array] = {
 	"size_m": [0.01, 0.2],
 	"count_font_size": [16.0, 256.0],

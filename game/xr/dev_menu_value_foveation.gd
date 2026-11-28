@@ -19,6 +19,15 @@ func _init(p_prefix: String, p_off_text: String, p_dynamic_text: String,
 	note = p_note_text
 
 
+## One mark per `FoveationSwitch.MENU_STEPS` setting.
+func mark_count() -> int:
+	return FoveationSwitch.MENU_STEPS.size()
+
+
+func mark_index() -> int:
+	return maxi(FoveationSwitch.MENU_STEPS.find(setting), 0)
+
+
 ## Off or the level, "dynamic" after it when on.
 func plain_text() -> String:
 	var text: String = off_text if setting.x == 0 else str(setting.x)

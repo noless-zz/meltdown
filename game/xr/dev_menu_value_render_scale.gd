@@ -12,6 +12,14 @@ const PREFIX: String = "render_scale:"
 var scale: float = 1.0
 
 
+func drawing() -> String:
+	return DRAW_BAR
+
+
+func fill() -> float:
+	return clampf(scale, 0.0, 1.0)
+
+
 func plain_text() -> String:
 	return "%d%%" % roundi(scale * 100.0)
 

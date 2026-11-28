@@ -17,15 +17,14 @@ static func _head(yaw_deg: float, pitch_deg: float, at: Vector3) -> Transform3D:
 	return Transform3D(basis, at)
 
 
-## The mean of the shown rows' positions in the menu's parent space.
+## The mean of the shown rows' positions in the menu's parent space. A row's
+## icon, label and drawing are centred on its node (#1458).
 static func _rows_centre(menu: DevMenu) -> Vector3:
 	var sum: Vector3 = Vector3.ZERO
 	var count: int = 0
-	for child: Node in menu.get_children():
-		var line: Label3D = child as Label3D
-		if line != null and line.visible:
-			sum += menu.transform * line.position
-			count += 1
+	for row: DevMenuRow in menu.shown_rows():
+		sum += menu.transform * row.position
+		count += 1
 	return sum / maxf(1.0, float(count))
 
 
@@ -123,16 +122,14 @@ static func _view_box(head: Transform3D, points: Array[Vector3]) -> Rect2:
 	return box
 
 
-## The corners of the menu's shown rows, generously sized from their text.
+## The corners of the plate the menu's shown rows stand on (#1458).
 static func _menu_points(menu: DevMenu) -> Array[Vector3]:
 	var points: Array[Vector3] = []
-	for child: Node in menu.get_children():
-		var line: Label3D = child as Label3D
-		if line == null or not line.visible or not menu.visible:
-			continue
-		var half: Vector2 = Vector2(line.text.length() * 0.6, 1.0) * line.font_size * line.pixel_size * 0.5
-		for corner: Vector2 in [Vector2(-1, -1), Vector2(-1, 1), Vector2(1, -1), Vector2(1, 1)]:
-			points.append(menu.transform * (line.position + Vector3(half.x * corner.x, half.y * corner.y, 0.0)))
+	var plate: MeshInstance3D = menu.get_node_or_null(DevMenu.PLATE_NAME) as MeshInstance3D
+	if plate == null or not plate.visible or not menu.visible:
+		return points
+	for corner: Vector2 in [Vector2(-1, -1), Vector2(-1, 1), Vector2(1, -1), Vector2(1, 1)]:
+		points.append(menu.transform * (plate.transform * Vector3(0.5 * corner.x, 0.5 * corner.y, 0.0)))
 	return points
 
 

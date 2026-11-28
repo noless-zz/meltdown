@@ -40,6 +40,15 @@ func number() -> int:
 	return index + 1
 
 
+## The presets, and the custom mode while it is offered.
+func mark_count() -> int:
+	return preset_names.size() + (1 if custom_base > 0 else 0)
+
+
+func mark_index() -> int:
+	return index
+
+
 func plain_text() -> String:
 	if index >= preset_names.size():
 		return custom_text.replace("{base}", str(custom_base))

@@ -4,6 +4,12 @@
 			"id": "menu_sounds",
 			"replay": "res://acceptance/replays/basic_flight.replay",
 			"checks": ["no_script_errors", "menu_sounds"]
+		},
+		{
+			"id": "menu_look",
+			"run": 12345,
+			"replay": "res://acceptance/replays/craft_and_fit_idle.replay",
+			"checks": ["no_script_errors", "menu_look"]
 		}
 	]
 }

@@ -51,6 +51,7 @@ extends RefCounted
 ## top of each section that returns to the top list. `max_rows_visible` rows
 ## show at once and the list scrolls with the highlight; a label and its value
 ## should fit `max_row_chars` (a check for the shipped file, not a cut).
+## `icons` (#1458, optional) names the base icon each row shows (`DevMenuIcons`).
 
 const DEFAULT_FILE: String = "res://xr/dev_menu.json"
 const KIND_CORNER: String = "corner"
@@ -152,6 +153,8 @@ var confirm_return_text: String = "Confirm: abandon run"
 var back_text: String = "Back"
 ## Each section as `{"label": ..., "kinds": [...]}`, top to bottom (#1301).
 var sections: Array[Dictionary] = []
+## Row to icon name: `back`, `section:<label>` or an entry kind (#1458).
+var icons: Dictionary[String, String] = {}
 ## How many rows show at once, and how long a row's label and value may be (#1301).
 var max_rows_visible: int = 6
 var max_row_chars: int = 28
@@ -192,7 +195,7 @@ static func parse(text: String) -> DevMenuSpec:
 		return spec
 	var data: Dictionary = json.data
 	for key: Variant in data:
-		if not (["entries", "corners", "schemes", "sections"] + PLACE_KEYS + TEXT_KEYS
+		if not (["entries", "corners", "schemes", "sections", "icons"] + PLACE_KEYS + TEXT_KEYS
 				+ COUNT_KEYS).has(str(key)):
 			spec.error = "unknown key \"%s\"" % str(key)
 			return spec
@@ -205,6 +208,11 @@ static func parse(text: String) -> DevMenuSpec:
 		spec.error = spec._read_place(data)
 	if spec.error == "" and data.has("sections"):
 		spec.error = spec._read_sections(data["sections"])
+	if spec.error == "" and data.has("icons"):
+		var kinds: Array[String] = []
+		for entry: Dictionary in spec.entries:
+			kinds.append(str(entry["kind"]))
+		spec.error = DevMenuIcons.read(data["icons"], spec.sections, kinds, spec.icons)
 	for key: String in COUNT_KEYS:
 		if spec.error == "" and data.has(key):
 			if not (data[key] is float or data[key] is int) or int(data[key]) < 1 \
