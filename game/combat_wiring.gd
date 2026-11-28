@@ -95,7 +95,8 @@ func attach(world: Node3D) -> void:
 
 ## Shows this frame's projectiles, robots and salvage, blended by the session's interpolation
 ## fraction like the rig. The bolts nearest `camera` get the lights (#187).
-## `panel`, if given, shows the ship's gauges (#1216), weapon slots and the part in its
+## The console's instruments show the ship's gauges (#1461). `panel`, if given,
+## shows them too (#1216), and the weapon slots and the part in its
 ## hold, and what just happened to the hold. The hit flashes run by `delta`.
 ## The aim reticle shows along the ship's gun direction on every preset
 ## (#1211); look-aim reaches it only through that simulated direction (#1239).
@@ -107,10 +108,13 @@ func update(session: LocalSession, camera: Node3D, panel: StatusPanel = null, de
 	music.update(session, hub_open, delta)
 	if slot_popup != null:
 		slot_popup.show_open(slot_popup_input.is_open, camera)
+	var ship: ShipState = session.current_ship()
+	# The one snapshot of the gauges this frame (#1216), for the panel and the
+	# console's instruments under the rig's frame (#1461); the reactor is a copy.
+	var gauges: ShipGauges = ShipGauges.take(ship, SessionSnapshots.reactor(session.sim.reactor))
+	ConsoleGauges.feed(MapPlacement.cockpit_frame(camera.get_parent() if camera != null else null), gauges, delta)
 	if panel != null:
-		var ship: ShipState = session.current_ship()
-		# The one snapshot of the gauges this frame (#1216); the reactor is a copy.
-		panel.show_gauges(ShipGauges.take(ship, SessionSnapshots.reactor(session.sim.reactor)))
+		panel.show_gauges(gauges)
 		if hit_flash != null:
 			panel.flash_bar(false, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.SHIELD))
 			panel.flash_bar(true, hit_flash.bar_color, hit_flash.bar_amount(HitFlash.HULL))

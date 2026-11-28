@@ -15,7 +15,8 @@ extends Node3D
 ## frame carries its own dim light, so it shows in a dark mine. Since #1306
 ## the surfaces are physically based (`CockpitFinish`), the glass reflects
 ## faintly at its edge, and the file's dash pieces (`CockpitDashPiece`) sit on
-## the ledge: boxes in one part, knobs in another.
+## the ledge: boxes in one part, knobs in another. Since #1461 the file's
+## instruments are a `ConsoleGauges` child, rebuilt with the frame.
 ##
 ## The frame reads only its spec. It never reads or writes simulation state
 ## (ARC-3, MP-2); a preset change rebuilds it and touches nothing else.
@@ -114,6 +115,8 @@ func _build() -> void:
 	_add_part("Rim", _box(), _surface("Rim", spec.structure_color), _rim())
 	_add_dash("Dash", _box())
 	_add_dash("Knobs", _knob())
+	if not spec.instruments.is_empty():
+		add_child(ConsoleGauges.new(spec.instruments))  # Hull, shield, energy (#1461).
 	var light: OmniLight3D = CockpitMaterials.light(spec.look)
 	if light != null:
 		add_child(light)

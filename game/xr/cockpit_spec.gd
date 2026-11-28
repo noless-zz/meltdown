@@ -197,7 +197,7 @@ static func parse_json(text: String) -> CockpitSpec:
 			return _rejected("key \"%s\" is %s; with part_depth_m %s it reaches past frame_distance_m %s" % [
 				key, spec.get(key), spec.part_depth_m, spec.frame_distance_m])
 	if data.has(CockpitInstrument.LIST_KEY):
-		var parsed: Variant = CockpitInstrument.parse_list(data[CockpitInstrument.LIST_KEY])
+		var parsed: Variant = CockpitInstrument.parse_list(data[CockpitInstrument.LIST_KEY], spec.frame_distance_m)
 		if parsed is String:
 			return _rejected(parsed)
 		spec.instruments = parsed

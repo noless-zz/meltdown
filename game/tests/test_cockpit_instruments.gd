@@ -2,7 +2,8 @@ extends RefCounted
 
 ## Cockpit files may declare instruments that read `ShipGauges` (#1216,
 ## ARC-4): a valid list parses, every kind of bad entry is rejected naming the
-## file and the field, and the shipped files declare none yet.
+## file and the field, and since #1461 every shipped file declares hull,
+## shield and energy with their looks.
 
 const DIR: String = "res://xr/cockpits/"
 const ENTRY: String = '{"id": "hull_dial", "gauge": "hull", "yaw_deg": -20, "pitch_deg": -30}'
@@ -78,13 +79,67 @@ func test_a_rejected_file_names_the_file() -> String:
 	return ""
 
 
-func test_shipped_cockpits_declare_no_instruments_yet() -> String:
+func test_each_bad_look_key_is_rejected_naming_the_field() -> String:
+	var start: String = '{"id": "a", "gauge": "hull", "yaw_deg": 0, "pitch_deg": -34, '
+	var bad: Dictionary = {
+		'"distance_m": 0.2}': "instruments[0].distance_m is 0.2",
+		'"distance_m": "near"}': "instruments[0].distance_m must be a number",
+		'"size_m": [0.05]}': "instruments[0].size_m must be an array of two numbers",
+		'"size_m": [0.05, 0.5]}': "instruments[0].size_m has 0.5",
+		'"label": 7}': "instruments[0].label must be a text",
+		'"label": "HULL INTEGRITY NOW"}': "instruments[0].label must be a text of at most",
+		'"color": [1, 0]}': "instruments[0].color must be an array of three numbers",
+		'"low_color": [1, 2, 0]}': "instruments[0].low_color has 2",
+		'"low_below": 1.5}': "instruments[0].low_below is 1.5",
+		'"low_pulse_s": 0.5}': "instruments[0].low_pulse_s is 0.5",
+		'"low_pulse_min": 0.2}': "instruments[0].low_pulse_min is 0.2",
+		'"low_pulse_min": false}': "instruments[0].low_pulse_min must be a number",
+	}
+	for tail: String in bad:
+		var spec: CockpitSpec = CockpitSpec.parse_json(_with("[%s%s]" % [start, tail]))
+		if not spec.error.contains(bad[tail]):
+			return "%s gives '%s', not an error naming %s" % [tail, spec.error, bad[tail]]
+	return ""
+
+
+func test_an_instrument_behind_the_shell_is_rejected() -> String:
+	# guided.json's shell is 0.55 m from the eye.
+	var spec: CockpitSpec = CockpitSpec.parse_json(_with(
+		'[{"id": "a", "gauge": "hull", "yaw_deg": 0, "pitch_deg": -34, "distance_m": 0.6}]'))
+	if not spec.error.contains("instruments[0].distance_m is 0.6, not nearer than frame_distance_m"):
+		return "the error reads '%s'" % spec.error
+	return ""
+
+
+func test_the_look_keys_parse_with_defaults_for_the_rest() -> String:
+	var spec: CockpitSpec = CockpitSpec.parse_json(_with('[%s, %s]' % [ENTRY,
+		'{"id": "e", "gauge": "energy", "yaw_deg": 20, "pitch_deg": -30, "distance_m": 0.4, "size_m": [0.07, 0.03], "label": "ENERGY", "color": [0, 1, 0], "low_color": [1, 0, 0], "low_below": 0.2, "low_pulse_s": 2, "low_pulse_min": 0.8}']))
+	if spec.error != "":
+		return spec.error
+	var plain: CockpitInstrument = spec.instruments[0]
+	var full: CockpitInstrument = spec.instruments[1]
+	var defaults: CockpitInstrument = CockpitInstrument.new()
+	if plain.distance_m != defaults.distance_m or plain.size_m != defaults.size_m or plain.label != "" \
+			or plain.low_below != defaults.low_below or plain.color != defaults.color:
+		return "an entry without look keys did not take the defaults"
+	if not is_equal_approx(full.distance_m, 0.4) or not full.size_m.is_equal_approx(Vector2(0.07, 0.03)) \
+			or full.label != "ENERGY" or full.color != Color(0, 1, 0) or full.low_color != Color(1, 0, 0) \
+			or not is_equal_approx(full.low_below, 0.2) or not is_equal_approx(full.low_pulse_s, 2.0) \
+			or not is_equal_approx(full.low_pulse_min, 0.8):
+		return "the look keys read %s %s %s" % [full.distance_m, full.size_m, full.label]
+	return ""
+
+
+func test_shipped_cockpits_declare_hull_shield_and_energy() -> String:
 	for file: String in DirAccess.get_files_at(DIR):
 		if not file.ends_with(".json"):
 			continue
 		var spec: CockpitSpec = CockpitSpec.load_file(DIR + file)
 		if spec.error != "":
 			return spec.error
-		if not spec.instruments.is_empty():
-			return "%s declares %d instruments; none is drawn until M6" % [file, spec.instruments.size()]
+		var gauges: PackedStringArray = []
+		for instrument: CockpitInstrument in spec.instruments:
+			gauges.append(instrument.gauge)
+		if ", ".join(gauges) != "hull, shield, energy":
+			return "%s declares instruments for %s" % [file, gauges]
 	return ""
