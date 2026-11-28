@@ -65,6 +65,17 @@
 				"shaft_sounds"
 			],
 			"expected_outcome": "ESCAPED"
+		},
+		{
+			"id": "hull_warning",
+			"replay": "res://acceptance/replays/low_hull_test_tunnel.replay",
+			"checks": [
+				"final_hash",
+				"outcome",
+				"hull_warning"
+			],
+			"expected_outcome": "LOST",
+			"expected_hash": 16303287
 		}
 	]
 }
