@@ -1,0 +1,14 @@
+{
+	"keep_seconds": 15.0,
+	"hold_seconds": 1.5,
+	"tones": {
+		"start": {"from_hz": 220.0, "to_hz": 220.0, "duration_s": 0.18, "volume_db": -8.0},
+		"kept": {"from_hz": 440.0, "to_hz": 880.0, "duration_s": 0.3, "volume_db": -8.0},
+		"reverted": {"from_hz": 660.0, "to_hz": 220.0, "duration_s": 0.4, "volume_db": -8.0}
+	},
+	"pulses": {
+		"start": {"frequency_hz": 0.0, "amplitude": 0.4, "duration_s": 0.1},
+		"kept": {"frequency_hz": 0.0, "amplitude": 0.7, "duration_s": 0.25},
+		"reverted": {"frequency_hz": 0.0, "amplitude": 1.0, "duration_s": 0.4}
+	}
+}

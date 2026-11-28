@@ -23,6 +23,8 @@ extends RefCounted
 ## the chosen one to `choose`, which applies it through the same path as the
 ## start-up switches and prints a line with source `menu`. The choice is never
 ## saved: a setting that collapses the picture must not outlive the launch.
+## `FoveationKeep` (#1523) puts an unconfirmed choice back through the same
+## `choose`, with source `revert`.
 
 const LEVEL_ARG_PREFIX: String = "--foveation="
 const DYNAMIC_ARG_PREFIX: String = "--foveation-dynamic="
@@ -35,6 +37,7 @@ const CHECK_PERIOD_S: float = 1.0
 const SOURCE_DEFAULT: String = "default"
 const SOURCE_SWITCH: String = "switch"
 const SOURCE_MENU: String = "menu"
+const SOURCE_REVERT: String = "revert"
 ## The settings the dev menu steps through, in order: x is the level, y is 1
 ## for dynamic. Off is level 0, which has no dynamic form on the menu.
 const MENU_STEPS: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0),
@@ -55,6 +58,7 @@ var lines: PackedStringArray = PackedStringArray()
 var _runtime: Object = null
 var _logged_level: int = NOT_LOGGED
 var _menu_chosen: bool = false
+var _choice_source: String = SOURCE_MENU
 var _since_check_s: float = 0.0
 
 
@@ -123,14 +127,16 @@ func begin(runtime: Object) -> void:
 
 
 ## The dev menu's choice (#871): applies `p_level` and `p_dynamic` to the
-## interface at once and prints a line with source `menu`. Without an
-## interface (the flat build, tests) it only remembers them; nothing is saved.
-func choose(p_level: int, p_dynamic: bool) -> void:
+## interface at once and prints a line with `source` (`menu`, or `revert`
+## from `FoveationKeep`). Without an interface (the flat build, tests) it only
+## remembers them; nothing is saved.
+func choose(p_level: int, p_dynamic: bool, source: String = SOURCE_MENU) -> void:
 	level = clampi(p_level, 0, MAX_LEVEL)
 	has_level = true
 	dynamic = p_dynamic
 	has_dynamic = true
 	_menu_chosen = true
+	_choice_source = source
 	if _runtime == null:
 		return
 	_runtime.set("foveation_level", level)
@@ -190,7 +196,7 @@ func _log_in_use() -> void:
 
 func _source() -> String:
 	if _menu_chosen:
-		return SOURCE_MENU
+		return _choice_source
 	return SOURCE_SWITCH if is_switched() else SOURCE_DEFAULT
 
 

@@ -95,6 +95,7 @@ var _break_entry: DevMenuBreak = null
 var _update_entry: DevMenuUpdate = DevMenuUpdate.new()
 var _restarts: DevMenuRestart = DevMenuRestart.new()
 var _return: DevMenuReturn = DevMenuReturn.new()
+var _foveation: DevMenuFoveation = null
 var _update: UpdateWiring = null
 var _level_start: LevelStart = null
 ## The session the open menu pauses (`DevMenuPause`); unset, nothing pauses.
@@ -112,11 +113,12 @@ func _init(p_scheme: ControlSchemeSwitch = null, p_mapping: ThumbstickMapping = 
 	_break_entry = DevMenuBreak.new(p_break_prompt)
 	swivel = DevMenuSwivel.new(p_comfort)
 	swivel.start()
+	_foveation = DevMenuFoveation.new(p_foveation)
 	var no_refresh: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_REFRESH], [DevMenuModel.REFRESH_PREFIX])
 	var close: DevMenuEntry = DevMenuEntry.new([DevMenuSpec.KIND_CLOSE], [DevMenuModel.CLOSE], true)
 	entries = [_update_entry, _corner, _comfort_entry, _break_entry,
 		refresh if refresh != null else no_refresh, swivel, DevMenuAutoLevel.started(p_comfort), _controls,
-		DevMenuFoveation.new(p_foveation), DevMenuMap.new(), DevMenuRenderScale.new(), _restarts, _return, DevMenuChecklist.new(), close]
+		_foveation, DevMenuMap.new(), DevMenuRenderScale.new(), _restarts, _return, DevMenuChecklist.new(), close]
 
 
 ## Hangs `p_menu` under `rig` (none in some tests). `restart` flies
@@ -139,6 +141,7 @@ func attach(rig: Node3D, update: UpdateWiring, level_start: LevelStart, restart:
 	_restarts.flight_test = flight_test
 	_restarts.rig = rig
 	_return.wire(level_start, restart, destroyed, hub_open)
+	_foveation.attach(rig)
 	menu = p_menu if p_menu != null else DevMenu.new()
 	info = DevMenuInfo.new(menu.model.spec.info_title_text)  # The panel's development lines (#1207).
 	info.source = rig
@@ -197,6 +200,7 @@ func read(values: Dictionary, now: float = MenuTap.steady_seconds()) -> Dictiona
 		for entry: DevMenuEntry in entries:
 			entry.follow(menu.model)  # Refresh and Swivel chair follow a Comfort choice.
 		apply(menu.update(actions(values)))
+	_foveation.update(bool(actions(values)[DevMenuModel.CONFIRM]), is_open(), now)  # Keep or revert (#1523).
 	_show_panel(not is_open())
 	if _session_of.is_valid():
 		DevMenuPause.hold(_session_of.call() as LocalSession, is_open())
