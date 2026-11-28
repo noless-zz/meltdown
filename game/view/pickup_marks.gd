@@ -81,7 +81,7 @@ static func parse_look(text: String) -> Dictionary:
 	for key: String in KEYS:
 		if not data.has(key):
 			return {"error": "missing key \"%s\"" % key}
-		var problem: String = MinerView.check_number(key, data[key], RANGES[key])
+		var problem: String = MinerLook.check_number(key, data[key], RANGES[key])
 		if problem != "":
 			return {"error": problem}
 		look[key] = float(data[key])

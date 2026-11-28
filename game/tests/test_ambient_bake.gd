@@ -220,7 +220,7 @@ func test_the_g2_steps_check_the_bake() -> String:
 
 func test_without_a_bake_the_walls_draw_the_global_ambient() -> String:
 	var look: Dictionary = LevelLook.FALLBACK
-	var material: ShaderMaterial = LevelLook.wall_material(look, look["wall_color"])
+	var material: ShaderMaterial = LevelLookMaterials.wall_material(look, look["wall_color"])
 	var global: Color = AmbientBake.global(look)
 	var expected: Color = Color(look["ambient_color"]).srgb_to_linear() * float(look["ambient_energy"])
 	if not Vector3(global.r, global.g, global.b).is_equal_approx(Vector3(expected.r, expected.g, expected.b)):

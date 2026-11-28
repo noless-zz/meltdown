@@ -63,7 +63,7 @@ func build() -> void:
 
 
 func _add_environment() -> void:
-	add_child(LevelLook.world_environment(_look, "Environment"))
+	add_child(LevelLookMaterials.world_environment(_look, "Environment"))
 
 
 func _add_shell() -> void:
@@ -72,9 +72,9 @@ func _add_shell() -> void:
 	add_child(shell)
 	var center_z: float = START_Z - LENGTH / 2.0
 	# Each box is tinted by the way its inner face points, as level walls are.
-	var floor_look: Material = LevelLook.wall_material(_look, LevelLook.tint_for(_look, Vector3.UP))
-	var ceiling_look: Material = LevelLook.wall_material(_look, LevelLook.tint_for(_look, Vector3.DOWN))
-	var wall_look: Material = LevelLook.wall_material(_look, LevelLook.tint_for(_look, Vector3.RIGHT))
+	var floor_look: Material = LevelLookMaterials.wall_material(_look, LevelLook.tint_for(_look, Vector3.UP))
+	var ceiling_look: Material = LevelLookMaterials.wall_material(_look, LevelLook.tint_for(_look, Vector3.DOWN))
+	var wall_look: Material = LevelLookMaterials.wall_material(_look, LevelLook.tint_for(_look, Vector3.RIGHT))
 	var side_x: float = (WIDTH + WALL) / 2.0
 	_add_shell_box(shell, "Floor", Vector3(WIDTH + 2.0 * WALL, WALL, LENGTH), Vector3(0.0, -WALL / 2.0, center_z), floor_look)
 	_add_shell_box(shell, "Ceiling", Vector3(WIDTH + 2.0 * WALL, WALL, LENGTH), Vector3(0.0, HEIGHT + WALL / 2.0, center_z), ceiling_look)

@@ -85,12 +85,12 @@ static func parse_look(text: String) -> Dictionary:
 			or (label_text as String).length() > TEXT_MAX:
 		return {"error": "\"text\" must be a text of 1..%d characters" % TEXT_MAX}
 	look["text"] = label_text
-	var color: Variant = MinerView.parse_color("color", data["color"])
+	var color: Variant = MinerLook.parse_color("color", data["color"])
 	if typeof(color) == TYPE_STRING:
 		return {"error": color}
 	look["color"] = color
 	for key: String in RANGES:
-		var problem: String = MinerView.check_number(key, data[key], RANGES[key])
+		var problem: String = MinerLook.check_number(key, data[key], RANGES[key])
 		if problem != "":
 			return {"error": problem}
 		look[key] = float(data[key])

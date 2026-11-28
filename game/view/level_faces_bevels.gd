@@ -64,7 +64,7 @@ static func quads(union: BoxUnion, faces: Array[Dictionary], width: float) -> Ar
 
 
 ## The six corners of the two triangles that draw `bevel`, wound so the side
-## its normal points to is the one drawn (as `LevelView.triangles` does).
+## its normal points to is the one drawn (as `LevelViewMeshes.quad_triangles` does).
 static func triangles(bevel: Dictionary) -> Array[Vector3]:
 	var c: Array = bevel["corners"]
 	var normal: Vector3 = bevel["normal"]

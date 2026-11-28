@@ -21,7 +21,7 @@ func _other_value(key: String) -> float:
 
 
 func _material(values: Dictionary) -> ShaderMaterial:
-	return LevelLook.wall_material(LevelLook.FALLBACK, LevelLook.FALLBACK["wall_color"], values)
+	return LevelLookMaterials.wall_material(LevelLook.FALLBACK, LevelLook.FALLBACK["wall_color"], values)
 
 
 ## The default value of every `uniform float` in the wall shader, by name.
@@ -48,7 +48,7 @@ func test_the_shipped_file_parses_with_its_default_theme() -> String:
 
 func test_the_wall_material_builds_from_the_data_file() -> String:
 	var theme: Dictionary = LevelWallMaterial.load_theme("", FILE)
-	var material: ShaderMaterial = LevelLook.wall_material(LevelLook.FALLBACK, LevelLook.FALLBACK["floor_color"])
+	var material: ShaderMaterial = LevelLookMaterials.wall_material(LevelLook.FALLBACK, LevelLook.FALLBACK["floor_color"])
 	for key: String in LevelWallMaterial.UNIFORMS:
 		var uniform: String = LevelWallMaterial.UNIFORMS[key]
 		if not is_equal_approx(float(material.get_shader_parameter(uniform)), float(theme[key])):

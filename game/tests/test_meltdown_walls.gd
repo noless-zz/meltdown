@@ -143,7 +143,7 @@ func test_the_pulse_stays_within_its_bounds_and_repeats() -> String:
 
 func test_show_sets_one_uniform_on_every_material() -> String:
 	var look: Dictionary = LevelLook.load_file()
-	var materials: Array[ShaderMaterial] = [LevelViewMeshes.kind_material(look), LevelLook.bevel_material(look)]
+	var materials: Array[ShaderMaterial] = [LevelViewMeshes.kind_material(look), LevelLookMaterials.bevel_material(look)]
 	var walls: MeltdownWalls = MeltdownWalls.for_look(look, materials)
 	if not walls.enabled or walls.error != "":
 		return "the shipped look gives no meltdown walls (%s)" % walls.error
@@ -168,7 +168,7 @@ func test_without_the_section_nothing_changes() -> String:
 	var look: Dictionary = LevelLook.FALLBACK
 	if look.has(MeltdownWallRules.KEY):
 		return "the fallback look has a meltdown section"
-	var material: ShaderMaterial = LevelLook.bevel_material(look)
+	var material: ShaderMaterial = LevelLookMaterials.bevel_material(look)
 	var materials: Array[ShaderMaterial] = [material]
 	var walls: MeltdownWalls = MeltdownWalls.for_look(look, materials)
 	walls.show(5.0)

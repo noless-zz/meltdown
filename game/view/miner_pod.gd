@@ -38,10 +38,10 @@ static func parse(value: Variant) -> Dictionary:
 	var problem: String = PickupModel._keys(KEY, data, KEYS, [])
 	if problem != "":
 		return {"error": problem}
-	var color: Variant = MinerView.parse_color("pod.glow_color", data["glow_color"])
+	var color: Variant = MinerLook.parse_color("pod.glow_color", data["glow_color"])
 	if typeof(color) == TYPE_STRING:
 		return {"error": color}
-	problem = MinerView.check_number("pod.glow_energy", data["glow_energy"], ENERGY_RANGE)
+	problem = MinerLook.check_number("pod.glow_energy", data["glow_energy"], ENERGY_RANGE)
 	if problem != "":
 		return {"error": problem}
 	var model: Dictionary = PickupModel.parse("pod.model", data["model"])
