@@ -165,7 +165,7 @@ func test_home_base_stations_show_base_labels() -> String:
 	rig.add_child(room)
 	var stations: HubStations = HubStations.new(room)
 	rig.add_child(stations)
-	room.visible = true
+	room.show_for(rig.get_node("Camera") as Camera3D)  # As the hub shows it (#1508).
 	stations.visible = true
 	rig.call("refresh_labels")
 	var message: String = ""

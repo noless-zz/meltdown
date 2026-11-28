@@ -57,7 +57,7 @@ static func parse(value: Variant) -> Dictionary:
 	for key: String in KEYS:
 		if not data.has(key):
 			return {"error": "\"%s.%s\" is missing" % [KEY, key]}
-		var problem: String = MinerView.check_number("%s.%s" % [KEY, key], data[key], RANGES[key])
+		var problem: String = MinerLook.check_number("%s.%s" % [KEY, key], data[key], RANGES[key])
 		if problem != "":
 			return {"error": problem}
 		look[key] = float(data[key])

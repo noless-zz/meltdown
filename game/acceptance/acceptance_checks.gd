@@ -32,6 +32,10 @@ var vignette: AcceptanceVignetteCheck = null  # The comfort vignette shown (#850
 var errors_at_start: int = 0
 ## True once a shaft step's `next_replay` has been started (#1065, `AcceptanceShaftStep.flies_on`).
 var next_started: bool = false
+## The drawn frames the step's check files asked for (#1480), made when their frame work starts,
+## or null when no check has any; tests set their own before the step ends.
+var drawn: AcceptanceFrameHook = null
+var _frame_work_started: bool = false
 
 
 ## The samplers that start with the step, before its comfort preset is set.
@@ -61,6 +65,8 @@ func begin_scene(step: AcceptanceStep, main: Node) -> void:
 
 ## After the step's checks ran: the scene gets back what the step changed.
 func end_step(main: Node) -> void:
+	if drawn != null:
+		drawn.end()
 	if refresh_120 != null:
 		refresh_120.restore(main)
 		refresh_120 = null
@@ -123,6 +129,20 @@ func waits_for_xr(step: AcceptanceStep, runner: AcceptanceRunner) -> bool:
 	var reads_rate: bool = step.has_check(AcceptanceStep.CHECK_REFRESH_RATE) \
 		or step.has_check(AcceptanceStep.CHECK_FRAME_BUDGET)
 	return reads_rate and not AcceptanceRefreshCheck.settled(runner.main)
+
+
+## True while the step still needs frames once its replay has flown: a sampler, the headset's
+## session (counted in `runner.xr_waited`), then a check's drawn frames (#1480), started here once.
+func still_waits(step: AcceptanceStep, runner: AcceptanceRunner) -> bool:
+	if sampling():
+		return true
+	if waits_for_xr(step, runner) and runner.xr_waited < AcceptanceRunner.XR_WAIT_FRAMES:
+		runner.xr_waited += 1
+		return true
+	if not _frame_work_started:
+		_frame_work_started = true
+		drawn = AcceptanceFrameHook.start_work(step, runner, drawn)
+	return drawn != null and drawn.still_waiting()
 
 
 ## Every check name `run` can judge: the replay checks, those with a judge here and the check files'.

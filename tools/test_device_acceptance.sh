@@ -398,6 +398,9 @@ source "$tools/device_acceptance_drop_checks.sh"
 # Live progress lines while a suite runs (#1438).
 # shellcheck source=tools/device_acceptance_progress_checks.sh
 source "$tools/device_acceptance_progress_checks.sh"
+# The wait for the exit line, from the suites asked for (#1504).
+# shellcheck source=tools/device_acceptance_wait_checks.sh
+source "$tools/device_acceptance_wait_checks.sh"
 
 # The simulator job skips cleanly away from Windows.
 sim_out="$work/simulator"

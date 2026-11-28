@@ -13,7 +13,7 @@ extends DevMenuEntry
 ## the simulation never hears of it (ARC-3, CMF-6).
 ##
 ## A change waits for a long press of A and otherwise reverts by itself
-## (`FoveationKeep`, #1523); the wiring hands it each frame through `update`.
+## (`FoveationKeep`, #1523); the wiring hands it each frame through `read`.
 
 ## The launch's foveation switch; null in tests without one, which show Off.
 var switch: FoveationSwitch = null
@@ -42,10 +42,14 @@ func attach(rig: Node3D) -> void:
 		openxr.session_visible.connect(cancel)
 
 
-## One frame: A held, whether the menu is open, the steady clock.
-func update(confirm_held: bool, menu_open: bool, now: float) -> void:
+## One frame of `DevMenuWiring.read`: its controller `values`, whether the
+## menu is open and the steady clock. The cue goes under `rig` on the first
+## frame that has one.
+func read(values: Dictionary, menu_open: bool, now: float, rig: Node3D = null) -> void:
+	if rig != null:
+		attach(rig)
 	if keep != null:
-		keep.update(confirm_held, menu_open, now)
+		keep.update(bool(DevMenuWiring.actions(values)[DevMenuModel.CONFIRM]), menu_open, now)
 
 
 ## Focus lost: a change not yet kept reverts now.

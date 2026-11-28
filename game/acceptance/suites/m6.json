@@ -1,5 +1,5 @@
 {
 	"name": "m6",
 	"steps": [],
-	"include": ["m6/ship", "m6/perf", "m6/sound", "m6/effects", "m6/look", "m6/base"]
+	"include": ["m6/ship", "m6/perf", "m6/sound", "m6/effects", "m6/look", "m6/base", "m6/menu"]
 }

@@ -66,7 +66,7 @@ uniform float normal_strength = 0.0;
 uniform float bevel_strength = 0.0;
 uniform float bevel_width = 0.05;
 uniform float triplanar_sharpness = 4.0;
-// Only the bevels along box edges glow (`LevelLook.bevel_material`, #1323);
+// Only the bevels along box edges glow (`LevelLookMaterials.bevel_material`, #1323);
 // on the walls this stays black.
 uniform vec3 glow : source_color = vec3(0.0);
 // Guide light strips (#1463) are drawn in the bevels' surface with their glow

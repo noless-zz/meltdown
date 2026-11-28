@@ -23,7 +23,7 @@ extends XROrigin3D
 ##
 ## The rig also carries the `RenderScaler` (#1417), which lowers and raises
 ## the headset's render scale with the frame times, and the `AimRay` (#1451),
-## shown from the right controller where pointing selects. The controller
+## shown from the aiming hand's controller (`AimHand`, #1470) where pointing selects. The controller
 ## shapes are on the hands layer too, so the home base room draws them.
 ##
 ## Where pointing selects (the home base's stations and the shaft choice) the
@@ -149,12 +149,13 @@ func aim_ray() -> AimRay:
 
 
 ## Draws the aim ray from the right controller, the one the hub and the shaft
-## choice select with, while it is tracked and pointing selects (#1451).
+## choice select with, while it is tracked and pointing selects or the dev menu
+## is open (#1451, #1508); in flight it hides.
 func point_ray() -> void:
 	var ray: AimRay = aim_ray()
-	var aim: XRController3D = get_node_or_null("RightHand") as XRController3D
 	if ray != null:
-		ray.follow(self, aim.transform if aim != null else Transform3D.IDENTITY, aim != null and aim.get_is_active())
+		var held: Dictionary = AimHand.pose_on(self)  # The left controller in left-handed mode (#1470).
+		ray.follow(self, held["aim"], bool(held["tracked"]))
 
 
 ## The node that logs the runtime's render models, or null before `build`.
@@ -178,10 +179,11 @@ func refresh_labels() -> void:
 
 
 ## True where pointing selects: the home base's stations or the shaft choice
-## are shown, as the aim ray finds them (`AimTargets`).
+## are shown, as the aim ray finds them (`AimTargets`). The open dev menu
+## shows the ray too (#1508) but leaves the labels as they are.
 func pointing_selects() -> bool:
 	var ray: AimRay = aim_ray()
-	return ray != null and bool(ray.targets.find(self, Transform3D.IDENTITY)["shown"])
+	return ray != null and ray.targets.selects(self)
 
 
 ## True while the labels shown are the base's, not flight's.

@@ -1,0 +1,123 @@
+Meltdown: level ready
+Meltdown: acceptance: step frame_budget suite=m1 index=3 count=13
+Meltdown: level ready
+Meltdown: acceptance: step frame_budget pass suite=m1 index=3 count=13
+Meltdown: acceptance: step flight_axes suite=m1 index=4 count=13
+Meltdown: level ready
+Meltdown: acceptance: step flight_axes pass suite=m1 index=4 count=13
+Meltdown: acceptance: step comfort_preset_3 suite=m1 index=5 count=13
+Meltdown: level ready
+Meltdown: acceptance: step comfort_preset_3 pass suite=m1 index=5 count=13
+Meltdown: acceptance: step comfort_preset_4 suite=m1 index=6 count=13
+Meltdown: level ready
+Meltdown: acceptance: step comfort_preset_4 pass suite=m1 index=6 count=13
+Meltdown: acceptance: step comfort_preset_1 suite=m1 index=7 count=13
+Meltdown: level ready
+Meltdown: acceptance: step comfort_preset_1 pass suite=m1 index=7 count=13
+Meltdown: acceptance: step comfort_preset_2 suite=m1 index=8 count=13
+Meltdown: level ready
+Meltdown: acceptance: step comfort_preset_2 pass suite=m1 index=8 count=13
+Meltdown: acceptance: step view_not_flat suite=m1 index=9 count=13
+Meltdown: level ready
+Meltdown: acceptance: step view_not_flat pass suite=m1 index=9 count=13
+Meltdown: acceptance: step afterburner suite=m1 index=10 count=13
+Meltdown: level ready
+Meltdown: acceptance: step afterburner pass suite=m1 index=10 count=13
+Meltdown: acceptance: step preset_change_mid_flight suite=m1 index=11 count=13
+Meltdown: level ready
+Meltdown: acceptance: step preset_change_mid_flight pass suite=m1 index=11 count=13
+Meltdown: acceptance: step first_launch_flight_test suite=m1 index=12 count=13
+Meltdown: level ready
+Meltdown: acceptance: step first_launch_flight_test pass suite=m1 index=12 count=13
+Meltdown: acceptance: step reset_to_start suite=m1 index=13 count=13
+Meltdown: level ready
+Meltdown: acceptance: step reset_to_start pass suite=m1 index=13 count=13
+MELTDOWN_ACCEPTANCE_BEGIN
+{
+	"build_commit": "4978f50",
+	"device": "Quest 3 (Android)",
+	"passed": true,
+	"steps": [
+		{
+			"id": "basic_flight",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "refresh_rate",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "frame_budget",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "flight_axes",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "comfort_preset_3",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "comfort_preset_4",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "comfort_preset_1",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "comfort_preset_2",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "view_not_flat",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "afterburner",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "preset_change_mid_flight",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "first_launch_flight_test",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		},
+		{
+			"id": "reset_to_start",
+			"measurements": {},
+			"message": "",
+			"result": "pass"
+		}
+	],
+	"suite": "m1"
+}
+MELTDOWN_ACCEPTANCE_END
+Meltdown: acceptance: exit 0

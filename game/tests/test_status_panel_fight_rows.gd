@@ -137,11 +137,11 @@ func test_bad_row_lists_are_rejected_naming_the_field() -> String:
 func test_the_panel_corner_choice_is_unchanged() -> String:
 	var corners: Dictionary = StatusPanelLook.shared()["corners"]
 	var expected: Dictionary = {
-		# Moved out of the middle of the view by #1452.
-		"top_left": Vector3(-0.306, 0.084, -0.509),
-		"top_right": Vector3(0.360, 0.084, -0.475),
-		"bottom_left": Vector3(-0.298, -0.155, -0.497),
-		"bottom_right": Vector3(0.355, -0.115, -0.470),
+		# Moved out of the middle of the view by #1452, then into both eyes' views by #1507.
+		"top_left": Vector3(-0.245, 0.245, -0.550),
+		"top_right": Vector3(0.297, 0.262, -0.515),
+		"bottom_left": Vector3(-0.258, -0.223, -0.553),
+		"bottom_right": Vector3(0.323, -0.174, -0.537),
 	}
 	for corner: String in expected:
 		if not (corners[corner] as Vector3).is_equal_approx(expected[corner]):

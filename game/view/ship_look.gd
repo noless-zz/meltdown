@@ -130,12 +130,12 @@ static func _parse_material(field: String, value: Variant) -> Variant:
 	if typeof(value) != TYPE_DICTIONARY:
 		return "\"%s\" must be an object" % field
 	var problem: String = PickupModel._keys(field, value, MATERIAL_KEYS, [])
-	var albedo: Variant = MinerView.parse_color(field + ".albedo", (value as Dictionary).get("albedo"))
+	var albedo: Variant = MinerLook.parse_color(field + ".albedo", (value as Dictionary).get("albedo"))
 	if problem == "" and typeof(albedo) == TYPE_STRING:
 		problem = albedo
 	for key: String in ["roughness", "metallic"]:
 		if problem == "":
-			problem = MinerView.check_number("%s.%s" % [field, key], value[key], UNIT_RANGE)
+			problem = MinerLook.check_number("%s.%s" % [field, key], value[key], UNIT_RANGE)
 	if problem != "":
 		return problem
 	return {"albedo": albedo, "roughness": float(value["roughness"]), "metallic": float(value["metallic"])}
@@ -145,12 +145,12 @@ static func _parse_engine(value: Variant) -> Variant:
 	if typeof(value) != TYPE_DICTIONARY:
 		return "\"engine\" must be an object"
 	var problem: String = PickupModel._keys("engine", value, ENGINE_KEYS, [])
-	var color: Variant = MinerView.parse_color("engine.color", (value as Dictionary).get("color"))
+	var color: Variant = MinerLook.parse_color("engine.color", (value as Dictionary).get("color"))
 	if problem == "" and typeof(color) == TYPE_STRING:
 		problem = color
 	for key: String in ["idle_energy", "full_energy"]:
 		if problem == "":
-			problem = MinerView.check_number("engine.%s" % key, value[key], ENERGY_RANGE)
+			problem = MinerLook.check_number("engine.%s" % key, value[key], ENERGY_RANGE)
 	if problem == "" and float(value["full_energy"]) <= float(value["idle_energy"]):
 		problem = "\"engine.full_energy\" must be above \"engine.idle_energy\", so thrust shows"
 	if problem != "":

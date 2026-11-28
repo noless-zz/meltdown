@@ -198,7 +198,7 @@ func test_frames_are_drawn_with_the_box_they_sink_into() -> String:
 	if frames.is_empty():
 		return "no frames to place"
 	for quad: Dictionary in frames:
-		var owner: int = LevelView.frame_box(union, quad)
+		var owner: int = LevelViewBoxes.frame_box(union, quad)
 		var centre: Vector3 = ((quad["min"] as Vector3) + (quad["max"] as Vector3)) * 0.5
 		var box: BoxBounds = union.boxes[owner]
 		var grown: AABB = AABB(box.min_corner, box.max_corner - box.min_corner).grow(1e-3)

@@ -100,18 +100,19 @@ const FALLBACK: Dictionary = {
 	"tally_miner_text": "Miner aboard",
 	"tally_flash_color": Color(0.35, 1.0, 0.45),
 	"tally_flash_seconds": 1.0,
-	# 0.6 m out, the left corners 31 degrees to the side and the right ones 37,
-	# because the labels start left of the panel's centre; the top corners 8
-	# degrees up, bottom left 15 down and bottom right 11, clear of the right
-	# stick's label (#1452). Every drawn row, the tally lines,
-	# stays outside a 25 degree cone around straight ahead, where the tunnel
-	# is, and within 50 degrees of it. At 17 and 13 degrees the tally rows of
-	# #1356 reached the eye line.
+	# Each corner lies wholly inside both eyes' views (#1507, `EyeViews`): at
+	# 0.6 m and only 8 degrees off level the left corners reached 43 degrees to
+	# the side, past the right eye's inner edge, so that eye saw a sliver of
+	# the panel. 0.65 m out (smaller in the view), 24..31 degrees to the side
+	# and 18..27 up or down: the panel's centre stays outside the 25 degree cone
+	# around straight ahead where the tunnel is, no drawn row comes within 20
+	# degrees of it (#1452), every row within 50, the bottom left's rows within
+	# a 30 degree glance down, and the bottom right clear of the stick's label.
 	"corners": {
-		"top_left": Vector3(-0.306, 0.084, -0.509),
-		"top_right": Vector3(0.360, 0.084, -0.475),
-		"bottom_left": Vector3(-0.298, -0.155, -0.497),
-		"bottom_right": Vector3(0.355, -0.115, -0.470),
+		"top_left": Vector3(-0.245, 0.245, -0.550),
+		"top_right": Vector3(0.297, 0.262, -0.515),
+		"bottom_left": Vector3(-0.258, -0.223, -0.553),
+		"bottom_right": Vector3(0.323, -0.174, -0.537),
 	},
 	"rows": StatusPanelRowList.FIGHT,
 }

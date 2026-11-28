@@ -53,12 +53,12 @@ static func parse(field: String, value: Variant) -> Dictionary:
 	if typeof(body) != TYPE_DICTIONARY:
 		return {"error": "\"%s.body\" must be an object" % field}
 	problem = _keys(field + ".body", body, BODY_KEYS, [])
-	var albedo: Variant = MinerView.parse_color(field + ".body.albedo", body.get("albedo"))
+	var albedo: Variant = MinerLook.parse_color(field + ".body.albedo", body.get("albedo"))
 	if problem == "" and typeof(albedo) == TYPE_STRING:
 		problem = albedo
 	for key: String in ["roughness", "metallic"]:
 		if problem == "":
-			problem = MinerView.check_number("%s.body.%s" % [field, key], body[key], UNIT_RANGE)
+			problem = MinerLook.check_number("%s.body.%s" % [field, key], body[key], UNIT_RANGE)
 	if problem != "":
 		return {"error": problem}
 	var parsed: Dictionary = {"body": {"albedo": albedo, "roughness": float(body["roughness"]),
@@ -159,7 +159,7 @@ static func _vector(field: String, value: Variant, limits: Array[float]) -> Vari
 	if typeof(value) != TYPE_ARRAY or (value as Array).size() != 3:
 		return "\"%s\" must be [x, y, z]" % field
 	for part: Variant in value:
-		var problem: String = MinerView.check_number(field, part, limits)
+		var problem: String = MinerLook.check_number(field, part, limits)
 		if problem != "":
 			return problem
 	return Vector3(float(value[0]), float(value[1]), float(value[2]))

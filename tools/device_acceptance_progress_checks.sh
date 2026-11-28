@@ -64,6 +64,32 @@ else
 	fail "progress: the drop and return lines start with the time since the start"
 fi
 
+# #1504: a recorded log in which steps 3 to 13 of m1 end within one poll, and
+# the headset's log buffer has dropped steps 1 and 2 since the poll before.
+# Counting events from the front skipped as many new steps as old lines were
+# dropped; every step must get its end line, once, and its start line at most once.
+wrap_ids=(basic_flight refresh_rate frame_budget flight_axes comfort_preset_3 comfort_preset_4
+	comfort_preset_1 comfort_preset_2 view_not_flat afterburner preset_change_mid_flight
+	first_launch_flight_test reset_to_start)
+EARLY_LOG="$(cat "$fixtures/progress_wrap_early.log")" EARLY_POLLS=1 \
+	run_headset "SERIAL1\tdevice\n" "$(cat "$fixtures/progress_wrap_late.log")"
+wrap_missing=""
+for index in "${!wrap_ids[@]}"; do
+	id="${wrap_ids[$index]}"
+	ends="$(grep -cE "^\[[0-9]{2}:[0-9]{2}\] m1  $((index + 1))/13  $id     PASS  \([0-9]+ s\)$" <<< "$output" || true)"
+	starts="$(grep -cE "^\[[0-9]{2}:[0-9]{2}\] m1  $((index + 1))/13  $id \.\.\. running$" <<< "$output" || true)"
+	if [ "$ends" -ne 1 ] || [ "$starts" -gt 1 ]; then
+		wrap_missing+=" $id($ends end, $starts start)"
+	fi
+done
+if [ "$status" -eq 0 ] && [ -z "$wrap_missing" ] && [ "$(grep -c '     PASS' <<< "$output")" -eq 13 ] \
+	&& grep -qxF '== m1: 13 passed, 0 failed ==' <<< "$output"; then
+	pass "progress: every step that ends within one poll gets its line, after the log buffer dropped old lines"
+else
+	output+=$'\n'"steps without exactly one end line:$wrap_missing"
+	fail "progress: every step that ends within one poll gets its line, after the log buffer dropped old lines"
+fi
+
 # The lines themselves, with colours and several suites, straight from the functions.
 progress_script="$work/progress_check.ps1"
 cat > "$progress_script" <<'PS1'

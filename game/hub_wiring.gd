@@ -29,7 +29,8 @@ extends RefCounted
 ## ship and fades out, then runs the unchanged `launch`, and the mine fades in.
 ##
 ## In the room the pages are on its stations (#1299, `HubStations`), chosen by
-## the right controller's aim or the stick, with sounds (`HubStationSounds`,
+## the aiming hand's controller (`AimHand`: the right, or the left in
+## left-handed mode, #1470) or the stick, with sounds (`HubStationSounds`,
 ## #1401). The flat panel is kept only for a room that fails to load.
 
 const LOG_PREFIX: String = "[meltdown run]"
@@ -56,10 +57,11 @@ var components_dir: String = ComponentList.COMPONENTS_DIR
 ## name the level to fly; null when opened by `open_for` alone (tests).
 var level_start: LevelStart = null
 var launching: HubLaunch = HubLaunch.new()  # The glow, sound and fades of leaving and arriving (#1396).
+## The hand whose aim picks stations and slots (#1470); its rig is set by `attach`.
+var aiming: AimHand = AimHand.new()
 
 var _actions: Dictionary = {}
 var _camera: Camera3D = null
-var _aim: XRController3D = null
 
 
 ## Hangs the panel, the room and its stations under `rig`; once only.
@@ -80,7 +82,7 @@ func attach(rig: Node3D) -> void:
 			sounds = HubStationSounds.new(stations)
 			rig.add_child(sounds)
 	_camera = rig.get_node_or_null("Camera") as Camera3D
-	_aim = rig.get_node_or_null("RightHand") as XRController3D
+	aiming.rig = rig
 	launching.attach(_camera, room if room.is_built() else null)
 
 
@@ -245,13 +247,15 @@ func reason_text() -> String:
 	return panel.reason_text() if panel != null else ""
 
 
-## Hands the stations the right controller's aim ray in the room's space; a
-## controller that is not tracked points at nothing.
+## Hands the stations the aiming hand's ray in the room's space; a controller
+## that is not tracked points at nothing.
 func _point() -> void:
-	if _aim == null or not _aim.get_is_active() or room == null:
+	var held: Dictionary = aiming.pose()
+	if not bool(held["tracked"]) or room == null:
 		return
+	var aim: Transform3D = held["aim"]
 	var to_room: Transform3D = room.transform.affine_inverse()
-	stations.point(to_room * _aim.transform.origin, to_room.basis * -_aim.transform.basis.z)
+	stations.point(to_room * aim.origin, to_room.basis * -aim.basis.z)
 
 
 ## Saves the run's profile; a failure is logged and the hub stays usable.

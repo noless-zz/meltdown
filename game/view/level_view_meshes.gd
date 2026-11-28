@@ -15,11 +15,11 @@ extends RefCounted
 const AMBIENT_FORMAT: int = Mesh.ARRAY_CUSTOM_RGB_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
 
 
-## The material of a box's walls and frames: `LevelLook.wall_material` in the
+## The material of a box's walls and frames: `LevelLookMaterials.wall_material` in the
 ## wall tint, with the floor and ceiling tints for the shader to pick by face.
 ## The tints stay in `level_look.json` (ARC-4).
 static func kind_material(look: Dictionary, surface: Dictionary = {}) -> ShaderMaterial:
-	var material: ShaderMaterial = LevelLook.wall_material(look, look["wall_color"], surface)
+	var material: ShaderMaterial = LevelLookMaterials.wall_material(look, look["wall_color"], surface)
 	material.set_shader_parameter("tint_by_kind", true)
 	material.set_shader_parameter("floor_tint", look["floor_color"])
 	material.set_shader_parameter("ceiling_tint", look["ceiling_color"])
@@ -84,7 +84,7 @@ static func walls(node_name: String, lists: Array[Array], materials: Array[Mater
 		var normals: PackedVector3Array = PackedVector3Array()
 		var ambient: PackedFloat32Array = PackedFloat32Array()
 		for quad: Dictionary in drawn_quads(list, bake):
-			for corner: Vector3 in LevelView.triangles(quad):
+			for corner: Vector3 in quad_triangles(quad):
 				vertices.append(corner)
 				normals.append(quad["normal"])
 				if bake != null:

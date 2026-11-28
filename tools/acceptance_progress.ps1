@@ -30,7 +30,8 @@ function New-ProgressState {
 		$named = $Suite
 	}
 	return @{
-		Seen = 0
+		# Each event the earlier polls read, as text, oldest first (Get-NewEventStart).
+		Seen = New-Object System.Collections.Generic.List[string]
 		Named = $named
 		SuiteNumber = 0
 		Suite = $null
@@ -50,17 +51,18 @@ function Format-ProgressTime {
 # @{ Text; Color } with Color $null for the default. $Lines is the whole log so
 # far (each poll reads the headset's whole buffer); $Elapsed is the seconds
 # since the start. What counts is the step lines and whole report blocks seen,
-# not the line count, so other lines coming and going change nothing.
+# not the line count, so other lines coming and going change nothing. Every
+# step that ended since the last poll gets its line, however many there are.
 function Get-ProgressLines {
 	param([hashtable]$State, [string[]]$Lines, [double]$Elapsed)
 	$out = New-Object System.Collections.Generic.List[object]
 	$events = Get-ProgressEvents $Lines
-	if ($events.Count -lt $State.Seen) {
-		# The buffer was cleared or wrapped: what is there now is read from here on.
-		$State.Seen = $events.Count
+	$keys = New-Object System.Collections.Generic.List[string]
+	foreach ($entry in $events) {
+		$keys.Add($entry.Key)
 	}
 	$stamp = Format-ProgressTime $Elapsed
-	for ($i = $State.Seen; $i -lt $events.Count; $i++) {
+	for ($i = (Get-NewEventStart -Seen $State.Seen -Keys $keys); $i -lt $events.Count; $i++) {
 		$entry = $events[$i]
 		if ($entry.Report) {
 			Add-SuiteEndLines -State $State -Out $out -Block $entry.Report
@@ -68,8 +70,35 @@ function Get-ProgressLines {
 			Add-StepLine -State $State -Out $out -Id $entry.Id -Rest $entry.Rest -Stamp $stamp -Elapsed $Elapsed
 		}
 	}
-	$State.Seen = $events.Count
+	$State.Seen = $keys
 	return $out.ToArray()
+}
+
+# Where the events not seen before start in $Keys. On a busy headset the log
+# buffer drops its oldest lines between polls, so the events now held are the
+# tail of those seen plus the new ones: counting events from the front skipped
+# as many new steps as old lines were dropped (#1504: steps 4 to 12 of m1 never
+# got a line). So the longest tail of $Seen that $Keys starts with is found,
+# and what follows it is new. A cleared buffer shares no tail: all of it is new.
+function Get-NewEventStart {
+	param($Seen, $Keys)
+	for ($from = 0; $from -lt $Seen.Count; $from++) {
+		$shared = $Seen.Count - $from
+		if ($shared -gt $Keys.Count -or $Keys[0] -ne $Seen[$from]) {
+			continue
+		}
+		$same = $true
+		for ($i = 1; $i -lt $shared; $i++) {
+			if ($Keys[$i] -ne $Seen[$from + $i]) {
+				$same = $false
+				break
+			}
+		}
+		if ($same) {
+			return $shared
+		}
+	}
+	return 0
 }
 
 # The step lines (Id, Rest) and complete report blocks (Report: the block's
@@ -86,14 +115,14 @@ function Get-ProgressEvents {
 		if ($null -ne $block) {
 			$block.Add($line)
 			if ($line.IndexOf($script:ReportEnd) -ge 0) {
-				$events.Add(@{ Report = $block.ToArray() })
+				$events.Add(@{ Report = $block.ToArray(); Key = ($block -join "`n") })
 				$block = $null
 			}
 			continue
 		}
 		$match = [regex]::Match($line, $script:ProgressStepPattern)
 		if ($match.Success) {
-			$events.Add(@{ Report = $null; Id = $match.Groups[1].Value; Rest = $match.Groups[2].Value })
+			$events.Add(@{ Report = $null; Id = $match.Groups[1].Value; Rest = $match.Groups[2].Value; Key = $match.Value })
 		}
 	}
 	return , $events
